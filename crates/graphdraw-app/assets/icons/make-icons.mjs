@@ -83,6 +83,28 @@ const icons = {
   "lock-on": `<rect x="5" y="10.5" width="14" height="10" rx="1.5"/><path d="M8 10.5 V7.5 a4 4 0 0 1 8 0 V10.5"/>`,
   "lock-off": `<rect x="5" y="10.5" width="14" height="10" rx="1.5"/><path d="M8 10.5 V7.5 a4 4 0 0 1 7.7 -1.5"/>`,
   wireframe: `<path d="M12 4 L20.5 18.5 H3.5 Z" stroke-dasharray="2 2"/><circle cx="12" cy="13.5" r="2.2"/>`,
+  // ---- contorno: junção, terminação, posição, opções ----
+  // Junção: contorno de uma faixa grossa dobrada em ângulo, com a linha-guia fina no meio.
+  "join-miter": `<path d="M4 20.5 L12 8 L20 20.5" stroke-width="1" stroke-dasharray="1.4 1.4"/><path d="M0.8 18 L12 1.6 L23.2 18 M7.6 21 L12 14 L16.4 21"/>`,
+  "join-round": `<path d="M4 20.5 L12 8 L20 20.5" stroke-width="1" stroke-dasharray="1.4 1.4"/><path d="M0.8 18 L9.3 5.5 a3.3 3.3 0 0 1 5.4 0 L23.2 18 M7.6 21 L12 14 L16.4 21"/>`,
+  "join-bevel": `<path d="M4 20.5 L12 8 L20 20.5" stroke-width="1" stroke-dasharray="1.4 1.4"/><path d="M0.8 18 L9.3 5.5 H14.7 L23.2 18 M7.6 21 L12 14 L16.4 21"/>`,
+  // Terminação: faixa grossa até a linha-guia vertical (o fim geométrico).
+  "cap-butt": `<path d="M15 4 V20" stroke-width="1" stroke-dasharray="1.4 1.4"/><path d="M3 8.5 H15 V15.5 H3"/><path d="M3 12 H15" stroke-width="1"/>`,
+  "cap-round": `<path d="M15 4 V20" stroke-width="1" stroke-dasharray="1.4 1.4"/><path d="M3 8.5 H15 a3.5 3.5 0 0 1 0 7 H3"/><path d="M3 12 H15" stroke-width="1"/>`,
+  "cap-square": `<path d="M15 4 V20" stroke-width="1" stroke-dasharray="1.4 1.4"/><path d="M3 8.5 H18.5 V15.5 H3"/><path d="M3 12 H15" stroke-width="1"/>`,
+  // Posição: interior do objeto (claro, à esquerda), borda (linha) e faixa do contorno.
+  "pos-center": `<path d="M3 4 H13 V20 H3 Z" fill="#fff" stroke="none" opacity="0.3"/><path d="M13 3 V21"/><rect x="10" y="6" width="6" height="12" rx="0.8" stroke-dasharray="1.8 1.4"/>`,
+  "pos-inside": `<path d="M3 4 H13 V20 H3 Z" fill="#fff" stroke="none" opacity="0.3"/><path d="M13 3 V21"/><rect x="7" y="6" width="6" height="12" rx="0.8" stroke-dasharray="1.8 1.4"/>`,
+  "pos-outside": `<path d="M3 4 H13 V20 H3 Z" fill="#fff" stroke="none" opacity="0.3"/><path d="M13 3 V21"/><rect x="13" y="6" width="6" height="12" rx="0.8" stroke-dasharray="1.8 1.4"/>`,
+  // Opções: contorno atrás do preenchimento e contorno que escala com o objeto.
+  "behind-fill": `<rect x="4" y="4" width="11" height="11" rx="1" stroke-width="3"/><rect x="9" y="9" width="11" height="11" rx="1" fill="#fff"/>`,
+  "scale-stroke": `<rect x="3.5" y="12" width="7" height="7" rx="0.8"/><rect x="11" y="4.5" width="9.5" height="9.5" rx="1" stroke-width="3"/><path d="M8 10 L12.5 5.5 M10 5.5 H12.5 V8"/>`,
+  // ---- barra de páginas ----
+  "page-grid": `<rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/>`,
+  "page-list": `<path d="M4 6 H13 M4 11 H10 M4 16 H9"/><circle cx="16" cy="15" r="3.5"/><path d="M18.5 17.5 L21 20"/>`,
+  "page-prev": `<path d="M14.5 6 L8.5 12 L14.5 18"/>`,
+  "page-next": `<path d="M9.5 6 L15.5 12 L9.5 18"/>`,
+  "page-add": `<rect x="5" y="3.5" width="12" height="16" rx="1"/><path d="M18 14.5 V21.5 M14.5 18 H21.5"/>`,
   report: `<path d="M6 3.5 H18 V20.5 H6 Z M9 8 H15 M9 12 H15 M9 16 H12.5"/>`,
   history: `<circle cx="12" cy="12" r="8"/><path d="M12 7.5 V12 L15 14"/>`,
 };

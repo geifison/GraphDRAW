@@ -6,9 +6,11 @@
 
 mod app;
 mod canvas;
+mod dialogs;
 mod doc;
 mod i18n;
 mod icons;
+mod pagebar;
 mod panels;
 mod view;
 mod widgets;

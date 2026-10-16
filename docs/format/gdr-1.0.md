@@ -55,6 +55,10 @@ Membros desconhecidos devem ser preservados por quem regrava o arquivo.
 }
 ```
 
+Campos opcionais da página: `bleed` (sangria própria em µm; ausente = a de
+`settings`), `locked` (página bloqueada para edição) e `tagColor` (etiqueta
+de cor da aba, só para organização; não é impressa).
+
 ## Objetos
 
 Campos comuns: `id`, `type`, `name?`, `transform`, `fill?`, `stroke?`,

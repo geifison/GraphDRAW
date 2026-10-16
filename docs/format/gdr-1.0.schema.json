@@ -332,6 +332,9 @@
         "height": { "type": "number", "exclusiveMinimum": 0 },
         "background": { "$ref": "#/$defs/color" },
         "hideMaster": { "type": "boolean" },
+        "bleed": { "type": "number", "minimum": 0, "description": "Sangria própria em µm; ausente = settings.bleed." },
+        "locked": { "type": "boolean", "description": "Página bloqueada para edição." },
+        "tagColor": { "$ref": "#/$defs/color", "description": "Etiqueta de cor da aba (organização)." },
         "layers": { "type": "array", "items": { "$ref": "#/$defs/layer" } }
       }
     },

@@ -118,8 +118,8 @@ fn search(o: &Object, id: &str, path: &mut Vec<usize>) -> bool {
 impl Editor {
     /// Localiza um objeto pelo ID em qualquer profundidade.
     pub fn find(&self, id: &str) -> Option<ObjRef> {
-        for (p, page) in self.doc.data.pages.iter().enumerate() {
-            for (l, layer) in page.layers.iter().enumerate() {
+        for p in self.page_indices() {
+            for (l, layer) in self.layers(p).iter().enumerate() {
                 for (i, o) in layer.objects.iter().enumerate() {
                     let loc = ObjLoc {
                         page: p,

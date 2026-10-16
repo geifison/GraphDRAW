@@ -14,8 +14,38 @@
 //! - GD-UND-05: transações aninhadas viram um passo só.
 //! - GD-UND-06: seleção, zoom e rolagem ficam fora daqui (estado da interface).
 //! - GD-UND-07: "modificado" compara a posição atual com a do último salvamento.
+//!
+//! Cada transação também guarda os IDs das páginas que tocou, para o
+//! marcador de "página alterada" nas abas (GD-PGT-05).
+//!
+//! A página mestra (GD-CAM-02, GD-PGT-21) é endereçada pelo índice
+//! especial [`MASTER`]: objetos e camadas dela passam pelo mesmo registro.
+
+use std::collections::BTreeSet;
 
 use crate::model::{Document, Layer, Object, Page};
+
+/// Índice de página que designa a página mestra.
+pub const MASTER: usize = usize::MAX;
+
+/// Chave da página mestra no conjunto de páginas alteradas.
+pub const MASTER_KEY: &str = "master";
+
+fn layers_of(doc: &Document, page: usize) -> Option<&Vec<Layer>> {
+    if page == MASTER {
+        Some(&doc.data.master_page.layers)
+    } else {
+        doc.data.pages.get(page).map(|p| &p.layers)
+    }
+}
+
+fn layers_mut(doc: &mut Document, page: usize) -> &mut Vec<Layer> {
+    if page == MASTER {
+        &mut doc.data.master_page.layers
+    } else {
+        &mut doc.data.pages[page].layers
+    }
+}
 
 /// Posição de um objeto de primeiro nível: página, camada e índice (z-order).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -39,6 +69,23 @@ enum Change {
     RemoveLayer(usize, usize, Layer),
     /// Propriedades da camada (GD-CAM-01); os objetos não entram na troca.
     LayerProps(usize, usize, Layer, Layer),
+    /// Propriedades da página (nome, tamanho, sangria, bloqueio, etiqueta);
+    /// as camadas não entram na troca.
+    PageProps(usize, Page, Page),
+}
+
+/// A página sem as camadas (o que `PageProps` guarda).
+fn page_props(p: &Page) -> Page {
+    p.props_only()
+}
+
+/// Copia as propriedades de `src` para `dst`, mantendo as camadas de `dst`.
+fn copy_page_props(dst: &mut Page, src: &Page) {
+    let layers = std::mem::take(&mut dst.layers);
+    *dst = Page {
+        layers,
+        ..src.props_only()
+    };
 }
 
 /// Copia as propriedades de `src` para `dst`, mantendo os objetos de `dst`.
@@ -46,15 +93,23 @@ fn copy_layer_props(dst: &mut Layer, src: &Layer) {
     let objects = std::mem::take(&mut dst.objects);
     *dst = Layer {
         objects,
-        ..src.clone()
+        ..layer_props(src)
     };
 }
 
 /// A camada sem os objetos (o que `LayerProps` guarda).
 fn layer_props(l: &Layer) -> Layer {
+    // Campo a campo: `..l.clone()` copiaria todos os objetos só para descartá-los.
     Layer {
+        id: l.id.clone(),
+        name: l.name.clone(),
+        visible: l.visible,
+        printable: l.printable,
+        locked: l.locked,
+        color: l.color.clone(),
+        wireframe: l.wireframe,
         objects: Vec::new(),
-        ..l.clone()
+        extra: l.extra.clone(),
     }
 }
 
@@ -63,6 +118,8 @@ struct Transaction {
     id: u64,
     name: String,
     changes: Vec<Change>,
+    /// IDs das páginas tocadas (`MASTER_KEY` para a mestra).
+    pages: BTreeSet<String>,
 }
 
 pub const DEFAULT_UNDO_LIMIT: usize = 100;
@@ -77,6 +134,9 @@ pub struct Editor {
     saved_state: u64,
     limit: usize,
     revision: u64,
+    /// Páginas de passos já salvos que foram desfeitos e descartados por uma
+    /// ação nova: o documento salvo e o atual diferem nelas.
+    discarded: BTreeSet<String>,
 }
 
 impl Editor {
@@ -91,6 +151,7 @@ impl Editor {
             saved_state: 0,
             limit: DEFAULT_UNDO_LIMIT,
             revision: 0,
+            discarded: BTreeSet::new(),
         }
     }
 
@@ -110,6 +171,7 @@ impl Editor {
                 id: 0,
                 name: name.into(),
                 changes: Vec::new(),
+                pages: BTreeSet::new(),
             });
         }
         self.depth += 1;
@@ -134,7 +196,11 @@ impl Editor {
         t.id = self.next_id;
         self.next_id += 1;
         self.undo.push(t);
-        self.redo.clear();
+        for r in std::mem::take(&mut self.redo) {
+            if r.id <= self.saved_state {
+                self.discarded.extend(r.pages);
+            }
+        }
         self.trim();
     }
 
@@ -177,13 +243,34 @@ impl Editor {
         }
     }
 
+    fn page_key(&self, page: usize) -> Option<String> {
+        if page == MASTER {
+            Some(MASTER_KEY.into())
+        } else {
+            self.doc.data.pages.get(page).map(|p| p.id.clone())
+        }
+    }
+
     fn record(&mut self, c: Change) {
         self.revision += 1;
+        let key = match &c {
+            Change::InsertObject(l, _)
+            | Change::RemoveObject(l, _)
+            | Change::ReplaceObject(l, _, _) => self.page_key(l.page),
+            Change::InsertPage(_, p)
+            | Change::RemovePage(_, p)
+            | Change::ReplacePage(_, _, p)
+            | Change::PageProps(_, _, p) => Some(p.id.clone()),
+            Change::InsertLayer(p, _, _)
+            | Change::RemoveLayer(p, _, _)
+            | Change::LayerProps(p, _, _, _) => self.page_key(*p),
+        };
         let auto = self.open.is_none();
         if auto {
             self.begin("Editar");
         }
         let t = self.open.as_mut().unwrap();
+        t.pages.extend(key);
         // Arrasto: substituições seguidas do mesmo objeto viram uma só.
         if let (
             Change::ReplaceObject(loc, _, new),
@@ -205,25 +292,31 @@ impl Editor {
 
     // ---- alterações -----------------------------------------------------
 
+    /// Camadas da página (ou da mestra, com `MASTER`).
+    pub fn layers(&self, page: usize) -> &[Layer] {
+        layers_of(&self.doc, page).map_or(&[], |l| l.as_slice())
+    }
+
     pub fn objects(&self, page: usize, layer: usize) -> &[Object] {
-        &self.doc.data.pages[page].layers[layer].objects
+        &self.layers(page)[layer].objects
     }
 
     pub fn object(&self, loc: ObjLoc) -> Option<&Object> {
-        self.doc
-            .data
-            .pages
-            .get(loc.page)?
-            .layers
+        layers_of(&self.doc, loc.page)?
             .get(loc.layer)?
             .objects
             .get(loc.index)
     }
 
+    /// Índices de todas as páginas, com a mestra por último.
+    pub fn page_indices(&self) -> impl Iterator<Item = usize> + use<> {
+        (0..self.doc.data.pages.len()).chain(std::iter::once(MASTER))
+    }
+
     /// Localiza um objeto de primeiro nível pelo ID.
     pub fn locate(&self, id: &str) -> Option<ObjLoc> {
-        for (p, page) in self.doc.data.pages.iter().enumerate() {
-            for (l, layer) in page.layers.iter().enumerate() {
+        for p in self.page_indices() {
+            for (l, layer) in self.layers(p).iter().enumerate() {
                 if let Some(i) = layer.objects.iter().position(|o| o.id == id) {
                     return Some(ObjLoc {
                         page: p,
@@ -237,14 +330,14 @@ impl Editor {
     }
 
     pub fn insert_object(&mut self, loc: ObjLoc, obj: Object) {
-        let list = &mut self.doc.data.pages[loc.page].layers[loc.layer].objects;
+        let list = &mut layers_mut(&mut self.doc, loc.page)[loc.layer].objects;
         let i = loc.index.min(list.len());
         list.insert(i, obj.clone());
         self.record(Change::InsertObject(ObjLoc { index: i, ..loc }, obj));
     }
 
     pub fn remove_object(&mut self, loc: ObjLoc) -> Object {
-        let obj = self.doc.data.pages[loc.page].layers[loc.layer]
+        let obj = layers_mut(&mut self.doc, loc.page)[loc.layer]
             .objects
             .remove(loc.index);
         self.record(Change::RemoveObject(loc, obj.clone()));
@@ -252,7 +345,7 @@ impl Editor {
     }
 
     pub fn replace_object(&mut self, loc: ObjLoc, obj: Object) {
-        let slot = &mut self.doc.data.pages[loc.page].layers[loc.layer].objects[loc.index];
+        let slot = &mut layers_mut(&mut self.doc, loc.page)[loc.layer].objects[loc.index];
         if *slot == obj {
             return;
         }
@@ -287,6 +380,31 @@ impl Editor {
         page
     }
 
+    /// Move a página para outra posição (um passo só no histórico).
+    pub fn move_page(&mut self, from: usize, to: usize) {
+        if from == to || from >= self.doc.data.pages.len() {
+            return;
+        }
+        self.transaction("Mover página", |ed| {
+            let p = ed.remove_page(from);
+            ed.insert_page(to, p);
+        });
+    }
+
+    /// Altera propriedades da página sem tocar nas camadas e objetos.
+    pub fn edit_page(&mut self, index: usize, f: impl FnOnce(&mut Page)) {
+        let page = &mut self.doc.data.pages[index];
+        let old = page_props(page);
+        let mut new = old.clone();
+        f(&mut new);
+        new.layers = Vec::new();
+        if new == old {
+            return;
+        }
+        copy_page_props(page, &new);
+        self.record(Change::PageProps(index, old, new));
+    }
+
     pub fn replace_page(&mut self, index: usize, page: Page) {
         if self.doc.data.pages[index] == page {
             return;
@@ -298,14 +416,14 @@ impl Editor {
     // ---- camadas (GD-CAM-01, GD-CAM-03) --------------------------------------
 
     pub fn insert_layer(&mut self, page: usize, index: usize, layer: Layer) {
-        let layers = &mut self.doc.data.pages[page].layers;
+        let layers = layers_mut(&mut self.doc, page);
         let i = index.min(layers.len());
         layers.insert(i, layer.clone());
         self.record(Change::InsertLayer(page, i, layer));
     }
 
     pub fn remove_layer(&mut self, page: usize, index: usize) -> Layer {
-        let layer = self.doc.data.pages[page].layers.remove(index);
+        let layer = layers_mut(&mut self.doc, page).remove(index);
         self.record(Change::RemoveLayer(page, index, layer.clone()));
         layer
     }
@@ -313,7 +431,7 @@ impl Editor {
     /// Altera propriedades da camada (nome, visível, imprimível, bloqueada,
     /// cor, esboço) sem tocar nos objetos.
     pub fn edit_layer(&mut self, page: usize, index: usize, f: impl FnOnce(&mut Layer)) {
-        let layer = &mut self.doc.data.pages[page].layers[index];
+        let layer = &mut layers_mut(&mut self.doc, page)[index];
         let old = layer_props(layer);
         let mut new = old.clone();
         f(&mut new);
@@ -340,53 +458,55 @@ impl Editor {
 
     fn apply_inverse(&mut self, c: &Change) {
         self.revision += 1;
-        let pages = &mut self.doc.data.pages;
+        let doc = &mut self.doc;
         match c {
             Change::InsertObject(l, _) => {
-                pages[l.page].layers[l.layer].objects.remove(l.index);
+                layers_mut(doc, l.page)[l.layer].objects.remove(l.index);
             }
-            Change::RemoveObject(l, o) => pages[l.page].layers[l.layer]
+            Change::RemoveObject(l, o) => layers_mut(doc, l.page)[l.layer]
                 .objects
                 .insert(l.index, o.clone()),
             Change::ReplaceObject(l, old, _) => {
-                pages[l.page].layers[l.layer].objects[l.index] = old.clone()
+                layers_mut(doc, l.page)[l.layer].objects[l.index] = old.clone()
             }
             Change::InsertPage(i, _) => {
-                pages.remove(*i);
+                doc.data.pages.remove(*i);
             }
-            Change::RemovePage(i, p) => pages.insert(*i, p.clone()),
-            Change::ReplacePage(i, old, _) => pages[*i] = old.clone(),
+            Change::RemovePage(i, p) => doc.data.pages.insert(*i, p.clone()),
+            Change::ReplacePage(i, old, _) => doc.data.pages[*i] = old.clone(),
             Change::InsertLayer(p, i, _) => {
-                pages[*p].layers.remove(*i);
+                layers_mut(doc, *p).remove(*i);
             }
-            Change::RemoveLayer(p, i, l) => pages[*p].layers.insert(*i, l.clone()),
-            Change::LayerProps(p, i, old, _) => copy_layer_props(&mut pages[*p].layers[*i], old),
+            Change::RemoveLayer(p, i, l) => layers_mut(doc, *p).insert(*i, l.clone()),
+            Change::LayerProps(p, i, old, _) => copy_layer_props(&mut layers_mut(doc, *p)[*i], old),
+            Change::PageProps(i, old, _) => copy_page_props(&mut doc.data.pages[*i], old),
         }
     }
 
     fn apply(&mut self, c: &Change) {
         self.revision += 1;
-        let pages = &mut self.doc.data.pages;
+        let doc = &mut self.doc;
         match c {
-            Change::InsertObject(l, o) => pages[l.page].layers[l.layer]
+            Change::InsertObject(l, o) => layers_mut(doc, l.page)[l.layer]
                 .objects
                 .insert(l.index, o.clone()),
             Change::RemoveObject(l, _) => {
-                pages[l.page].layers[l.layer].objects.remove(l.index);
+                layers_mut(doc, l.page)[l.layer].objects.remove(l.index);
             }
             Change::ReplaceObject(l, _, new) => {
-                pages[l.page].layers[l.layer].objects[l.index] = new.clone()
+                layers_mut(doc, l.page)[l.layer].objects[l.index] = new.clone()
             }
-            Change::InsertPage(i, p) => pages.insert(*i, p.clone()),
+            Change::InsertPage(i, p) => doc.data.pages.insert(*i, p.clone()),
             Change::RemovePage(i, _) => {
-                pages.remove(*i);
+                doc.data.pages.remove(*i);
             }
-            Change::ReplacePage(i, _, new) => pages[*i] = new.clone(),
-            Change::InsertLayer(p, i, l) => pages[*p].layers.insert(*i, l.clone()),
+            Change::ReplacePage(i, _, new) => doc.data.pages[*i] = new.clone(),
+            Change::InsertLayer(p, i, l) => layers_mut(doc, *p).insert(*i, l.clone()),
             Change::RemoveLayer(p, i, _) => {
-                pages[*p].layers.remove(*i);
+                layers_mut(doc, *p).remove(*i);
             }
-            Change::LayerProps(p, i, _, new) => copy_layer_props(&mut pages[*p].layers[*i], new),
+            Change::LayerProps(p, i, _, new) => copy_layer_props(&mut layers_mut(doc, *p)[*i], new),
+            Change::PageProps(i, _, new) => copy_page_props(&mut doc.data.pages[*i], new),
         }
     }
 
@@ -452,6 +572,21 @@ impl Editor {
 
     pub fn mark_saved(&mut self) {
         self.saved_state = self.state();
+        self.discarded.clear();
+    }
+
+    /// IDs das páginas (e `MASTER_KEY`) em que o documento atual difere do
+    /// último salvo (GD-PGT-05).
+    pub fn dirty_pages(&self) -> BTreeSet<String> {
+        let saved = self.saved_state;
+        let mut out = self.discarded.clone();
+        for t in self.undo.iter().filter(|t| t.id > saved) {
+            out.extend(t.pages.iter().cloned());
+        }
+        for t in self.redo.iter().filter(|t| t.id <= saved) {
+            out.extend(t.pages.iter().cloned());
+        }
+        out
     }
 
     pub fn is_modified(&self) -> bool {
@@ -618,6 +753,24 @@ mod tests {
         assert_eq!(layers[0].objects.len(), 1, "objetos intactos");
         ed.goto(5);
         assert_eq!(ed.doc.data.pages[0].layers[0].name, "Fundo");
+    }
+
+    #[test]
+    fn page_props_keep_objects() {
+        let mut ed = Editor::new(doc());
+        ed.insert_object(at(0), rect(0.0));
+        ed.edit_page(0, |p| {
+            p.name = Some("Capa".into());
+            p.locked = true;
+            p.width = 500.0;
+        });
+        let p = &ed.doc.data.pages[0];
+        assert_eq!(p.name.as_deref(), Some("Capa"));
+        assert_eq!(p.object_count(), 1);
+        ed.undo();
+        let p = &ed.doc.data.pages[0];
+        assert!(!p.locked && p.name.is_none() && p.width == 100.0);
+        assert_eq!(p.object_count(), 1);
     }
 
     #[test]

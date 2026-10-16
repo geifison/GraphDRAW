@@ -83,6 +83,15 @@ pub struct Page {
     pub background: Option<Color>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub hide_master: bool,
+    /// Sangria própria em µm (GD-PGT-16); `None` = a do documento.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bleed: Option<f64>,
+    /// Página bloqueada: nada nela é selecionável ou editável (GD-PGT-18).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub locked: bool,
+    /// Etiqueta de cor da aba (GD-PGT-20).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tag_color: Option<Color>,
     #[serde(default)]
     pub layers: Vec<Layer>,
     #[serde(flatten)]
@@ -90,6 +99,28 @@ pub struct Page {
 }
 
 impl Page {
+    /// Cópia só das propriedades (sem camadas nem objetos).
+    pub fn props_only(&self) -> Page {
+        Page {
+            id: self.id.clone(),
+            name: self.name.clone(),
+            width: self.width,
+            height: self.height,
+            background: self.background.clone(),
+            hide_master: self.hide_master,
+            bleed: self.bleed,
+            locked: self.locked,
+            tag_color: self.tag_color.clone(),
+            layers: Vec::new(),
+            extra: self.extra.clone(),
+        }
+    }
+
+    /// Quantidade de objetos de primeiro nível em todas as camadas.
+    pub fn object_count(&self) -> usize {
+        self.layers.iter().map(|l| l.objects.len()).sum()
+    }
+
     pub fn new(width: f64, height: f64) -> Page {
         Page {
             id: new_id(),
@@ -98,6 +129,9 @@ impl Page {
             height,
             background: None,
             hide_master: false,
+            bleed: None,
+            locked: false,
+            tag_color: None,
             layers: vec![Layer::new("Camada 1")],
             extra: Map::new(),
         }

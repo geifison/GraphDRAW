@@ -217,24 +217,6 @@ fn convert_model(c: &Color, model: &str) -> Color {
     }
 }
 
-/// Botão de cor com popup de edição. Devolve a cor nova quando alterada.
-pub fn color_button(ui: &mut egui::Ui, color: Option<&Color>, tip: &str) -> Option<Color> {
-    let resp = swatch(ui, color, 20.0).on_hover_text(tip);
-    let mut out = None;
-    egui::Popup::from_toggle_button_response(&resp)
-        .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
-        .show(|ui| {
-            ui.set_min_width(240.0);
-            let base = color
-                .cloned()
-                .unwrap_or_else(|| Color::cmyk(0.0, 0.0, 0.0, 1.0));
-            if let Some(c) = color_editor(ui, &base) {
-                out = Some(c);
-            }
-        });
-    out
-}
-
 /// Paleta padrão (cores próprias, em CMYK para produção).
 pub fn palette() -> Vec<Color> {
     let cmyk = |c: f64, m: f64, y: f64, k: f64| Color::cmyk(c, m, y, k);

@@ -63,6 +63,10 @@ pub struct App {
     status: String,
     /// Deslocamento das setas (GD-FER-01): normal e com Shift.
     nudge: (f64, f64),
+    /// Janela de contorno ou preenchimento aberta.
+    style_dlg: Option<crate::dialogs::StyleDialog>,
+    /// Barra de páginas em abas (doc 21).
+    page_bar: crate::pagebar::PageBar,
 }
 
 impl App {
@@ -90,6 +94,8 @@ impl App {
             show_keys: false,
             status: String::new(),
             nudge: (1_000.0, 10_000.0),
+            style_dlg: None,
+            page_bar: Default::default(),
         };
         if let Some(p) = initial {
             app.start_open(p, &cc.egui_ctx);
@@ -225,7 +231,19 @@ impl App {
         }
     }
 
+    /// Exporta a página atual (formatos de uma página) ou o documento (PDF).
     fn export(&mut self, format: ExportFormat) {
+        let Some(doc) = &self.doc else { return };
+        let pages = if format.single_page() {
+            vec![doc.last_page]
+        } else {
+            Vec::new()
+        };
+        self.export_pages(format, pages);
+    }
+
+    /// Exporta as páginas dadas (vazio = todas), GD-PGT-19.
+    fn export_pages(&mut self, format: ExportFormat, pages: Vec<usize>) {
         let Some(doc) = &self.doc else { return };
         let stem = doc
             .path
@@ -234,11 +252,10 @@ impl App {
             .map(|s| s.to_string_lossy().into_owned())
             .unwrap_or_else(|| tr("desenho", "drawing").into());
         let ext = format.extension();
-        let many = format.single_page() && doc.doc().data.pages.len() > 1;
-        let name = if many {
-            format!("{stem}-{}.{ext}", doc.page + 1)
-        } else {
-            format!("{stem}.{ext}")
+        let many = doc.doc().data.pages.len() > 1;
+        let name = match pages.as_slice() {
+            [one] if many => format!("{stem}-{}.{ext}", one + 1),
+            _ => format!("{stem}.{ext}"),
         };
         let Some(out) = rfd::FileDialog::new()
             .set_file_name(&name)
@@ -248,11 +265,7 @@ impl App {
             return;
         };
         let opts = ExportOptions {
-            pages: if format.single_page() {
-                vec![doc.page]
-            } else {
-                Vec::new()
-            },
+            pages,
             dpi: doc.doc().data.settings.resolution,
             ..Default::default()
         };
@@ -348,6 +361,15 @@ impl App {
             }
             if let Some(new_sel) = f(&mut d.editor, &sel) {
                 d.selection = new_sel;
+            }
+        }
+    }
+
+    fn page_actions(&mut self, acts: Vec<crate::pagebar::PageAction>) {
+        for a in acts {
+            match a {
+                crate::pagebar::PageAction::Switched => self.canvas.fit_pending = true,
+                crate::pagebar::PageAction::Export(f, pages) => self.export_pages(f, pages),
             }
         }
     }
@@ -569,19 +591,6 @@ impl App {
             }
             if pressed(Key::Minus) {
                 self.zoom_center(0.8);
-            }
-            if pressed(Key::PageDown)
-                && let Some(d) = &mut self.doc
-            {
-                d.set_page(d.page + 1);
-                self.canvas.fit_pending = true;
-            }
-            if pressed(Key::PageUp)
-                && let Some(d) = &mut self.doc
-                && d.page > 0
-            {
-                d.set_page(d.page - 1);
-                self.canvas.fit_pending = true;
             }
         }
         let _ = keys;
@@ -1020,21 +1029,27 @@ impl App {
         });
     }
 
-    fn status_bar(&self, ui: &mut egui::Ui) {
+    fn status_bar(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             if self.loading.is_some() {
                 ui.spinner();
             }
             if let Some(d) = &self.doc {
                 let (w, h) = d.page_size();
-                ui.label(format!(
-                    "{} {}/{} · {} × {} mm",
-                    tr("Página", "Page"),
-                    d.page + 1,
-                    d.doc().data.pages.len(),
-                    fmt_mm(w),
-                    fmt_mm(h)
-                ));
+                let which = if d.is_master() {
+                    tr("Página mestra", "Master page").to_string()
+                } else {
+                    format!(
+                        "{} {}/{}",
+                        tr("Página", "Page"),
+                        d.page + 1,
+                        d.doc().data.pages.len()
+                    )
+                };
+                ui.label(format!("{which} · {} × {} mm", fmt_mm(w), fmt_mm(h)));
+                if d.page_locked() {
+                    ui.label(tr("· bloqueada", "· locked"));
+                }
                 ui.separator();
                 ui.label(format!(
                     "{} {:.0}%",
@@ -1069,10 +1084,23 @@ impl App {
                 ui.separator();
                 ui.label(&self.status);
             }
+            // Preenchimento e contorno atuais, à direita (GD-UI-01).
+            if let Some(d) = &self.doc {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if let Some(dlg) = crate::dialogs::status_indicators(ui, d, &self.defaults) {
+                        self.style_dlg = Some(dlg);
+                    }
+                });
+            }
         });
     }
 
     fn dialogs(&mut self, ctx: &egui::Context) {
+        if let (Some(dlg), Some(doc)) = (&mut self.style_dlg, &mut self.doc)
+            && dlg.show(ctx, doc, &mut self.defaults)
+        {
+            self.style_dlg = None;
+        }
         if let Some((title, body)) = self.message.clone() {
             egui::Window::new(title)
                 .collapsible(false)
@@ -1249,11 +1277,22 @@ impl eframe::App for App {
             )));
         }
         self.shortcuts(&ctx);
+        if let Some(d) = &mut self.doc {
+            d.sync();
+            let acts = self.page_bar.shortcuts(&ctx, d);
+            self.page_actions(acts);
+        }
 
         egui::Panel::top("menu").show(ui, |ui| self.menu(ui));
         egui::Panel::top("padrao").show(ui, |ui| self.standard_toolbar(ui));
         egui::Panel::top("propriedades").show(ui, |ui| self.property_bar(ui));
         egui::Panel::bottom("status").show(ui, |ui| self.status_bar(ui));
+        egui::Panel::bottom("paginas").show(ui, |ui| {
+            if let Some(d) = &mut self.doc {
+                let acts = self.page_bar.show(ui, d);
+                self.page_actions(acts);
+            }
+        });
         egui::Panel::bottom("paleta").show(ui, |ui| self.palette_bar(ui));
         egui::Panel::left("ferramentas")
             .resizable(false)

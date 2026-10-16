@@ -159,6 +159,7 @@ só traduz gestos em chamadas destas funções.
 | Módulo | Papel | Requisitos |
 |---|---|---|
 | `history` | `Editor`: documento + registro de alterações reversíveis por transação (só o "antes" e o "depois" de cada objeto, camada ou página tocados, nunca o documento inteiro). Arrastos viram um passo. | doc 12 (GD-UND-01..08), GD-CAM-01 |
+| `pages` | Operações da barra de abas: nova página após a atual, duplicar com IDs novos, mover em bloco, excluir mantendo ao menos uma. A página mestra é endereçada pelo índice `MASTER` no `Editor`, então objetos e camadas dela usam o mesmo histórico. | GD-PGT-03, 11..15, 21 |
 | `tree` | `ObjRef` = posição do objeto de primeiro nível + caminho de índices até o filho. Alterar um filho substitui o objeto de primeiro nível no histórico, então grupos não precisam de tipo de alteração próprio. | GD-SEL-02 |
 | `ops` | Operações sobre a seleção (lista ordenada de IDs, em qualquer nível): transformar em coordenadas da página (convertidas para o espaço do pai), alinhar, ordem, agrupar/desagrupar, duplicar, excluir, mover para camada, preenchimento/contorno (num grupo valem para o conteúdo). | GD-TRF-01/02, GD-ALI-01/02, GD-ORD-01, GD-CAM-03, GD-FIL-01/02, GD-OUT-01..04 |
 | `nodes`, `convert` | Edição de nós e conversão de primitivas em curvas. | GD-NOD-01..05, GD-CNV-01 (parcial) |
@@ -184,6 +185,13 @@ aviso de alterações não salvas (GD-UND-07) e exporta SVG/PDF/PNG.
 - `doc.rs`: documento aberto, seleção (fora do histórico, GD-UND-06),
   camada ativa (por ID) e cache da cena.
 - `panels.rs`: barra de propriedades e painéis.
+- `pagebar.rs`: barra de páginas em abas (doc 21, GD-PGT-*). A seleção de
+  abas guarda IDs de página, para sobreviver a reordenar e desfazer. O
+  marcador `*` vem de `Editor::dirty_pages`: cada transação registra as
+  páginas que tocou, e o conjunto é a diferença entre a posição atual e a do
+  último salvamento no histórico.
+- `dialogs.rs`: janelas de contorno e preenchimento, abertas pelos
+  indicadores da barra de status.
 - `icons.rs` + `assets/icons/make-icons.mjs`: ícones próprios do projeto,
   gerados de uma tabela única (grade 24×24, traço 1,75 px, monocromáticos).
 
@@ -236,6 +244,7 @@ Em Linux: `apt install libcdr-dev librevenge-dev pkg-config g++` e o mesmo
 | GD-TRF-01/02, GD-ALI-01/02, GD-ORD-01 | `ops::tests::gd_trf_*`, `gd_ali_*`, `gd_ord_01_ordering` |
 | GD-TRF-04 / GD-UI-11 | `units::tests::gd_trf_04_expressions` |
 | GD-SNP-01/02 | `snap::tests::gd_snp_01_objects_page_grid_priority` |
+| GD-PGT-03, 05, 11..15, 21 | `pages::tests::*`, `history::tests::page_props_keep_objects`, `pagebar::tests::*` (app) |
 | GD-OUT-04 | `tests/stroke_position.rs`, `tests/m1_editing.rs` |
 | GD-CAM-01 (esboço), GD-CAM-03 | `tests/m1_editing.rs`, `ops::tests::gd_cam_03_move_to_layer`, `history::tests::layers_undo` |
 | Zoom/pan do editor | `graphdraw-app/src/view.rs` (testes de unidade) |

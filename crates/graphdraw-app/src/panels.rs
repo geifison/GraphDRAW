@@ -5,7 +5,7 @@ use eframe::egui::{self, Vec2};
 use graphdraw_core::edit::nodes::{self, NodeRef};
 use graphdraw_core::edit::ops::{self, Align, AlignTo, Anchor, Order};
 use graphdraw_core::geometry::SegRef;
-use graphdraw_core::model::{Corner, Fill, NodeKind, ObjectKind, Page, Stroke};
+use graphdraw_core::model::{Corner, Fill, NodeKind, ObjectKind};
 use graphdraw_core::report::Severity;
 use kurbo::{Point, Vec2 as KVec2};
 
@@ -14,7 +14,7 @@ use crate::canvas::{Tool, single_path};
 use crate::doc::DocState;
 use crate::i18n::tr;
 use crate::icons;
-use crate::widgets::{self, color_button, fmt_mm, length_field, number_field, swatch};
+use crate::widgets::{self, fmt_mm, length_field, number_field, swatch};
 
 /// Seletor do ponto de referência (9 âncoras, GD-TRF-01).
 pub fn anchor_picker(ui: &mut egui::Ui, anchor: &mut Anchor) {
@@ -70,8 +70,6 @@ impl App {
                 }
                 Tool::Select => select_bar(ui, doc, &mut self.anchor, &mut self.lock_ratio),
             }
-            ui.separator();
-            style_controls(ui, doc, &mut self.defaults);
         });
     }
 
@@ -421,220 +419,6 @@ fn ellipse_label(m: &str) -> &'static str {
         "arc" => tr("Arco", "Arc"),
         "pie" => tr("Fatia", "Pie"),
         _ => tr("Elipse", "Ellipse"),
-    }
-}
-
-/// Preenchimento e contorno da seleção — ou dos próximos objetos, se nada
-/// estiver selecionado (GD-FIL-01/02, GD-OUT-01..04).
-fn style_controls(ui: &mut egui::Ui, doc: &mut DocState, defaults: &mut crate::canvas::Defaults) {
-    let sel = doc.selection.clone();
-    let first = doc
-        .selected_objects()
-        .into_iter()
-        .find(|o| !matches!(o.kind, ObjectKind::Group(_) | ObjectKind::Image(_)))
-        .cloned();
-    let editing_defaults = sel.is_empty();
-    let (fill, stroke) = match &first {
-        Some(o) => (o.fill.clone(), o.stroke.clone()),
-        None => (defaults.fill.clone(), defaults.stroke.clone()),
-    };
-    if editing_defaults {
-        ui.label(tr("Novos objetos:", "New objects:"));
-    }
-    // Preenchimento.
-    ui.label(tr("Preench.", "Fill"));
-    let fill_color = match &fill {
-        Some(Fill::Solid { color, .. }) => Some(color.clone()),
-        _ => None,
-    };
-    if let Some(c) = color_button(
-        ui,
-        fill_color.as_ref(),
-        tr("Cor do preenchimento", "Fill color"),
-    ) {
-        let f = Some(Fill::solid(c));
-        if editing_defaults {
-            defaults.fill = f
-        } else {
-            ops::set_fill(&mut doc.editor, &sel, f)
-        }
-    }
-    if icons::button(
-        ui,
-        "fill-none",
-        tr("Sem preenchimento", "No fill"),
-        fill_color.is_none(),
-        true,
-    )
-    .clicked()
-    {
-        if editing_defaults {
-            defaults.fill = None
-        } else {
-            ops::set_fill(&mut doc.editor, &sel, Some(Fill::None))
-        }
-    }
-    ui.separator();
-    // Contorno.
-    ui.label(tr("Contorno", "Outline"));
-    let s = stroke.clone();
-    if let Some(c) = color_button(
-        ui,
-        s.as_ref().map(|s| &s.color),
-        tr("Cor do contorno", "Outline color"),
-    ) {
-        apply_stroke(doc, defaults, &sel, editing_defaults, move |st| {
-            st.color = c.clone()
-        });
-    }
-    if icons::button(
-        ui,
-        "stroke-none",
-        tr("Sem contorno", "No outline"),
-        s.is_none(),
-        true,
-    )
-    .clicked()
-    {
-        if editing_defaults {
-            defaults.stroke = None
-        } else {
-            ops::set_stroke(&mut doc.editor, &sel, None)
-        }
-    }
-    let width = s.as_ref().map_or(0.0, |s| s.width);
-    if let Some(w) = length_field(ui, "espessura", width, None) {
-        apply_stroke(doc, defaults, &sel, editing_defaults, move |st| {
-            st.width = w.max(0.0)
-        });
-    }
-    let Some(st) = s else { return };
-    let dash_kind = match &st.dash {
-        None => 0,
-        Some(d) if d.first().is_some_and(|v| *v <= st.width.max(1.0) * 1.01) => 2,
-        Some(_) => 1,
-    };
-    let mut dk = dash_kind;
-    egui::ComboBox::from_id_salt("tracejado")
-        .selected_text(
-            [
-                tr("Sólido", "Solid"),
-                tr("Tracejado", "Dashed"),
-                tr("Pontilhado", "Dotted"),
-            ][dk],
-        )
-        .width(80.0)
-        .show_ui(ui, |ui| {
-            ui.selectable_value(&mut dk, 0, tr("Sólido", "Solid"));
-            ui.selectable_value(&mut dk, 1, tr("Tracejado", "Dashed"));
-            ui.selectable_value(&mut dk, 2, tr("Pontilhado", "Dotted"));
-        });
-    if dk != dash_kind {
-        apply_stroke(doc, defaults, &sel, editing_defaults, move |st| {
-            let w = st.width.max(250.0);
-            st.dash = match dk {
-                1 => Some(vec![w * 4.0, w * 2.0]),
-                2 => Some(vec![w, w * 2.0]),
-                _ => None,
-            };
-            if dk == 2 {
-                st.cap = "round".into();
-            }
-        });
-    }
-    let mut join = st.join.clone();
-    egui::ComboBox::from_id_salt("juncao")
-        .selected_text(join_label(&join))
-        .width(84.0)
-        .show_ui(ui, |ui| {
-            for j in ["miter", "round", "bevel"] {
-                ui.selectable_value(&mut join, j.to_string(), join_label(j));
-            }
-        })
-        .response
-        .on_hover_text(tr("Junção", "Join"));
-    if join != st.join {
-        apply_stroke(doc, defaults, &sel, editing_defaults, move |s| {
-            s.join = join.clone()
-        });
-    }
-    let mut cap = st.cap.clone();
-    egui::ComboBox::from_id_salt("terminacao")
-        .selected_text(cap_label(&cap))
-        .width(84.0)
-        .show_ui(ui, |ui| {
-            for c in ["butt", "round", "square"] {
-                ui.selectable_value(&mut cap, c.to_string(), cap_label(c));
-            }
-        })
-        .response
-        .on_hover_text(tr("Terminação", "Cap"));
-    if cap != st.cap {
-        apply_stroke(doc, defaults, &sel, editing_defaults, move |s| {
-            s.cap = cap.clone()
-        });
-    }
-    let mut pos = st.position.clone();
-    egui::ComboBox::from_id_salt("posicao")
-        .selected_text(pos_label(&pos))
-        .width(84.0)
-        .show_ui(ui, |ui| {
-            for p in ["center", "inside", "outside"] {
-                ui.selectable_value(&mut pos, p.to_string(), pos_label(p));
-            }
-        })
-        .response
-        .on_hover_text(tr(
-            "Posição do contorno em relação à borda (curvas abertas usam sempre centrado)",
-            "Outline position relative to the edge (open curves always use center)",
-        ));
-    if pos != st.position {
-        apply_stroke(doc, defaults, &sel, editing_defaults, move |s| {
-            s.position = pos.clone()
-        });
-    }
-}
-
-fn apply_stroke(
-    doc: &mut DocState,
-    defaults: &mut crate::canvas::Defaults,
-    sel: &[String],
-    editing_defaults: bool,
-    f: impl Fn(&mut Stroke),
-) {
-    if editing_defaults {
-        let mut s = defaults
-            .stroke
-            .clone()
-            .unwrap_or_else(crate::doc::default_stroke);
-        f(&mut s);
-        defaults.stroke = Some(s);
-    } else {
-        ops::edit_stroke(&mut doc.editor, sel, f);
-    }
-}
-
-fn join_label(j: &str) -> &'static str {
-    match j {
-        "round" => tr("Redonda", "Round"),
-        "bevel" => tr("Chanfrada", "Bevel"),
-        _ => tr("Aguda", "Miter"),
-    }
-}
-
-fn cap_label(c: &str) -> &'static str {
-    match c {
-        "round" => tr("Redonda", "Round"),
-        "square" => tr("Quadrada", "Square"),
-        _ => tr("Reta", "Butt"),
-    }
-}
-
-fn pos_label(p: &str) -> &'static str {
-    match p {
-        "inside" => tr("Interno", "Inside"),
-        "outside" => tr("Externo", "Outside"),
-        _ => tr("Centrado", "Center"),
     }
 }
 
@@ -1210,62 +994,53 @@ fn history_panel(ui: &mut egui::Ui, doc: &mut DocState) {
     }
 }
 
-/// Páginas (GD-PAG-01, GD-PAG-03 básico). Devolve `true` ao trocar de página.
+/// Páginas (GD-PAG-01, GD-PAG-03). Usa as mesmas operações da barra de
+/// abas. Devolve `true` ao trocar de página.
 fn pages_panel(ui: &mut egui::Ui, doc: &mut DocState) -> bool {
+    use graphdraw_core::edit::pages;
     let mut switch = None;
     let n = doc.doc().data.pages.len();
     for (i, p) in doc.doc().data.pages.iter().enumerate() {
         let label = format!(
             "{}. {}\n{} × {} mm",
             i + 1,
-            p.name
-                .clone()
-                .unwrap_or_else(|| format!("{} {}", tr("Página", "Page"), i + 1)),
+            pages::display_name(p, i),
             fmt_mm(p.width),
             fmt_mm(p.height)
         );
-        if ui.selectable_label(i == doc.page, label).clicked() {
+        if ui
+            .selectable_label(!doc.is_master() && i == doc.page, label)
+            .clicked()
+        {
             switch = Some(i);
         }
     }
     ui.separator();
+    if doc.is_master() {
+        ui.weak(tr(
+            "Editando a página mestra: o tamanho exibido é o da última página aberta.",
+            "Editing the master page: the size shown is that of the last open page.",
+        ));
+        if let Some(i) = switch {
+            doc.set_page(i);
+            return true;
+        }
+        return false;
+    }
     let cur = doc.page;
     ui.horizontal_wrapped(|ui| {
         if ui.button(tr("+ Página", "+ Page")).clicked() {
-            let (w, h) = doc.page_size();
-            let mut p = Page::new(w, h);
-            p.name = Some(format!("{} {}", tr("Página", "Page"), n + 1));
-            doc.editor
-                .transaction(tr("Inserir página", "Insert page"), |ed| {
-                    ed.insert_page(cur + 1, p)
-                });
-            switch = Some(cur + 1);
+            switch = Some(pages::add_after(&mut doc.editor, cur));
         }
         if ui.button(tr("Duplicar", "Duplicate")).clicked() {
-            let mut p = doc.page().clone();
-            p.id = graphdraw_core::model::new_id();
-            for l in &mut p.layers {
-                l.id = graphdraw_core::model::new_id();
-                for o in &mut l.objects {
-                    ops::renew_ids(o);
-                }
-            }
-            doc.editor
-                .transaction(tr("Duplicar página", "Duplicate page"), |ed| {
-                    ed.insert_page(cur + 1, p)
-                });
-            switch = Some(cur + 1);
+            switch = Some(pages::duplicate(&mut doc.editor, cur, cur + 1));
         }
         if ui
             .add_enabled(n > 1, egui::Button::new(tr("Excluir", "Delete")))
             .clicked()
         {
-            doc.editor
-                .transaction(tr("Excluir página", "Delete page"), |ed| {
-                    ed.remove_page(cur);
-                });
-            doc.page = cur.min(n - 2);
-            doc.selection.clear();
+            pages::delete(&mut doc.editor, &[cur]);
+            doc.sync();
             switch = Some(doc.page);
         }
     });
@@ -1303,17 +1078,17 @@ fn pages_panel(ui: &mut egui::Ui, doc: &mut DocState) -> bool {
         }
     });
     if nw.is_some() || nh.is_some() {
-        let mut p = doc.page().clone();
-        p.width = nw.unwrap_or(w).max(1000.0);
-        p.height = nh.unwrap_or(h).max(1000.0);
+        let (w2, h2) = (nw.unwrap_or(w).max(1000.0), nh.unwrap_or(h).max(1000.0));
         doc.editor
             .transaction(tr("Tamanho da página", "Page size"), |ed| {
-                ed.replace_page(cur, p)
+                ed.edit_page(cur, |p| {
+                    p.width = w2;
+                    p.height = h2;
+                })
             });
     }
     if let Some(i) = switch {
         doc.set_page(i.min(doc.doc().data.pages.len() - 1));
-        doc.page = i.min(doc.doc().data.pages.len() - 1);
         return true;
     }
     false

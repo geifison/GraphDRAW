@@ -258,7 +258,7 @@ impl CanvasState {
         }));
         o.fill = if close { defaults.fill.clone() } else { None };
         o.stroke = defaults.stroke.clone();
-        if let Some(layer) = doc.active_layer() {
+        if let Some(layer) = doc.layer_for_new_object() {
             let id = ops::add_object(
                 &mut doc.editor,
                 doc.page,
@@ -343,6 +343,15 @@ impl CanvasState {
         }
         self.cursor_page = hover.filter(|p| rect.contains(*p)).map(to_page);
         let tol = 5.0 / self.view.zoom; // 5 px em µm
+        // Página bloqueada (GD-PGT-18): só zoom e mão funcionam.
+        let blocked = doc.page_locked() && !matches!(tool, Tool::Zoom | Tool::Pan);
+        let locked_msg = || {
+            tr(
+                "Página bloqueada: desbloqueie pelo menu da aba para editar",
+                "Page locked: unlock it from the tab menu to edit",
+            )
+            .to_string()
+        };
 
         // ---- ferramentas ----
         if response.drag_started_by(PointerButton::Primary) {
@@ -351,6 +360,8 @@ impl CanvasState {
                 .unwrap_or(rect.center());
             if panning_tool {
                 self.drag = Drag::Pan;
+            } else if blocked {
+                ev.status = Some(locked_msg());
             } else {
                 self.start_drag(
                     tool,
@@ -377,8 +388,12 @@ impl CanvasState {
                 .unwrap_or(rect.center());
             self.end_drag(doc, to_page(end), end, mods, rect, ph, defaults);
         }
+        if response.clicked() && blocked {
+            ev.status = Some(locked_msg());
+        }
         if response.clicked()
             && !panning_tool
+            && !blocked
             && let Some(pos) = response.interact_pointer_pos()
         {
             self.click(
@@ -402,6 +417,7 @@ impl CanvasState {
         }
         if response.double_clicked()
             && !panning_tool
+            && !blocked
             && let Some(pos) = response.interact_pointer_pos()
         {
             self.double_click(tool, doc, to_page(pos), tol, defaults, &mut ev);
@@ -1289,7 +1305,7 @@ impl CanvasState {
                     };
                     o.fill = defaults.fill.clone();
                     o.stroke = defaults.stroke.clone();
-                    if let Some(layer) = doc.active_layer() {
+                    if let Some(layer) = doc.layer_for_new_object() {
                         let name = if ellipse {
                             tr("Criar elipse", "Create ellipse")
                         } else {
