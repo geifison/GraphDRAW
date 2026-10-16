@@ -5,3 +5,6 @@
 *.jpg binary
 *.gdr binary
 *.cdr binary
+*.cmx binary
+*.pdf binary
+*.ico binary
