@@ -55,6 +55,7 @@ pub struct Editor {
     next_id: u64,
     saved_state: u64,
     limit: usize,
+    revision: u64,
 }
 
 impl Editor {
@@ -68,6 +69,7 @@ impl Editor {
             next_id: 1,
             saved_state: 0,
             limit: DEFAULT_UNDO_LIMIT,
+            revision: 0,
         }
     }
 
@@ -137,6 +139,12 @@ impl Editor {
         r
     }
 
+    /// Muda a cada alteração do documento (inclusive desfazer/refazer);
+    /// usado pela interface para invalidar caches.
+    pub fn revision(&self) -> u64 {
+        self.revision
+    }
+
     pub fn in_transaction(&self) -> bool {
         self.depth > 0
     }
@@ -149,6 +157,7 @@ impl Editor {
     }
 
     fn record(&mut self, c: Change) {
+        self.revision += 1;
         let auto = self.open.is_none();
         if auto {
             self.begin("Editar");
@@ -268,6 +277,7 @@ impl Editor {
     // ---- desfazer/refazer -------------------------------------------------
 
     fn apply_inverse(&mut self, c: &Change) {
+        self.revision += 1;
         let pages = &mut self.doc.data.pages;
         match c {
             Change::InsertObject(l, _) => {
@@ -288,6 +298,7 @@ impl Editor {
     }
 
     fn apply(&mut self, c: &Change) {
+        self.revision += 1;
         let pages = &mut self.doc.data.pages;
         match c {
             Change::InsertObject(l, o) => pages[l.page].layers[l.layer]
