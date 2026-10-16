@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::f64::consts::PI;
 use std::sync::{Arc, Mutex, OnceLock};
 
-use kurbo::{Affine, Arc as KArc, BezPath, Ellipse, PathEl, Point, Shape, Vec2};
+use kurbo::{Affine, Arc as KArc, BezPath, PathEl, Point, Shape, Vec2};
 
 use super::text::{TextLayout, layout_text};
 use crate::model::geom::subpaths_to_bez;
@@ -354,8 +354,9 @@ fn resolve_stroke(s: &Stroke, m: Affine, alpha: f64) -> StrokeStyle {
     }
 }
 
-/// Constante para aproximar quarto de círculo com Bézier cúbica.
-const KAPPA: f64 = 0.552_284_749_830_793_4;
+/// Constante para aproximar quarto de círculo com Bézier cúbica: valor de
+/// menor erro radial máximo (≈0,02%), em vez do que acerta só o ponto médio.
+const KAPPA: f64 = 0.551_915_024_493_510_6;
 
 pub fn rect_path(r: &RectData) -> BezPath {
     let (w, h) = (r.width, r.height);
@@ -410,7 +411,17 @@ fn unit(v: Vec2) -> Vec2 {
 pub fn ellipse_path(e: &EllipseData) -> BezPath {
     let tol = 0.1;
     if e.mode == "ellipse" {
-        return Ellipse::new(Point::ORIGIN, (e.rx, e.ry), 0.0).to_path(tol);
+        // Quatro arcos cúbicos (nós nos quadrantes), iguais à conversão em curvas.
+        let (rx, ry) = (e.rx, e.ry);
+        let (kx, ky) = (KAPPA * rx, KAPPA * ry);
+        let mut p = BezPath::new();
+        p.move_to((rx, 0.0));
+        p.curve_to((rx, ky), (kx, ry), (0.0, ry));
+        p.curve_to((-kx, ry), (-rx, ky), (-rx, 0.0));
+        p.curve_to((-rx, -ky), (-kx, -ry), (0.0, -ry));
+        p.curve_to((kx, -ry), (rx, -ky), (rx, 0.0));
+        p.close_path();
+        return p;
     }
     let start = e.start_angle.to_radians();
     let mut sweep = (e.end_angle - e.start_angle).to_radians();

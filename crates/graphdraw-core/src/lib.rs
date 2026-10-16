@@ -8,8 +8,10 @@
 //! - [`open`]: abertura com detecção de formato pelo conteúdo.
 
 pub mod cdr;
+pub mod edit;
 pub mod export;
 pub mod gdr;
+pub mod geometry;
 pub mod model;
 pub mod open;
 pub mod render;
