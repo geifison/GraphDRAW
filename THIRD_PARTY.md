@@ -26,8 +26,8 @@ permitida). A lista completa de crates transitivos fica em `Cargo.lock`.
 | ttf-parser | 0.25.1 | MIT OR Apache-2.0 | Contornos de glifos (via rustybuzz) |
 | thiserror | 2.0.21 | MIT OR Apache-2.0 | Tipos de erro |
 | clap | 4.6.7 | MIT OR Apache-2.0 | Linha de comando `graphdraw` |
-| eframe / egui | ver `Cargo.lock` | MIT OR Apache-2.0 | Interface do visualizador |
-| rfd | ver `Cargo.lock` | MIT | Diálogos nativos de abrir/salvar |
+| eframe / egui | 0.37.0 | MIT OR Apache-2.0 | Interface do visualizador |
+| rfd | 0.17.2 | MIT | Diálogos nativos de abrir/salvar |
 
 ## Distribuídas com o GraphDraw — ponte `gd-cdr-bridge` (DLLs ao lado do executável no Windows)
 

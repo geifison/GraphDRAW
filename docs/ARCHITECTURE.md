@@ -187,11 +187,14 @@ Em Linux: `apt install libcdr-dev librevenge-dev pkg-config g++` e o mesmo
 | GD-CDR-01, 02, 03, 06, 07 | `tests/cdr_import.rs`, `graphdraw-cli/tests/cli.rs` |
 | GD-FNT-02 / GD-CDR-05 | `export::gd_fnt_02_missing_font_reported_and_name_kept` |
 | GD-EXP-01, 02, 06 | `tests/export.rs`, `graphdraw-cli/tests/cli.rs` |
+| Zoom/pan do visualizador | `graphdraw-viewer/src/view.rs` (testes de unidade) |
 
 Fixtures `.gdr` são geradas por
 `cargo run -p graphdraw-core --example make_fixtures` (IDs fixos). Amostras
 `.cdr`/`.cmx` vêm do corpus de testes do LibreOffice (MPL-2.0) — ver
 [`tests/fixtures/cdr/README.md`](../tests/fixtures/cdr/README.md).
+
+CI: [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) (Windows e Linux; formatação, clippy, testes e licenças).
 
 Testes de `.cdr` exigem a ponte compilada; sem ela são pulados com aviso,
 exceto se `GRAPHDRAW_REQUIRE_BRIDGE=1` (usado no CI).
