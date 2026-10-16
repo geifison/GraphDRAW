@@ -1,0 +1,345 @@
+//! Rasterização com tiny-skia: usada pela tela do visualizador, pela
+//! exportação PNG (GD-EXP / doc 15) e pelas miniaturas do `.gdr`.
+
+use kurbo::{Affine, BezPath, PathEl};
+use tiny_skia as sk;
+
+use super::scene::{ImageItem, Item, Paint, Scene, ShapeItem, StrokeStyle};
+use crate::model::{FillRule, Gradient};
+
+#[derive(Debug, Clone, Copy)]
+pub struct RasterOptions {
+    pub antialias: bool,
+    /// Cor de fundo RGBA (não pré-multiplicada); `None` mantém transparência
+    /// (exceto o fundo próprio da página, se houver).
+    pub background: Option<[u8; 4]>,
+}
+
+impl Default for RasterOptions {
+    fn default() -> Self {
+        RasterOptions {
+            antialias: true,
+            background: None,
+        }
+    }
+}
+
+/// Renderiza a cena num pixmap `width×height`; `view` leva coordenadas da
+/// página (µm, Y para cima) para pixels (Y para baixo).
+pub fn render(
+    scene: &Scene,
+    view: Affine,
+    width: u32,
+    height: u32,
+    opts: &RasterOptions,
+) -> Option<sk::Pixmap> {
+    let mut pm = sk::Pixmap::new(width.max(1), height.max(1))?;
+    if let Some([r, g, b, a]) = opts.background {
+        pm.fill(sk::Color::from_rgba8(r, g, b, a));
+    }
+    if let Some(bg) = &scene.background {
+        let [r, g, b] = bg.to_srgb();
+        let mut page = BezPath::new();
+        page.extend(kurbo::Shape::path_elements(&scene.bounds(), 0.1));
+        fill_path(
+            &mut pm,
+            &page,
+            view,
+            &Paint::Solid {
+                color: crate::model::Color::rgb(r, g, b),
+                alpha: 1.0,
+            },
+            FillRule::Nonzero,
+            opts,
+        );
+    }
+    draw_items(&mut pm, &scene.items, view, opts);
+    Some(pm)
+}
+
+pub fn draw_items(pm: &mut sk::Pixmap, items: &[Item], view: Affine, opts: &RasterOptions) {
+    for item in items {
+        match item {
+            Item::Shape(s) => draw_shape(pm, s, view, opts),
+            Item::Image(i) => draw_image(pm, i, view, opts),
+            Item::Text(t) => {
+                for s in &t.outlines {
+                    draw_shape(pm, s, view, opts);
+                }
+            }
+        }
+    }
+}
+
+/// Matriz página→pixels para renderizar a página inteira a `dpi`.
+pub fn page_view(scene_height_um: f64, dpi: f64) -> Affine {
+    let s = dpi / crate::units::UM_PER_INCH;
+    Affine::new([s, 0.0, 0.0, -s, 0.0, scene_height_um * s])
+}
+
+fn to_sk_path(path: &BezPath, view: Affine) -> Option<sk::Path> {
+    let mut pb = sk::PathBuilder::new();
+    let p = |pt: kurbo::Point| {
+        let q = view * pt;
+        (q.x as f32, q.y as f32)
+    };
+    for el in path.elements() {
+        match *el {
+            PathEl::MoveTo(a) => {
+                let (x, y) = p(a);
+                pb.move_to(x, y)
+            }
+            PathEl::LineTo(a) => {
+                let (x, y) = p(a);
+                pb.line_to(x, y)
+            }
+            PathEl::QuadTo(a, b) => {
+                let (x1, y1) = p(a);
+                let (x, y) = p(b);
+                pb.quad_to(x1, y1, x, y)
+            }
+            PathEl::CurveTo(a, b, c) => {
+                let (x1, y1) = p(a);
+                let (x2, y2) = p(b);
+                let (x, y) = p(c);
+                pb.cubic_to(x1, y1, x2, y2, x, y)
+            }
+            PathEl::ClosePath => pb.close(),
+        }
+    }
+    pb.finish()
+}
+
+fn sk_transform(a: Affine) -> sk::Transform {
+    let c = a.as_coeffs();
+    sk::Transform::from_row(
+        c[0] as f32,
+        c[1] as f32,
+        c[2] as f32,
+        c[3] as f32,
+        c[4] as f32,
+        c[5] as f32,
+    )
+}
+
+fn sk_color(color: &crate::model::Color, alpha: f64) -> sk::Color {
+    let [r, g, b] = color.to_srgb();
+    sk::Color::from_rgba(r as f32, g as f32, b as f32, alpha.clamp(0.0, 1.0) as f32)
+        .unwrap_or(sk::Color::BLACK)
+}
+
+fn gradient_shader(
+    g: &Gradient,
+    m: Affine,
+    alpha: f64,
+    view: Affine,
+) -> Option<sk::Shader<'static>> {
+    let stops: Vec<sk::GradientStop> = g
+        .stops
+        .iter()
+        .map(|s| sk::GradientStop::new(s.offset as f32, sk_color(&s.color, alpha * s.opacity)))
+        .collect();
+    let mode = match g.spread.as_str() {
+        "repeat" => sk::SpreadMode::Repeat,
+        "reflect" => sk::SpreadMode::Reflect,
+        _ => sk::SpreadMode::Pad,
+    };
+    let t = sk_transform(view * m);
+    match g.kind.as_str() {
+        "radial" => {
+            let c = g.center.unwrap_or([0.0, 0.0]);
+            let p = sk::Point::from_xy(c[0] as f32, c[1] as f32);
+            sk::RadialGradient::new(p, 0.0, p, g.radius.unwrap_or(1.0) as f32, stops, mode, t)
+        }
+        _ => {
+            let a = g.start.unwrap_or([0.0, 0.0]);
+            let b = g.end.unwrap_or([1.0, 0.0]);
+            sk::LinearGradient::new(
+                sk::Point::from_xy(a[0] as f32, a[1] as f32),
+                sk::Point::from_xy(b[0] as f32, b[1] as f32),
+                stops,
+                mode,
+                t,
+            )
+        }
+    }
+}
+
+fn make_paint(paint: &Paint, view: Affine, opts: &RasterOptions) -> Option<sk::Paint<'static>> {
+    let mut p = sk::Paint {
+        anti_alias: opts.antialias,
+        ..Default::default()
+    };
+    match paint {
+        Paint::Solid { color, alpha } => p.set_color(sk_color(color, *alpha)),
+        Paint::Gradient {
+            gradient,
+            transform,
+            alpha,
+        } => p.shader = gradient_shader(gradient, *transform, *alpha, view)?,
+    }
+    Some(p)
+}
+
+fn fill_path(
+    pm: &mut sk::Pixmap,
+    path: &BezPath,
+    view: Affine,
+    paint: &Paint,
+    rule: FillRule,
+    opts: &RasterOptions,
+) {
+    let (Some(sp), Some(p)) = (to_sk_path(path, view), make_paint(paint, view, opts)) else {
+        return;
+    };
+    let rule = match rule {
+        FillRule::Evenodd => sk::FillRule::EvenOdd,
+        FillRule::Nonzero => sk::FillRule::Winding,
+    };
+    pm.fill_path(&sp, &p, rule, sk::Transform::identity(), None);
+}
+
+fn stroke_path(
+    pm: &mut sk::Pixmap,
+    path: &BezPath,
+    view: Affine,
+    s: &StrokeStyle,
+    opts: &RasterOptions,
+) {
+    let (Some(sp), Some(p)) = (to_sk_path(path, view), make_paint(&s.paint, view, opts)) else {
+        return;
+    };
+    let scale = view.determinant().abs().sqrt();
+    // Fio de cabelo: 1 pixel do dispositivo.
+    let width = if s.width <= 0.0 {
+        1.0
+    } else {
+        (s.width * scale).max(0.05)
+    };
+    let dash = s.dash.as_ref().and_then(|d| {
+        let mut arr: Vec<f32> = d.iter().map(|v| (v * scale) as f32).collect();
+        if arr.len() % 2 == 1 {
+            arr.extend(arr.clone());
+        }
+        sk::StrokeDash::new(arr, (s.dash_offset * scale) as f32)
+    });
+    let stroke = sk::Stroke {
+        width: width as f32,
+        miter_limit: s.miter_limit as f32,
+        line_cap: match s.cap.as_str() {
+            "round" => sk::LineCap::Round,
+            "square" => sk::LineCap::Square,
+            _ => sk::LineCap::Butt,
+        },
+        line_join: match s.join.as_str() {
+            "round" => sk::LineJoin::Round,
+            "bevel" => sk::LineJoin::Bevel,
+            _ => sk::LineJoin::Miter,
+        },
+        dash,
+    };
+    pm.stroke_path(&sp, &p, &stroke, sk::Transform::identity(), None);
+}
+
+fn draw_shape(pm: &mut sk::Pixmap, s: &ShapeItem, view: Affine, opts: &RasterOptions) {
+    let stroke_first = s.stroke.as_ref().is_some_and(|st| st.behind_fill);
+    if stroke_first {
+        stroke_path(pm, &s.path, view, s.stroke.as_ref().unwrap(), opts);
+    }
+    if let Some(f) = &s.fill {
+        fill_path(pm, &s.path, view, f, s.fill_rule, opts);
+    }
+    if !stroke_first && let Some(st) = &s.stroke {
+        stroke_path(pm, &s.path, view, st, opts);
+    }
+}
+
+fn draw_image(pm: &mut sk::Pixmap, img: &ImageItem, view: Affine, opts: &RasterOptions) {
+    let d = &img.image;
+    let Some(src) = premultiplied_pixmap(&d.rgba, d.width, d.height) else {
+        return;
+    };
+    // Pixel (u,v) → local (u·w/pw, h − v·h/ph) → página → tela.
+    let local = Affine::new([
+        img.width / d.width as f64,
+        0.0,
+        0.0,
+        -img.height / d.height as f64,
+        0.0,
+        img.height,
+    ]);
+    let shader = sk::Pattern::new(
+        src.as_ref(),
+        sk::SpreadMode::Pad,
+        sk::FilterQuality::Bilinear,
+        img.opacity as f32,
+        sk_transform(view * img.transform * local),
+    );
+    let rect = kurbo::Rect::new(0.0, 0.0, img.width, img.height);
+    let mut path = BezPath::new();
+    path.extend(kurbo::Shape::path_elements(&rect, 0.1));
+    path.apply_affine(img.transform);
+    let Some(sp) = to_sk_path(&path, view) else {
+        return;
+    };
+    let paint = sk::Paint {
+        shader,
+        anti_alias: opts.antialias,
+        ..Default::default()
+    };
+    pm.fill_path(
+        &sp,
+        &paint,
+        sk::FillRule::Winding,
+        sk::Transform::identity(),
+        None,
+    );
+}
+
+pub fn premultiplied_pixmap(rgba: &[u8], w: u32, h: u32) -> Option<sk::Pixmap> {
+    let mut data = rgba.to_vec();
+    for px in data.as_chunks_mut::<4>().0 {
+        let a = px[3] as u16;
+        if a < 255 {
+            for c in &mut px[..3] {
+                *c = ((*c as u16 * a + 127) / 255) as u8;
+            }
+        }
+    }
+    sk::Pixmap::from_vec(data, sk::IntSize::from_wh(w, h)?)
+}
+
+/// Converte um pixmap pré-multiplicado em RGBA8 comum.
+pub fn unpremultiply(pm: &sk::Pixmap) -> Vec<u8> {
+    let mut out = Vec::with_capacity(pm.data().len());
+    for px in pm.pixels() {
+        let c = px.demultiply();
+        out.extend_from_slice(&[c.red(), c.green(), c.blue(), c.alpha()]);
+    }
+    out
+}
+
+/// Codifica um pixmap como PNG com fragmento sRGB e resolução física (pHYs).
+pub fn encode_png(pm: &sk::Pixmap, dpi: Option<f64>) -> Result<Vec<u8>, crate::Error> {
+    let mut out = Vec::new();
+    {
+        let mut enc = png::Encoder::new(&mut out, pm.width(), pm.height());
+        enc.set_color(png::ColorType::Rgba);
+        enc.set_depth(png::BitDepth::Eight);
+        enc.set_source_srgb(png::SrgbRenderingIntent::RelativeColorimetric);
+        if let Some(dpi) = dpi {
+            let ppm = (dpi / 0.0254).round() as u32;
+            enc.set_pixel_dims(Some(png::PixelDimensions {
+                xppu: ppm,
+                yppu: ppm,
+                unit: png::Unit::Meter,
+            }));
+        }
+        let mut w = enc
+            .write_header()
+            .map_err(|e| crate::Error::Other(e.to_string()))?;
+        w.write_image_data(&unpremultiply(pm))
+            .map_err(|e| crate::Error::Other(e.to_string()))?;
+    }
+    Ok(out)
+}

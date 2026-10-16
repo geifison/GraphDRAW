@@ -1,0 +1,13 @@
+[workspace]
+resolver = "2"
+members = ["crates/graphdraw-core"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MPL-2.0"
+repository = "https://example.invalid/graphdraw"
+
+
+[profile.dev.package."*"]
+opt-level = 2

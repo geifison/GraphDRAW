@@ -1,0 +1,217 @@
+//! Exportação SVG/PDF/PNG (doc 15) e conversão usada pela CLI (GD-EXP-06,
+//! GD-CDR-07).
+
+pub mod pdf;
+pub mod svg;
+
+use std::path::{Path, PathBuf};
+
+use crate::Error;
+use crate::model::Document;
+use crate::render::raster::{self, RasterOptions};
+use crate::render::{ImageCache, Scene, SceneOptions, build_scene};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExportFormat {
+    Svg,
+    Pdf,
+    Png,
+    Gdr,
+}
+
+impl ExportFormat {
+    pub fn from_extension(ext: &str) -> Option<ExportFormat> {
+        Some(match ext.to_ascii_lowercase().as_str() {
+            "svg" => ExportFormat::Svg,
+            "pdf" => ExportFormat::Pdf,
+            "png" => ExportFormat::Png,
+            "gdr" => ExportFormat::Gdr,
+            _ => return None,
+        })
+    }
+
+    pub fn extension(self) -> &'static str {
+        match self {
+            ExportFormat::Svg => "svg",
+            ExportFormat::Pdf => "pdf",
+            ExportFormat::Png => "png",
+            ExportFormat::Gdr => "gdr",
+        }
+    }
+
+    /// Formatos de uma página por arquivo.
+    pub fn single_page(self) -> bool {
+        matches!(self, ExportFormat::Svg | ExportFormat::Png)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ExportOptions {
+    /// Páginas (índices base 0); vazio = todas (GD-EXP-01).
+    pub pages: Vec<usize>,
+    /// Resolução PNG.
+    pub dpi: f64,
+    /// Converter texto em curvas (GD-EXP-02). PDF sempre usa curvas no M0.
+    pub text_to_curves: bool,
+    pub antialias: bool,
+    /// Fundo PNG (RGBA); `None` = transparente.
+    pub background: Option<[u8; 4]>,
+}
+
+impl Default for ExportOptions {
+    fn default() -> Self {
+        ExportOptions {
+            pages: Vec::new(),
+            dpi: 300.0,
+            text_to_curves: false,
+            antialias: true,
+            background: None,
+        }
+    }
+}
+
+/// Interpreta `N`, `N-M` ou listas `1,3-5` (base 1) em índices base 0.
+pub fn parse_pages(spec: &str, page_count: usize) -> Result<Vec<usize>, Error> {
+    let mut out = Vec::new();
+    for part in spec.split(',').map(str::trim).filter(|s| !s.is_empty()) {
+        let (a, b) = match part.split_once('-') {
+            Some((a, b)) => (a.trim(), b.trim()),
+            None => (part, part),
+        };
+        let parse = |s: &str| {
+            s.parse::<usize>()
+                .map_err(|_| Error::Other(format!("página inválida: '{s}'")))
+        };
+        let a = parse(a)?;
+        let b = if b.is_empty() { page_count } else { parse(b)? };
+        if a == 0 || b < a || b > page_count {
+            return Err(Error::Other(format!(
+                "intervalo de páginas fora do documento (1–{page_count}): '{part}'"
+            )));
+        }
+        out.extend((a - 1)..b);
+    }
+    Ok(out)
+}
+
+fn selected(doc: &Document, opts: &ExportOptions) -> Vec<usize> {
+    if opts.pages.is_empty() {
+        (0..doc.data.pages.len()).collect()
+    } else {
+        opts.pages.clone()
+    }
+}
+
+pub fn scene_for(doc: &Document, index: usize, cache: &ImageCache) -> Option<Scene> {
+    let page = doc.data.pages.get(index)?;
+    Some(build_scene(doc, page, SceneOptions { print: true }, cache))
+}
+
+pub fn svg_page(doc: &Document, index: usize, opts: &ExportOptions) -> Result<String, Error> {
+    let scene = scene_for(doc, index, &ImageCache::default())
+        .ok_or_else(|| Error::Other("página inexistente".into()))?;
+    Ok(svg::write_svg(&scene, opts))
+}
+
+pub fn png_page(doc: &Document, index: usize, opts: &ExportOptions) -> Result<Vec<u8>, Error> {
+    let scene = scene_for(doc, index, &ImageCache::default())
+        .ok_or_else(|| Error::Other("página inexistente".into()))?;
+    let s = opts.dpi / crate::units::UM_PER_INCH;
+    let (w, h) = (
+        (scene.width * s).round().max(1.0),
+        (scene.height * s).round().max(1.0),
+    );
+    if w * h > 400e6 {
+        return Err(Error::Other(format!(
+            "imagem grande demais ({w}×{h} px); reduza o --dpi"
+        )));
+    }
+    let view = raster::page_view(scene.height, opts.dpi);
+    let ropts = RasterOptions {
+        antialias: opts.antialias,
+        background: opts.background,
+    };
+    let pm = raster::render(&scene, view, w as u32, h as u32, &ropts)
+        .ok_or_else(|| Error::Other("falha ao alocar a imagem".into()))?;
+    raster::encode_png(&pm, Some(opts.dpi))
+}
+
+pub fn pdf_document(doc: &Document, opts: &ExportOptions) -> Result<Vec<u8>, Error> {
+    let cache = ImageCache::default();
+    let scenes: Vec<Scene> = selected(doc, opts)
+        .into_iter()
+        .filter_map(|i| scene_for(doc, i, &cache))
+        .collect();
+    if scenes.is_empty() {
+        return Err(Error::Other("documento sem páginas".into()));
+    }
+    Ok(pdf::write_pdf(&scenes, doc.metadata.title.as_deref(), opts))
+}
+
+/// Exporta para `out`. Formatos de página única com várias páginas
+/// selecionadas geram `<nome>-<n>.<ext>`. Devolve os arquivos gravados.
+pub fn export(
+    doc: &Document,
+    out: &Path,
+    format: ExportFormat,
+    opts: &ExportOptions,
+) -> Result<Vec<PathBuf>, Error> {
+    if doc.data.pages.is_empty() {
+        return Err(Error::Other("documento sem páginas".into()));
+    }
+    match format {
+        ExportFormat::Gdr => {
+            crate::gdr::write_file(doc, out, &Default::default())?;
+            Ok(vec![out.to_path_buf()])
+        }
+        ExportFormat::Pdf => {
+            crate::gdr::write_atomic(out, &pdf_document(doc, opts)?)?;
+            Ok(vec![out.to_path_buf()])
+        }
+        ExportFormat::Svg | ExportFormat::Png => {
+            let pages = selected(doc, opts);
+            let mut written = Vec::new();
+            for &i in &pages {
+                let path = if pages.len() > 1 {
+                    numbered(out, i + 1)
+                } else {
+                    out.to_path_buf()
+                };
+                let bytes = match format {
+                    ExportFormat::Svg => svg_page(doc, i, opts)?.into_bytes(),
+                    _ => png_page(doc, i, opts)?,
+                };
+                crate::gdr::write_atomic(&path, &bytes)?;
+                written.push(path);
+            }
+            Ok(written)
+        }
+    }
+}
+
+fn numbered(path: &Path, n: usize) -> PathBuf {
+    let stem = path
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let ext = path
+        .extension()
+        .map(|s| format!(".{}", s.to_string_lossy()))
+        .unwrap_or_default();
+    path.with_file_name(format!("{stem}-{n}{ext}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn page_ranges() {
+        assert_eq!(parse_pages("2", 3).unwrap(), vec![1]);
+        assert_eq!(parse_pages("1-3", 3).unwrap(), vec![0, 1, 2]);
+        assert_eq!(parse_pages("1,3", 3).unwrap(), vec![0, 2]);
+        assert_eq!(parse_pages("2-", 3).unwrap(), vec![1, 2]);
+        assert!(parse_pages("4", 3).is_err());
+        assert!(parse_pages("0", 3).is_err());
+    }
+}

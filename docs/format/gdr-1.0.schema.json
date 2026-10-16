@@ -1,0 +1,347 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://graphdraw.invalid/format/gdr-1.0.schema.json",
+  "title": "GraphDraw — document.json (formato .gdr 1.x)",
+  "description": "Esquema de document.json do formato nativo .gdr (docs/spec/13-FORMATO-GDR.md). Coordenadas e comprimentos em micrômetros (µm), eixo Y para cima, origem no canto inferior esquerdo da página. Campos desconhecidos são permitidos e devem ser preservados por leitores (GD-GDR-03).",
+  "type": "object",
+  "required": ["formatVersion", "pages"],
+  "properties": {
+    "formatVersion": {
+      "type": "string",
+      "pattern": "^1\\.[0-9]+$",
+      "description": "Versão semântica do formato; leitores aceitam a mesma versão maior."
+    },
+    "settings": { "$ref": "#/$defs/settings" },
+    "masterPage": {
+      "type": "object",
+      "properties": {
+        "layers": { "type": "array", "items": { "$ref": "#/$defs/layer" } }
+      }
+    },
+    "pages": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          { "$ref": "#/$defs/page" },
+          { "$ref": "#/$defs/pageRef" }
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "um": {
+      "type": "number",
+      "description": "Comprimento ou coordenada em micrômetros."
+    },
+    "point": {
+      "type": "array",
+      "items": { "type": "number" },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Identificador estável; o GraphDraw gera UUID v7."
+    },
+    "transform": {
+      "type": "array",
+      "description": "Matriz afim [a,b,c,d,e,f]: x' = a·x + c·y + e; y' = b·x + d·y + f.",
+      "items": { "type": "number" },
+      "minItems": 6,
+      "maxItems": 6
+    },
+    "settings": {
+      "type": "object",
+      "properties": {
+        "displayUnit": { "enum": ["mm", "cm", "in", "pt", "pc", "px", "um"] },
+        "origin": { "enum": ["bottom-left", "top-left", "bottom-right", "top-right", "center"] },
+        "bleed": { "$ref": "#/$defs/um", "minimum": 0 },
+        "drawingScale": {
+          "type": "array",
+          "items": { "type": "number", "exclusiveMinimum": 0 },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "resolution": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "color": {
+      "type": "object",
+      "required": ["model", "values"],
+      "properties": {
+        "model": { "enum": ["rgb", "cmyk", "gray", "lab", "spot", "registration"] },
+        "values": { "type": "array", "items": { "type": "number" } },
+        "name": { "type": "string" },
+        "ref": { "type": "string", "description": "ID de cor global em resources/colors.json." },
+        "alternate": { "$ref": "#/$defs/color" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "model": { "const": "rgb" } } },
+          "then": { "properties": { "values": { "minItems": 3, "maxItems": 3, "items": { "minimum": 0, "maximum": 1 } } } }
+        },
+        {
+          "if": { "properties": { "model": { "const": "cmyk" } } },
+          "then": { "properties": { "values": { "minItems": 4, "maxItems": 4, "items": { "minimum": 0, "maximum": 1 } } } }
+        },
+        {
+          "if": { "properties": { "model": { "enum": ["gray", "spot", "registration"] } } },
+          "then": { "properties": { "values": { "minItems": 1, "maxItems": 1, "items": { "minimum": 0, "maximum": 1 } } } }
+        },
+        {
+          "if": { "properties": { "model": { "const": "lab" } } },
+          "then": { "properties": { "values": { "minItems": 3, "maxItems": 3 } } }
+        },
+        {
+          "if": { "properties": { "model": { "const": "spot" } } },
+          "then": { "required": ["name"] }
+        }
+      ]
+    },
+    "gradientStop": {
+      "type": "object",
+      "required": ["offset", "color"],
+      "properties": {
+        "offset": { "type": "number", "minimum": 0, "maximum": 1 },
+        "color": { "$ref": "#/$defs/color" },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "fill": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "type": "string" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "solid" } } },
+          "then": {
+            "required": ["color"],
+            "properties": {
+              "color": { "$ref": "#/$defs/color" },
+              "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+              "overprint": { "type": "boolean" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "gradient" } } },
+          "then": {
+            "required": ["kind", "stops"],
+            "properties": {
+              "kind": { "enum": ["linear", "radial"] },
+              "stops": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/gradientStop" } },
+              "start": { "$ref": "#/$defs/point" },
+              "end": { "$ref": "#/$defs/point" },
+              "center": { "$ref": "#/$defs/point" },
+              "radius": { "type": "number", "exclusiveMinimum": 0 },
+              "spread": { "enum": ["pad", "repeat", "reflect"] }
+            },
+            "allOf": [
+              {
+                "if": { "properties": { "kind": { "const": "linear" } } },
+                "then": { "required": ["start", "end"] }
+              },
+              {
+                "if": { "properties": { "kind": { "const": "radial" } } },
+                "then": { "required": ["center", "radius"] }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "stroke": {
+      "type": "object",
+      "required": ["width", "color"],
+      "properties": {
+        "width": { "type": "number", "minimum": 0, "description": "µm; 0 = fio de cabelo." },
+        "color": { "$ref": "#/$defs/color" },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "dash": { "type": "array", "items": { "type": "number", "minimum": 0 } },
+        "dashOffset": { "type": "number" },
+        "join": { "enum": ["miter", "round", "bevel"] },
+        "miterLimit": { "type": "number", "minimum": 1 },
+        "cap": { "enum": ["butt", "round", "square"] },
+        "position": { "enum": ["center", "inside", "outside"] },
+        "scaleWithObject": { "type": "boolean" },
+        "behindFill": { "type": "boolean" }
+      }
+    },
+    "node": {
+      "type": "object",
+      "required": ["p"],
+      "properties": {
+        "p": { "$ref": "#/$defs/point" },
+        "in": { "$ref": "#/$defs/point" },
+        "out": { "$ref": "#/$defs/point" },
+        "kind": { "enum": ["corner", "smooth", "symmetric"] }
+      }
+    },
+    "subpath": {
+      "type": "object",
+      "required": ["closed", "nodes"],
+      "properties": {
+        "closed": { "type": "boolean" },
+        "nodes": { "type": "array", "items": { "$ref": "#/$defs/node" } }
+      }
+    },
+    "corner": {
+      "type": "object",
+      "required": ["kind", "radius"],
+      "properties": {
+        "kind": { "enum": ["round", "chamfer", "scallop"] },
+        "radius": { "type": "number", "minimum": 0 }
+      }
+    },
+    "fontSpec": {
+      "type": "object",
+      "required": ["family", "size"],
+      "properties": {
+        "family": { "type": "string" },
+        "size": { "type": "number", "exclusiveMinimum": 0, "description": "Corpo em µm." },
+        "weight": { "type": "integer", "minimum": 1, "maximum": 1000 },
+        "italic": { "type": "boolean" }
+      }
+    },
+    "textSpan": {
+      "type": "object",
+      "required": ["text", "font"],
+      "properties": {
+        "text": { "type": "string" },
+        "font": { "$ref": "#/$defs/fontSpec" },
+        "fill": { "$ref": "#/$defs/fill" }
+      }
+    },
+    "paragraph": {
+      "type": "object",
+      "required": ["spans"],
+      "properties": {
+        "align": { "enum": ["left", "center", "right", "justify", "forceJustify"] },
+        "spans": { "type": "array", "items": { "$ref": "#/$defs/textSpan" } }
+      }
+    },
+    "object": {
+      "type": "object",
+      "required": ["id", "type"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "type": { "type": "string", "description": "Tipos desconhecidos são preservados sem exibição." },
+        "name": { "type": "string" },
+        "transform": { "$ref": "#/$defs/transform" },
+        "fill": { "$ref": "#/$defs/fill" },
+        "stroke": { "$ref": "#/$defs/stroke" },
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "visible": { "type": "boolean" },
+        "locked": { "type": "boolean" },
+        "printable": { "type": "boolean" },
+        "userData": { "type": "object", "additionalProperties": { "type": "string" } }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "path" } } },
+          "then": {
+            "required": ["subpaths"],
+            "properties": {
+              "subpaths": { "type": "array", "items": { "$ref": "#/$defs/subpath" } },
+              "fillRule": { "enum": ["evenodd", "nonzero"] }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "rectangle" } } },
+          "then": {
+            "required": ["width", "height"],
+            "properties": {
+              "width": { "$ref": "#/$defs/um" },
+              "height": { "$ref": "#/$defs/um" },
+              "corners": { "type": "array", "minItems": 4, "maxItems": 4, "items": { "$ref": "#/$defs/corner" } }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "ellipse" } } },
+          "then": {
+            "required": ["rx", "ry"],
+            "properties": {
+              "rx": { "$ref": "#/$defs/um" },
+              "ry": { "$ref": "#/$defs/um" },
+              "mode": { "enum": ["ellipse", "arc", "pie"] },
+              "startAngle": { "type": "number" },
+              "endAngle": { "type": "number" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "group" } } },
+          "then": {
+            "required": ["children"],
+            "properties": {
+              "children": { "type": "array", "items": { "$ref": "#/$defs/object" } }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "text" } } },
+          "then": {
+            "required": ["paragraphs"],
+            "properties": {
+              "textKind": { "enum": ["artistic", "paragraph"] },
+              "frame": { "$ref": "#/$defs/point" },
+              "paragraphs": { "type": "array", "items": { "$ref": "#/$defs/paragraph" } },
+              "lineSpacing": { "type": "number", "exclusiveMinimum": 0 }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "image" } } },
+          "then": {
+            "required": ["width", "height", "src"],
+            "properties": {
+              "width": { "$ref": "#/$defs/um" },
+              "height": { "$ref": "#/$defs/um" },
+              "src": { "type": "string", "pattern": "^resources/images/[0-9a-f]{64}\\.(png|jpg|jpeg|tif|tiff|webp)$" }
+            }
+          }
+        }
+      ]
+    },
+    "layer": {
+      "type": "object",
+      "required": ["id", "name"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "name": { "type": "string" },
+        "visible": { "type": "boolean" },
+        "printable": { "type": "boolean" },
+        "locked": { "type": "boolean" },
+        "color": { "$ref": "#/$defs/color" },
+        "wireframe": { "type": "boolean" },
+        "objects": { "type": "array", "items": { "$ref": "#/$defs/object" } }
+      }
+    },
+    "page": {
+      "type": "object",
+      "required": ["id", "width", "height"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "name": { "type": "string" },
+        "width": { "type": "number", "exclusiveMinimum": 0 },
+        "height": { "type": "number", "exclusiveMinimum": 0 },
+        "background": { "$ref": "#/$defs/color" },
+        "hideMaster": { "type": "boolean" },
+        "layers": { "type": "array", "items": { "$ref": "#/$defs/layer" } }
+      }
+    },
+    "pageRef": {
+      "type": "object",
+      "required": ["src"],
+      "properties": {
+        "src": { "type": "string", "pattern": "^pages/page-[0-9]+\\.json$" }
+      },
+      "description": "Página gravada num membro separado (GD-GDR-11); o membro segue #/$defs/page."
+    }
+  }
+}
