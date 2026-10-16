@@ -1,5 +1,5 @@
 //! Barra de propriedades contextual (GD-UI-01) e painéis: Transformação,
-//! Alinhar, Histórico, Páginas e Relatório de importação (GD-UI-02).
+//! Alinhar, Camadas, Histórico, Páginas e Relatório de importação (GD-UI-02).
 
 use eframe::egui::{self, Vec2};
 use graphdraw_core::edit::nodes::{self, NodeRef};
@@ -80,6 +80,7 @@ impl App {
             for (tab, label) in [
                 (RightTab::Transform, tr("Transformar", "Transform")),
                 (RightTab::Align, tr("Alinhar", "Align")),
+                (RightTab::Layers, tr("Camadas", "Layers")),
                 (RightTab::History, tr("Histórico", "History")),
                 (RightTab::Pages, tr("Páginas", "Pages")),
                 (RightTab::Report, tr("Relatório", "Report")),
@@ -94,6 +95,7 @@ impl App {
         egui::ScrollArea::vertical().show(ui, |ui| match self.right_tab {
             RightTab::Transform => transform_panel(ui, doc, &mut self.xf),
             RightTab::Align => align_panel(ui, doc, &mut self.align),
+            RightTab::Layers => layers_panel(ui, doc),
             RightTab::History => history_panel(ui, doc),
             RightTab::Pages => {
                 if pages_panel(ui, doc) {
@@ -269,6 +271,34 @@ fn select_bar(ui: &mut egui::Ui, doc: &mut DocState, anchor: &mut Anchor, lock: 
         if icons::button(ui, icon, tip, false, true).clicked() {
             ops::reorder(&mut doc.editor, &sel, order);
         }
+    }
+    ui.separator();
+    if icons::button(
+        ui,
+        "group",
+        tr("Agrupar (Ctrl+G)", "Group (Ctrl+G)"),
+        false,
+        sel.len() > 1,
+    )
+    .clicked()
+        && let Some(id) = ops::group(&mut doc.editor, &sel)
+    {
+        doc.selection = vec![id];
+    }
+    let any_group = doc
+        .selected_objects()
+        .iter()
+        .any(|o| matches!(o.kind, ObjectKind::Group(_)));
+    if icons::button(
+        ui,
+        "ungroup",
+        tr("Desagrupar (Ctrl+U)", "Ungroup (Ctrl+U)"),
+        false,
+        any_group,
+    )
+    .clicked()
+    {
+        doc.selection = ops::ungroup(&mut doc.editor, &sel);
     }
     // Primitivas (GD-PRI-01/02): parâmetros editáveis até converter em curvas.
     let objs = doc.selected_objects();
@@ -555,8 +585,8 @@ fn style_controls(ui: &mut egui::Ui, doc: &mut DocState, defaults: &mut crate::c
         })
         .response
         .on_hover_text(tr(
-            "Posição do contorno (a renderização desta versão desenha sempre centrado)",
-            "Outline position (this version always renders centered)",
+            "Posição do contorno em relação à borda (curvas abertas usam sempre centrado)",
+            "Outline position relative to the edge (open curves always use center)",
         ));
     if pos != st.position {
         apply_stroke(doc, defaults, &sel, editing_defaults, move |s| {
@@ -608,34 +638,37 @@ fn pos_label(p: &str) -> &'static str {
     }
 }
 
+/// Operação sobre o caminho e os nós selecionados (que ela pode atualizar).
+type NodeOp = Box<dyn FnOnce(&mut graphdraw_core::model::PathData, &mut Vec<NodeRef>)>;
+
 /// Ferramenta Forma: operações de nós (GD-NOD-01..05).
 fn shape_bar(ui: &mut egui::Ui, doc: &mut DocState) {
     if let Some(o) = doc
         .selected_objects()
         .first()
         .filter(|_| doc.selection.len() == 1)
+        && matches!(o.kind, ObjectKind::Rectangle(_) | ObjectKind::Ellipse(_))
     {
-        if matches!(o.kind, ObjectKind::Rectangle(_) | ObjectKind::Ellipse(_)) {
-            ui.label(tr(
-                "Primitivas mantêm parâmetros; converta em curvas para editar nós.",
-                "Primitives keep parameters; convert to curves to edit nodes.",
-            ));
-            if icons::button(
-                ui,
-                "to-curves",
-                tr("Converter em curvas (Ctrl+Q)", "Convert to curves (Ctrl+Q)"),
-                false,
-                true,
-            )
-            .clicked()
-            {
-                let sel = doc.selection.clone();
-                ops::convert_to_curves(&mut doc.editor, &sel);
-            }
-            return;
+        ui.label(tr(
+            "Primitivas mantêm parâmetros; converta em curvas para editar nós.",
+            "Primitives keep parameters; convert to curves to edit nodes.",
+        ));
+        if icons::button(
+            ui,
+            "to-curves",
+            tr("Converter em curvas (Ctrl+Q)", "Convert to curves (Ctrl+Q)"),
+            false,
+            true,
+        )
+        .clicked()
+        {
+            let sel = doc.selection.clone();
+            ops::convert_to_curves(&mut doc.editor, &sel);
         }
+        return;
     }
-    let Some((loc, o, path)) = single_path(doc).map(|(l, o, p)| (l, o.clone(), p.clone())) else {
+    let Some((loc, o, path)) = single_path(doc).map(|s| (s.r, s.obj.clone(), s.path.clone()))
+    else {
         ui.label(tr(
             "Selecione uma curva para editar seus nós",
             "Select a curve to edit its nodes",
@@ -649,10 +682,7 @@ fn shape_bar(ui: &mut egui::Ui, doc: &mut DocState) {
         n,
         tr("nó(s) selecionado(s)", "node(s) selected")
     ));
-    let mut op: Option<(
-        &str,
-        Box<dyn FnOnce(&mut graphdraw_core::model::PathData, &mut Vec<NodeRef>)>,
-    )> = None;
+    let mut op: Option<(&str, NodeOp)> = None;
     let seg_after = |path: &graphdraw_core::model::PathData, r: &NodeRef| -> Option<SegRef> {
         let sp = &path.subpaths[r.subpath];
         (r.index < graphdraw_core::geometry::segment_count(sp)).then_some(SegRef {
@@ -897,15 +927,14 @@ fn shape_bar(ui: &mut egui::Ui, doc: &mut DocState) {
             f(p, &mut s);
             if p.subpaths.is_empty() {
                 doc.editor.transaction(name, |ed| {
-                    ed.remove_object(loc);
+                    ed.remove_at(&loc);
                 });
                 doc.selection.clear();
                 doc.nodes.clear();
                 return;
             }
         }
-        doc.editor
-            .transaction(name, |ed| ed.replace_object(loc, no));
+        doc.editor.transaction(name, |ed| ed.replace_at(&loc, no));
         doc.nodes = s;
     }
 }
@@ -977,11 +1006,12 @@ fn transform_panel(ui: &mut egui::Ui, doc: &mut DocState, xf: &mut TransformUi) 
                 false,
             ),
         };
-        if xf.mode == 3 && xf.a == 0.0 {
-            if let Some(b) = bounds {
-                xf.a = b.width();
-                xf.b = b.height();
-            }
+        if xf.mode == 3
+            && xf.a == 0.0
+            && let Some(b) = bounds
+        {
+            xf.a = b.width();
+            xf.b = b.height();
         }
         ui.label(la);
         ui.horizontal(|ui| {
@@ -1066,18 +1096,10 @@ fn transform_panel(ui: &mut egui::Ui, doc: &mut DocState, xf: &mut TransformUi) 
     }
 }
 
+#[derive(Default)]
 pub struct AlignUi {
     pub to: usize,
     pub visual: bool,
-}
-
-impl Default for AlignUi {
-    fn default() -> Self {
-        AlignUi {
-            to: 0,
-            visual: false,
-        }
-    }
 }
 
 /// Painel Alinhar (GD-ALI-01/02).
@@ -1225,7 +1247,7 @@ fn pages_panel(ui: &mut egui::Ui, doc: &mut DocState) -> bool {
             for l in &mut p.layers {
                 l.id = graphdraw_core::model::new_id();
                 for o in &mut l.objects {
-                    o.id = graphdraw_core::model::new_id();
+                    ops::renew_ids(o);
                 }
             }
             doc.editor
@@ -1297,6 +1319,247 @@ fn pages_panel(ui: &mut egui::Ui, doc: &mut DocState) -> bool {
     false
 }
 
+enum LayerAction {
+    Visible(usize, bool),
+    Printable(usize, bool),
+    Locked(usize, bool),
+    Wireframe(usize, bool),
+    Rename(usize, String),
+    Choose(String),
+    Add,
+    Delete(usize),
+    Move(usize, usize),
+    MoveSelection(usize),
+}
+
+/// Camadas da página atual (GD-CAM-01, GD-CAM-03). O topo da lista é a
+/// camada da frente; a marcada recebe os objetos novos.
+fn layers_panel(ui: &mut egui::Ui, doc: &mut DocState) {
+    let page = doc.page;
+    let n = doc.page().layers.len();
+    let chosen = doc.chosen_layer();
+    let sel_layers: Vec<usize> = ops::refs(&doc.editor, &doc.selection)
+        .iter()
+        .map(|r| r.loc.layer)
+        .collect();
+    let mut act = None;
+    for i in (0..n).rev() {
+        let l = &doc.page().layers[i];
+        ui.horizontal(|ui| {
+            let (eye, eye_tip) = if l.visible {
+                (
+                    "eye-on",
+                    tr("Visível (clique para ocultar)", "Visible (click to hide)"),
+                )
+            } else {
+                (
+                    "eye-off",
+                    tr("Oculta (clique para mostrar)", "Hidden (click to show)"),
+                )
+            };
+            if icons::small_button(ui, eye, eye_tip, true).clicked() {
+                act = Some(LayerAction::Visible(i, !l.visible));
+            }
+            let (pr, pr_tip) = if l.printable {
+                ("print-on", tr("Imprimível", "Printable"))
+            } else {
+                (
+                    "print-off",
+                    tr("Não imprime (só tela)", "Not printed (screen only)"),
+                )
+            };
+            if icons::small_button(ui, pr, pr_tip, true).clicked() {
+                act = Some(LayerAction::Printable(i, !l.printable));
+            }
+            let (lk, lk_tip) = if l.locked {
+                (
+                    "lock-on",
+                    tr("Bloqueada (não edita)", "Locked (not editable)"),
+                )
+            } else {
+                ("lock-off", tr("Editável", "Editable"))
+            };
+            if icons::small_button(ui, lk, lk_tip, true).clicked() {
+                act = Some(LayerAction::Locked(i, !l.locked));
+            }
+            let mark = if sel_layers.contains(&i) { " •" } else { "" };
+            let label = format!("{}  ({}){mark}", l.name, l.objects.len());
+            let text = if l.visible {
+                egui::RichText::new(label)
+            } else {
+                egui::RichText::new(label).weak()
+            };
+            if ui
+                .selectable_label(chosen == Some(i), text)
+                .on_hover_text(tr(
+                    "Camada ativa: recebe os objetos novos · • = tem objetos selecionados",
+                    "Active layer: receives new objects · • = has selected objects",
+                ))
+                .clicked()
+            {
+                act = Some(LayerAction::Choose(l.id.clone()));
+            }
+        });
+    }
+    ui.separator();
+    ui.horizontal_wrapped(|ui| {
+        if icons::button(
+            ui,
+            "layer-add",
+            tr(
+                "Nova camada acima da ativa",
+                "New layer above the active one",
+            ),
+            false,
+            true,
+        )
+        .clicked()
+        {
+            act = Some(LayerAction::Add);
+        }
+        if let Some(c) = chosen {
+            if icons::button(
+                ui,
+                "order-forward",
+                tr("Subir camada", "Move layer up"),
+                false,
+                c + 1 < n,
+            )
+            .clicked()
+            {
+                act = Some(LayerAction::Move(c, c + 1));
+            }
+            if icons::button(
+                ui,
+                "order-backward",
+                tr("Descer camada", "Move layer down"),
+                false,
+                c > 0,
+            )
+            .clicked()
+            {
+                act = Some(LayerAction::Move(c, c - 1));
+            }
+            if icons::button(
+                ui,
+                "layer-move-to",
+                tr(
+                    "Mover a seleção para esta camada",
+                    "Move selection to this layer",
+                ),
+                false,
+                !doc.selection.is_empty(),
+            )
+            .clicked()
+            {
+                act = Some(LayerAction::MoveSelection(c));
+            }
+            let wf = doc.page().layers[c].wireframe;
+            if icons::button(
+                ui,
+                "wireframe",
+                tr(
+                    "Esboço: mostra só os contornos finos (não afeta a impressão)",
+                    "Wireframe: shows thin outlines only (printing unaffected)",
+                ),
+                wf,
+                true,
+            )
+            .clicked()
+            {
+                act = Some(LayerAction::Wireframe(c, !wf));
+            }
+            if icons::button(
+                ui,
+                "delete",
+                tr(
+                    "Excluir camada (e seus objetos)",
+                    "Delete layer (and its objects)",
+                ),
+                false,
+                n > 1,
+            )
+            .clicked()
+            {
+                act = Some(LayerAction::Delete(c));
+            }
+        }
+    });
+    if let Some(c) = chosen {
+        let l = &doc.page().layers[c];
+        let id = ui.scope_id().with(("nome-camada", l.id.clone()));
+        let mut buf: String = ui
+            .data_mut(|d| d.get_temp::<String>(id))
+            .unwrap_or_else(|| l.name.clone());
+        ui.horizontal(|ui| {
+            ui.label(tr("Nome", "Name"));
+            let r = ui.text_edit_singleline(&mut buf);
+            if r.has_focus() {
+                ui.data_mut(|d| d.insert_temp(id, buf.clone()));
+            } else {
+                ui.data_mut(|d| d.remove::<String>(id));
+            }
+            if r.lost_focus() && !buf.trim().is_empty() && buf != l.name {
+                act = Some(LayerAction::Rename(c, buf.trim().to_string()));
+            }
+        });
+    }
+    let Some(act) = act else { return };
+    let ed = &mut doc.editor;
+    match act {
+        LayerAction::Visible(i, v) => ed.transaction(
+            if v {
+                tr("Mostrar camada", "Show layer")
+            } else {
+                tr("Ocultar camada", "Hide layer")
+            },
+            |ed| ed.edit_layer(page, i, |l| l.visible = v),
+        ),
+        LayerAction::Printable(i, v) => ed
+            .transaction(tr("Camada imprimível", "Layer printable"), |ed| {
+                ed.edit_layer(page, i, |l| l.printable = v)
+            }),
+        LayerAction::Locked(i, v) => ed.transaction(
+            if v {
+                tr("Bloquear camada", "Lock layer")
+            } else {
+                tr("Desbloquear camada", "Unlock layer")
+            },
+            |ed| ed.edit_layer(page, i, |l| l.locked = v),
+        ),
+        LayerAction::Wireframe(i, v) => ed
+            .transaction(tr("Modo esboço da camada", "Layer wireframe"), |ed| {
+                ed.edit_layer(page, i, |l| l.wireframe = v)
+            }),
+        LayerAction::Rename(i, name) => ed
+            .transaction(tr("Renomear camada", "Rename layer"), |ed| {
+                ed.edit_layer(page, i, |l| l.name = name)
+            }),
+        LayerAction::Choose(id) => doc.layer_id = Some(id),
+        LayerAction::Add => {
+            let layer =
+                graphdraw_core::model::Layer::new(&format!("{} {}", tr("Camada", "Layer"), n + 1));
+            doc.layer_id = Some(layer.id.clone());
+            let at = chosen.map_or(n, |c| c + 1);
+            ed.transaction(tr("Nova camada", "New layer"), |ed| {
+                ed.insert_layer(page, at, layer)
+            });
+        }
+        LayerAction::Delete(i) => {
+            ed.transaction(tr("Excluir camada", "Delete layer"), |ed| {
+                ed.remove_layer(page, i);
+            });
+            doc.layer_id = None;
+            doc.prune_selection();
+        }
+        LayerAction::Move(from, to) => ed.move_layer(page, from, to),
+        LayerAction::MoveSelection(i) => {
+            let sel = doc.selection.clone();
+            ops::move_to_layer(ed, &sel, page, i);
+        }
+    }
+}
+
 /// Relatório de importação (GD-CDR-03, GD-UI-02).
 fn report_panel(ui: &mut egui::Ui, doc: &mut DocState) {
     let r = &doc.report;
@@ -1330,13 +1593,12 @@ fn report_panel(ui: &mut egui::Ui, doc: &mut DocState) {
         };
         ui.horizontal_wrapped(|ui| {
             ui.colored_label(color, format!("[{tag}]"));
-            if let Some(p) = item.page {
-                if ui
+            if let Some(p) = item.page
+                && ui
                     .small_button(format!("{} {p}", tr("pág.", "p.")))
                     .clicked()
-                {
-                    goto = Some(p - 1);
-                }
+            {
+                goto = Some(p - 1);
             }
             let count = if item.count > 1 {
                 format!(" (×{})", item.count)

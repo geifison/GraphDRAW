@@ -4,7 +4,7 @@
 use kurbo::{Affine, BezPath, PathEl};
 use tiny_skia as sk;
 
-use super::scene::{ImageItem, Item, Paint, Scene, ShapeItem, StrokeStyle};
+use super::scene::{ImageItem, Item, Paint, Scene, ShapeItem, StrokePosition, StrokeStyle};
 use crate::model::{FillRule, Gradient};
 
 #[derive(Debug, Clone, Copy)]
@@ -255,6 +255,7 @@ fn fill_path(
 fn stroke_path(
     pm: &mut sk::Pixmap,
     path: &BezPath,
+    rule: FillRule,
     view: Affine,
     s: &StrokeStyle,
     opts: &RasterOptions,
@@ -263,11 +264,29 @@ fn stroke_path(
         return;
     };
     let scale = view.determinant().abs().sqrt();
-    // Fio de cabelo: 1 pixel do dispositivo.
+    // Fio de cabelo: 1 pixel do dispositivo (sempre centrado).
+    let positioned = s.position != StrokePosition::Center && s.width > 0.0;
     let width = if s.width <= 0.0 {
         1.0
     } else {
-        (s.width * scale).max(0.05)
+        (s.drawn_width() * scale).max(0.05)
+    };
+    // Interno: recorta pela forma; externo: pelo complemento (GD-OUT-04).
+    let mask = if positioned {
+        let Some(mut m) = sk::Mask::new(pm.width(), pm.height()) else {
+            return;
+        };
+        let rule = match rule {
+            FillRule::Evenodd => sk::FillRule::EvenOdd,
+            FillRule::Nonzero => sk::FillRule::Winding,
+        };
+        m.fill_path(&sp, rule, opts.antialias, sk::Transform::identity());
+        if s.position == StrokePosition::Outside {
+            m.invert();
+        }
+        Some(m)
+    } else {
+        None
     };
     let dash = s.dash.as_ref().and_then(|d| {
         let mut arr: Vec<f32> = d.iter().map(|v| (v * scale) as f32).collect();
@@ -291,19 +310,26 @@ fn stroke_path(
         },
         dash,
     };
-    pm.stroke_path(&sp, &p, &stroke, sk::Transform::identity(), None);
+    pm.stroke_path(&sp, &p, &stroke, sk::Transform::identity(), mask.as_ref());
 }
 
 fn draw_shape(pm: &mut sk::Pixmap, s: &ShapeItem, view: Affine, opts: &RasterOptions) {
     let stroke_first = s.stroke.as_ref().is_some_and(|st| st.behind_fill);
     if stroke_first {
-        stroke_path(pm, &s.path, view, s.stroke.as_ref().unwrap(), opts);
+        stroke_path(
+            pm,
+            &s.path,
+            s.fill_rule,
+            view,
+            s.stroke.as_ref().unwrap(),
+            opts,
+        );
     }
     if let Some(f) = &s.fill {
         fill_path(pm, &s.path, view, f, s.fill_rule, opts);
     }
     if !stroke_first && let Some(st) = &s.stroke {
-        stroke_path(pm, &s.path, view, st, opts);
+        stroke_path(pm, &s.path, s.fill_rule, view, st, opts);
     }
 }
 

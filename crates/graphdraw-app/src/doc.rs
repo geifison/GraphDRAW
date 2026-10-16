@@ -21,6 +21,8 @@ pub struct DocState {
     pub selection: Vec<String>,
     /// Nós selecionados na ferramenta Forma.
     pub nodes: Vec<NodeRef>,
+    /// Camada ativa escolhida no painel (por ID, para sobreviver a desfazer).
+    pub layer_id: Option<String>,
     scene: Option<(u64, usize, Arc<Scene>)>,
     images: ImageCache,
 }
@@ -46,6 +48,7 @@ impl DocState {
             page: 0,
             selection: Vec::new(),
             nodes: Vec::new(),
+            layer_id: None,
             scene: None,
             images: ImageCache::default(),
         }
@@ -67,10 +70,11 @@ impl DocState {
     /// Cena da página atual (tela: mostra também o que não imprime).
     pub fn scene(&mut self) -> Arc<Scene> {
         let rev = self.editor.revision();
-        if let Some((r, p, s)) = &self.scene {
-            if *r == rev && *p == self.page {
-                return s.clone();
-            }
+        if let Some((r, p, s)) = &self.scene
+            && *r == rev
+            && *p == self.page
+        {
+            return s.clone();
         }
         let s = Arc::new(build_scene(
             self.doc(),
@@ -96,24 +100,42 @@ impl DocState {
         }
     }
 
-    /// Camada onde novos objetos entram: a mais alta visível e destravada.
+    /// Camada onde novos objetos entram: a escolhida no painel de camadas,
+    /// se estiver visível e destravada; senão a mais alta que estiver.
     pub fn active_layer(&self) -> Option<usize> {
-        self.page()
-            .layers
-            .iter()
-            .rposition(|l| l.visible && !l.locked)
+        let layers = &self.page().layers;
+        let usable = |l: &graphdraw_core::model::Layer| l.visible && !l.locked;
+        self.layer_id
+            .as_ref()
+            .and_then(|id| layers.iter().position(|l| &l.id == id))
+            .filter(|i| usable(&layers[*i]))
+            .or_else(|| layers.iter().rposition(usable))
+    }
+
+    /// Camada marcada no painel (mesmo que esteja travada ou oculta).
+    pub fn chosen_layer(&self) -> Option<usize> {
+        let layers = &self.page().layers;
+        self.layer_id
+            .as_ref()
+            .and_then(|id| layers.iter().position(|l| &l.id == id))
+            .or_else(|| self.active_layer())
     }
 
     pub fn selected_objects(&self) -> Vec<&Object> {
         graphdraw_core::edit::ops::selected_objects(&self.editor, &self.selection)
     }
 
-    /// Remove da seleção IDs que deixaram de existir (após desfazer, por ex.).
+    /// Remove da seleção IDs que deixaram de existir (após desfazer, por ex.)
+    /// ou cuja camada ficou oculta ou bloqueada.
     pub fn prune_selection(&mut self) {
         let ed = &self.editor;
         let page = self.page;
-        self.selection
-            .retain(|id| ed.locate(id).is_some_and(|l| l.page == page));
+        self.selection.retain(|id| {
+            ed.find(id).is_some_and(|r| {
+                let l = &ed.doc.data.pages[r.loc.page].layers[r.loc.layer];
+                r.loc.page == page && l.visible && !l.locked
+            })
+        });
         if self.selection.len() != 1 {
             self.nodes.clear();
         }
@@ -124,6 +146,7 @@ impl DocState {
             self.page = page;
             self.selection.clear();
             self.nodes.clear();
+            self.layer_id = None;
         }
     }
 }

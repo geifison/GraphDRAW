@@ -61,8 +61,30 @@ pub fn get(name: &str) -> ImageSource<'static> {
         "fit-page" => icon!("fit-page"),
         "fit-selection" => icon!("fit-selection"),
         "report" => icon!("report"),
+        "group" => icon!("group"),
+        "ungroup" => icon!("ungroup"),
+        "layers" => icon!("layers"),
+        "layer-add" => icon!("layer-add"),
+        "layer-move-to" => icon!("layer-move-to"),
+        "eye-on" => icon!("eye-on"),
+        "eye-off" => icon!("eye-off"),
+        "print-on" => icon!("print-on"),
+        "print-off" => icon!("print-off"),
+        "lock-on" => icon!("lock-on"),
+        "lock-off" => icon!("lock-off"),
+        "wireframe" => icon!("wireframe"),
         _ => icon!("history"),
     }
+}
+
+/// Botão de ícone pequeno (linhas de lista, como no painel de camadas).
+pub fn small_button(ui: &mut egui::Ui, name: &str, tip: &str, enabled: bool) -> egui::Response {
+    let color = ui.visuals().text_color();
+    let img = egui::Image::new(get(name))
+        .fit_to_exact_size(Vec2::splat(16.0))
+        .tint(color);
+    ui.add_enabled(enabled, egui::Button::image(img).frame(false))
+        .on_hover_text(tip)
 }
 
 /// Botão só com ícone, dica ao passar o mouse e estado "selecionado".

@@ -29,6 +29,7 @@ type OpenResult = Result<(Document, ImportReport), String>;
 pub enum RightTab {
     Transform,
     Align,
+    Layers,
     History,
     Pages,
     Report,
@@ -301,9 +302,7 @@ impl App {
     fn delete(&mut self) {
         let Some(d) = &mut self.doc else { return };
         if self.tool == Tool::Shape && !d.nodes.is_empty() {
-            if let Some((loc, o, _)) =
-                crate::canvas::single_path(d).map(|(l, o, p)| (l, o.clone(), p.clone()))
-            {
+            if let Some((loc, o)) = crate::canvas::single_path(d).map(|s| (s.r, s.obj.clone())) {
                 let mut no = o;
                 if let ObjectKind::Path(p) = &mut no.kind {
                     graphdraw_core::edit::nodes::delete_nodes(p, &d.nodes);
@@ -311,9 +310,9 @@ impl App {
                     d.editor
                         .transaction(tr("Excluir nós", "Delete nodes"), |ed| {
                             if empty {
-                                ed.remove_object(loc);
+                                ed.remove_at(&loc);
                             } else {
-                                ed.replace_object(loc, no);
+                                ed.replace_at(&loc, no);
                             }
                         });
                 }
@@ -353,11 +352,29 @@ impl App {
         }
     }
 
-    fn zoom_selection(&mut self) {
-        if let Some(d) = &self.doc {
-            if let Some(b) = ops::selection_bounds(&d.editor, &d.selection, true) {
-                crate::canvas::zoom_to_rect(&mut self.canvas, b);
+    fn group(&mut self) {
+        let Some(d) = &mut self.doc else { return };
+        if d.selection.len() < 2 {
+            return;
+        }
+        let sel = d.selection.clone();
+        match ops::group(&mut d.editor, &sel) {
+            Some(id) => d.selection = vec![id],
+            None => {
+                self.status = tr(
+                    "Para agrupar, os objetos precisam estar na mesma camada e no mesmo grupo",
+                    "To group, objects must be in the same layer and the same group",
+                )
+                .into()
             }
+        }
+    }
+
+    fn zoom_selection(&mut self) {
+        if let Some(d) = &self.doc
+            && let Some(b) = ops::selection_bounds(&d.editor, &d.selection, true)
+        {
+            crate::canvas::zoom_to_rect(&mut self.canvas, b);
         }
     }
 
@@ -428,6 +445,12 @@ impl App {
                 None
             });
         }
+        if fired(cmd(Key::G)) {
+            self.group();
+        }
+        if fired(cmd(Key::U)) {
+            self.with_selection(|ed, s| Some(ops::ungroup(ed, s)));
+        }
         if fired(KeyboardShortcut::new(Modifiers::SHIFT, Key::PageUp)) {
             self.with_selection(|ed, s| {
                 ops::reorder(ed, s, Order::ToFront);
@@ -478,19 +501,20 @@ impl App {
         if pressed(Key::Backspace) && self.tool == Tool::Bezier {
             // tratado no quadro (remove o último nó) — aqui só evita excluir objetos.
         }
-        if pressed(Key::Enter) && self.tool == Tool::Bezier {
-            if let Some(d) = &mut self.doc {
-                self.canvas.finish_bezier(d, &self.defaults, false);
-            }
+        if pressed(Key::Enter)
+            && self.tool == Tool::Bezier
+            && let Some(d) = &mut self.doc
+        {
+            self.canvas.finish_bezier(d, &self.defaults, false);
         }
-        if pressed(Key::Escape) {
-            if let Some(d) = &mut self.doc {
-                if self.canvas.is_dragging() || self.canvas.has_draft() {
-                    self.canvas.cancel(d);
-                } else {
-                    d.selection.clear();
-                    d.nodes.clear();
-                }
+        if pressed(Key::Escape)
+            && let Some(d) = &mut self.doc
+        {
+            if self.canvas.is_dragging() || self.canvas.has_draft() {
+                self.canvas.cancel(d);
+            } else {
+                d.selection.clear();
+                d.nodes.clear();
             }
         }
         // Setas: deslocamento fino; Shift = superdeslocamento (GD-FER-01).
@@ -512,26 +536,25 @@ impl App {
         if pressed(Key::ArrowDown) {
             d.y -= step;
         }
-        if d != Vec2::ZERO {
-            if let Some(doc) = &mut self.doc {
-                if self.tool == Tool::Shape && !doc.nodes.is_empty() {
-                    if let Some((loc, o, _)) =
-                        crate::canvas::single_path(doc).map(|(l, o, p)| (l, o.clone(), p.clone()))
-                    {
-                        let inv = o.transform.affine().inverse();
-                        let ld = inv * kurbo::Point::new(d.x, d.y) - inv * kurbo::Point::ORIGIN;
-                        let mut no = o;
-                        if let ObjectKind::Path(p) = &mut no.kind {
-                            graphdraw_core::edit::nodes::move_nodes(p, &doc.nodes, [ld.x, ld.y]);
-                        }
-                        doc.editor.transaction(tr("Mover nós", "Move nodes"), |ed| {
-                            ed.replace_object(loc, no)
-                        });
+        if d != Vec2::ZERO
+            && let Some(doc) = &mut self.doc
+        {
+            if self.tool == Tool::Shape && !doc.nodes.is_empty() {
+                if let Some((loc, o, m)) =
+                    crate::canvas::single_path(doc).map(|s| (s.r, s.obj.clone(), s.m))
+                {
+                    let inv = m.inverse();
+                    let ld = inv * kurbo::Point::new(d.x, d.y) - inv * kurbo::Point::ORIGIN;
+                    let mut no = o;
+                    if let ObjectKind::Path(p) = &mut no.kind {
+                        graphdraw_core::edit::nodes::move_nodes(p, &doc.nodes, [ld.x, ld.y]);
                     }
-                } else {
-                    let sel = doc.selection.clone();
-                    ops::translate(&mut doc.editor, &sel, d);
+                    doc.editor
+                        .transaction(tr("Mover nós", "Move nodes"), |ed| ed.replace_at(&loc, no));
                 }
+            } else {
+                let sel = doc.selection.clone();
+                ops::translate(&mut doc.editor, &sel, d);
             }
         }
         if !mods.any() {
@@ -547,19 +570,18 @@ impl App {
             if pressed(Key::Minus) {
                 self.zoom_center(0.8);
             }
-            if pressed(Key::PageDown) {
-                if let Some(d) = &mut self.doc {
-                    d.set_page(d.page + 1);
-                    self.canvas.fit_pending = true;
-                }
+            if pressed(Key::PageDown)
+                && let Some(d) = &mut self.doc
+            {
+                d.set_page(d.page + 1);
+                self.canvas.fit_pending = true;
             }
-            if pressed(Key::PageUp) {
-                if let Some(d) = &mut self.doc {
-                    if d.page > 0 {
-                        d.set_page(d.page - 1);
-                        self.canvas.fit_pending = true;
-                    }
-                }
+            if pressed(Key::PageUp)
+                && let Some(d) = &mut self.doc
+                && d.page > 0
+            {
+                d.set_page(d.page - 1);
+                self.canvas.fit_pending = true;
             }
         }
         let _ = keys;
@@ -706,6 +728,25 @@ impl App {
                         ops::convert_to_curves(ed, s);
                         None
                     });
+                }
+                ui.separator();
+                if ui
+                    .add_enabled(
+                        has_sel,
+                        egui::Button::new(tr("Agrupar  (Ctrl+G)", "Group  (Ctrl+G)")),
+                    )
+                    .clicked()
+                {
+                    self.group();
+                }
+                if ui
+                    .add_enabled(
+                        has_sel,
+                        egui::Button::new(tr("Desagrupar  (Ctrl+U)", "Ungroup  (Ctrl+U)")),
+                    )
+                    .clicked()
+                {
+                    self.with_selection(|ed, s| Some(ops::ungroup(ed, s)));
                 }
                 ui.separator();
                 for (label, order) in [
@@ -937,6 +978,7 @@ impl App {
             }
             ui.separator();
             for (icon, tip, tab) in [
+                ("layers", tr("Camadas", "Layers"), RightTab::Layers),
                 ("history", tr("Histórico", "History"), RightTab::History),
                 (
                     "report",
@@ -1129,6 +1171,17 @@ impl App {
                                 tr("Duplicar / excluir", "Duplicate / delete"),
                             ),
                             ("Ctrl+Q", tr("Converter em curvas", "Convert to curves")),
+                            (
+                                "Ctrl+G / Ctrl+U",
+                                tr("Agrupar / desagrupar", "Group / ungroup"),
+                            ),
+                            (
+                                tr("Ctrl+clique", "Ctrl+click"),
+                                tr(
+                                    "Selecionar objeto dentro do grupo",
+                                    "Select object inside group",
+                                ),
+                            ),
                             (
                                 tr("Shift ao arrastar", "Shift while dragging"),
                                 tr(

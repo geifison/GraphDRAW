@@ -655,6 +655,92 @@ fn unknown_fields() -> Document {
     d
 }
 
+/// GD-OUT-04, GD-SEL-02, GD-CAM-01: contorno centrado/interno/externo,
+/// grupo dentro de grupo (com matrizes próprias) e camada em modo esboço.
+fn m1_editing() -> Document {
+    let mut ids = Ids::new(10);
+    let mut p = page(&mut ids, 100.0 * MM, 100.0 * MM);
+    p.layers[0].name = "Arte".into();
+    for (k, pos) in ["center", "inside", "outside"].into_iter().enumerate() {
+        let mut r = rect(
+            &mut ids,
+            (10.0 + 30.0 * k as f64) * MM,
+            65.0 * MM,
+            20.0 * MM,
+            20.0 * MM,
+            Fill::solid(Color::rgb(1.0, 0.9, 0.2)),
+        );
+        let mut s = Stroke::new(3.0 * MM, Color::rgb(0.8, 0.1, 0.1));
+        s.position = pos.into();
+        r.stroke = Some(s);
+        r.name = Some(format!("Contorno {pos}"));
+        p.layers[0].objects.push(r);
+    }
+    let mut circle = obj(
+        &mut ids,
+        ObjectKind::Ellipse(EllipseData {
+            rx: 6.0 * MM,
+            ry: 6.0 * MM,
+            mode: "ellipse".into(),
+            start_angle: 0.0,
+            end_angle: 360.0,
+            extra: Map::new(),
+        }),
+    );
+    circle.name = Some("Círculo no grupo interno".into());
+    circle.transform = Transform::translate(6.0 * MM, 6.0 * MM);
+    circle.fill = Some(Fill::solid(Color::rgb(0.1, 0.4, 0.9)));
+    let square = rect(
+        &mut ids,
+        14.0 * MM,
+        0.0,
+        12.0 * MM,
+        12.0 * MM,
+        Fill::solid(Color::rgb(0.1, 0.7, 0.3)),
+    );
+    let mut inner = obj(
+        &mut ids,
+        ObjectKind::Group(GroupData {
+            children: vec![circle, square],
+            extra: Map::new(),
+        }),
+    );
+    inner.name = Some("Grupo interno".into());
+    inner.transform = Transform::translate(0.0, 15.0 * MM);
+    let base = rect(
+        &mut ids,
+        0.0,
+        0.0,
+        26.0 * MM,
+        10.0 * MM,
+        Fill::solid(Color::rgb(0.5, 0.5, 0.5)),
+    );
+    let mut outer = obj(
+        &mut ids,
+        ObjectKind::Group(GroupData {
+            children: vec![base, inner],
+            extra: Map::new(),
+        }),
+    );
+    outer.name = Some("Grupo externo".into());
+    outer.transform = Transform::translate(10.0 * MM, 10.0 * MM);
+    p.layers[0].objects.push(outer);
+    let mut sketch = layer(&mut ids, "Esboço");
+    sketch.wireframe = true;
+    let mut r = rect(
+        &mut ids,
+        55.0 * MM,
+        10.0 * MM,
+        35.0 * MM,
+        35.0 * MM,
+        Fill::solid(Color::rgb(0.6, 0.2, 0.8)),
+    );
+    r.stroke = Some(Stroke::new(2.0 * MM, Color::black()));
+    sketch.objects.push(r);
+    p.layers.push(sketch);
+    doc_with(vec![p], "Edição do M1")
+}
+
 /// Reescreve um membro de um `.gdr` (para simular corrupção, GD-GDR-10).
 fn tamper(bytes: &[u8], member: &str, new: Option<&[u8]>) -> Vec<u8> {
     let mut zin = zip::ZipArchive::new(Cursor::new(bytes)).unwrap();
@@ -702,6 +788,7 @@ fn main() {
         ("multipage", multipage()),
         ("layers-print", layers_print()),
         ("unknown-fields", unknown_fields()),
+        ("m1-editing", m1_editing()),
     ];
     for (name, doc) in &docs {
         let path = dir.join(format!("{name}.gdr"));

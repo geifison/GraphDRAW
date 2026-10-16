@@ -1,6 +1,6 @@
 # Arquitetura do GraphDraw
 
-Versão 0.1 · marco M0 (visualizador) · 2026-10-16
+Versão 0.2 · marco M1 (editor básico) · 2026-10-16
 
 Este documento registra a escolha de tecnologia e a organização do código.
 Requisitos vêm exclusivamente de [`docs/spec/`](spec/); cada decisão abaixo
@@ -19,7 +19,7 @@ cita os IDs que a motivam.
 | Raster/imagens | **png**, **image** (png, jpeg, bmp, tiff, webp, gif) | MIT/Apache-2.0 | libpng, libjpeg-turbo… | Puro Rust, sem DLLs nativas. |
 | Contêiner `.gdr` | **zip** (deflate), **serde_json**, **sha2**, **uuid** (v7) | MIT/Apache-2.0 | — | GD-GDR-01..04. |
 | Importação CDR | **libcdr 0.1.9 + librevenge 0.0.6** (via ponte C++) | MPL-2.0 | libcdr + librevenge | Exigência do doc 14. |
-| Interface | **egui/eframe** | MIT/Apache-2.0 | "Rust + egui/Slint" | Imediata, leve, sem licença copyleft; suficiente para o visualizador do M0. Reavaliar no M1 (painéis encaixáveis, GD-UI-03). |
+| Interface | **egui/eframe** | MIT/Apache-2.0 | "Rust + egui/Slint" | Imediata, leve, sem licença copyleft. Mantida no M1: atende ferramentas, barras e painéis do editor. Os painéis ficam em abas numa coluna fixa à direita; painéis flutuantes e perfis de área de trabalho (GD-UI-03) ainda não existem. |
 | Gerenciamento de cor | LittleCMS 2 — **adiado para o M2** | MIT | LittleCMS 2 | GD-CMS-01 é do marco M2. No M0, CMYK→RGB só para exibição, por fórmula simples, e o PDF mantém CMYK original. |
 
 Alternativa descartada: **C++ com Qt 6 + Skia**. Exigiria compilar Skia
@@ -37,7 +37,7 @@ alguma dependência transitiva tiver licença fora da lista permitida.
 crates/
   graphdraw-core/      biblioteca: modelo, .gdr, importação .cdr, cena, raster, SVG, PDF
   graphdraw-cli/       binário `graphdraw` (convert, info)
-  graphdraw-viewer/    binário `graphdraw-viewer` (GUI egui)
+  graphdraw-app/       binário `graphdraw-app` (editor egui)
 native/
   cdr-bridge/          `gd-cdr-bridge` (C++17) sobre libcdr + librevenge
 docs/
@@ -59,7 +59,7 @@ arquivo ──► open::detect (bytes iniciais)
                                                      │  itens achatados em
                                                      │  coordenadas da página
                           ┌──────────────┬───────────┴──┬──────────────┐
-                    raster (tiny-skia)  export::svg   export::pdf    viewer (egui)
+                    raster (tiny-skia)  export::svg   export::pdf    app (egui)
                     PNG, miniaturas
 ```
 
@@ -134,9 +134,14 @@ documentada no código aberto da libcdr.
   original (DeviceRGB / DeviceCMYK / DeviceGray / Separation); opacidade por
   ExtGState; gradientes por shading axial/radial; imagens com SMask. Texto
   sai em curvas no M0.
+- **Posição do contorno** (GD-OUT-04): interno e externo são um traço de
+  espessura dupla recortado pela forma (tela/PNG: máscara; SVG:
+  `clipPath`/`mask`; PDF: recorte `W`). No PDF o externo usa par-ímpar com
+  uma moldura em volta, exato para formas sem auto-sobreposição. Curvas
+  abertas e fio de cabelo usam sempre centrado.
 - **Impressão × tela** (GD-CAM-01, GD-OBJ-04): `SceneOptions { print }`.
   Exportações usam `print: true` (omitem camadas/objetos não imprimíveis);
-  o visualizador usa `print: false`.
+  o editor usa `print: false`.
 
 ### 2.5 Linha de comando
 
@@ -146,15 +151,47 @@ Entrada pasta = conversão em lote (GD-CDR-07), um relatório JSON por
 arquivo com `--report`. `graphdraw info <arquivo>` mostra páginas e o
 relatório de importação.
 
-### 2.6 Visualizador
+### 2.6 Núcleo de edição (`graphdraw-core::edit`)
 
-`graphdraw-viewer [arquivo]`: janela egui com menu, lista de páginas,
-área de desenho com zoom (roda do mouse, centrado no cursor; atalhos) e
-pan (arrastar), barra de status com coordenadas em mm na convenção do
-documento (Y para cima), painel "Relatório de importação" (GD-UI-02),
-abrir por diálogo ou arrastar-soltar (GD-CDR-01) e exportação SVG/PDF/PNG.
-A página é rasterizada com o mesmo `render::raster` da exportação, apenas
-na região visível, e a cena de cada página é mantida em cache.
+Toda a lógica de edição fica na biblioteca e é testada sem interface. O app
+só traduz gestos em chamadas destas funções.
+
+| Módulo | Papel | Requisitos |
+|---|---|---|
+| `history` | `Editor`: documento + registro de alterações reversíveis por transação (só o "antes" e o "depois" de cada objeto, camada ou página tocados, nunca o documento inteiro). Arrastos viram um passo. | doc 12 (GD-UND-01..08), GD-CAM-01 |
+| `tree` | `ObjRef` = posição do objeto de primeiro nível + caminho de índices até o filho. Alterar um filho substitui o objeto de primeiro nível no histórico, então grupos não precisam de tipo de alteração próprio. | GD-SEL-02 |
+| `ops` | Operações sobre a seleção (lista ordenada de IDs, em qualquer nível): transformar em coordenadas da página (convertidas para o espaço do pai), alinhar, ordem, agrupar/desagrupar, duplicar, excluir, mover para camada, preenchimento/contorno (num grupo valem para o conteúdo). | GD-TRF-01/02, GD-ALI-01/02, GD-ORD-01, GD-CAM-03, GD-FIL-01/02, GD-OUT-01..04 |
+| `nodes`, `convert` | Edição de nós e conversão de primitivas em curvas. | GD-NOD-01..05, GD-CNV-01 (parcial) |
+| `query` | Caixas geométrica e visual (a visual considera a posição do contorno), acerto de clique (inclusive dentro de grupos) e seleção por área. | GD-OBJ-06, GD-SEL-01..03 |
+| `snap` | Encaixe em objetos, página e grade, com prioridade. | GD-SNP-01/02 |
+| `geometry` | Comprimento, área, ponto mais próximo, interseções, ponto dentro. | GD-GEO-05 |
+
+`units` interpreta os campos numéricos com contas e unidades (GD-TRF-04 / GD-UI-11).
+
+### 2.7 Editor (`graphdraw-app`)
+
+`graphdraw-app [arquivo]`: janela egui com barra de menus, barra padrão,
+barra de propriedades contextual, caixa de ferramentas, área de desenho,
+painéis à direita, paleta e barra de status (GD-UI-01). Os painéis em abas
+são Transformar, Alinhar, Camadas, Histórico, Páginas e Relatório (parte de
+GD-UI-02). Abre por diálogo ou arrastar-soltar (GD-CDR-01), salva `.gdr` com
+aviso de alterações não salvas (GD-UND-07) e exporta SVG/PDF/PNG.
+
+- `canvas.rs`: ferramentas Seleção, Forma, Zoom, Mão, Bézier, Retângulo e
+  Elipse (GD-FER-01, 04, 05, 10, 22, 30, 31). Clique pega o objeto de
+  primeiro nível e `Ctrl+clique` o objeto dentro do grupo; a ferramenta
+  Forma sempre desce no grupo para editar o caminho.
+- `doc.rs`: documento aberto, seleção (fora do histórico, GD-UND-06),
+  camada ativa (por ID) e cache da cena.
+- `panels.rs`: barra de propriedades e painéis.
+- `icons.rs` + `assets/icons/make-icons.mjs`: ícones próprios do projeto,
+  gerados de uma tabela única (grade 24×24, traço 1,75 px, monocromáticos).
+
+A página é rasterizada com o mesmo `render::raster` da exportação, só na
+região visível, e a cena é refeita apenas quando o documento muda.
+
+Camadas em modo esboço (GD-CAM-01) mostram só o traço fino na tela; a
+exportação, que usa `print: true`, sai normal.
 
 ## 3. Compilação
 
@@ -169,7 +206,7 @@ Pré-requisitos no Windows:
 ```bash
 # ponte libcdr (gera target/cdr-bridge/ com as DLLs necessárias)
 MSYSTEM=UCRT64 C:/msys64/usr/bin/bash.exe -lc "cd /d/caminho/graphdraw && bash native/cdr-bridge/build.sh"
-# núcleo, CLI, visualizador e testes
+# núcleo, CLI, editor e testes
 cargo build --release
 cargo test --workspace
 ```
@@ -191,7 +228,17 @@ Em Linux: `apt install libcdr-dev librevenge-dev pkg-config g++` e o mesmo
 | GD-FNT-02 / GD-CDR-05 | `export::gd_fnt_02_missing_font_reported_and_name_kept` |
 | GD-EXP-01, 02, 06 | `tests/export.rs`, `graphdraw-cli/tests/cli.rs` |
 | GD-NF-01, GD-NF-02 | `examples/bench.rs` (medição), `export::gd_nf_02_parallel_bands_match_sequential` |
-| Zoom/pan do visualizador | `graphdraw-viewer/src/view.rs` (testes de unidade) |
+| GD-GEO-05, aceite do doc 03 | `geometry::tests::*`, `convert::tests::gd_geo_acceptance_circle_to_curves` |
+| GD-NOD-01..05 | `nodes::tests::*` |
+| GD-UND-01..07 + aceite do doc 12 | `history::tests::gd_und_*` |
+| GD-OBJ-06, GD-SEL-01..03 | `query::tests::*` |
+| GD-SEL-02 (dentro de grupo) | `ops::tests::gd_sel_02_edit_inside_group`, `query::tests::gd_sel_02_deep_hit_finds_child`, `tree::tests::*`, `tests/m1_editing.rs` |
+| GD-TRF-01/02, GD-ALI-01/02, GD-ORD-01 | `ops::tests::gd_trf_*`, `gd_ali_*`, `gd_ord_01_ordering` |
+| GD-TRF-04 / GD-UI-11 | `units::tests::gd_trf_04_expressions` |
+| GD-SNP-01/02 | `snap::tests::gd_snp_01_objects_page_grid_priority` |
+| GD-OUT-04 | `tests/stroke_position.rs`, `tests/m1_editing.rs` |
+| GD-CAM-01 (esboço), GD-CAM-03 | `tests/m1_editing.rs`, `ops::tests::gd_cam_03_move_to_layer`, `history::tests::layers_undo` |
+| Zoom/pan do editor | `graphdraw-app/src/view.rs` (testes de unidade) |
 
 Fixtures `.gdr` são geradas por
 `cargo run -p graphdraw-core --example make_fixtures` (IDs fixos). Amostras
@@ -218,14 +265,31 @@ Antes das faixas paralelas com descarte, GD-NF-02 levava 230 ms/quadro.
 No CI o passo roda com `--check` mas não bloqueia, porque o runner não é a
 máquina de referência.
 
-## 6. Limitações conhecidas do M0
+## 6. Limitações conhecidas
+
+Do M0, ainda valem:
 
 - Cores de `.cdr` chegam em RGB (limitação da interface librevenge; P-01).
 - Texto no PDF sai em curvas; texto vivo com fontes incorporadas é M2 (GD-EXP-02/03).
 - Sem gerenciamento ICC (M2); sem PDF/X, sangria e marcas (M2).
 - Gradientes: só linear e radial; repetir/espelhar não existe no PDF (sai como "estender").
 - Transparência de grupo é aproximada multiplicando a opacidade dos filhos.
-- Posição do contorno (interna/externa, GD-OUT-04) é desenhada como centrada.
 - Diagramação de texto simples: sem bidi, hifenização ou justificação.
 - Carregamento sob demanda de páginas (GD-GDR-11) não implementado: páginas
   separadas são lidas na abertura.
+
+Do M1:
+
+- Seleção por laço, por tipo/propriedade e inverter (GD-SEL-03) ainda não
+  existem; só clique, Shift+clique e retângulo.
+- Retângulo e elipse de 3 pontos (variantes de GD-FER-30/31) ainda não
+  existem; distribuir (painel Alinhar) é do M3.
+- Painéis em abas fixas (sem flutuar nem perfis, GD-UI-03); atalhos não são
+  configuráveis (GD-UI-10). Falta o painel Objetos em árvore (GD-UI-02).
+- Camadas da página mestra não aparecem no painel de Camadas.
+- Agrupar exige objetos na mesma camada e no mesmo grupo.
+- Contorno externo no PDF pode sair errado em formas com auto-sobreposição
+  e regra não-zero (ver 2.4).
+- A origem local de retângulos, elipses, textos e imagens segue a decisão
+  provisória P-04 de [`docs/spec/PERGUNTAS.md`](spec/PERGUNTAS.md), ainda
+  sem confirmação.

@@ -15,7 +15,7 @@
 //! - GD-UND-06: seleção, zoom e rolagem ficam fora daqui (estado da interface).
 //! - GD-UND-07: "modificado" compara a posição atual com a do último salvamento.
 
-use crate::model::{Document, Object, Page};
+use crate::model::{Document, Layer, Object, Page};
 
 /// Posição de um objeto de primeiro nível: página, camada e índice (z-order).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -35,6 +35,27 @@ enum Change {
     RemovePage(usize, Page),
     /// Página inteira (propriedades de página/camadas).
     ReplacePage(usize, Page, Page),
+    InsertLayer(usize, usize, Layer),
+    RemoveLayer(usize, usize, Layer),
+    /// Propriedades da camada (GD-CAM-01); os objetos não entram na troca.
+    LayerProps(usize, usize, Layer, Layer),
+}
+
+/// Copia as propriedades de `src` para `dst`, mantendo os objetos de `dst`.
+fn copy_layer_props(dst: &mut Layer, src: &Layer) {
+    let objects = std::mem::take(&mut dst.objects);
+    *dst = Layer {
+        objects,
+        ..src.clone()
+    };
+}
+
+/// A camada sem os objetos (o que `LayerProps` guarda).
+fn layer_props(l: &Layer) -> Layer {
+    Layer {
+        objects: Vec::new(),
+        ..l.clone()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -274,6 +295,47 @@ impl Editor {
         self.record(Change::ReplacePage(index, old, page));
     }
 
+    // ---- camadas (GD-CAM-01, GD-CAM-03) --------------------------------------
+
+    pub fn insert_layer(&mut self, page: usize, index: usize, layer: Layer) {
+        let layers = &mut self.doc.data.pages[page].layers;
+        let i = index.min(layers.len());
+        layers.insert(i, layer.clone());
+        self.record(Change::InsertLayer(page, i, layer));
+    }
+
+    pub fn remove_layer(&mut self, page: usize, index: usize) -> Layer {
+        let layer = self.doc.data.pages[page].layers.remove(index);
+        self.record(Change::RemoveLayer(page, index, layer.clone()));
+        layer
+    }
+
+    /// Altera propriedades da camada (nome, visível, imprimível, bloqueada,
+    /// cor, esboço) sem tocar nos objetos.
+    pub fn edit_layer(&mut self, page: usize, index: usize, f: impl FnOnce(&mut Layer)) {
+        let layer = &mut self.doc.data.pages[page].layers[index];
+        let old = layer_props(layer);
+        let mut new = old.clone();
+        f(&mut new);
+        new.objects = Vec::new();
+        if new == old {
+            return;
+        }
+        copy_layer_props(layer, &new);
+        self.record(Change::LayerProps(page, index, old, new));
+    }
+
+    /// Move a camada para outra posição de empilhamento.
+    pub fn move_layer(&mut self, page: usize, from: usize, to: usize) {
+        if from == to {
+            return;
+        }
+        self.transaction("Mover camada", |ed| {
+            let l = ed.remove_layer(page, from);
+            ed.insert_layer(page, to, l);
+        });
+    }
+
     // ---- desfazer/refazer -------------------------------------------------
 
     fn apply_inverse(&mut self, c: &Change) {
@@ -294,6 +356,11 @@ impl Editor {
             }
             Change::RemovePage(i, p) => pages.insert(*i, p.clone()),
             Change::ReplacePage(i, old, _) => pages[*i] = old.clone(),
+            Change::InsertLayer(p, i, _) => {
+                pages[*p].layers.remove(*i);
+            }
+            Change::RemoveLayer(p, i, l) => pages[*p].layers.insert(*i, l.clone()),
+            Change::LayerProps(p, i, old, _) => copy_layer_props(&mut pages[*p].layers[*i], old),
         }
     }
 
@@ -315,6 +382,11 @@ impl Editor {
                 pages.remove(*i);
             }
             Change::ReplacePage(i, _, new) => pages[*i] = new.clone(),
+            Change::InsertLayer(p, i, l) => pages[*p].layers.insert(*i, l.clone()),
+            Change::RemoveLayer(p, i, _) => {
+                pages[*p].layers.remove(*i);
+            }
+            Change::LayerProps(p, i, _, new) => copy_layer_props(&mut pages[*p].layers[*i], new),
         }
     }
 
@@ -522,6 +594,30 @@ mod tests {
         ed.cancel();
         assert!(ed.objects(0, 0).is_empty());
         assert!(!ed.can_undo());
+    }
+
+    #[test]
+    fn layers_undo() {
+        let mut ed = Editor::new(doc());
+        ed.insert_object(at(0), rect(0.0));
+        ed.insert_layer(0, 1, Layer::new("Camada 2"));
+        ed.edit_layer(0, 0, |l| {
+            l.name = "Fundo".into();
+            l.locked = true;
+        });
+        assert_eq!(ed.doc.data.pages[0].layers[0].objects.len(), 1);
+        ed.move_layer(0, 0, 1);
+        assert_eq!(ed.doc.data.pages[0].layers[1].name, "Fundo");
+        assert_eq!(ed.doc.data.pages[0].layers[1].objects.len(), 1);
+        ed.remove_layer(0, 0);
+        ed.goto(1);
+        let layers = &ed.doc.data.pages[0].layers;
+        assert_eq!(layers.len(), 1);
+        assert_eq!(layers[0].name, "Camada 1");
+        assert!(!layers[0].locked);
+        assert_eq!(layers[0].objects.len(), 1, "objetos intactos");
+        ed.goto(5);
+        assert_eq!(ed.doc.data.pages[0].layers[0].name, "Fundo");
     }
 
     #[test]

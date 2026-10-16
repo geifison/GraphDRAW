@@ -7,7 +7,7 @@
 use eframe::egui::{
     self, Color32, CursorIcon, Key, PointerButton, Pos2, Rect, Sense, Stroke as EStroke, Vec2,
 };
-use graphdraw_core::edit::history::ObjLoc;
+use graphdraw_core::edit::ObjRef;
 use graphdraw_core::edit::nodes::{self, Handle, NodeRef};
 use graphdraw_core::edit::ops::{self, Anchor};
 use graphdraw_core::edit::query;
@@ -89,45 +89,45 @@ enum Drag {
     Move {
         grab: Point,
         start: Point,
-        originals: Vec<(ObjLoc, Object)>,
+        originals: Vec<(ObjRef, Object)>,
         cands: Vec<(Point, SnapKind)>,
     },
     Scale {
         handle: Anchor,
         bounds: kurbo::Rect,
         from_center: bool,
-        originals: Vec<(ObjLoc, Object)>,
+        originals: Vec<(ObjRef, Object)>,
     },
     Rotate {
         center: Point,
         start: Point,
-        originals: Vec<(ObjLoc, Object)>,
+        originals: Vec<(ObjRef, Object)>,
     },
     Skew {
         horizontal: bool,
         edge: f64,
         center: Point,
         start: Point,
-        originals: Vec<(ObjLoc, Object)>,
+        originals: Vec<(ObjRef, Object)>,
     },
     MoveCenter,
     Nodes {
         start: Point,
-        loc: ObjLoc,
+        loc: ObjRef,
         original: Object,
         cands: Vec<(Point, SnapKind)>,
     },
-    HandleDrag {
+    NodeHandle {
         node: NodeRef,
         side: Handle,
-        loc: ObjLoc,
+        loc: ObjRef,
         original: Object,
     },
     Segment {
         seg: SegRef,
         t: f64,
         start: Point,
-        loc: ObjLoc,
+        loc: ObjRef,
         original: Object,
     },
     NodeRubber {
@@ -364,10 +364,11 @@ impl CanvasState {
                 );
             }
         }
-        if response.dragged_by(PointerButton::Primary) && !matches!(self.drag, Drag::Pan) {
-            if let Some(cur) = response.interact_pointer_pos() {
-                self.update_drag(doc, to_page(cur), mods, tol);
-            }
+        if response.dragged_by(PointerButton::Primary)
+            && !matches!(self.drag, Drag::Pan)
+            && let Some(cur) = response.interact_pointer_pos()
+        {
+            self.update_drag(doc, to_page(cur), mods, tol);
         }
         if response.drag_stopped() {
             let end = response
@@ -376,36 +377,39 @@ impl CanvasState {
                 .unwrap_or(rect.center());
             self.end_drag(doc, to_page(end), end, mods, rect, ph, defaults);
         }
-        if response.clicked() && !panning_tool {
-            if let Some(pos) = response.interact_pointer_pos() {
-                self.click(
-                    tool,
-                    doc,
-                    to_page(pos),
-                    pos,
-                    mods,
-                    tol,
-                    rect,
-                    defaults,
-                    &mut ev,
-                );
-            }
+        if response.clicked()
+            && !panning_tool
+            && let Some(pos) = response.interact_pointer_pos()
+        {
+            self.click(
+                tool,
+                doc,
+                to_page(pos),
+                pos,
+                mods,
+                tol,
+                rect,
+                defaults,
+                &mut ev,
+            );
         }
-        if response.secondary_clicked() && tool == Tool::Zoom {
-            if let Some(pos) = response.interact_pointer_pos() {
-                let l = pos - rect.min;
-                self.view.zoom_at(0.5, (l.x as f64, l.y as f64));
-            }
+        if response.secondary_clicked()
+            && tool == Tool::Zoom
+            && let Some(pos) = response.interact_pointer_pos()
+        {
+            let l = pos - rect.min;
+            self.view.zoom_at(0.5, (l.x as f64, l.y as f64));
         }
-        if response.double_clicked() && !panning_tool {
-            if let Some(pos) = response.interact_pointer_pos() {
-                self.double_click(tool, doc, to_page(pos), tol, defaults, &mut ev);
-            }
+        if response.double_clicked()
+            && !panning_tool
+            && let Some(pos) = response.interact_pointer_pos()
+        {
+            self.double_click(tool, doc, to_page(pos), tol, defaults, &mut ev);
         }
-        if tool == Tool::Bezier {
-            if let (Some(_), Some(_)) = (&self.bezier, self.cursor_page) {
-                ui.ctx().request_repaint();
-            }
+        if tool == Tool::Bezier
+            && let (Some(_), Some(_)) = (&self.bezier, self.cursor_page)
+        {
+            ui.ctx().request_repaint();
         }
         // Encaixe sob o cursor (indicação visual, GD-SNP-02) nas ferramentas de desenho.
         if !self.is_dragging() && matches!(tool, Tool::Rect | Tool::Ellipse | Tool::Bezier) {
@@ -504,23 +508,23 @@ impl CanvasState {
                 self.rendered = Some(key);
             }
         }
-        if let (Some(tex), Some(r)) = (&self.texture, self.rendered) {
-            if r.page == doc.page {
-                let shift = Vec2::new(
-                    (v.pan.0 - r.view.pan.0) as f32,
-                    (v.pan.1 - r.view.pan.1) as f32,
-                );
-                let img = Rect::from_min_size(
-                    rect.min + shift,
-                    Vec2::new(r.size[0] as f32 / ppp, r.size[1] as f32 / ppp),
-                );
-                painter.image(
-                    tex.id(),
-                    img,
-                    Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
-                    Color32::WHITE,
-                );
-            }
+        if let (Some(tex), Some(r)) = (&self.texture, self.rendered)
+            && r.page == doc.page
+        {
+            let shift = Vec2::new(
+                (v.pan.0 - r.view.pan.0) as f32,
+                (v.pan.1 - r.view.pan.1) as f32,
+            );
+            let img = Rect::from_min_size(
+                rect.min + shift,
+                Vec2::new(r.size[0] as f32 / ppp, r.size[1] as f32 / ppp),
+            );
+            painter.image(
+                tex.id(),
+                img,
+                Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
+                Color32::WHITE,
+            );
         }
         painter.rect_stroke(
             page_rect,
@@ -530,19 +534,19 @@ impl CanvasState {
         );
 
         // Grade (quando ligada e legível).
-        if self.show_grid {
-            if let Some(g) = self.snap.grid.filter(|g| *g * v.zoom >= 6.0) {
-                let stroke = EStroke::new(1.0, Color32::from_rgba_unmultiplied(30, 136, 229, 40));
-                let mut x = 0.0;
-                while x <= pw {
-                    painter.line_segment([s(x, 0.0), s(x, ph)], stroke);
-                    x += g;
-                }
-                let mut y = 0.0;
-                while y <= ph {
-                    painter.line_segment([s(0.0, y), s(pw, y)], stroke);
-                    y += g;
-                }
+        if self.show_grid
+            && let Some(g) = self.snap.grid.filter(|g| *g * v.zoom >= 6.0)
+        {
+            let stroke = EStroke::new(1.0, Color32::from_rgba_unmultiplied(30, 136, 229, 40));
+            let mut x = 0.0;
+            while x <= pw {
+                painter.line_segment([s(x, 0.0), s(x, ph)], stroke);
+                x += g;
+            }
+            let mut y = 0.0;
+            while y <= ph {
+                painter.line_segment([s(0.0, y), s(pw, y)], stroke);
+                y += g;
             }
         }
     }
@@ -582,8 +586,8 @@ impl CanvasState {
         let ph = doc.page_size().1;
         let thin = EStroke::new(1.0, accent());
         // Contorno fino de cada objeto selecionado + caixa da seleção com alças.
-        for o in doc.selected_objects() {
-            if let Some(b) = query::bounds(o, Affine::IDENTITY, false) {
+        for r in ops::refs(&doc.editor, &doc.selection) {
+            if let Some(b) = ops::object_bounds(&doc.editor, &r, false) {
                 painter.rect_stroke(
                     self.screen_rect(rect, ph, b),
                     0.0,
@@ -592,42 +596,42 @@ impl CanvasState {
                 );
             }
         }
-        if tool == Tool::Select {
-            if let Some(b) = ops::selection_bounds(&doc.editor, &doc.selection, false) {
-                let sr = self.screen_rect(rect, ph, b);
-                painter.rect_stroke(sr, 0.0, thin, egui::StrokeKind::Middle);
-                if self.rotate_mode {
-                    for (a, p) in self.handle_rects(rect, ph, b) {
-                        let corner = matches!(
-                            a,
-                            Anchor::TopLeft
-                                | Anchor::TopRight
-                                | Anchor::BottomLeft
-                                | Anchor::BottomRight
-                        );
-                        if corner {
-                            painter.circle(p, HANDLE, Color32::WHITE, thin);
-                        } else {
-                            let d = HANDLE;
-                            let pts = vec![
-                                p + Vec2::new(0.0, -d),
-                                p + Vec2::new(d, 0.0),
-                                p + Vec2::new(0.0, d),
-                                p + Vec2::new(-d, 0.0),
-                            ];
-                            painter.add(egui::Shape::convex_polygon(pts, Color32::WHITE, thin));
-                        }
+        if tool == Tool::Select
+            && let Some(b) = ops::selection_bounds(&doc.editor, &doc.selection, false)
+        {
+            let sr = self.screen_rect(rect, ph, b);
+            painter.rect_stroke(sr, 0.0, thin, egui::StrokeKind::Middle);
+            if self.rotate_mode {
+                for (a, p) in self.handle_rects(rect, ph, b) {
+                    let corner = matches!(
+                        a,
+                        Anchor::TopLeft
+                            | Anchor::TopRight
+                            | Anchor::BottomLeft
+                            | Anchor::BottomRight
+                    );
+                    if corner {
+                        painter.circle(p, HANDLE, Color32::WHITE, thin);
+                    } else {
+                        let d = HANDLE;
+                        let pts = vec![
+                            p + Vec2::new(0.0, -d),
+                            p + Vec2::new(d, 0.0),
+                            p + Vec2::new(0.0, d),
+                            p + Vec2::new(-d, 0.0),
+                        ];
+                        painter.add(egui::Shape::convex_polygon(pts, Color32::WHITE, thin));
                     }
-                    let c = self.screen(rect, ph, self.rotation_center(b));
-                    painter.circle_stroke(c, 6.0, thin);
-                    painter.line_segment([c - Vec2::new(9.0, 0.0), c + Vec2::new(9.0, 0.0)], thin);
-                    painter.line_segment([c - Vec2::new(0.0, 9.0), c + Vec2::new(0.0, 9.0)], thin);
-                } else {
-                    for (_, p) in self.handle_rects(rect, ph, b) {
-                        let r = Rect::from_center_size(p, Vec2::splat(HANDLE * 2.0));
-                        painter.rect_filled(r, 1.0, Color32::WHITE);
-                        painter.rect_stroke(r, 1.0, thin, egui::StrokeKind::Middle);
-                    }
+                }
+                let c = self.screen(rect, ph, self.rotation_center(b));
+                painter.circle_stroke(c, 6.0, thin);
+                painter.line_segment([c - Vec2::new(9.0, 0.0), c + Vec2::new(9.0, 0.0)], thin);
+                painter.line_segment([c - Vec2::new(0.0, 9.0), c + Vec2::new(0.0, 9.0)], thin);
+            } else {
+                for (_, p) in self.handle_rects(rect, ph, b) {
+                    let r = Rect::from_center_size(p, Vec2::splat(HANDLE * 2.0));
+                    painter.rect_filled(r, 1.0, Color32::WHITE);
+                    painter.rect_stroke(r, 1.0, thin, egui::StrokeKind::Middle);
                 }
             }
         }
@@ -674,11 +678,11 @@ impl CanvasState {
                     pt(b.p),
                 );
             }
-            if let (Some(cur), Some(last)) = (self.cursor_page, d.nodes.last()) {
-                if !matches!(self.drag, Drag::BezierHandle) {
-                    let cur = self.snap_hit.map_or(cur, |s| s.point);
-                    path.curve_to(pt(last.handle_out.unwrap_or(last.p)), cur, cur);
-                }
+            if let (Some(cur), Some(last)) = (self.cursor_page, d.nodes.last())
+                && !matches!(self.drag, Drag::BezierHandle)
+            {
+                let cur = self.snap_hit.map_or(cur, |s| s.point);
+                path.curve_to(pt(last.handle_out.unwrap_or(last.p)), cur, cur);
             }
             self.stroke_bez(painter, rect, ph, &path, thin);
             for n in &d.nodes {
@@ -744,10 +748,9 @@ impl CanvasState {
     }
 
     fn paint_nodes(&self, painter: &egui::Painter, doc: &DocState, rect: Rect, ph: f64) {
-        let Some((_, o, path)) = single_path(doc) else {
+        let Some(PathSel { path, m, .. }) = single_path(doc) else {
             return;
         };
-        let m = o.transform.affine();
         let mut bez = graphdraw_core::model::geom::subpaths_to_bez(&path.subpaths);
         bez.apply_affine(m);
         self.stroke_bez(painter, rect, ph, &bez, EStroke::new(1.0, accent()));
@@ -828,12 +831,6 @@ impl CanvasState {
         rect: Rect,
         ph: f64,
     ) {
-        let originals = |doc: &DocState| -> Vec<(ObjLoc, Object)> {
-            ops::locs(&doc.editor, &doc.selection)
-                .into_iter()
-                .map(|l| (l, doc.editor.object(l).unwrap().clone()))
-                .collect()
-        };
         if let Some(b) = ops::selection_bounds(&doc.editor, &doc.selection, false) {
             let near = |q: Pos2| (q - origin).length() <= HANDLE + 3.0;
             if self.rotate_mode {
@@ -901,9 +898,8 @@ impl CanvasState {
                 }
             }
         }
-        match query::hit_test(doc.page(), p, tol) {
-            Some(hit) => {
-                let id = doc.page().layers[hit.layer].objects[hit.index].id.clone();
+        match pick(doc, p, tol, mods.ctrl) {
+            Some(id) => {
                 if !doc.selection.contains(&id) {
                     if mods.shift {
                         doc.selection.push(id);
@@ -961,12 +957,12 @@ impl CanvasState {
         rect: Rect,
         ph: f64,
     ) {
-        let Some((loc, o, path)) = single_path(doc).map(|(l, o, p)| (l, o.clone(), p.clone()))
+        let Some((loc, o, path, m)) =
+            single_path(doc).map(|s| (s.r, s.obj.clone(), s.path.clone(), s.m))
         else {
             self.drag = Drag::Rubber { start: origin };
             return;
         };
-        let m = o.transform.affine();
         let near = |q: Point| (self.screen(rect, ph, m * q) - origin).length() <= 6.0;
         // Alças dos nós selecionados.
         for r in doc.nodes.clone() {
@@ -974,7 +970,7 @@ impl CanvasState {
                 for (h, side) in [(n.handle_in, Handle::In), (n.handle_out, Handle::Out)] {
                     if h.is_some_and(|h| near(pt(h))) {
                         doc.editor.begin(tr("Mover alça", "Move handle"));
-                        self.drag = Drag::HandleDrag {
+                        self.drag = Drag::NodeHandle {
                             node: r,
                             side,
                             loc,
@@ -996,7 +992,7 @@ impl CanvasState {
                 }
                 doc.nodes.push(r);
             }
-            let cands = snap::candidates(doc.page(), &self.snap, &[o.id.clone()]);
+            let cands = snap::candidates(doc.page(), &self.snap, std::slice::from_ref(&o.id));
             doc.editor.begin(format!(
                 "{} {}",
                 tr("Mover", "Move"),
@@ -1139,18 +1135,17 @@ impl CanvasState {
                 original,
                 cands,
             } => {
-                let m = original.transform.affine();
+                let m = doc.editor.parent_affine(loc) * original.transform.affine();
                 let mut target = cur;
                 // Encaixa o nó agarrado (o primeiro selecionado).
-                if let (Some(r), ObjectKind::Path(p)) = (doc.nodes.first(), &original.kind) {
-                    if let Some(n) = nodes::node(p, *r) {
-                        let grabbed = m * pt(n.p);
-                        if let Some(s) =
-                            snap::snap(grabbed + (cur - *start), cands, &self.snap, radius)
-                        {
-                            target = *start + (s.point - grabbed);
-                            self.snap_hit = Some(s);
-                        }
+                if let (Some(r), ObjectKind::Path(p)) = (doc.nodes.first(), &original.kind)
+                    && let Some(n) = nodes::node(p, *r)
+                {
+                    let grabbed = m * pt(n.p);
+                    if let Some(s) = snap::snap(grabbed + (cur - *start), cands, &self.snap, radius)
+                    {
+                        target = *start + (s.point - grabbed);
+                        self.snap_hit = Some(s);
                     }
                 }
                 let ld = m.inverse() * target - m.inverse() * *start;
@@ -1158,20 +1153,21 @@ impl CanvasState {
                 if let ObjectKind::Path(p) = &mut o.kind {
                     nodes::move_nodes(p, &doc.nodes, [ld.x, ld.y]);
                 }
-                doc.editor.replace_object(*loc, o);
+                doc.editor.replace_at(loc, o);
             }
-            Drag::HandleDrag {
+            Drag::NodeHandle {
                 node,
                 side,
                 loc,
                 original,
             } => {
-                let lp = original.transform.affine().inverse() * cur;
+                let lp =
+                    (doc.editor.parent_affine(loc) * original.transform.affine()).inverse() * cur;
                 let mut o = original.clone();
                 if let ObjectKind::Path(p) = &mut o.kind {
                     nodes::move_handle(p, *node, *side, [lp.x, lp.y]);
                 }
-                doc.editor.replace_object(*loc, o);
+                doc.editor.replace_at(loc, o);
             }
             Drag::Segment {
                 seg,
@@ -1180,27 +1176,27 @@ impl CanvasState {
                 loc,
                 original,
             } => {
-                let inv = original.transform.affine().inverse();
+                let inv = (doc.editor.parent_affine(loc) * original.transform.affine()).inverse();
                 let d = inv * cur - inv * *start;
                 let mut o = original.clone();
                 if let ObjectKind::Path(p) = &mut o.kind {
                     nodes::drag_segment(p, *seg, *t, [d.x, d.y]);
                 }
-                doc.editor.replace_object(*loc, o);
+                doc.editor.replace_at(loc, o);
             }
             Drag::DrawRect { cands, .. } => {
                 self.snap_hit = snap::snap(cur, cands, &self.snap, radius);
             }
             Drag::BezierHandle => {
-                if let Some(d) = &mut self.bezier {
-                    if let Some(n) = d.nodes.last_mut() {
-                        let p = pt(n.p);
-                        if (cur - p).hypot() * self.view.zoom > 2.0 {
-                            n.handle_out = Some([cur.x, cur.y]);
-                            let mirror = p + (p - cur);
-                            n.handle_in = Some([mirror.x, mirror.y]);
-                            n.kind = NodeKind::Symmetric;
-                        }
+                if let Some(d) = &mut self.bezier
+                    && let Some(n) = d.nodes.last_mut()
+                {
+                    let p = pt(n.p);
+                    if (cur - p).hypot() * self.view.zoom > 2.0 {
+                        n.handle_out = Some([cur.x, cur.y]);
+                        let mirror = p + (p - cur);
+                        n.handle_in = Some([mirror.x, mirror.y]);
+                        n.kind = NodeKind::Symmetric;
                     }
                 }
             }
@@ -1241,8 +1237,8 @@ impl CanvasState {
                 self.rotate_mode = false;
             }
             Drag::NodeRubber { start } => {
-                if let Some((_, o, path)) = single_path(doc) {
-                    let inv = o.transform.affine().inverse();
+                if let Some(PathSel { path, m, .. }) = single_path(doc) {
+                    let inv = m.inverse();
                     let a = self.page_of(rect, ph, start);
                     let r = inv.transform_rect_bbox(kurbo::Rect::from_points(a, cur));
                     let found = nodes::nodes_in_rect(path, r);
@@ -1309,7 +1305,7 @@ impl CanvasState {
             | Drag::Rotate { .. }
             | Drag::Skew { .. }
             | Drag::Nodes { .. }
-            | Drag::HandleDrag { .. }
+            | Drag::NodeHandle { .. }
             | Drag::Segment { .. } => {
                 doc.editor.commit();
             }
@@ -1341,12 +1337,11 @@ impl CanvasState {
             8.0 / self.view.zoom,
         )
         .map_or(p, |s| s.point);
-        if let Some(d) = &self.bezier {
-            if d.nodes.len() >= 2
-                && (self.screen(rect, ph, pt(d.nodes[0].p)) - origin).length() <= 7.0
-            {
-                return true;
-            }
+        if let Some(d) = &self.bezier
+            && d.nodes.len() >= 2
+            && (self.screen(rect, ph, pt(d.nodes[0].p)) - origin).length() <= 7.0
+        {
+            return true;
         }
         let draft = self.bezier.get_or_insert(BezierDraft { nodes: Vec::new() });
         draft.nodes.push(Node::corner(p.x, p.y));
@@ -1368,9 +1363,8 @@ impl CanvasState {
     ) {
         let ph = doc.page_size().1;
         match tool {
-            Tool::Select => match query::hit_test(doc.page(), p, tol) {
-                Some(hit) => {
-                    let id = doc.page().layers[hit.layer].objects[hit.index].id.clone();
+            Tool::Select => match pick(doc, p, tol, mods.ctrl) {
+                Some(id) => {
                     if mods.shift {
                         if let Some(i) = doc.selection.iter().position(|s| *s == id) {
                             doc.selection.remove(i);
@@ -1395,11 +1389,8 @@ impl CanvasState {
                 }
             },
             Tool::Shape => {
-                if let Some((_, o, path)) =
-                    single_path(doc).map(|(l, o, p)| (l, o.clone(), p.clone()))
-                {
-                    let m = o.transform.affine();
-                    if let Some(r) = nodes::all_nodes(&path).into_iter().find(|r| {
+                if let Some((path, m)) = single_path(doc).map(|s| (s.path.clone(), s.m))
+                    && let Some(r) = nodes::all_nodes(&path).into_iter().find(|r| {
                         (self.screen(rect, ph, m * pt(nodes::node(&path, *r).unwrap().p)) - pos)
                             .length()
                             <= 6.0
@@ -1415,11 +1406,10 @@ impl CanvasState {
                         }
                         return;
                     }
-                }
-                // Clique em outro objeto o seleciona.
-                match query::hit_test(doc.page(), p, tol) {
-                    Some(hit) => {
-                        let id = doc.page().layers[hit.layer].objects[hit.index].id.clone();
+                // Clique em outro objeto o seleciona (descendo nos grupos: a
+                // ferramenta Forma edita o caminho, não o grupo).
+                match pick(doc, p, tol, true) {
+                    Some(id) => {
                         if doc.selection != [id.clone()] {
                             doc.selection = vec![id];
                             doc.nodes.clear();
@@ -1436,12 +1426,11 @@ impl CanvasState {
                 let l = pos - rect.min;
                 self.view.zoom_at(2.0, (l.x as f64, l.y as f64));
             }
-            Tool::Bezier => {
+            Tool::Bezier
                 // Clique simples (sem arrasto) = nó de canto; no primeiro nó, fecha.
-                if self.bezier_press(doc, p, pos, rect, ph) {
+                if self.bezier_press(doc, p, pos, rect, ph) => {
                     self.finish_bezier(doc, defaults, true);
                 }
-            }
             _ => {}
         }
         let _ = ev;
@@ -1458,36 +1447,36 @@ impl CanvasState {
     ) {
         match tool {
             Tool::Select => {
-                if let Some(hit) = query::hit_test(doc.page(), p, tol) {
-                    let o = &doc.page().layers[hit.layer].objects[hit.index];
-                    if matches!(
+                if let Some(o) = pick(doc, p, tol, true)
+                    .and_then(|id| doc.editor.find(&id))
+                    .and_then(|r| doc.editor.get(&r))
+                    && matches!(
                         o.kind,
                         ObjectKind::Path(_) | ObjectKind::Rectangle(_) | ObjectKind::Ellipse(_)
-                    ) {
-                        doc.selection = vec![o.id.clone()];
-                        ev.switch_tool = Some(Tool::Shape);
-                    }
+                    )
+                {
+                    doc.selection = vec![o.id.clone()];
+                    ev.switch_tool = Some(Tool::Shape);
                 }
             }
             Tool::Shape => {
                 // Duplo clique no segmento adiciona nó (GD-NOD-03).
-                if let Some((loc, o, path)) =
-                    single_path(doc).map(|(l, o, p)| (l, o.clone(), p.clone()))
+                if let Some((loc, o, path, m)) =
+                    single_path(doc).map(|s| (s.r, s.obj.clone(), s.path.clone(), s.m))
                 {
-                    let m = o.transform.affine();
                     let scale = m.determinant().abs().sqrt().max(1e-12);
                     if let Some(n) = geometry::nearest(&path, m.inverse() * p)
                         .filter(|n| n.distance * scale <= tol)
                     {
                         let mut no = o.clone();
-                        if let ObjectKind::Path(pd) = &mut no.kind {
-                            if let Some(r) = nodes::add_node(pd, n.seg, n.t) {
-                                doc.editor
-                                    .transaction(tr("Adicionar nó", "Add node"), |ed| {
-                                        ed.replace_object(loc, no)
-                                    });
-                                doc.nodes = vec![r];
-                            }
+                        if let ObjectKind::Path(pd) = &mut no.kind
+                            && let Some(r) = nodes::add_node(pd, n.seg, n.t)
+                        {
+                            doc.editor
+                                .transaction(tr("Adicionar nó", "Add node"), |ed| {
+                                    ed.replace_at(&loc, no)
+                                });
+                            doc.nodes = vec![r];
                         }
                     }
                 }
@@ -1534,24 +1523,55 @@ fn draw_rect(a: Point, b: Point, mods: egui::Modifiers) -> kurbo::Rect {
     }
 }
 
-/// Aplica `m` aos originais (pré-visualização ao vivo dentro da transação).
-fn apply_live(doc: &mut DocState, originals: &[(ObjLoc, Object)], m: Affine) {
-    for (loc, o) in originals {
+/// Aplica `m` (página) aos originais (pré-visualização ao vivo dentro da transação).
+fn apply_live(doc: &mut DocState, originals: &[(ObjRef, Object)], m: Affine) {
+    for (r, o) in originals {
         let mut n = o.clone();
-        n.transform = Transform::from_affine(m * o.transform.affine());
-        doc.editor.replace_object(*loc, n);
+        n.transform = ops::page_transform(&doc.editor, r, o, m);
+        doc.editor.replace_at(r, n);
     }
 }
 
-/// Objeto único selecionado, se for caminho editável por nós.
-pub fn single_path(doc: &DocState) -> Option<(ObjLoc, &Object, &PathData)> {
+/// Objetos selecionados com suas referências (para arrastos ao vivo).
+fn originals(doc: &DocState) -> Vec<(ObjRef, Object)> {
+    ops::refs(&doc.editor, &doc.selection)
+        .into_iter()
+        .filter_map(|r| doc.editor.get(&r).cloned().map(|o| (r, o)))
+        .collect()
+}
+
+/// Objeto sob o cursor. Com `deep` (Ctrl+clique) entra nos grupos e pega o
+/// objeto mais fundo (GD-SEL-02); sem, pega o objeto de primeiro nível — a
+/// não ser que o objeto de dentro já esteja selecionado, para poder
+/// arrastá-lo sem voltar a selecionar o grupo inteiro.
+fn pick(doc: &DocState, p: Point, tol: f64, deep: bool) -> Option<String> {
+    let hit = query::hit_test(doc.page(), p, tol)?;
+    let top = doc.page().layers[hit.layer].objects[hit.index].id.clone();
+    let inner = query::hit_test_deep(doc.page(), p, tol);
+    match inner {
+        Some(i) if deep || doc.selection.contains(&i) => Some(i),
+        _ => Some(top),
+    }
+}
+
+/// Caminho único selecionado, editável por nós (pode estar dentro de grupo).
+pub struct PathSel<'a> {
+    pub r: ObjRef,
+    pub obj: &'a Object,
+    pub path: &'a PathData,
+    /// Espaço local do caminho → página (inclui os grupos acima).
+    pub m: Affine,
+}
+
+pub fn single_path(doc: &DocState) -> Option<PathSel<'_>> {
     if doc.selection.len() != 1 {
         return None;
     }
-    let loc = doc.editor.locate(&doc.selection[0])?;
-    let o = doc.editor.object(loc)?;
-    match &o.kind {
-        ObjectKind::Path(p) => Some((loc, o, p)),
+    let r = doc.editor.find(&doc.selection[0])?;
+    let obj = doc.editor.get(&r)?;
+    let m = doc.editor.parent_affine(&r) * obj.transform.affine();
+    match &obj.kind {
+        ObjectKind::Path(path) => Some(PathSel { r, obj, path, m }),
         _ => None,
     }
 }

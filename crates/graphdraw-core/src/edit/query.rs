@@ -6,7 +6,7 @@ use kurbo::{Affine, BezPath, Point, Rect, Shape};
 use crate::geometry;
 use crate::model::geom::subpaths_to_bez;
 use crate::model::{Fill, Object, ObjectKind, Page};
-use crate::render::scene::{ellipse_path, rect_path};
+use crate::render::scene::{all_closed, ellipse_path, rect_path};
 use crate::render::text::layout_text;
 
 /// Contorno local de objetos com geometria de caminho.
@@ -62,8 +62,15 @@ pub fn bounds(o: &Object, parent: Affine, visual: bool) -> Option<Rect> {
         } else {
             s.width
         };
-        let half = w / 2.0;
-        return Some(r.inflate(half, half));
+        // Contorno interno não sai da borda; externo sai a espessura inteira
+        // (GD-OUT-04). Caminhos abertos sempre desenham centrado.
+        let closed = local_outline(o).is_some_and(|p| all_closed(&p));
+        let out = match (s.position.as_str(), closed) {
+            ("inside", true) => 0.0,
+            ("outside", true) => w,
+            _ => w / 2.0,
+        };
+        return Some(r.inflate(out, out));
     }
     Some(r)
 }
@@ -141,6 +148,31 @@ pub fn hit_test(page: &Page, p: Point, tol: f64) -> Option<Hit> {
         }
     }
     None
+}
+
+/// Objeto (não grupo) mais à frente sob o ponto, descendo nos grupos
+/// (GD-SEL-02). Devolve o ID.
+pub fn hit_test_deep(page: &Page, p: Point, tol: f64) -> Option<String> {
+    fn deepest(o: &Object, parent: Affine, p: Point, tol: f64) -> Option<&Object> {
+        if !o.visible || o.locked {
+            return None;
+        }
+        match &o.kind {
+            ObjectKind::Group(g) => {
+                let m = parent * o.transform.affine();
+                g.children.iter().rev().find_map(|c| deepest(c, m, p, tol))
+            }
+            _ => hits(o, parent, p, tol).then_some(o),
+        }
+    }
+    let hit = hit_test(page, p, tol)?;
+    deepest(
+        &page.layers[hit.layer].objects[hit.index],
+        Affine::IDENTITY,
+        p,
+        tol,
+    )
+    .map(|o| o.id.clone())
 }
 
 /// Objetos inteiramente dentro do retângulo (seleção por área).
@@ -258,6 +290,26 @@ mod tests {
             hit_test(&page, Point::new(5.0, 5.0), 0.5),
             Some(Hit { layer: 0, index: 0 })
         );
+    }
+
+    #[test]
+    fn gd_sel_02_deep_hit_finds_child() {
+        let mut page = Page::new(100.0, 100.0);
+        let a = rect(0.0, 0.0, 10.0, 10.0);
+        let b = rect(20.0, 0.0, 10.0, 10.0);
+        let b_id = b.id.clone();
+        let mut g = Object::new(ObjectKind::Group(GroupData {
+            children: vec![a, b],
+            extra: Map::new(),
+        }));
+        g.transform = Transform::translate(50.0, 50.0);
+        let g_id = g.id.clone();
+        page.layers[0].objects.push(g);
+        let p = Point::new(75.0, 55.0);
+        let hit = hit_test(&page, p, 0.5).unwrap();
+        assert_eq!(page.layers[0].objects[hit.index].id, g_id);
+        assert_eq!(hit_test_deep(&page, p, 0.5), Some(b_id));
+        assert_eq!(hit_test_deep(&page, Point::new(65.0, 55.0), 0.5), None);
     }
 
     #[test]

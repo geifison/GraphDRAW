@@ -14,7 +14,7 @@ use pdf_writer::{Content, Filter, Finish, Name, Pdf, Rect, Ref, TextStr};
 
 use super::ExportOptions;
 use crate::model::{Color, FillRule, Gradient};
-use crate::render::scene::{ImageItem, Item, Paint, Scene, ShapeItem, StrokeStyle};
+use crate::render::scene::{ImageItem, Item, Paint, Scene, ShapeItem, StrokePosition, StrokeStyle};
 use crate::units::UM_PER_INCH;
 
 /// µm → pt.
@@ -457,10 +457,39 @@ fn stroke(
         ),
     };
     c.save_state();
+    // Interno/externo (GD-OUT-04): traço duplo recortado pela forma ou pelo
+    // complemento. O complemento usa par-ímpar com uma moldura em volta, o que
+    // é exato para formas sem auto-sobreposição.
+    if st.width > 0.0 && st.position != StrokePosition::Center {
+        if st.position == StrokePosition::Outside {
+            let pad = st.width * st.miter_limit.max(1.5) + 1.0;
+            let b = kurbo::Shape::bounding_box(&s.path).inflate(pad, pad);
+            c.rect(
+                b.x0 as f32,
+                b.y0 as f32,
+                b.width() as f32,
+                b.height() as f32,
+            );
+            path_ops(c, &s.path);
+            c.clip_even_odd();
+        } else {
+            path_ops(c, &s.path);
+            if s.fill_rule == FillRule::Evenodd {
+                c.clip_even_odd()
+            } else {
+                c.clip_nonzero()
+            };
+        }
+        c.end_path();
+    }
     gstate(c, 1.0, alpha, res, pdf, alloc);
     set_color(c, &color, true, res, pdf, alloc);
     // Largura 0 em PDF = linha mais fina do dispositivo (fio de cabelo).
-    c.set_line_width(st.width.max(0.0) as f32);
+    c.set_line_width(if st.width > 0.0 {
+        st.drawn_width() as f32
+    } else {
+        0.0
+    });
     c.set_line_cap(match st.cap.as_str() {
         "round" => LineCapStyle::RoundCap,
         "square" => LineCapStyle::ProjectingSquareCap,

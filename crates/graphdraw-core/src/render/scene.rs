@@ -41,6 +41,66 @@ pub struct StrokeStyle {
     pub join: String,
     pub miter_limit: f64,
     pub behind_fill: bool,
+    pub position: StrokePosition,
+}
+
+/// Posição do contorno em relação à borda (GD-OUT-04). Interno e externo
+/// são desenhados como um traço de espessura dupla recortado pela forma
+/// (ou pelo seu complemento); só valem para caminhos todos fechados.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StrokePosition {
+    Center,
+    Inside,
+    Outside,
+}
+
+impl StrokePosition {
+    pub fn parse(s: &str) -> StrokePosition {
+        match s {
+            "inside" => StrokePosition::Inside,
+            "outside" => StrokePosition::Outside,
+            _ => StrokePosition::Center,
+        }
+    }
+}
+
+impl StrokeStyle {
+    /// Espessura do traço efetivamente desenhado (antes do recorte).
+    pub fn drawn_width(&self) -> f64 {
+        match self.position {
+            StrokePosition::Center => self.width,
+            _ => self.width * 2.0,
+        }
+    }
+
+    /// Quanto o contorno avança para fora da borda geométrica.
+    pub fn outer_extent(&self) -> f64 {
+        match self.position {
+            StrokePosition::Center => self.width * 0.5,
+            StrokePosition::Inside => 0.0,
+            StrokePosition::Outside => self.width,
+        }
+    }
+}
+
+/// Todos os subcaminhos são fechados (condição para contorno interno/externo).
+pub fn all_closed(path: &BezPath) -> bool {
+    let mut open = false;
+    let mut any = false;
+    for el in path.elements() {
+        match el {
+            PathEl::MoveTo(_) => {
+                if open {
+                    return false;
+                }
+                open = true;
+                any = true;
+            }
+            PathEl::ClosePath => open = false,
+            _ => {}
+        }
+    }
+    any && !open
 }
 
 #[derive(Debug, Clone)]
@@ -121,10 +181,10 @@ fn shape_bounds(s: &ShapeItem) -> kurbo::Rect {
     let b = s.path.bounding_box();
     match &s.stroke {
         // Meia espessura × limite de esquadria cobre juntas agudas e terminações.
-        Some(st) => b.inflate(
-            st.width * 0.5 * st.miter_limit.max(1.5),
-            st.width * 0.5 * st.miter_limit.max(1.5),
-        ),
+        Some(st) => {
+            let d = st.outer_extent() * st.miter_limit.max(1.5);
+            b.inflate(d, d)
+        }
         None => b,
     }
 }
@@ -194,6 +254,7 @@ pub fn build_scene(doc: &Document, page: &Page, opts: SceneOptions, images: &Ima
         images,
         items: Vec::new(),
         missing_fonts: Vec::new(),
+        wireframe: false,
     };
     if !page.hide_master {
         for layer in &doc.data.master_page.layers {
@@ -222,6 +283,8 @@ struct Builder<'a> {
     images: &'a ImageCache,
     items: Vec<Item>,
     missing_fonts: Vec<String>,
+    /// Camada atual em modo esboço (só na tela; a impressão sai normal).
+    wireframe: bool,
 }
 
 impl Builder<'_> {
@@ -229,9 +292,11 @@ impl Builder<'_> {
         if !layer.visible || (self.opts.print && !layer.printable) {
             return;
         }
+        self.wireframe = layer.wireframe && !self.opts.print;
         for o in &layer.objects {
             self.object(o, Affine::IDENTITY, 1.0);
         }
+        self.wireframe = false;
     }
 
     fn object(&mut self, o: &Object, parent: Affine, parent_alpha: f64) {
@@ -280,13 +345,17 @@ impl Builder<'_> {
                         };
                         let mut path = run.outline.clone();
                         path.apply_affine(m);
-                        outlines.push(ShapeItem {
+                        let mut item = ShapeItem {
                             object_id: o.id.clone(),
                             path,
                             fill: paint,
                             fill_rule: FillRule::Nonzero,
                             stroke: o.stroke.as_ref().map(|s| resolve_stroke(s, m, alpha)),
-                        });
+                        };
+                        if self.wireframe {
+                            wireframe(&mut item);
+                        }
+                        outlines.push(item);
                     }
                 }
                 self.items.push(Item::Text(TextItem {
@@ -302,15 +371,45 @@ impl Builder<'_> {
         };
         if let Some((mut path, fill_rule)) = local_path {
             path.apply_affine(m);
-            self.items.push(Item::Shape(ShapeItem {
+            let mut stroke = o.stroke.as_ref().map(|s| resolve_stroke(s, m, alpha));
+            if let Some(st) = &mut stroke
+                && st.position != StrokePosition::Center
+                && !all_closed(&path)
+            {
+                st.position = StrokePosition::Center;
+            }
+            let mut item = ShapeItem {
                 object_id: o.id.clone(),
                 path,
                 fill: o.fill.as_ref().and_then(|f| resolve_fill(f, m, alpha)),
                 fill_rule,
-                stroke: o.stroke.as_ref().map(|s| resolve_stroke(s, m, alpha)),
-            }));
+                stroke,
+            };
+            if self.wireframe {
+                wireframe(&mut item);
+            }
+            self.items.push(Item::Shape(item));
         }
     }
+}
+
+/// Modo esboço (GD-CAM-01): só o traço fino, sem preenchimento.
+fn wireframe(s: &mut ShapeItem) {
+    s.fill = None;
+    s.stroke = Some(StrokeStyle {
+        width: 0.0,
+        paint: Paint::Solid {
+            color: Color::black(),
+            alpha: 1.0,
+        },
+        dash: None,
+        dash_offset: 0.0,
+        cap: "butt".into(),
+        join: "miter".into(),
+        miter_limit: 4.0,
+        behind_fill: false,
+        position: StrokePosition::Center,
+    });
 }
 
 pub fn resolve_fill(f: &Fill, m: Affine, alpha: f64) -> Option<Paint> {
@@ -351,6 +450,7 @@ fn resolve_stroke(s: &Stroke, m: Affine, alpha: f64) -> StrokeStyle {
         join: s.join.clone(),
         miter_limit: s.miter_limit,
         behind_fill: s.behind_fill,
+        position: StrokePosition::parse(&s.position),
     }
 }
 

@@ -12,7 +12,9 @@ use kurbo::{Affine, BezPath, PathEl};
 use super::ExportOptions;
 use crate::model::{FillRule, Gradient};
 use crate::render::raster;
-use crate::render::scene::{ImageItem, Item, Paint, Scene, ShapeItem, StrokeStyle, TextItem};
+use crate::render::scene::{
+    ImageItem, Item, Paint, Scene, ShapeItem, StrokePosition, StrokeStyle, TextItem,
+};
 
 pub fn write_svg(scene: &Scene, opts: &ExportOptions) -> String {
     let w_mm = scene.width / 1000.0;
@@ -227,7 +229,7 @@ impl SvgWriter {
         let width = if s.width <= 0.0 {
             crate::model::paint::HAIRLINE_UM
         } else {
-            s.width
+            s.drawn_width()
         };
         let _ = write!(a, r#" stroke-width="{}""#, num(width));
         if s.cap != "butt" {
@@ -262,6 +264,14 @@ impl SvgWriter {
         } else {
             ""
         };
+        if let Some(st) = s
+            .stroke
+            .as_ref()
+            .filter(|st| st.position != StrokePosition::Center && st.width > 0.0)
+        {
+            self.positioned_shape(s, st, &d, &fill, rule);
+            return;
+        }
         let stroke = s
             .stroke
             .as_ref()
@@ -277,6 +287,58 @@ impl SvgWriter {
             r#"<path id="o-{}" d="{d}"{fill}{rule}{stroke}{order}/>"#,
             esc(&s.object_id)
         );
+    }
+
+    /// Contorno interno (recorte pela forma) ou externo (máscara que esconde
+    /// o interior), com traço de espessura dupla (GD-OUT-04).
+    fn positioned_shape(
+        &mut self,
+        s: &ShapeItem,
+        st: &StrokeStyle,
+        d: &str,
+        fill: &str,
+        rule: &str,
+    ) {
+        let clip_rule = if s.fill_rule == FillRule::Evenodd {
+            r#" clip-rule="evenodd""#
+        } else {
+            ""
+        };
+        let mask_rule = if s.fill_rule == FillRule::Evenodd {
+            r#" fill-rule="evenodd""#
+        } else {
+            ""
+        };
+        let id = self.id("c");
+        let reference = if st.position == StrokePosition::Inside {
+            let _ = writeln!(
+                self.defs,
+                r#"<clipPath id="{id}" clipPathUnits="userSpaceOnUse"><path d="{d}"{clip_rule}/></clipPath>"#
+            );
+            format!(r#" clip-path="url(#{id})""#)
+        } else {
+            let pad = st.width * st.miter_limit.max(1.5);
+            let b = kurbo::Shape::bounding_box(&s.path).inflate(pad, pad);
+            let _ = writeln!(
+                self.defs,
+                r#"<mask id="{id}" maskUnits="userSpaceOnUse" x="{x}" y="{y}" width="{w}" height="{h}"><rect x="{x}" y="{y}" width="{w}" height="{h}" fill="white"/><path d="{d}" fill="black"{mask_rule}/></mask>"#,
+                x = num(b.x0),
+                y = num(b.y0),
+                w = num(b.width()),
+                h = num(b.height()),
+            );
+            format!(r#" mask="url(#{id})""#)
+        };
+        let stroke = self.stroke_attrs(st);
+        let oid = esc(&s.object_id);
+        let fill_el = format!(r#"<path d="{d}"{fill}{rule}/>"#);
+        let stroke_el = format!(r#"<path d="{d}" fill="none"{stroke}{reference}/>"#);
+        let (a, b) = if st.behind_fill {
+            (stroke_el, fill_el)
+        } else {
+            (fill_el, stroke_el)
+        };
+        let _ = writeln!(self.body, r#"<g id="o-{oid}">{a}{b}</g>"#);
     }
 
     fn image(&mut self, img: &ImageItem) {

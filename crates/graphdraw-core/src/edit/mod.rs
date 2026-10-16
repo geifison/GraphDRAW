@@ -8,5 +8,7 @@ pub mod nodes;
 pub mod ops;
 pub mod query;
 pub mod snap;
+pub mod tree;
 
 pub use history::{Editor, ObjLoc};
+pub use tree::{Container, ObjRef};
