@@ -39,6 +39,11 @@ jobs:
         run: cargo test --workspace
       - name: Licenças das dependências
         run: node scripts/check-licenses.mjs
+      # GD-NF-01/02. O runner do CI não é a máquina de referência da spec
+      # (i5, 16 GB), por isso o passo informa mas não bloqueia.
+      - name: Desempenho (GD-NF-01, GD-NF-02)
+        continue-on-error: true
+        run: cargo run --release -p graphdraw-core --example bench -- --check
 
   linux:
     runs-on: ubuntu-latest

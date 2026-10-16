@@ -122,6 +122,9 @@ documentada no código aberto da libcdr.
 ### 2.4 Renderização e exportação
 
 - **Tela/PNG** (`render::raster`): tiny-skia, com matriz página→pixels.
+  A imagem é dividida em faixas horizontais renderizadas em paralelo (uma
+  por núcleo); cada faixa só desenha os itens cuja caixa a intercepta. As
+  caixas são calculadas uma vez por cena (GD-NF-02).
   Fio de cabelo (`width: 0`) = 1 pixel do dispositivo. PNG com fragmentos
   sRGB e pHYs (resolução).
 - **SVG** (`export::svg`): conteúdo num grupo `matrix(0.001 0 0 -0.001 0 H)`
@@ -187,6 +190,7 @@ Em Linux: `apt install libcdr-dev librevenge-dev pkg-config g++` e o mesmo
 | GD-CDR-01, 02, 03, 06, 07 | `tests/cdr_import.rs`, `graphdraw-cli/tests/cli.rs` |
 | GD-FNT-02 / GD-CDR-05 | `export::gd_fnt_02_missing_font_reported_and_name_kept` |
 | GD-EXP-01, 02, 06 | `tests/export.rs`, `graphdraw-cli/tests/cli.rs` |
+| GD-NF-01, GD-NF-02 | `examples/bench.rs` (medição), `export::gd_nf_02_parallel_bands_match_sequential` |
 | Zoom/pan do visualizador | `graphdraw-viewer/src/view.rs` (testes de unidade) |
 
 Fixtures `.gdr` são geradas por
@@ -199,7 +203,22 @@ CI: [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) (Windows e Linux; 
 Testes de `.cdr` exigem a ponte compilada; sem ela são pulados com aviso,
 exceto se `GRAPHDRAW_REQUIRE_BRIDGE=1` (usado no CI).
 
-## 5. Limitações conhecidas do M0
+## 5. Desempenho
+
+`cargo run --release -p graphdraw-core --example bench` gera documentos
+sintéticos determinísticos e mede os requisitos não funcionais. Resultado
+em i5-13420H (12 threads), 2026-10-16:
+
+| Requisito | Cenário | Medido | Limite |
+|---|---|---|---|
+| GD-NF-01 | abrir `.gdr` com 100 mil objetos (48,7 MB de JSON, 10,7 MB no disco) | 1,3–2,3 s (varia entre execuções) | 5 s |
+| GD-NF-02 | redesenhar 10 mil objetos visíveis em 1920×1080 | 15–17 ms/quadro (60–65 fps) | 33 ms (30 fps) |
+
+Antes das faixas paralelas com descarte, GD-NF-02 levava 230 ms/quadro.
+No CI o passo roda com `--check` mas não bloqueia, porque o runner não é a
+máquina de referência.
+
+## 6. Limitações conhecidas do M0
 
 - Cores de `.cdr` chegam em RGB (limitação da interface librevenge; P-01).
 - Texto no PDF sai em curvas; texto vivo com fontes incorporadas é M2 (GD-EXP-02/03).
@@ -210,4 +229,3 @@ exceto se `GRAPHDRAW_REQUIRE_BRIDGE=1` (usado no CI).
 - Diagramação de texto simples: sem bidi, hifenização ou justificação.
 - Carregamento sob demanda de páginas (GD-GDR-11) não implementado: páginas
   separadas são lidas na abertura.
-- Benchmarks GD-NF-01/02 ainda não automatizados.

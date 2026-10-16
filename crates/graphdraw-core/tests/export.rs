@@ -329,3 +329,58 @@ fn gd_fnt_02_missing_font_reported_and_name_kept() {
     let v = serde_json::to_value(&doc.data).unwrap();
     assert!(v.to_string().contains("Fonte Que Nao Existe GD"));
 }
+
+/// GD-NF-02: a renderização em faixas paralelas com descarte por caixa deve
+/// produzir o mesmo resultado que a renderização sequencial.
+#[test]
+fn gd_nf_02_parallel_bands_match_sequential() {
+    use graphdraw_core::render::raster::{self, RasterOptions};
+    for name in [
+        "basic-shapes.gdr",
+        "gradients.gdr",
+        "image.gdr",
+        "text.gdr",
+        "multipage.gdr",
+    ] {
+        let doc = open(name);
+        let page = &doc.data.pages[0];
+        let scene = build_scene(
+            &doc,
+            page,
+            SceneOptions { print: false },
+            &ImageCache::default(),
+        );
+        let (w, h) = (701u32, 997u32);
+        let s = (w as f64 / page.width).min(h as f64 / page.height) * 1.7;
+        let view = kurbo::Affine::new([s, 0.0, 0.0, -s, -40.0, page.height * s - 300.0]);
+        let opts = RasterOptions {
+            antialias: true,
+            background: Some([250, 250, 250, 255]),
+        };
+        let parallel = raster::render(&scene, view, w, h, &opts).unwrap();
+        let mut seq = tiny_skia::Pixmap::new(w, h).unwrap();
+        seq.fill(tiny_skia::Color::from_rgba8(250, 250, 250, 255));
+        raster::draw_items(&mut seq, &scene.items, view, &opts);
+        // Curvas cortadas na borda da faixa podem variar alguns níveis de
+        // anti-serrilhado; objeto ausente ou duplicado daria diferença ~255.
+        let diffs: Vec<u8> = parallel
+            .data()
+            .iter()
+            .zip(seq.data())
+            .map(|(a, b)| a.abs_diff(*b))
+            .collect();
+        let max = diffs.iter().copied().max().unwrap_or(0);
+        let edge = diffs
+            .chunks(4)
+            .filter(|px| px.iter().any(|d| *d > 1))
+            .count();
+        assert!(
+            max <= 64,
+            "{name}: diferença máxima {max} indica objeto ausente/duplicado"
+        );
+        assert!(
+            edge * 1000 <= (w * h) as usize,
+            "{name}: {edge} pixels divergentes (> 0,1%)"
+        );
+    }
+}

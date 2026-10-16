@@ -4,7 +4,7 @@
 
 use std::collections::HashMap;
 use std::f64::consts::PI;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use kurbo::{Affine, Arc as KArc, BezPath, Ellipse, PathEl, Point, Shape, Vec2};
 
@@ -100,11 +100,48 @@ pub struct Scene {
     pub items: Vec<Item>,
     /// Fontes ausentes substituídas (GD-FNT-02).
     pub missing_fonts: Vec<String>,
+    /// Caixas dos itens (coordenadas da página, já incluindo a espessura do
+    /// contorno), calculadas uma vez sob demanda para descarte rápido.
+    pub item_bounds: OnceLock<Vec<kurbo::Rect>>,
 }
 
 impl Scene {
     pub fn bounds(&self) -> kurbo::Rect {
         kurbo::Rect::new(0.0, 0.0, self.width, self.height)
+    }
+
+    /// Caixa de cada item, na mesma ordem de `items`.
+    pub fn item_bounds(&self) -> &[kurbo::Rect] {
+        self.item_bounds
+            .get_or_init(|| self.items.iter().map(item_bounds).collect())
+    }
+}
+
+fn shape_bounds(s: &ShapeItem) -> kurbo::Rect {
+    let b = s.path.bounding_box();
+    match &s.stroke {
+        // Meia espessura × limite de esquadria cobre juntas agudas e terminações.
+        Some(st) => b.inflate(
+            st.width * 0.5 * st.miter_limit.max(1.5),
+            st.width * 0.5 * st.miter_limit.max(1.5),
+        ),
+        None => b,
+    }
+}
+
+/// Caixa conservadora de um item em coordenadas da página.
+pub fn item_bounds(item: &Item) -> kurbo::Rect {
+    match item {
+        Item::Shape(s) => shape_bounds(s),
+        Item::Image(i) => i
+            .transform
+            .transform_rect_bbox(kurbo::Rect::new(0.0, 0.0, i.width, i.height)),
+        Item::Text(t) => t
+            .outlines
+            .iter()
+            .map(shape_bounds)
+            .reduce(|a, b| a.union(b))
+            .unwrap_or(kurbo::Rect::ZERO),
     }
 }
 
@@ -175,6 +212,7 @@ pub fn build_scene(doc: &Document, page: &Page, opts: SceneOptions, images: &Ima
         background: page.background.clone(),
         items: b.items,
         missing_fonts: missing,
+        item_bounds: OnceLock::new(),
     }
 }
 

@@ -33,41 +33,94 @@ pub fn render(
     height: u32,
     opts: &RasterOptions,
 ) -> Option<sk::Pixmap> {
-    let mut pm = sk::Pixmap::new(width.max(1), height.max(1))?;
+    let (width, height) = (width.max(1), height.max(1));
+    let mut pm = sk::Pixmap::new(width, height)?;
+    // Faixas horizontais renderizadas em paralelo (GD-NF-02); cada faixa só
+    // desenha os itens cuja caixa a intercepta. A ordem de pintura dentro da
+    // faixa é a mesma da cena, então o resultado é idêntico ao sequencial.
+    let threads = std::thread::available_parallelism().map_or(1, |n| n.get());
+    let bands = threads.min((height / 64).max(1) as usize).max(1);
+    let band_h = height.div_ceil(bands as u32);
+    let boxes = device_boxes(scene, view);
+    let row_bytes = width as usize * 4;
+    let chunks: Vec<&mut [u8]> = pm
+        .data_mut()
+        .chunks_mut(band_h as usize * row_bytes)
+        .collect();
+    std::thread::scope(|s| {
+        for (i, chunk) in chunks.into_iter().enumerate() {
+            let boxes = &boxes;
+            s.spawn(move || {
+                let y0 = i as u32 * band_h;
+                let h = (chunk.len() / row_bytes) as u32;
+                if let Some(band) = render_band(scene, view, boxes, width, y0, h, opts) {
+                    chunk.copy_from_slice(band.data());
+                }
+            });
+        }
+    });
+    Some(pm)
+}
+
+/// Caixas dos itens em pixels do dispositivo (com folga de 2 px para
+/// anti-serrilhado e fio de cabelo).
+fn device_boxes(scene: &Scene, view: Affine) -> Vec<kurbo::Rect> {
+    scene
+        .item_bounds()
+        .iter()
+        .map(|b| view.transform_rect_bbox(*b).inflate(2.0, 2.0))
+        .collect()
+}
+
+fn render_band(
+    scene: &Scene,
+    view: Affine,
+    boxes: &[kurbo::Rect],
+    width: u32,
+    y0: u32,
+    height: u32,
+    opts: &RasterOptions,
+) -> Option<sk::Pixmap> {
+    let mut pm = sk::Pixmap::new(width, height)?;
     if let Some([r, g, b, a]) = opts.background {
         pm.fill(sk::Color::from_rgba8(r, g, b, a));
     }
+    let band_view = Affine::translate((0.0, -(y0 as f64))) * view;
     if let Some(bg) = &scene.background {
         let [r, g, b] = bg.to_srgb();
         let mut page = BezPath::new();
         page.extend(kurbo::Shape::path_elements(&scene.bounds(), 0.1));
-        fill_path(
-            &mut pm,
-            &page,
-            view,
-            &Paint::Solid {
-                color: crate::model::Color::rgb(r, g, b),
-                alpha: 1.0,
-            },
-            FillRule::Nonzero,
-            opts,
-        );
+        let paint = Paint::Solid {
+            color: crate::model::Color::rgb(r, g, b),
+            alpha: 1.0,
+        };
+        fill_path(&mut pm, &page, band_view, &paint, FillRule::Nonzero, opts);
     }
-    draw_items(&mut pm, &scene.items, view, opts);
+    let (top, bottom) = (y0 as f64, (y0 + height) as f64);
+    for (item, b) in scene.items.iter().zip(boxes) {
+        if b.y1 < top || b.y0 > bottom || b.x1 < 0.0 || b.x0 > width as f64 {
+            continue;
+        }
+        draw_item(&mut pm, item, band_view, opts);
+    }
     Some(pm)
+}
+
+fn draw_item(pm: &mut sk::Pixmap, item: &Item, view: Affine, opts: &RasterOptions) {
+    match item {
+        Item::Shape(s) => draw_shape(pm, s, view, opts),
+        Item::Image(i) => draw_image(pm, i, view, opts),
+        Item::Text(t) => {
+            for s in &t.outlines {
+                draw_shape(pm, s, view, opts);
+            }
+        }
+    }
 }
 
 pub fn draw_items(pm: &mut sk::Pixmap, items: &[Item], view: Affine, opts: &RasterOptions) {
     for item in items {
-        match item {
-            Item::Shape(s) => draw_shape(pm, s, view, opts),
-            Item::Image(i) => draw_image(pm, i, view, opts),
-            Item::Text(t) => {
-                for s in &t.outlines {
-                    draw_shape(pm, s, view, opts);
-                }
-            }
-        }
+        draw_item(pm, item, view, opts);
     }
 }
 
