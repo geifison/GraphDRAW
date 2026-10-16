@@ -1,0 +1,17 @@
+# build
+/build/
+/target/
+/out/
+*.obj
+*.pdb
+*.exe
+*.dll
+# ide
+.vs/
+.vscode/
+.idea/
+# local claude settings
+.claude/settings.local.json
+# never commit third-party proprietary files
+*.cdr.local
+timeA-evidencias/

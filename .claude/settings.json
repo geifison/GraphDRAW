@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(//d/Sistemas/GraphDraw/timeA-evidencias/**)",
+      "Edit(//d/Sistemas/GraphDraw/timeA-evidencias/**)",
+      "Read(//c/Program Files/Corel/**)",
+      "Bash(*timeA-evidencias*)",
+      "Bash(*Program Files/Corel*)",
+      "Bash(*ghidra*)",
+      "Bash(*rea-agents*)",
+      "PowerShell(*timeA-evidencias*)",
+      "PowerShell(*Program Files\\Corel*)",
+      "PowerShell(*ghidra*)",
+      "PowerShell(*rea-agents*)"
+    ]
+  }
+}
