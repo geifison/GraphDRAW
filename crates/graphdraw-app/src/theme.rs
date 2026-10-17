@@ -46,6 +46,8 @@ pub const GRID_LINE: Color32 = Color32::from_rgba_unmultiplied_const(0x63, 0x66,
 /// Xadrez atrás de amostras com transparência.
 pub const CHECKER_LIGHT: Color32 = Color32::WHITE;
 pub const CHECKER_DARK: Color32 = Color32::from_rgb(0xD9, 0xD9, 0xDF);
+/// Casa do xadrez de transparência.
+pub const CHECKER_CELL: f32 = 10.0;
 
 // ---- cores que mudam com o tema (2.2) ------------------------------------------
 
@@ -289,6 +291,13 @@ pub const RULER_SIZE: f32 = 20.0;
 pub const RULER_MAJOR_SPACING: f32 = 60.0;
 pub const RULER_TICK_MAJOR: f32 = 8.0;
 pub const RULER_TICK_MINOR: f32 = 4.0;
+/// Janela de preenchimento: largura, editor, amostra; barra de paradas do
+/// gradiente e marca de parada (GD-FIL-03).
+pub const FILL_DIALOG_WIDTH: f32 = 460.0;
+pub const FILL_EDITOR_WIDTH: f32 = 280.0;
+pub const FILL_SAMPLE: f32 = 140.0;
+pub const GRADIENT_BAR_HEIGHT: f32 = 18.0;
+pub const GRADIENT_MARK: f32 = 10.0;
 /// Escolha de família de fonte na barra de propriedades (doc 06).
 pub const FONT_COMBO_WIDTH: f32 = 180.0;
 /// Estilo da fonte (Regular, Bold…) na barra de texto.

@@ -632,6 +632,80 @@ pub fn move_to_layer(ed: &mut Editor, sel: &[String], page: usize, layer: usize)
     );
 }
 
+/// Gradiente pedido pela interface (GD-FIL-03): tipo, paradas, ângulo
+/// (linear, graus a partir de +X) e repetição; a geometria (início/fim ou
+/// centro/raio) é calculada pela caixa de cada objeto.
+#[derive(Debug, Clone, PartialEq)]
+pub struct GradientSpec {
+    /// `linear` ou `radial`.
+    pub kind: String,
+    pub stops: Vec<crate::model::GradientStop>,
+    pub angle: f64,
+    /// `pad`, `repeat` ou `reflect`.
+    pub spread: String,
+}
+
+/// Gradiente com a geometria ajustada à caixa `b` (coordenadas locais).
+pub fn gradient_for(spec: &GradientSpec, b: Rect) -> crate::model::Gradient {
+    let c = b.center();
+    let (start, end, center, radius) = if spec.kind == "radial" {
+        let r = (b.width().hypot(b.height()) / 2.0).max(1e-9);
+        (None, None, Some([c.x, c.y]), Some(r))
+    } else {
+        let a = spec.angle.to_radians();
+        let d = Vec2::new(a.cos(), a.sin());
+        let half = (b.width() / 2.0 * a.cos()).abs() + (b.height() / 2.0 * a.sin()).abs();
+        let (p0, p1) = (c - d * half, c + d * half);
+        (Some([p0.x, p0.y]), Some([p1.x, p1.y]), None, None)
+    };
+    crate::model::Gradient {
+        kind: spec.kind.clone(),
+        stops: spec.stops.clone(),
+        start,
+        end,
+        center,
+        radius,
+        spread: spec.spread.clone(),
+        extra: Default::default(),
+    }
+}
+
+/// Lê de volta o pedido de um gradiente existente (ângulo pelo início/fim).
+pub fn gradient_spec(g: &crate::model::Gradient) -> GradientSpec {
+    let angle = match (g.start, g.end) {
+        (Some(a), Some(b)) => (b[1] - a[1]).atan2(b[0] - a[0]).to_degrees(),
+        _ => 0.0,
+    };
+    GradientSpec {
+        kind: if g.kind == "radial" {
+            "radial".into()
+        } else {
+            "linear".into()
+        },
+        stops: g.stops.clone(),
+        angle,
+        spread: g.spread.clone(),
+    }
+}
+
+/// Aplica o gradiente à seleção, cada objeto (ou folha de grupo) com a
+/// geometria pela própria caixa local. Um passo no histórico.
+pub fn set_gradient(ed: &mut Editor, sel: &[String], spec: &GradientSpec) {
+    modify(ed, sel, "Aplicar gradiente", |o| {
+        for_leaves(o, &mut |o| {
+            if matches!(o.kind, ObjectKind::Image(_)) {
+                return false;
+            }
+            let Some(b) = super::query::local_outline(o).map(|p| kurbo::Shape::bounding_box(&p))
+            else {
+                return false;
+            };
+            o.fill = Some(Fill::Gradient(gradient_for(spec, b)));
+            true
+        })
+    });
+}
+
 /// Distribuir (GD-ALI-03): por qual referência os objetos ficam com
 /// espaçamento igual.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1489,5 +1563,67 @@ mod tests {
         let before = lefts(&ed);
         distribute(&mut ed, &ids[..2], Distribute::Left, None, None, false);
         assert_eq!(lefts(&ed), before);
+    }
+
+    /// GD-FIL-03: gradiente linear pelo ângulo atravessa a caixa toda;
+    /// radial no centro com raio até o canto; ida e volta do ângulo.
+    #[test]
+    fn gd_fil_03_gradient_geometry() {
+        use crate::model::GradientStop;
+        let stops = vec![
+            GradientStop {
+                offset: 0.0,
+                color: Color::black(),
+                opacity: 1.0,
+                extra: Map::new(),
+            },
+            GradientStop {
+                offset: 1.0,
+                color: Color::rgb(1.0, 1.0, 1.0),
+                opacity: 1.0,
+                extra: Map::new(),
+            },
+        ];
+        let spec = GradientSpec {
+            kind: "linear".into(),
+            stops: stops.clone(),
+            angle: 0.0,
+            spread: "pad".into(),
+        };
+        let g = gradient_for(&spec, Rect::new(0.0, 0.0, 40.0, 20.0));
+        assert_eq!((g.start, g.end), (Some([0.0, 10.0]), Some([40.0, 10.0])));
+        let v = gradient_for(
+            &GradientSpec {
+                angle: 90.0,
+                ..spec.clone()
+            },
+            Rect::new(0.0, 0.0, 40.0, 20.0),
+        );
+        let (a, b) = (v.start.unwrap(), v.end.unwrap());
+        assert!(
+            (a[1] - 0.0).abs() < 1e-9 && (b[1] - 20.0).abs() < 1e-9 && (a[0] - 20.0).abs() < 1e-9
+        );
+        assert!((gradient_spec(&v).angle - 90.0).abs() < 1e-9);
+        let r = gradient_for(
+            &GradientSpec {
+                kind: "radial".into(),
+                ..spec.clone()
+            },
+            Rect::new(0.0, 0.0, 30.0, 40.0),
+        );
+        assert_eq!((r.center, r.radius), (Some([15.0, 20.0]), Some(25.0)));
+        // Aplicar em objetos: cada um pela própria caixa local.
+        let (mut ed, ids) = setup();
+        set_gradient(&mut ed, &ids, &spec);
+        let o = ed.object(ed.locate(&ids[1]).unwrap()).unwrap();
+        let Some(Fill::Gradient(g)) = &o.fill else {
+            panic!("gradiente")
+        };
+        assert_eq!((g.start, g.end), (Some([0.0, 10.0]), Some([20.0, 10.0])));
+        ed.undo();
+        assert!(matches!(
+            ed.object(ed.locate(&ids[1]).unwrap()).unwrap().fill,
+            None | Some(Fill::Solid { .. })
+        ));
     }
 }

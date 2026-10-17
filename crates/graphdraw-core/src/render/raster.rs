@@ -375,6 +375,28 @@ fn draw_image(pm: &mut sk::Pixmap, img: &ImageItem, view: Affine, opts: &RasterO
     );
 }
 
+/// Prévia de um preenchimento num retângulo de `w` × `h` px (janela de
+/// preenchimento): RGBA sem pré-multiplicar.
+pub fn fill_preview(fill: &crate::model::Fill, w: u32, h: u32) -> Option<Vec<u8>> {
+    use kurbo::Shape;
+    let mut pm = sk::Pixmap::new(w.max(1), h.max(1))?;
+    let path = kurbo::Rect::new(0.0, 0.0, w as f64, h as f64).to_path(0.1);
+    let item = Item::Shape(ShapeItem {
+        object_id: String::new(),
+        path,
+        fill: super::scene::resolve_fill(fill, Affine::IDENTITY, 1.0),
+        fill_rule: FillRule::Nonzero,
+        stroke: None,
+    });
+    draw_items(
+        &mut pm,
+        &[item],
+        Affine::IDENTITY,
+        &RasterOptions::default(),
+    );
+    Some(unpremultiply(&pm))
+}
+
 /// Prévia de família de fonte (seletor de fonte, GD-FNT-01): cobertura
 /// (alfa 0–255) de `text` desenhado na própria família, com `height` px de
 /// altura e no máximo `max_width` px de largura. `None` se a família não

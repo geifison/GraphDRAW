@@ -141,6 +141,8 @@ const icons = {
   combine: `<path d="M4 4 H20 V20 H4 Z M9 9 V15 H15 V9 Z" fill="#fff" fill-rule="evenodd"/>`,
   "break-apart": `<rect x="3.5" y="3.5" width="8" height="8" rx="1"/><rect x="12.5" y="12.5" width="8" height="8" rx="1"/><path d="M14 6 H18 V10 M10 18 H6 V14"/>`,
   offset: `<rect x="7.5" y="7.5" width="9" height="9" rx="1"/><rect x="3.5" y="3.5" width="17" height="17" rx="4" stroke-dasharray="2 2"/>`,
+  "fill-linear": `<rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M8 4V20 M12 4V20 M16 4V20" stroke-dasharray="1.5 1.5"/>`,
+  "fill-radial": `<rect x="4" y="4" width="16" height="16" rx="1.5"/><circle cx="12" cy="12" r="2.5"/><circle cx="12" cy="12" r="5.5" stroke-dasharray="1.5 1.5"/>`,
   // ---- distribuir (GD-ALI-03) ----
   "dist-left": `<path d="M4 3.5V20.5 M11 3.5V20.5 M18 3.5V20.5" stroke-dasharray="1.6 1.8"/><rect x="4" y="6" width="4" height="5" rx="0.8" fill="#fff"/><rect x="11" y="10" width="5" height="5" rx="0.8" fill="#fff"/><rect x="18" y="14" width="3" height="5" rx="0.8" fill="#fff"/>`,
   "dist-bottom": `<g transform="rotate(-90 12 12)"><path d="M4 3.5V20.5 M11 3.5V20.5 M18 3.5V20.5" stroke-dasharray="1.6 1.8"/><rect x="4" y="6" width="4" height="5" rx="0.8" fill="#fff"/><rect x="11" y="10" width="5" height="5" rx="0.8" fill="#fff"/><rect x="18" y="14" width="3" height="5" rx="0.8" fill="#fff"/></g>`,

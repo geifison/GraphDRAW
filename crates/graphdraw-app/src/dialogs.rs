@@ -599,57 +599,137 @@ fn stroke_preview(stroke: Option<&Stroke>) -> egui::ColorImage {
 
 // ---- preenchimento --------------------------------------------------------------
 
+/// Tipo de preenchimento na janela.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FillMode {
+    None,
+    Solid,
+    Linear,
+    Radial,
+}
+
 pub struct FillDialog {
     initial: Option<Fill>,
-    none: bool,
+    mode: FillMode,
     color: Color,
     opacity: f64,
     overprint: bool,
+    /// Gradiente (GD-FIL-03): paradas, parada escolhida, ângulo, repetição.
+    stops: Vec<graphdraw_core::model::GradientStop>,
+    sel_stop: usize,
+    angle: f64,
+    spread: String,
     /// O preenchimento atual é de um tipo que esta janela ainda não edita.
     other_kind: bool,
     changed: bool,
     for_defaults: bool,
     rect: egui::Rect,
+    /// Prévias desenhadas pelo motor (amostra e barra de paradas).
+    sample_tex: Option<(Option<Fill>, egui::TextureHandle)>,
+    bar_tex: Option<(
+        Vec<graphdraw_core::model::GradientStop>,
+        egui::TextureHandle,
+    )>,
+}
+
+fn stop(offset: f64, color: Color) -> graphdraw_core::model::GradientStop {
+    graphdraw_core::model::GradientStop {
+        offset,
+        color,
+        opacity: 1.0,
+        extra: Map::new(),
+    }
 }
 
 impl FillDialog {
     fn new(initial: Option<Fill>, for_defaults: bool) -> FillDialog {
-        let (none, color, opacity, overprint, other_kind) = match &initial {
-            None | Some(Fill::None) => (true, Color::cmyk(0.0, 0.0, 0.0, 0.0), 1.0, false, false),
+        let white = Color::cmyk(0.0, 0.0, 0.0, 0.0);
+        let mut d = FillDialog {
+            initial: initial.clone(),
+            mode: FillMode::None,
+            color: white.clone(),
+            opacity: 1.0,
+            overprint: false,
+            stops: vec![stop(0.0, Color::cmyk(0.0, 0.0, 0.0, 1.0)), stop(1.0, white)],
+            sel_stop: 0,
+            angle: 0.0,
+            spread: "pad".into(),
+            other_kind: false,
+            changed: false,
+            for_defaults,
+            rect: egui::Rect::NOTHING,
+            sample_tex: None,
+            bar_tex: None,
+        };
+        match &initial {
+            None | Some(Fill::None) => {}
             Some(Fill::Solid {
                 color,
                 opacity,
                 overprint,
                 ..
-            }) => (false, color.clone(), *opacity, *overprint, false),
-            Some(_) => (false, Color::cmyk(0.0, 0.0, 0.0, 0.0), 1.0, false, true),
-        };
-        FillDialog {
-            initial,
-            none,
-            color,
-            opacity,
-            overprint,
-            other_kind,
-            changed: false,
-            for_defaults,
-            rect: egui::Rect::NOTHING,
+            }) => {
+                d.mode = FillMode::Solid;
+                d.color = color.clone();
+                d.opacity = *opacity;
+                d.overprint = *overprint;
+            }
+            Some(Fill::Gradient(g)) => {
+                let spec = ops::gradient_spec(g);
+                d.mode = if spec.kind == "radial" {
+                    FillMode::Radial
+                } else {
+                    FillMode::Linear
+                };
+                if spec.stops.len() >= 2 {
+                    d.stops = spec.stops;
+                }
+                d.angle = spec.angle;
+                d.spread = spec.spread;
+                d.color = d.stops[0].color.clone();
+            }
+            Some(_) => d.other_kind = true,
+        }
+        d
+    }
+
+    fn spec(&self) -> ops::GradientSpec {
+        let mut stops = self.stops.clone();
+        stops.sort_by(|a, b| a.offset.total_cmp(&b.offset));
+        ops::GradientSpec {
+            kind: if self.mode == FillMode::Radial {
+                "radial"
+            } else {
+                "linear"
+            }
+            .into(),
+            stops,
+            angle: self.angle,
+            spread: self.spread.clone(),
+        }
+    }
+
+    /// Preenchimento para a amostra (gradiente ajustado à caixa `b`).
+    fn result_in(&self, b: kurbo::Rect) -> Option<Fill> {
+        match self.mode {
+            FillMode::None => None,
+            FillMode::Solid => Some(Fill::Solid {
+                color: self.color.clone(),
+                opacity: self.opacity,
+                overprint: self.overprint,
+                extra: match &self.initial {
+                    Some(Fill::Solid { extra, .. }) => extra.clone(),
+                    _ => Map::new(),
+                },
+            }),
+            FillMode::Linear | FillMode::Radial => {
+                Some(Fill::Gradient(ops::gradient_for(&self.spec(), b)))
+            }
         }
     }
 
     fn result(&self) -> Option<Fill> {
-        if self.none {
-            return None;
-        }
-        Some(Fill::Solid {
-            color: self.color.clone(),
-            opacity: self.opacity,
-            overprint: self.overprint,
-            extra: match &self.initial {
-                Some(Fill::Solid { extra, .. }) => extra.clone(),
-                _ => Map::new(),
-            },
-        })
+        self.result_in(kurbo::Rect::new(0.0, 0.0, 1.0, 1.0))
     }
 
     fn show(&mut self, ctx: &egui::Context, doc: &mut DocState, defaults: &mut Defaults) -> bool {
@@ -658,103 +738,387 @@ impl FillDialog {
         } else {
             tr("Preenchimento", "Fill")
         };
-        let resp = crate::widgets::modal(ctx, egui::Id::unique("janela-preenchimento")).show(ctx, |ui| {
-            ui.set_width(460.0);
-            ui.heading(title);
-            ui.separator();
-            ui.horizontal(|ui| {
-                if icons::button(ui, "fill-none", tr("Sem preenchimento", "No fill"), self.none, true)
-                    .clicked()
-                {
-                    self.none = true;
-                    self.changed = true;
-                }
-                if icons::button(ui, "tool-rect", tr("Uniforme", "Uniform"), !self.none, true)
-                    .clicked()
-                {
-                    self.none = false;
-                    self.changed = true;
-                }
-                ui.label(if self.none {
-                    tr("Sem preenchimento", "No fill")
-                } else {
-                    tr("Uniforme", "Uniform")
+        let resp =
+            crate::widgets::modal(ctx, egui::Id::unique("janela-preenchimento")).show(ctx, |ui| {
+                ui.set_width(theme::FILL_DIALOG_WIDTH);
+                ui.heading(title);
+                ui.separator();
+                ui.horizontal(|ui| {
+                    let mut modes = vec![
+                        (
+                            "fill-none",
+                            tr("Sem preenchimento", "No fill"),
+                            FillMode::None,
+                        ),
+                        ("tool-rect", tr("Uniforme", "Uniform"), FillMode::Solid),
+                    ];
+                    // Gradiente depende da caixa de cada objeto: só para a seleção.
+                    if !self.for_defaults {
+                        modes.push((
+                            "fill-linear",
+                            tr("Gradiente linear", "Linear gradient"),
+                            FillMode::Linear,
+                        ));
+                        modes.push((
+                            "fill-radial",
+                            tr("Gradiente radial", "Radial gradient"),
+                            FillMode::Radial,
+                        ));
+                    }
+                    for (icon, tip, m) in &modes {
+                        if icons::button(ui, icon, tip, self.mode == *m, true).clicked()
+                            && self.mode != *m
+                        {
+                            if matches!(m, FillMode::Linear | FillMode::Radial)
+                                && self.mode == FillMode::Solid
+                            {
+                                // Começa do uniforme atual até o branco.
+                                self.stops[0].color = self.color.clone();
+                            }
+                            self.mode = *m;
+                            self.changed = true;
+                        }
+                    }
+                    let name = modes
+                        .iter()
+                        .find(|(_, _, m)| *m == self.mode)
+                        .map_or("", |(_, t, _)| *t);
+                    ui.label(name);
                 });
-            });
-            if self.other_kind && !self.changed {
-                ui.colored_label(
-                    theme::ACCENT_WARNING,
-                    tr(
-                        "O preenchimento atual (gradiente ou outro tipo) não é editável aqui; mudar algo o substitui por uniforme.",
-                        "The current fill (gradient or other) is not editable here; changing anything replaces it with uniform.",
-                    ),
-                );
-            }
-            ui.separator();
-            ui.horizontal_top(|ui| {
-                ui.add_enabled_ui(!self.none, |ui| {
+                if self.other_kind && !self.changed {
+                    ui.colored_label(
+                        theme::ACCENT_WARNING,
+                        tr(
+                            "O preenchimento atual não é editável aqui; mudar algo o substitui.",
+                            "The current fill is not editable here; changing anything replaces it.",
+                        ),
+                    );
+                }
+                ui.separator();
+                ui.horizontal_top(|ui| {
                     ui.vertical(|ui| {
-                        ui.set_width(280.0);
-                        if let Some(c) = color_editor(ui, &self.color) {
-                            self.color = c;
-                            self.changed = true;
-                        }
-                        let mut op = (self.opacity * 100.0).round();
-                        if ui
-                            .add(egui::Slider::new(&mut op, 0.0..=100.0).text(tr("Opacidade %", "Opacity %")))
-                            .changed()
-                        {
-                            self.opacity = op / 100.0;
-                            self.changed = true;
-                        }
-                        if ui
-                            .checkbox(&mut self.overprint, tr("Sobreimprimir", "Overprint"))
-                            .on_hover_text(tr(
-                                "Na impressão, a tinta não apaga as cores de baixo",
-                                "When printing, the ink does not knock out the colors below",
-                            ))
-                            .changed()
-                        {
-                            self.changed = true;
+                        ui.set_width(theme::FILL_EDITOR_WIDTH);
+                        match self.mode {
+                            FillMode::None => {
+                                ui.weak(tr("Sem preenchimento", "No fill"));
+                            }
+                            FillMode::Solid => self.solid_ui(ui),
+                            FillMode::Linear | FillMode::Radial => self.gradient_ui(ui),
                         }
                     });
+                    self.sample(ui);
                 });
-                fill_sample(ui, self.result().as_ref());
+                ui.separator();
+                buttons(ui)
             });
-            ui.weak(tr(
-                "Gradientes e padrões entram num marco seguinte.",
-                "Gradients and patterns come in a later milestone.",
-            ));
-            ui.separator();
-            buttons(ui)
-        });
         self.rect = resp.response.rect;
         match resp.inner {
             Close::No => false,
             Close::Cancel => true,
             Close::Ok => {
                 if self.changed {
-                    let r = self.result();
-                    if self.for_defaults {
-                        defaults.fill = r;
-                    } else {
-                        let sel = doc.selection.clone();
-                        ops::set_fill(&mut doc.editor, &sel, Some(r.unwrap_or(Fill::None)));
+                    let sel = doc.selection.clone();
+                    match self.mode {
+                        FillMode::Linear | FillMode::Radial if !self.for_defaults => {
+                            ops::set_gradient(&mut doc.editor, &sel, &self.spec());
+                        }
+                        _ => {
+                            let r = self.result();
+                            if self.for_defaults {
+                                defaults.fill = r;
+                            } else {
+                                ops::set_fill(&mut doc.editor, &sel, Some(r.unwrap_or(Fill::None)));
+                            }
+                        }
                     }
                 }
                 true
             }
         }
     }
+
+    fn solid_ui(&mut self, ui: &mut egui::Ui) {
+        if let Some(c) = color_editor(ui, &self.color) {
+            self.color = c;
+            self.changed = true;
+        }
+        let mut op = (self.opacity * 100.0).round();
+        if ui
+            .add(egui::Slider::new(&mut op, 0.0..=100.0).text(tr("Opacidade %", "Opacity %")))
+            .changed()
+        {
+            self.opacity = op / 100.0;
+            self.changed = true;
+        }
+        if ui
+            .checkbox(&mut self.overprint, tr("Sobreimprimir", "Overprint"))
+            .on_hover_text(tr(
+                "Na impressão, a tinta não apaga as cores de baixo",
+                "When printing, the ink does not knock out the colors below",
+            ))
+            .changed()
+        {
+            self.changed = true;
+        }
+    }
+
+    /// Paradas, ângulo e repetição (GD-FIL-03).
+    fn gradient_ui(&mut self, ui: &mut egui::Ui) {
+        self.stops_bar(ui);
+        ui.horizontal(|ui| {
+            if ui.small_button(tr("+ Parada", "+ Stop")).clicked() {
+                // Entre a escolhida e a seguinte.
+                let mut sorted: Vec<f64> = self.stops.iter().map(|s| s.offset).collect();
+                sorted.sort_by(|a, b| a.total_cmp(b));
+                let cur = self.stops[self.sel_stop].offset;
+                let next = sorted.iter().copied().find(|o| *o > cur).unwrap_or(1.0);
+                let at = if next > cur {
+                    (cur + next) / 2.0
+                } else {
+                    (cur / 2.0).max(0.0)
+                };
+                self.stops
+                    .push(stop(at, self.stops[self.sel_stop].color.clone()));
+                self.sel_stop = self.stops.len() - 1;
+                self.changed = true;
+            }
+            if ui
+                .add_enabled(
+                    self.stops.len() > 2,
+                    egui::Button::new(tr("− Parada", "− Stop")).small(),
+                )
+                .clicked()
+            {
+                self.stops.remove(self.sel_stop);
+                self.sel_stop = 0;
+                self.changed = true;
+            }
+            if ui.small_button(tr("Inverter", "Reverse")).clicked() {
+                for s in &mut self.stops {
+                    s.offset = 1.0 - s.offset;
+                }
+                self.changed = true;
+            }
+        });
+        let i = self.sel_stop.min(self.stops.len() - 1);
+        let mut pos = (self.stops[i].offset * 100.0).round();
+        if ui
+            .add(egui::Slider::new(&mut pos, 0.0..=100.0).text(tr("Posição %", "Position %")))
+            .changed()
+        {
+            self.stops[i].offset = pos / 100.0;
+            self.changed = true;
+        }
+        if let Some(c) = color_editor(ui, &self.stops[i].color) {
+            self.stops[i].color = c;
+            self.changed = true;
+        }
+        let mut op = (self.stops[i].opacity * 100.0).round();
+        if ui
+            .add(egui::Slider::new(&mut op, 0.0..=100.0).text(tr("Opacidade %", "Opacity %")))
+            .changed()
+        {
+            self.stops[i].opacity = op / 100.0;
+            self.changed = true;
+        }
+        ui.horizontal(|ui| {
+            if self.mode == FillMode::Linear {
+                ui.label(tr("Ângulo", "Angle"));
+                if ui
+                    .add(
+                        egui::DragValue::new(&mut self.angle)
+                            .range(-360.0..=360.0)
+                            .suffix("°"),
+                    )
+                    .changed()
+                {
+                    self.changed = true;
+                }
+            }
+            ui.label(tr("Fora das pontas", "Beyond the ends"));
+            let label = |s: &str| match s {
+                "repeat" => tr("Repetir", "Repeat"),
+                "reflect" => tr("Espelhar", "Reflect"),
+                _ => tr("Estender", "Extend"),
+            };
+            egui::ComboBox::from_id_salt("gradiente-repeticao")
+                .selected_text(label(&self.spread))
+                .show_ui(ui, |ui| {
+                    for k in ["pad", "repeat", "reflect"] {
+                        if ui
+                            .selectable_value(&mut self.spread, k.to_string(), label(k))
+                            .changed()
+                        {
+                            self.changed = true;
+                        }
+                    }
+                });
+        });
+    }
+
+    /// Barra com o gradiente e as marcas das paradas: clicar escolhe,
+    /// arrastar move, duplo clique na barra cria uma parada ali.
+    fn stops_bar(&mut self, ui: &mut egui::Ui) {
+        let w = theme::FILL_EDITOR_WIDTH;
+        let (rect, resp) = ui.allocate_exact_size(
+            Vec2::new(w, theme::GRADIENT_BAR_HEIGHT + theme::GRADIENT_MARK),
+            egui::Sense::click_and_drag(),
+        );
+        let bar = egui::Rect::from_min_size(rect.min, Vec2::new(w, theme::GRADIENT_BAR_HEIGHT));
+        let mut lin = self.spec();
+        lin.kind = "linear".into();
+        lin.angle = 0.0;
+        if self.bar_tex.as_ref().is_none_or(|(s, _)| *s != lin.stops) {
+            let ppp = ui.ctx().pixels_per_point();
+            let (pw, ph) = ((w * ppp) as u32, (theme::GRADIENT_BAR_HEIGHT * ppp) as u32);
+            let fill = Fill::Gradient(ops::gradient_for(
+                &lin,
+                kurbo::Rect::new(0.0, 0.0, pw as f64, ph as f64),
+            ));
+            if let Some(rgba) = raster::fill_preview(&fill, pw, ph) {
+                let img =
+                    egui::ColorImage::from_rgba_unmultiplied([pw as usize, ph as usize], &rgba);
+                let t = ui
+                    .ctx()
+                    .load_texture("barra-gradiente", img, egui::TextureOptions::LINEAR);
+                self.bar_tex = Some((lin.stops.clone(), t));
+            }
+        }
+        checker(ui.painter(), bar);
+        if let Some((_, t)) = &self.bar_tex {
+            ui.painter().image(
+                t.id(),
+                bar,
+                egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)),
+                Color32::WHITE,
+            );
+        }
+        ui.painter().rect_stroke(
+            bar,
+            theme::RADIUS_NONE,
+            theme::border_default(ui),
+            egui::StrokeKind::Inside,
+        );
+        let x_of = |o: f64| bar.left() + (o.clamp(0.0, 1.0) as f32) * w;
+        let pal = theme::palette(ui);
+        for (k, s) in self.stops.iter().enumerate() {
+            let x = x_of(s.offset);
+            let top = bar.bottom();
+            let m = theme::GRADIENT_MARK;
+            let tri = vec![
+                egui::pos2(x, top),
+                egui::pos2(x - m / 2.0, top + m),
+                egui::pos2(x + m / 2.0, top + m),
+            ];
+            let (fill, line) = if k == self.sel_stop {
+                (theme::ACCENT_PRIMARY, pal.fg_strong)
+            } else {
+                (to_color32(&s.color), pal.fg_muted)
+            };
+            ui.painter().add(egui::Shape::convex_polygon(
+                tri,
+                fill,
+                egui::Stroke::new(theme::BORDER_WIDTH, line),
+            ));
+        }
+        let offset_at = |p: egui::Pos2| ((p.x - bar.left()) / w).clamp(0.0, 1.0) as f64;
+        let nearest = |p: egui::Pos2, stops: &[graphdraw_core::model::GradientStop]| {
+            stops
+                .iter()
+                .enumerate()
+                .map(|(k, s)| (k, (x_of(s.offset) - p.x).abs()))
+                .filter(|(_, d)| *d <= theme::HANDLE_HIT)
+                .min_by(|a, b| a.1.total_cmp(&b.1))
+                .map(|(k, _)| k)
+        };
+        if resp.double_clicked()
+            && let Some(p) = resp.interact_pointer_pos()
+        {
+            let o = offset_at(p);
+            self.stops
+                .push(stop(o, self.stops[self.sel_stop].color.clone()));
+            self.sel_stop = self.stops.len() - 1;
+            self.changed = true;
+        } else if (resp.clicked() || resp.drag_started())
+            && let Some(p) = resp.interact_pointer_pos()
+            && let Some(k) = nearest(p, &self.stops)
+        {
+            self.sel_stop = k;
+        }
+        if resp.dragged()
+            && let Some(p) = resp.interact_pointer_pos()
+        {
+            self.stops[self.sel_stop].offset = offset_at(p);
+            self.changed = true;
+        }
+        resp.on_hover_text(tr(
+            "Clique numa marca para escolher a parada · arraste para mover · duplo clique na barra cria uma parada",
+            "Click a mark to pick the stop · drag to move · double-click the bar to add a stop",
+        ));
+    }
+
+    /// Amostra sobre xadrez (mostra a opacidade), pelo motor de desenho.
+    fn sample(&mut self, ui: &mut egui::Ui) {
+        let side = theme::FILL_SAMPLE;
+        let (rect, _) = ui.allocate_exact_size(Vec2::splat(side), egui::Sense::hover());
+        checker(ui.painter(), rect);
+        let inner = rect.shrink(theme::SPACE_400);
+        let ppp = ui.ctx().pixels_per_point();
+        let px = (inner.width() * ppp) as u32;
+        let fill = self.result_in(kurbo::Rect::new(0.0, 0.0, px as f64, px as f64));
+        match &fill {
+            None => {
+                ui.painter().line_segment(
+                    [inner.left_bottom(), inner.right_top()],
+                    egui::Stroke::new(theme::FOCUS_WIDTH, theme::ACCENT_DANGER),
+                );
+            }
+            Some(f) => {
+                if self
+                    .sample_tex
+                    .as_ref()
+                    .is_none_or(|(old, _)| old.as_ref() != Some(f))
+                    && let Some(rgba) = raster::fill_preview(f, px, px)
+                {
+                    let img =
+                        egui::ColorImage::from_rgba_unmultiplied([px as usize, px as usize], &rgba);
+                    let t = ui.ctx().load_texture(
+                        "amostra-preenchimento",
+                        img,
+                        egui::TextureOptions::LINEAR,
+                    );
+                    self.sample_tex = Some((fill.clone(), t));
+                }
+                if let Some((_, t)) = &self.sample_tex {
+                    // Y da página para cima: a textura sai invertida na vertical.
+                    ui.painter().image(
+                        t.id(),
+                        inner,
+                        egui::Rect::from_min_max(egui::pos2(0.0, 1.0), egui::pos2(1.0, 0.0)),
+                        Color32::WHITE,
+                    );
+                }
+            }
+        }
+        ui.painter().rect_stroke(
+            inner,
+            theme::RADIUS_NONE,
+            theme::border_default(ui),
+            egui::StrokeKind::Middle,
+        );
+    }
 }
 
-/// Amostra sobre xadrez (mostra a opacidade).
-fn fill_sample(ui: &mut egui::Ui, fill: Option<&Fill>) {
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(140.0, 140.0), egui::Sense::hover());
-    let p = ui.painter();
-    let cell = 10.0;
-    for i in 0..14 {
-        for j in 0..14 {
+/// Fundo xadrez (mostra transparência).
+fn checker(p: &egui::Painter, rect: egui::Rect) {
+    let cell = theme::CHECKER_CELL;
+    let (cols, rows) = (
+        (rect.width() / cell).ceil() as i32,
+        (rect.height() / cell).ceil() as i32,
+    );
+    let p = p.with_clip_rect(rect);
+    for i in 0..cols {
+        for j in 0..rows {
             let c = if (i + j) % 2 == 0 {
                 theme::CHECKER_LIGHT
             } else {
@@ -770,30 +1134,6 @@ fn fill_sample(ui: &mut egui::Ui, fill: Option<&Fill>) {
             );
         }
     }
-    let inner = rect.shrink(16.0);
-    match fill {
-        Some(Fill::Solid { color, opacity, .. }) => {
-            let c = to_color32(color);
-            let a = (opacity.clamp(0.0, 1.0) * 255.0).round() as u8;
-            p.rect_filled(
-                inner,
-                theme::RADIUS_SM,
-                Color32::from_rgba_unmultiplied(c.r(), c.g(), c.b(), a),
-            );
-        }
-        _ => {
-            p.line_segment(
-                [inner.left_bottom(), inner.right_top()],
-                egui::Stroke::new(theme::FOCUS_WIDTH, theme::ACCENT_DANGER),
-            );
-        }
-    }
-    p.rect_stroke(
-        inner,
-        theme::RADIUS_SM,
-        theme::border_default(ui),
-        egui::StrokeKind::Middle,
-    );
 }
 
 /// Indicadores de preenchimento e contorno da barra de status (alinhados à
@@ -972,6 +1312,53 @@ mod tests {
             assert!(screen.contains_rect(r), "modal fora da tela: {r:?}");
             assert!(r.height() < 740.0, "modal alto demais: {r:?}");
         }
+    }
+
+    /// GD-FIL-03: a janela abre um gradiente existente no modo certo,
+    /// cabe na tela e a amostra é desenhada.
+    #[test]
+    fn gradient_fill_dialog_round_trip_and_fits() {
+        let ctx = crate::theme::test_ctx();
+        let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, Vec2::new(1366.0, 768.0));
+        let mut doc = DocState::new_blank();
+        let spec = ops::GradientSpec {
+            kind: "radial".into(),
+            stops: vec![
+                stop(0.0, Color::rgb(1.0, 0.0, 0.0)),
+                stop(0.4, Color::rgb(0.0, 1.0, 0.0)),
+                stop(1.0, Color::rgb(0.0, 0.0, 1.0)),
+            ],
+            angle: 0.0,
+            spread: "reflect".into(),
+        };
+        let g = Fill::Gradient(ops::gradient_for(
+            &spec,
+            kurbo::Rect::new(0.0, 0.0, 10.0, 10.0),
+        ));
+        let mut f = FillDialog::new(Some(g), false);
+        assert_eq!(f.mode, FillMode::Radial);
+        assert_eq!((f.stops.len(), f.spread.as_str()), (3, "reflect"));
+        let mut defaults = Defaults::default();
+        for _ in 0..3 {
+            let input = egui::RawInput {
+                screen_rect: Some(screen),
+                ..Default::default()
+            };
+            let mut out = ctx.run_ui(input, |ui| {
+                f.show(ui.ctx(), &mut doc, &mut defaults);
+            });
+            out.textures_delta.clear();
+        }
+        assert!(
+            screen.contains_rect(f.rect) && f.rect.height() < 740.0,
+            "{:?}",
+            f.rect
+        );
+        assert!(
+            f.sample_tex.is_some() && f.bar_tex.is_some(),
+            "prévias desenhadas"
+        );
+        assert_eq!(f.spec().kind, "radial");
     }
 
     #[test]

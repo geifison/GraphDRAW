@@ -138,6 +138,8 @@ pub fn get(name: &str) -> ImageSource<'static> {
         "bleed" => icon!("bleed"),
         "doc" => icon!("doc"),
         "panel-collapse" => icon!("panel-collapse"),
+        "fill-linear" => icon!("fill-linear"),
+        "fill-radial" => icon!("fill-radial"),
         "dist-left" => icon!("dist-left"),
         "dist-bottom" => icon!("dist-bottom"),
         "dist-center-h" => icon!("dist-center-h"),
