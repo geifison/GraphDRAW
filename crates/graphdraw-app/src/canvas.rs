@@ -735,6 +735,12 @@ pub struct CanvasState {
     note: Option<String>,
     /// Suavização da mão livre (0–100) e modo da linha 2 pontos.
     pub freehand_smooth: f64,
+    /// Esboço contínuo (GD-FER-29): ligado, tempo (s) e distância (px).
+    pub sketch: bool,
+    pub sketch_time: f64,
+    pub sketch_dist: f64,
+    /// Último traço do esboço: objeto, pontos (página), caminho criado e hora.
+    sketch_last: Option<(String, Vec<Point>, Subpath, f64)>,
     pub line_mode: LineMode,
     /// Base da curva 3 pontos, esperando o clique da curvatura.
     curve3: Option<(Point, Point)>,
@@ -842,6 +848,10 @@ impl Default for CanvasState {
             crop_pending: None,
             note: None,
             freehand_smooth: 50.0,
+            sketch: false,
+            sketch_time: 2.0,
+            sketch_dist: 12.0,
+            sketch_last: None,
             line_mode: LineMode::Free,
             curve3: None,
             bspline: None,
@@ -3976,15 +3986,55 @@ impl CanvasState {
     /// Mão livre solta (GD-FER-20).
     fn freehand_end(&mut self, doc: &mut DocState, pts: &[Point], defaults: &Defaults) {
         let px = 1.0 / self.view.zoom;
+        let now = self.eyedrop.now;
+        // Esboço contínuo: junta ao traço anterior, se ainda for o mesmo
+        // caminho (não editado nem movido) e veio a tempo e perto.
+        if self.sketch
+            && let Some((id, prev, made, at)) = self.sketch_last.take()
+            && now - at <= self.sketch_time
+            && let Some(r) = doc.editor.find(&id)
+            && let Some(o) = doc.editor.get(&r).cloned()
+            && r.path.is_empty()
+            && o.transform.affine() == Affine::IDENTITY
+            && matches!(&o.kind, ObjectKind::Path(p) if p.subpaths.len() == 1 && p.subpaths[0] == made)
+            && let Some(all) =
+                graphdraw_core::edit::drawing::sketch_join(&prev, pts, self.sketch_dist * px)
+            && let Some(sp) =
+                graphdraw_core::edit::drawing::freehand(&all, px, self.freehand_smooth, 7.0 * px)
+        {
+            let mut n = o.clone();
+            n.fill = if sp.closed {
+                defaults.fill.clone().or(o.fill.clone())
+            } else {
+                o.fill.clone()
+            };
+            if let ObjectKind::Path(p) = &mut n.kind {
+                p.subpaths = vec![sp.clone()];
+            }
+            doc.editor
+                .transaction(tr("Esboço contínuo", "Continuous sketch"), |ed| {
+                    ed.replace_at(&r, n)
+                });
+            doc.selection = vec![id.clone()];
+            self.sketch_last = Some((id, all, sp, now));
+            return;
+        }
         if let Some(sp) =
             graphdraw_core::edit::drawing::freehand(pts, px, self.freehand_smooth, 7.0 * px)
         {
             self.add_drawn(
                 doc,
-                sp,
+                sp.clone(),
                 defaults,
                 tr("Desenhar à mão livre", "Draw freehand"),
             );
+            self.sketch_last = (self.sketch && !sp.closed)
+                .then(|| {
+                    doc.selection
+                        .first()
+                        .map(|id| (id.clone(), pts.to_vec(), sp, now))
+                })
+                .flatten();
         }
     }
 
@@ -7434,6 +7484,73 @@ mod tests {
         assert_eq!(doc.page().layers[0].objects.len(), n + 1);
         click(&mut cs, &mut doc, outside);
         assert_eq!(doc.page().layers[0].objects.len(), n + 1, "fora: nada");
+    }
+
+    /// GD-FER-29 na tela: com o esboço contínuo, o segundo traço que começa
+    /// no fim do primeiro vira o mesmo caminho; desligado, um objeto novo.
+    #[test]
+    fn continuous_sketch_joins() {
+        let (ctx, mut cs, mut doc, _id, rect, ph) = bdr_setup();
+        let t = Tool::Freehand;
+        let stroke =
+            |cs: &mut CanvasState, doc: &mut DocState, from: (f64, f64), to: (f64, f64)| {
+                let pts: Vec<Pos2> = (0..=8)
+                    .map(|k| {
+                        let f = k as f64 / 8.0;
+                        let x = from.0 + (to.0 - from.0) * f;
+                        let y = from.1
+                            + (to.1 - from.1) * f
+                            + (f * std::f64::consts::PI).sin() * 3_000.0;
+                        cs.screen(rect, ph, Point::new(x, y))
+                    })
+                    .collect();
+                canvas_frame(&ctx, cs, doc, t, vec![egui::Event::PointerMoved(pts[0])]);
+                canvas_frame(
+                    &ctx,
+                    cs,
+                    doc,
+                    t,
+                    vec![button(pts[0], PointerButton::Primary, true)],
+                );
+                for p in &pts[1..] {
+                    canvas_frame(&ctx, cs, doc, t, vec![egui::Event::PointerMoved(*p)]);
+                }
+                canvas_frame(
+                    &ctx,
+                    cs,
+                    doc,
+                    t,
+                    vec![button(*pts.last().unwrap(), PointerButton::Primary, false)],
+                );
+            };
+        let count = |doc: &DocState| doc.page().layers[0].objects.len();
+        let n = count(&doc);
+        cs.sketch = true;
+        stroke(
+            &mut cs,
+            &mut doc,
+            (100_000.0, 200_000.0),
+            (140_000.0, 200_000.0),
+        );
+        assert_eq!(count(&doc), n + 1);
+        stroke(
+            &mut cs,
+            &mut doc,
+            (140_000.0, 200_000.0),
+            (180_000.0, 200_000.0),
+        );
+        assert_eq!(count(&doc), n + 1, "emendado");
+        let o = doc.page().layers[0].objects.last().unwrap();
+        let b = graphdraw_core::edit::query::bounds(o, Affine::IDENTITY, false).unwrap();
+        assert!(b.x0 < 101_000.0 && b.x1 > 179_000.0, "{b:?}");
+        cs.sketch = false;
+        stroke(
+            &mut cs,
+            &mut doc,
+            (180_000.0, 200_000.0),
+            (190_000.0, 220_000.0),
+        );
+        assert_eq!(count(&doc), n + 2);
     }
 
     /// GD-VAR-01 na tela: arrastar do contorno a 25% da linha para longe

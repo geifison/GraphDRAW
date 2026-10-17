@@ -578,9 +578,11 @@ Aba **Verificação** (ícone `preflight`) no painel direito:
     `fit-selection`, `clear-transform`). A prévia é a reta pivô → cursor
     com um círculo no pivô.
   - **Curvas** (no lugar da Bézier): Bézier, mão livre, polilinha,
-    linha 2 pontos, curva 3 pontos. A barra tem suavização (mão
-    livre/polilinha) e Livre | Tangente | Perpendicular (linha). A prévia
-    é um traço de `border-width` em `accent-primary`.
+    B-spline, linha 2 pontos, curva 3 pontos. A barra tem suavização (mão
+    livre/polilinha), Esboço contínuo com tempo (s) e distância (px) (mão
+    livre: o traço que começa perto de uma ponta do anterior, dentro do
+    tempo, emenda no mesmo caminho) e Livre | Tangente | Perpendicular
+    (linha). A prévia é um traço de `border-width` em `accent-primary`.
   - **Corte**, logo após Forma e antes do separador: faca, recortar,
     borracha, excluir segmento virtual;
   - **Formas**: polígono, estrela, estrela complexa, espiral, papel

@@ -32,6 +32,8 @@ entre parênteses são os requisitos de `docs/spec/`.
   - horizontal, vertical, paralela, angular, raio, diâmetro e segmento;
   - ligadas aos nós medidos, com a escala de desenho (GD-FER-40,
     GD-COT-01..03).
+- Esboço contínuo na mão livre: traços seguidos, perto e a tempo, viram
+  uma curva só (GD-FER-29).
 - Largura variável do contorno: perfis prontos (afinar no fim, no início,
   nas pontas, bojo) e ferramenta Largura para ajustar ponto a ponto;
   Converter contorno em objeto respeita a largura (GD-VAR-01, GD-OUT-08).

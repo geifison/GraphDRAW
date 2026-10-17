@@ -89,6 +89,31 @@ pub fn fit_stroke(points: &[Point], tol: f64, corner_deg: f64) -> BezPath {
 /// Mão livre (GD-FER-20): subcaminho a partir do traço; `smooth` (0–100)
 /// aumenta a tolerância do ajuste a partir de `px` (µm por pixel de tela).
 /// O fim perto do início (`close_dist`) fecha a curva.
+/// Esboço contínuo (GD-FER-29): junta o traço novo `new` ao anterior
+/// `prev` se uma ponta do novo cai a até `dist` de uma ponta do anterior;
+/// devolve os pontos juntos, na ordem do caminho.
+pub fn sketch_join(prev: &[Point], new: &[Point], dist: f64) -> Option<Vec<Point>> {
+    let (Some(&p0), Some(&p1), Some(&n0), Some(&n1)) =
+        (prev.first(), prev.last(), new.first(), new.last())
+    else {
+        return None;
+    };
+    let near = |a: Point, b: Point| (a - b).hypot() <= dist;
+    let rev = |v: &[Point]| v.iter().rev().copied().collect::<Vec<_>>();
+    let cat = |a: Vec<Point>, b: Vec<Point>| a.into_iter().chain(b).collect::<Vec<_>>();
+    if near(n0, p1) {
+        Some(cat(prev.to_vec(), new.to_vec()))
+    } else if near(n1, p1) {
+        Some(cat(prev.to_vec(), rev(new)))
+    } else if near(n1, p0) {
+        Some(cat(new.to_vec(), prev.to_vec()))
+    } else if near(n0, p0) {
+        Some(cat(rev(new), prev.to_vec()))
+    } else {
+        None
+    }
+}
+
 pub fn freehand(points: &[Point], px: f64, smooth: f64, close_dist: f64) -> Option<Subpath> {
     if points.len() < 2 {
         return None;
@@ -192,6 +217,27 @@ pub fn tangent_point(pd: &PathData, m: Affine, from: Point, near: Point) -> Opti
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// GD-FER-29: o traço que começa (ou termina) perto de uma ponta do
+    /// anterior é juntado na ordem certa; longe, não.
+    #[test]
+    fn gd_fer_29_sketch_join() {
+        let p = |x: f64| Point::new(x, 0.0);
+        let prev = [p(0.0), p(10.0)];
+        assert_eq!(
+            sketch_join(&prev, &[p(11.0), p(20.0)], 2.0).unwrap(),
+            [p(0.0), p(10.0), p(11.0), p(20.0)]
+        );
+        assert_eq!(
+            sketch_join(&prev, &[p(20.0), p(11.0)], 2.0).unwrap(),
+            [p(0.0), p(10.0), p(11.0), p(20.0)]
+        );
+        assert_eq!(
+            sketch_join(&prev, &[p(-10.0), p(-1.0)], 2.0).unwrap(),
+            [p(-10.0), p(-1.0), p(0.0), p(10.0)]
+        );
+        assert!(sketch_join(&prev, &[p(50.0), p(60.0)], 2.0).is_none());
+    }
     use crate::model::FillRule;
 
     /// GD-FER-20: traço tremido vira poucos nós; o "L" mantém o canto;

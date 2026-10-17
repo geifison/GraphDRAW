@@ -91,6 +91,29 @@ impl App {
                         egui::Slider::new(&mut self.canvas.freehand_smooth, 0.0..=100.0)
                             .show_value(true),
                     );
+                    if self.tool == Tool::Freehand {
+                        ui.separator();
+                        ui.checkbox(&mut self.canvas.sketch, tr("Esboço contínuo", "Continuous sketch"))
+                            .on_hover_text(tr(
+                                "Traços seguidos que começam perto do fim do anterior viram uma curva só",
+                                "Successive strokes starting near the previous end become a single curve",
+                            ));
+                        ui.add_enabled_ui(self.canvas.sketch, |ui| {
+                            ui.add(
+                                egui::DragValue::new(&mut self.canvas.sketch_time)
+                                    .range(0.2..=10.0)
+                                    .speed(0.1)
+                                    .suffix(" s"),
+                            )
+                            .on_hover_text(tr("Tempo para emendar", "Time to join"));
+                            ui.add(
+                                egui::DragValue::new(&mut self.canvas.sketch_dist)
+                                    .range(2.0..=60.0)
+                                    .suffix(" px"),
+                            )
+                            .on_hover_text(tr("Distância para emendar", "Distance to join"));
+                        });
+                    }
                     ui.separator();
                     widgets::hint_line(
                         ui,
