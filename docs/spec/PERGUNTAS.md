@@ -38,6 +38,8 @@ centrada na origem; texto tem origem no canto superior esquerdo do bloco,
 linhas avançando para −Y; cantos do retângulo na ordem inferior-esquerdo,
 inferior-direito, superior-direito, superior-esquerdo.
 **Pergunta:** confirmar ou ajustar antes do M1 (edição).
+**Resposta (2026-10-16):** confirmada pelo responsável pelo produto como
+decisão final; vale para o formato 1.0 (`docs/format/gdr-1.0.md`).
 
 ## P-05 — Transparência só do preenchimento
 **Contexto:** a libcdr informa a transparência do preenchimento

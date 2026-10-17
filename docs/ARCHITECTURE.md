@@ -309,6 +309,5 @@ Do M1:
 - Agrupar exige objetos na mesma camada e no mesmo grupo.
 - Contorno externo no PDF pode sair errado em formas com auto-sobreposição
   e regra não-zero (ver 2.4).
-- A origem local de retângulos, elipses, textos e imagens segue a decisão
-  provisória P-04 de [`docs/spec/PERGUNTAS.md`](spec/PERGUNTAS.md), ainda
-  sem confirmação.
+- A origem local de retângulos, elipses, textos e imagens segue P-04 de
+  [`docs/spec/PERGUNTAS.md`](spec/PERGUNTAS.md), confirmada em 2026-10-16.
