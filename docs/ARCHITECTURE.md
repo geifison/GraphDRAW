@@ -300,9 +300,10 @@ Do M0, ainda valem:
 
 Do M3:
 
-- Polígono/estrela/estrela complexa são primitivas paramétricas; editar um
-  vértice replicando nos outros (GD-PRI-03) ainda não existe (converter em
-  curvas edita nó a nó).
+- Polígono/estrela/estrela complexa são primitivas paramétricas; na
+  ferramenta Forma, o vértice externo muda tamanho e giro de todas as
+  pontas e o interno a nitidez (GD-PRI-03). Para editar nó a nó, converter
+  em curvas.
 - Guias: horizontais, verticais e inclinadas, da página ou do documento;
   guias de página mestra e camada especial de guias (GD-CAM-04) não
   existem; a origem das réguas não é salva.

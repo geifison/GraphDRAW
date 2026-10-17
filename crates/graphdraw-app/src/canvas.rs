@@ -238,6 +238,13 @@ enum Drag {
         cands: Vec<(Point, SnapKind)>,
     },
     BezierHandle,
+    /// Vértice de polígono/estrela sendo arrastado (GD-PRI-03): o externo
+    /// muda tamanho e giro de todas as pontas, o interno a nitidez.
+    PolyVertex {
+        inner: bool,
+        r: ObjRef,
+        original: Object,
+    },
     /// Quadro de texto de parágrafo sendo desenhado.
     TextFrame {
         start: Point,
@@ -1641,6 +1648,20 @@ impl CanvasState {
     }
 
     fn paint_nodes(&self, painter: &egui::Painter, doc: &DocState, rect: Rect, ph: f64) {
+        if let Some((_, _, p, m)) = single_polygon(doc) {
+            for (_, q) in polygon_handles(&p) {
+                let c = self.screen(rect, ph, m * q);
+                let r = Rect::from_center_size(c, Vec2::splat(theme::HANDLE_SIZE));
+                painter.rect_filled(r, theme::RADIUS_XS, theme::HANDLE_FILL);
+                painter.rect_stroke(
+                    r,
+                    theme::RADIUS_XS,
+                    handle_stroke(),
+                    egui::StrokeKind::Middle,
+                );
+            }
+            return;
+        }
         let Some(PathSel { path, m, .. }) = single_path(doc) else {
             return;
         };
@@ -1911,6 +1932,25 @@ impl CanvasState {
         rect: Rect,
         ph: f64,
     ) {
+        // Polígono: arrastar um vértice repete a mudança em todas as pontas.
+        if let Some((r, o, pd, m)) = single_polygon(doc) {
+            if let Some((inner, _)) = polygon_handles(&pd).into_iter().find(|(_, q)| {
+                (self.screen(rect, ph, m * *q) - origin).length() <= theme::HANDLE_HIT
+            }) {
+                doc.editor.begin(tr("Editar polígono", "Edit polygon"));
+                self.drag = Drag::PolyVertex {
+                    inner,
+                    r,
+                    original: o,
+                };
+                return;
+            }
+            self.drag = Drag::Rubber {
+                start: origin,
+                lasso: None,
+            };
+            return;
+        }
         let Some((loc, o, path, m)) =
             single_path(doc).map(|s| (s.r, s.obj.clone(), s.path.clone(), s.m))
         else {
@@ -2228,6 +2268,30 @@ impl CanvasState {
             Drag::DrawRect { cands, .. } => {
                 self.snap_hit = snap::snap_guided_on(&self.guides, cur, cands, &self.snap, radius);
             }
+            Drag::PolyVertex { inner, r, original } => {
+                if let ObjectKind::Polygon(p0) = &original.kind {
+                    let m = doc.editor.parent_affine(r) * original.transform.affine();
+                    let q = m.inverse() * cur;
+                    // No espaço da elipse de raios rx, ry, o vértice externo
+                    // está a 1 do centro.
+                    let e = kurbo::Vec2::new(q.x / p0.rx.max(1e-9), q.y / p0.ry.max(1e-9));
+                    let k = e.hypot().max(1e-3);
+                    let mut o = original.clone();
+                    if let ObjectKind::Polygon(p) = &mut o.kind {
+                        if *inner {
+                            p.sharpness = ((1.0 - k) / 0.95).clamp(0.0, 1.0);
+                        } else {
+                            p.rx = p0.rx * k;
+                            p.ry = p0.ry * k;
+                            let turn = e.y.atan2(e.x) - std::f64::consts::FRAC_PI_2;
+                            o.transform = Transform::from_affine(
+                                original.transform.affine() * Affine::rotate(turn),
+                            );
+                        }
+                    }
+                    doc.editor.replace_at(r, o);
+                }
+            }
             Drag::GuideNew { .. } | Drag::RulerOrigin => {
                 let c = snap::candidates_doc(doc.doc(), doc.page, &self.snap, &[]);
                 self.snap_hit = snap::snap_guided_on(&[], cur, &c, &self.snap, radius);
@@ -2339,7 +2403,8 @@ impl CanvasState {
             | Drag::Skew { .. }
             | Drag::Nodes { .. }
             | Drag::NodeHandle { .. }
-            | Drag::Segment { .. } => {
+            | Drag::Segment { .. }
+            | Drag::PolyVertex { .. } => {
                 doc.editor.commit();
             }
             Drag::GuideNew { horizontal } => {
@@ -2590,7 +2655,10 @@ impl CanvasState {
                     .and_then(|r| doc.editor.get(&r))
                     && matches!(
                         o.kind,
-                        ObjectKind::Path(_) | ObjectKind::Rectangle(_) | ObjectKind::Ellipse(_)
+                        ObjectKind::Path(_)
+                            | ObjectKind::Rectangle(_)
+                            | ObjectKind::Ellipse(_)
+                            | ObjectKind::Polygon(_)
                     )
                 {
                     doc.selection = vec![o.id.clone()];
@@ -2871,6 +2939,37 @@ fn moved_guide(
     n
 }
 
+/// Polígono selecionado sozinho: referência, objeto, dados e matriz local →
+/// página.
+fn single_polygon(
+    doc: &DocState,
+) -> Option<(ObjRef, Object, graphdraw_core::model::PolygonData, Affine)> {
+    let [id] = doc.selection.as_slice() else {
+        return None;
+    };
+    let r = doc.editor.find(id)?;
+    let o = doc.editor.get(&r)?.clone();
+    let ObjectKind::Polygon(p) = &o.kind else {
+        return None;
+    };
+    let m = doc.editor.parent_affine(&r) * o.transform.affine();
+    Some((r, o.clone(), p.clone(), m))
+}
+
+/// Alças do polígono no espaço local: o primeiro vértice externo e, nas
+/// estrelas, o primeiro interno.
+fn polygon_handles(p: &graphdraw_core::model::PolygonData) -> Vec<(bool, Point)> {
+    let n = p.sides.clamp(3, 500) as f64;
+    let at = |a: f64, k: f64| Point::new(p.rx * k * a.cos(), p.ry * k * a.sin());
+    let top = std::f64::consts::FRAC_PI_2;
+    let mut v = vec![(false, at(top, 1.0))];
+    if p.mode == "star" {
+        let inner = 1.0 - 0.95 * p.sharpness.clamp(0.0, 1.0);
+        v.push((true, at(top + std::f64::consts::PI / n, inner)));
+    }
+    v
+}
+
 fn draw_rect(a: Point, b: Point, mods: egui::Modifiers) -> kurbo::Rect {
     let mut d = b - a;
     if mods.shift {
@@ -2985,6 +3084,105 @@ mod tests {
     /// Aceite de GD-DIM-24: arrastar o canto de uma A4 até perto de 148 × 210
     /// mm gruda em A5; sem objetos, o tamanho muda direto em todas as páginas
     /// (GD-PAG-01), num passo do histórico.
+    /// GD-PRI-03: na ferramenta Forma, arrastar o vértice interno da estrela
+    /// muda a nitidez de todas as pontas; o externo, o tamanho de todas.
+    #[test]
+    fn polygon_vertex_edit_is_symmetric() {
+        let ctx = crate::theme::test_ctx();
+        let mut cs = CanvasState::default();
+        cs.snap.enabled = false;
+        let mut doc = DocState::new_blank();
+        let mut o = Object::new(ObjectKind::Polygon(graphdraw_core::model::PolygonData {
+            rx: 30_000.0,
+            ry: 30_000.0,
+            sides: 5,
+            mode: "star".into(),
+            sharpness: 0.5,
+            extra: Map::new(),
+        }));
+        o.transform = graphdraw_core::model::Transform::translate(100_000.0, 150_000.0);
+        let id = o.id.clone();
+        doc.editor.insert_object(
+            graphdraw_core::edit::ObjLoc {
+                page: 0,
+                layer: 0,
+                index: 0,
+            },
+            o,
+        );
+        doc.selection = vec![id.clone()];
+        for _ in 0..2 {
+            canvas_frame(&ctx, &mut cs, &mut doc, Tool::Shape, vec![]);
+        }
+        let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(1366.0, 768.0));
+        let (_, ph) = doc.page_size();
+        let btn = |pos, pressed| egui::Event::PointerButton {
+            pos,
+            button: PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        let drag = |cs: &mut CanvasState, doc: &mut DocState, a: Point, b: Point| {
+            let (sa, sb) = (cs.screen(rect, ph, a), cs.screen(rect, ph, b));
+            canvas_frame(
+                &ctx,
+                cs,
+                doc,
+                Tool::Shape,
+                vec![egui::Event::PointerMoved(sa)],
+            );
+            canvas_frame(&ctx, cs, doc, Tool::Shape, vec![btn(sa, true)]);
+            for k in 1..=6 {
+                canvas_frame(
+                    &ctx,
+                    cs,
+                    doc,
+                    Tool::Shape,
+                    vec![egui::Event::PointerMoved(sa + (sb - sa) * (k as f32 / 6.0))],
+                );
+            }
+            canvas_frame(&ctx, cs, doc, Tool::Shape, vec![btn(sb, false)]);
+        };
+        let get = |doc: &DocState| match &doc.page().layers[0].objects[0].kind {
+            ObjectKind::Polygon(p) => p.clone(),
+            _ => unreachable!(),
+        };
+        // Vértice externo no topo (100, 180) → puxar para (100, 190): raio 40.
+        drag(
+            &mut cs,
+            &mut doc,
+            Point::new(100_000.0, 180_000.0),
+            Point::new(100_000.0, 190_000.0),
+        );
+        let p = get(&doc);
+        let tol = 3.0 / cs.view.zoom;
+        assert!(
+            (p.rx - 40_000.0).abs() < tol && (p.ry - 40_000.0).abs() < tol,
+            "{} {}",
+            p.rx,
+            p.ry
+        );
+        // Vértice interno (raio 0,525 · 40 a 126°) → levar para raio 0,81·40: nitidez 0,2.
+        let a = std::f64::consts::FRAC_PI_2 + std::f64::consts::PI / 5.0;
+        let at = |k: f64| {
+            Point::new(
+                100_000.0 + 40_000.0 * k * a.cos(),
+                150_000.0 + 40_000.0 * k * a.sin(),
+            )
+        };
+        drag(&mut cs, &mut doc, at(0.525), at(0.81));
+        assert!(
+            (get(&doc).sharpness - 0.2).abs() < 0.02,
+            "{}",
+            get(&doc).sharpness
+        );
+        doc.editor.undo();
+        assert!(
+            (get(&doc).sharpness - 0.5).abs() < 1e-9,
+            "desfazer: um passo por arrasto"
+        );
+    }
+
     /// GD-ALI-05: ao mover, a borda encaixa na borda de outro objeto.
     #[test]
     fn smart_guides_align_while_moving() {
