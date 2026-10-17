@@ -216,21 +216,26 @@ impl App {
             Tool::Select => {
                 let texts = &text_targets;
                 widgets::single_line_bar(ui, "barra-selecao", |ui| {
+                    // Só textos selecionados: os controles de texto entram como
+                    // parâmetros do objeto (grupo 2 da ordem fixa, DS 4.6).
+                    let only_texts = !texts.is_empty() && texts.len() == doc.selection.len();
+                    let mut text_params = |ui: &mut egui::Ui, doc: &mut DocState| {
+                        if only_texts {
+                            ui.separator();
+                            if let Some(st) = text_bar(ui, doc, texts, None, picker) {
+                                pending_style = Some(st);
+                            }
+                            path_text_bar(ui, doc, texts);
+                        }
+                    };
                     refit = select_bar(
                         ui,
                         doc,
                         &mut self.anchor,
                         &mut self.lock_ratio,
                         &mut self.corners_sel,
+                        &mut text_params,
                     );
-                    // Só textos selecionados: os controles de texto vêm junto.
-                    if !texts.is_empty() && texts.len() == doc.selection.len() {
-                        ui.separator();
-                        if let Some(st) = text_bar(ui, doc, texts, None, picker) {
-                            pending_style = Some(st);
-                        }
-                        path_text_bar(ui, doc, texts);
-                    }
                 });
             }
         }
@@ -1152,6 +1157,7 @@ fn select_bar(
     anchor: &mut Anchor,
     lock: &mut bool,
     corners_sel: &mut [bool; 4],
+    object_params: &mut dyn FnMut(&mut egui::Ui, &mut DocState),
 ) -> bool {
     let sel = doc.selection.clone();
     let Some(b) = ops::selection_bounds(&doc.editor, &sel, false) else {
@@ -1420,7 +1426,9 @@ fn select_bar(
             }
             _ => {}
         }
-    } // 2. Contorno (edição rápida).
+    }
+    object_params(ui, doc);
+    // 2. Contorno (edição rápida).
     if stroke_bar(ui, doc, &sel) {
         return false;
     }
@@ -3423,7 +3431,7 @@ mod tests {
         let rev = doc.editor.revision();
         let select = |ui: &mut egui::Ui, d: &mut DocState| {
             let (mut a, mut l) = (Anchor::Center, true);
-            select_bar(ui, d, &mut a, &mut l, &mut [true; 4]);
+            select_bar(ui, d, &mut a, &mut l, &mut [true; 4], &mut |_, _| {});
         };
         let _ = bar(&mut doc, select);
         assert_eq!(doc.editor.revision(), rev, "nada mudou");
@@ -3488,7 +3496,7 @@ mod tests {
         doc.selection = vec![id.clone()];
         let select = |ui: &mut egui::Ui, d: &mut DocState| {
             let (mut a, mut l) = (Anchor::Center, true);
-            select_bar(ui, d, &mut a, &mut l, &mut [true; 4]);
+            select_bar(ui, d, &mut a, &mut l, &mut [true; 4], &mut |_, _| {});
         };
         fits(bar(&mut doc, select), "seleção");
         // Todos os grupos de uma vez: dois caminhos abertos com contorno
@@ -3518,7 +3526,7 @@ mod tests {
         let rev = doc.editor.revision();
         fits(bar(&mut doc, select), "dois caminhos abertos");
         assert_eq!(doc.editor.revision(), rev, "mostrar a barra não edita");
-        ops::convert_to_curves(&mut doc.editor, &[id.clone()]);
+        ops::convert_to_curves(&mut doc.editor, std::slice::from_ref(&id));
         doc.selection = vec![id];
         fits(bar(&mut doc, shape_bar), "nós");
     }
