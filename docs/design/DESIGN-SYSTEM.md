@@ -542,6 +542,13 @@ Aba **Verificação** (ícone `preflight`) no painel direito:
     - na ferramenta Formato, os pontos da B-spline selecionada são alças:
       arrastar move, duplo clique fixa/solta.
   - **Medidas** (depois de Texto): Cota e Conector.
+  - **Formato**: Forma e Largura (ícone `tool-width`):
+    - arrastar no contorno do objeto selecionado põe ou ajusta um nó de
+      largura ali: a distância do cursor à linha é a meia espessura;
+    - os nós aparecem como círculos de `handle-size` em `handle-fill`;
+    - a barra tem Uniforme e os perfis prontos (Afinar no fim, Afinar no
+      início, Afinar nas pontas, Bojo), que também estão na seção Largura
+      variável do diálogo de contorno.
 - Simetria (GD-FER-33; Objeto → Simetria, menu de contexto com o ícone
   `symmetry`): cria o grupo de simetria com a seleção (ou vazio, no meio
   da página) e liga Desenhar dentro.

@@ -133,7 +133,7 @@ Para depois da 1.0, cada um com o motivo:
   (GD-FER-52).
 - [x] Simetria ao vivo (GD-FER-33).
 - [x] B-spline (GD-BSP-01, GD-FER-24).
-- [ ] Largura variável (GD-VAR-01, GD-OUT-08).
+- [x] Largura variável (GD-VAR-01, GD-OUT-08).
 - [ ] Esboço contínuo (GD-FER-29).
 - [x] Objeto vira guia (GD-GUI-03).
 - [ ] Grade de linha base e de pixels (GD-GRD-01).

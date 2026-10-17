@@ -420,6 +420,23 @@ impl StrokeDialog {
                     );
                 });
             });
+            section(ui, tr("Largura variável", "Variable width"), |ui| {
+                ui.horizontal_wrapped(|ui| {
+                    if ui.selectable_label(s.widths.is_empty(), tr("Uniforme", "Uniform")).clicked() {
+                        s.widths.clear();
+                    }
+                    for name in graphdraw_core::render::varwidth::PRESETS {
+                        let nodes = graphdraw_core::render::varwidth::preset(name);
+                        if ui.selectable_label(s.widths == nodes, width_label(name)).clicked() {
+                            s.widths = nodes;
+                        }
+                    }
+                });
+                ui.weak(tr(
+                    "Ajuste ponto a ponto com a ferramenta Largura.",
+                    "Fine-tune point by point with the Width tool.",
+                ));
+            });
             section(ui, tr("Pontas de seta", "Arrowheads"), |ui| {
                 arrow_row(ui, "seta-inicio", tr("Início", "Start"), &mut s.start_arrow);
                 arrow_row(ui, "seta-fim", tr("Fim", "End"), &mut s.end_arrow);
@@ -543,8 +560,20 @@ fn merge_changes(s: &mut Stroke, old: &Stroke, new: &Stroke) {
         end_arrow,
         nib_stretch,
         nib_angle,
-        overprint
+        overprint,
+        widths
     );
+}
+
+/// Nome do perfil de largura variável na interface (GD-VAR-01).
+pub(crate) fn width_label(name: &str) -> &'static str {
+    match name {
+        "taper-end" => tr("Afinar no fim", "Taper end"),
+        "taper-start" => tr("Afinar no início", "Taper start"),
+        "taper-both" => tr("Afinar nas pontas", "Taper both"),
+        "bulge" => tr("Bojo", "Bulge"),
+        _ => tr("Uniforme", "Uniform"),
+    }
 }
 
 /// Nome da forma de ponta na interface.

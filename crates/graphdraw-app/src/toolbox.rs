@@ -66,7 +66,10 @@ pub fn slots() -> Vec<Slot> {
             "selecao",
             vec![Variant::of(Tool::Select), Variant::of(Tool::FreeTransform)],
         ),
-        Slot::One(Tool::Shape),
+        Slot::Group(
+            "formato",
+            vec![Variant::of(Tool::Shape), Variant::of(Tool::Width)],
+        ),
         Slot::Group(
             "corte",
             vec![

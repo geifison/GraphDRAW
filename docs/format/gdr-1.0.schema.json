@@ -221,7 +221,20 @@
         "endArrow": { "$ref": "#/$defs/arrow" },
         "nibStretch": { "type": "number", "exclusiveMinimum": 0, "maximum": 1, "description": "Caneta caligráfica: largura do bico (1 = redondo)." },
         "nibAngle": { "type": "number", "description": "Ângulo do bico em graus." },
-        "overprint": { "type": "boolean", "description": "Sobreimpressão do contorno (GD-PRE-08)." }
+        "overprint": { "type": "boolean", "description": "Sobreimpressão do contorno (GD-PRE-08)." },
+        "widths": {
+          "type": "array",
+          "description": "Largura variável (GD-VAR-01): nós ao longo do caminho.",
+          "items": {
+            "type": "object",
+            "required": ["at", "left", "right"],
+            "properties": {
+              "at": { "type": "number", "minimum": 0, "maximum": 1 },
+              "left": { "type": "number", "minimum": 0 },
+              "right": { "type": "number", "minimum": 0 }
+            }
+          }
+        }
       }
     },
     "arrow": {

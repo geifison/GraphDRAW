@@ -528,11 +528,19 @@ impl Builder<'_> {
             }
             // Caneta caligráfica (GD-OUT-06): o traço vira a área varrida pelo
             // bico elíptico, preenchida com a tinta do contorno.
-            if let (Some(s), Some(st)) = (&o.stroke, &stroke)
-                && s.nib_stretch < 0.999
-                && !self.wireframe
-            {
-                let outline = nib_outline(&path, st, s.nib_stretch, s.nib_angle);
+            // Largura variável (GD-VAR-01) também vira área preenchida.
+            let swept = match (&o.stroke, &stroke) {
+                (Some(s), Some(st))
+                    if !self.wireframe && !s.widths.is_empty() && st.width > 0.0 =>
+                {
+                    Some(super::varwidth::outline(&path, st.width, &s.widths))
+                }
+                (Some(s), Some(st)) if !self.wireframe && s.nib_stretch < 0.999 => {
+                    Some(nib_outline(&path, st, s.nib_stretch, s.nib_angle))
+                }
+                _ => None,
+            };
+            if let (Some(outline), Some(st)) = (swept, &stroke) {
                 if fill.is_some() && !st.behind_fill {
                     self.items.push(Item::Shape(ShapeItem {
                         object_id: o.id.clone(),

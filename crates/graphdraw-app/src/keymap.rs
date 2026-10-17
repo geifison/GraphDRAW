@@ -201,6 +201,7 @@ commands! {
     ToolSelect = "tool.select", "Ferramenta Seleção", "Select tool", Tools, NotText, true;
     ToolToggleSelect = "tool.toggle_select", "Alternar com a Seleção", "Toggle with Select", Tools, NotText, true;
     ToolShape = "tool.shape", "Ferramenta Forma (nós)", "Shape tool (nodes)", Tools, NotText, true;
+    ToolWidth = "tool.width", "Ferramenta Largura", "Width tool", Tools, NotText, true;
     ToolZoom = "tool.zoom", "Ferramenta Zoom", "Zoom tool", Tools, NotText, true;
     ToolPan = "tool.pan", "Ferramenta Mão", "Hand tool", Tools, NotText, true;
     ToolBezier = "tool.bezier", "Ferramenta Bézier", "Bézier tool", Tools, NotText, true;

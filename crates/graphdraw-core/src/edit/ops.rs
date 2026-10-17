@@ -1216,12 +1216,16 @@ pub fn outline_to_object(ed: &mut Editor, sel: &[String]) -> Selection {
                     ks = ks.with_dashes(st.dash_offset * k, d.iter().map(|v| v * k));
                 }
                 let tol = (w / 1000.0).max(0.01);
-                let shape = close_all(&kurbo::stroke(
-                    local,
-                    &ks,
-                    &kurbo::StrokeOpts::default(),
-                    tol,
-                ));
+                let shape = if st.widths.is_empty() {
+                    close_all(&kurbo::stroke(
+                        local,
+                        &ks,
+                        &kurbo::StrokeOpts::default(),
+                        tol,
+                    ))
+                } else {
+                    crate::render::varwidth::outline(&local, w, &st.widths)
+                };
                 let mut obj = Object::new(ObjectKind::Path(PathData {
                     subpaths: super::convert::bez_to_subpaths(&shape),
                     fill_rule: FillRule::Nonzero,

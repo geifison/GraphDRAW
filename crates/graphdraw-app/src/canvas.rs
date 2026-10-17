@@ -78,6 +78,8 @@ pub enum Tool {
     Connector,
     /// B-spline (GD-FER-24, GD-BSP-01): cliques põem pontos de controle.
     BSpline,
+    /// Largura variável (GD-VAR-01): arrastar no contorno muda a largura ali.
+    Width,
 }
 
 /// Cota sendo feita: tipo, pontos (página), ligações e segmento medido.
@@ -114,6 +116,17 @@ impl Tool {
                     crate::keymap::Command::ToolShape,
                 ),
                 "N",
+            ),
+            Tool::Width => (
+                "tool-width",
+                crate::keymap::hint(
+                    tr(
+                        "Largura — arraste no contorno do objeto selecionado para afinar ou engrossar ali",
+                        "Width — drag on the selected object's outline to thin or thicken it there",
+                    ),
+                    crate::keymap::Command::ToolWidth,
+                ),
+                "",
             ),
             Tool::Zoom => (
                 "tool-zoom",
@@ -351,7 +364,7 @@ impl Tool {
             ),
         }
     }
-    pub const ALL: [Tool; 26] = [
+    pub const ALL: [Tool; 27] = [
         Tool::Select,
         Tool::Shape,
         Tool::Zoom,
@@ -378,6 +391,7 @@ impl Tool {
         Tool::SmartFill,
         Tool::Connector,
         Tool::BSpline,
+        Tool::Width,
     ];
 }
 
@@ -614,6 +628,12 @@ enum Drag {
     /// muda tamanho e giro de todas as pontas, o interno a nitidez.
     PolyVertex {
         inner: bool,
+        r: ObjRef,
+        original: Object,
+    },
+    /// Nó de largura sendo puxado (GD-VAR-01): posição no caminho.
+    WidthNode {
+        at: f64,
         r: ObjRef,
         original: Object,
     },
@@ -2183,7 +2203,7 @@ impl CanvasState {
         self.paint_overlays(ui, &painter, doc, rect, tool);
         self.paint_right_drag(&painter, doc, rect, ph);
         self.eyedrop_overlay(ui, &painter, doc, rect, ph, tol, &mut ev);
-        self.paint_cut_tools(ui, &painter, rect, ph, tool);
+        self.paint_cut_tools(ui, &painter, doc, rect, ph, tool);
         if tool == Tool::Crop
             && self.crop_pending.is_some()
             && ui.input(|i| i.key_pressed(Key::Enter))
@@ -2617,6 +2637,9 @@ impl CanvasState {
             },
             Tool::Connector => Glyph::Cross {
                 badge: "tool-connector",
+            },
+            Tool::Width => Glyph::Cross {
+                badge: "tool-width",
             },
             Tool::FreeTransform => Glyph::Cross {
                 badge: "tool-free-transform",
@@ -3423,6 +3446,15 @@ impl CanvasState {
                     originals,
                 };
             }
+            Tool::Width => {
+                if let Some((r, o, path, half)) = width_target(doc)
+                    && let Some((at, d)) = graphdraw_core::render::varwidth::fraction_at(&path, p)
+                    && d <= half + theme::HANDLE_HIT as f64 / self.view.zoom
+                {
+                    doc.editor.begin(tr("Largura variável", "Variable width"));
+                    self.drag = Drag::WidthNode { at, r, original: o };
+                }
+            }
             Tool::Connector => {
                 let from = conn_end(doc, p, 10.0 / self.view.zoom);
                 self.drag = Drag::ConnectorDraw { from, cur: p };
@@ -3987,6 +4019,7 @@ impl CanvasState {
         &self,
         ui: &egui::Ui,
         painter: &egui::Painter,
+        doc: &DocState,
         rect: Rect,
         ph: f64,
         tool: Tool,
@@ -4039,6 +4072,18 @@ impl CanvasState {
                     theme::font_micro(),
                     accent,
                 );
+            }
+        }
+        if tool == Tool::Width
+            && let Some((_, o, path, _)) = width_target(doc)
+            && let Some(s) = &o.stroke
+        {
+            for n in &s.widths {
+                if let Some(q) = graphdraw_core::render::varwidth::point_at(&path, n.at) {
+                    let c = self.screen(rect, ph, q);
+                    painter.circle_filled(c, theme::HANDLE_SIZE / 2.0, theme::HANDLE_FILL);
+                    painter.circle_stroke(c, theme::HANDLE_SIZE / 2.0, handle_stroke());
+                }
             }
         }
         if let Some(pts) = &self.bspline {
@@ -5258,6 +5303,18 @@ impl CanvasState {
                 }
                 doc.editor.replace_at(r, o);
             }
+            Drag::WidthNode { at, r, original } => {
+                if let Some((_, _, path, half)) = width_target(doc)
+                    && let Some(q) = graphdraw_core::render::varwidth::point_at(&path, *at)
+                {
+                    let k = (cur - q).hypot() / half.max(1e-9);
+                    let mut o = original.clone();
+                    if let Some(s) = &mut o.stroke {
+                        graphdraw_core::render::varwidth::set_node(&mut s.widths, *at, k);
+                    }
+                    doc.editor.replace_at(r, o);
+                }
+            }
             Drag::BSplinePoint { index, r, original } => {
                 let m = doc.editor.parent_affine(r) * original.transform.affine();
                 let mut o = original.clone();
@@ -5486,7 +5543,8 @@ impl CanvasState {
             | Drag::Segment { .. }
             | Drag::PolyVertex { .. }
             | Drag::BasicHandle { .. }
-            | Drag::BSplinePoint { .. } => {
+            | Drag::BSplinePoint { .. }
+            | Drag::WidthNode { .. } => {
                 doc.editor.commit();
             }
             Drag::GradHandle { r, .. } => {
@@ -6266,6 +6324,26 @@ pub fn active_symmetry(doc: &DocState) -> Option<(graphdraw_core::model::Symmetr
         d.symmetry.clone()?,
         doc.editor.parent_affine(&r) * g.transform.affine(),
     ))
+}
+
+/// Objeto com contorno selecionado sozinho para a ferramenta Largura:
+/// referência, objeto, caminho na página e meia espessura na página.
+fn width_target(doc: &DocState) -> Option<(ObjRef, Object, kurbo::BezPath, f64)> {
+    let [id] = doc.selection.as_slice() else {
+        return None;
+    };
+    let r = doc.editor.find(id)?;
+    let o = doc.editor.get(&r)?.clone();
+    let st = o.stroke.as_ref()?;
+    let mut path = graphdraw_core::edit::query::local_outline(&o)?;
+    let m = doc.editor.parent_affine(&r) * o.transform.affine();
+    path.apply_affine(m);
+    let w = if st.scale_with_object {
+        st.width * m.determinant().abs().sqrt()
+    } else {
+        st.width
+    };
+    Some((r, o.clone(), path, (w / 2.0).max(1.0)))
 }
 
 /// B-spline selecionada sozinha (referência, objeto, dados, matriz).
@@ -7356,6 +7434,72 @@ mod tests {
         assert_eq!(doc.page().layers[0].objects.len(), n + 1);
         click(&mut cs, &mut doc, outside);
         assert_eq!(doc.page().layers[0].objects.len(), n + 1, "fora: nada");
+    }
+
+    /// GD-VAR-01 na tela: arrastar do contorno a 25% da linha para longe
+    /// dela põe um nó de largura ali, com o dobro da meia espessura.
+    #[test]
+    fn width_tool_on_canvas() {
+        let (ctx, mut cs, mut doc, _id, rect, ph) = bdr_setup();
+        let mut o = Object::new(ObjectKind::Path(PathData {
+            subpaths: vec![Subpath {
+                nodes: vec![
+                    graphdraw_core::model::Node::corner(100_000.0, 200_000.0),
+                    graphdraw_core::model::Node::corner(180_000.0, 200_000.0),
+                ],
+                closed: false,
+                extra: Map::new(),
+            }],
+            fill_rule: FillRule::Nonzero,
+            extra: Map::new(),
+        }));
+        o.stroke = Some(graphdraw_core::model::Stroke::new(
+            4_000.0,
+            graphdraw_core::model::Color::black(),
+        ));
+        let id = ops::add_object(&mut doc.editor, 0, 0, o, "linha");
+        doc.selection = vec![id.clone()];
+        let a = cs.screen(rect, ph, Point::new(120_000.0, 201_000.0));
+        let b = cs.screen(rect, ph, Point::new(120_000.0, 204_000.0));
+        let t = Tool::Width;
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            t,
+            vec![egui::Event::PointerMoved(a)],
+        );
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            t,
+            vec![button(a, PointerButton::Primary, true)],
+        );
+        for k in 1..=4 {
+            let p = a + (b - a) * (k as f32 / 4.0);
+            canvas_frame(
+                &ctx,
+                &mut cs,
+                &mut doc,
+                t,
+                vec![egui::Event::PointerMoved(p)],
+            );
+        }
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            t,
+            vec![button(b, PointerButton::Primary, false)],
+        );
+        let o = doc.editor.get(&doc.editor.find(&id).unwrap()).unwrap();
+        let w = &o.stroke.as_ref().unwrap().widths;
+        assert_eq!(w.len(), 3, "{w:?}");
+        assert!(
+            (w[1].at - 0.25).abs() < 0.01 && (w[1].left - 2.0).abs() < 0.1,
+            "{w:?}"
+        );
     }
 
     /// GD-FER-33 na tela: com a simetria ativa, o retângulo desenhado entra
@@ -8921,7 +9065,8 @@ mod tests {
                 "mira+tool-dimension",
                 "mira+tool-smart-fill",
                 "mira+tool-connector",
-                "mira+tool-bspline"
+                "mira+tool-bspline",
+                "mira+tool-width"
             ]
         );
         assert_eq!(

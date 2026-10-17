@@ -9,6 +9,7 @@ pub mod raster;
 pub mod scene;
 pub mod separation;
 pub mod text;
+pub mod varwidth;
 
 pub use scene::{ImageCache, Item, Paint, Scene, SceneOptions, build_scene};
 

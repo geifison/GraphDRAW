@@ -108,6 +108,61 @@ impl App {
                     );
                 })
             }
+            Tool::Width => widgets::single_line_bar(ui, "barra-largura", |ui| {
+                let sel = doc.selection.clone();
+                let cur = sel
+                    .first()
+                    .and_then(|id| doc.editor.find(id))
+                    .and_then(|r| doc.editor.get(&r))
+                    .and_then(|o| o.stroke.as_ref())
+                    .map(|s| s.widths.clone());
+                let mut pick: Option<Vec<graphdraw_core::model::WidthNode>> = None;
+                ui.add_enabled_ui(cur.is_some(), |ui| {
+                    if ui
+                        .selectable_label(
+                            cur.as_ref().is_some_and(|w| w.is_empty()),
+                            tr("Uniforme", "Uniform"),
+                        )
+                        .clicked()
+                    {
+                        pick = Some(Vec::new());
+                    }
+                    for name in graphdraw_core::render::varwidth::PRESETS {
+                        let nodes = graphdraw_core::render::varwidth::preset(name);
+                        if ui
+                            .selectable_label(
+                                cur.as_ref() == Some(&nodes),
+                                crate::dialogs::width_label(name),
+                            )
+                            .clicked()
+                        {
+                            pick = Some(nodes);
+                        }
+                    }
+                });
+                if let Some(nodes) = pick {
+                    ops::modify(
+                        &mut doc.editor,
+                        &sel,
+                        tr("Largura variável", "Variable width"),
+                        |o| {
+                            if let Some(s) = &mut o.stroke {
+                                s.widths = nodes.clone();
+                                return true;
+                            }
+                            false
+                        },
+                    );
+                }
+                ui.separator();
+                widgets::hint_line(
+                    ui,
+                    tr(
+                        "Arraste no contorno: longe da linha engrossa, perto afina · os nós ficam marcados",
+                        "Drag on the outline: away from the line thickens, close thins · nodes are marked",
+                    ),
+                );
+            }),
             Tool::BSpline => widgets::single_line_bar(ui, "barra-bspline", |ui| {
                 widgets::hint_line(
                     ui,

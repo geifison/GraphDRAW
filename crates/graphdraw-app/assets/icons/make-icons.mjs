@@ -50,6 +50,7 @@ const icons = {
   "shape-basic": `<path d="M3.5 9 H13 V5 L20.5 12 L13 19 V15 H3.5 Z"/>`,
   "tool-smart-fill": `<rect x="3.5" y="3.5" width="11" height="11" rx="1"/><rect x="9.5" y="9.5" width="11" height="11" rx="1"/><path d="M9.5 9.5 H14.5 V14.5 H9.5 Z" fill="#fff"/>`,
   "symmetry": `<path d="M12 3 V21" stroke-dasharray="2 2"/><path d="M9.5 6 L4 12 L9.5 18 Z"/><path d="M14.5 6 L20 12 L14.5 18 Z"/>`,
+  "tool-width": `<path d="M3.5 12 C 8 4.5, 16 4.5, 20.5 12 C 16 15, 8 15, 3.5 12 Z"/><path d="M12 6.4 V13.8"/>${dot(12, 6.4)}${dot(12, 13.8)}`,
   "tool-connector": `<rect x="3.5" y="3.5" width="6" height="6" rx="1"/><rect x="14.5" y="14.5" width="6" height="6" rx="1"/><path d="M9.5 6.5 H12 V17.5 H14.5"/>`,
   "tool-knife": `<path d="M3.5 20.5 L8.5 15.5"/><path d="M8.5 15.5 L19.5 4.5 C 20.5 9.5 16 14 11 18 Z"/>`,
   "tool-crop": `<path d="M7 3.5 V17 H20.5 M3.5 7 H17 V20.5"/>`,

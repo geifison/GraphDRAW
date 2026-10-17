@@ -814,6 +814,49 @@ fn patterns() -> Document {
     d
 }
 
+/// GD-VAR-01: os quatro perfis prontos e um anel fechado com bojo.
+fn variable_width() -> Document {
+    let mut ids = Ids::new(16);
+    let mut p = page(&mut ids, 200.0 * MM, 120.0 * MM);
+    let mut d = doc_with(vec![], "Largura variável");
+    let profiles = graphdraw_core::render::varwidth::PRESETS;
+    for (i, name) in profiles.iter().enumerate() {
+        let y = (100.0 - 20.0 * i as f64) * MM;
+        let mut o = obj(
+            &mut ids,
+            ObjectKind::Path(PathData {
+                subpaths: vec![Subpath {
+                    nodes: vec![Node::corner(10.0 * MM, y), Node::corner(110.0 * MM, y)],
+                    closed: false,
+                    extra: Map::new(),
+                }],
+                fill_rule: FillRule::Nonzero,
+                extra: Map::new(),
+            }),
+        );
+        let mut st = Stroke::new(6.0 * MM, Color::cmyk(0.0, 0.0, 0.0, 1.0));
+        st.widths = graphdraw_core::render::varwidth::preset(name);
+        o.stroke = Some(st);
+        o.name = Some((*name).into());
+        p.layers[0].objects.push(o);
+    }
+    let mut ring = rect(
+        &mut ids,
+        130.0 * MM,
+        30.0 * MM,
+        60.0 * MM,
+        60.0 * MM,
+        Fill::None,
+    );
+    ring.fill = None;
+    let mut st = Stroke::new(4.0 * MM, Color::cmyk(1.0, 0.0, 0.0, 0.0));
+    st.widths = graphdraw_core::render::varwidth::preset("bulge");
+    ring.stroke = Some(st);
+    p.layers[0].objects.push(ring);
+    d.data.pages.push(p);
+    d
+}
+
 /// GD-FER-33: espelho de um eixo e radial de seis cópias.
 fn symmetry() -> Document {
     let mut ids = Ids::new(15);
@@ -1049,6 +1092,7 @@ fn main() {
         ("connectors", connectors()),
         ("bspline", bspline()),
         ("symmetry", symmetry()),
+        ("variable-width", variable_width()),
     ];
     for (name, doc) in &docs {
         let path = dir.join(format!("{name}.gdr"));

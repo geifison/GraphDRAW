@@ -286,8 +286,22 @@ pub struct Stroke {
     /// Sobreimpressão do contorno (GD-PRE-08).
     #[serde(default, skip_serializing_if = "is_false")]
     pub overprint: bool,
+    /// Largura variável (GD-VAR-01, GD-OUT-08): nós ao longo do caminho;
+    /// vazio = largura constante.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub widths: Vec<WidthNode>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
+}
+
+/// Nó de largura (GD-VAR-01): `at` = posição ao longo do caminho (0–1 do
+/// comprimento); `left`/`right` multiplicam a meia espessura de cada lado.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WidthNode {
+    pub at: f64,
+    pub left: f64,
+    pub right: f64,
 }
 
 /// Ponta de seta (GD-OUT-05). `shape` é uma forma da biblioteca própria
@@ -342,6 +356,7 @@ impl Stroke {
             nib_stretch: 1.0,
             nib_angle: 0.0,
             overprint: false,
+            widths: Vec::new(),
             extra: Map::new(),
         }
     }
