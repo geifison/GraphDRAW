@@ -1847,6 +1847,41 @@ fn shape_bar(ui: &mut egui::Ui, doc: &mut DocState) {
     {
         doc.nodes = nodes::all_nodes(&path);
     }
+    // Reduzir nós (GD-NOD-07): nos subcaminhos dos nós escolhidos, ou em
+    // todos; a tolerância fica guardada na sessão.
+    ui.separator();
+    let tol_id = egui::Id::unique("reduzir-nos-tolerancia");
+    let mut tol = ui.data(|d| d.get_temp::<f64>(tol_id)).unwrap_or(100.0);
+    if let Some(v) = widgets::labeled_length(ui, tr("Tol.", "Tol."), "reduzir-tol", tol, None) {
+        tol = v.max(1.0);
+        ui.data_mut(|d| d.insert_temp(tol_id, tol));
+    }
+    if icons::button(
+        ui,
+        "node-reduce",
+        tr(
+            "Reduzir nós: menos nós, desvio até a tolerância; cantos ficam",
+            "Reduce nodes: fewer nodes within the tolerance; corners stay",
+        ),
+        false,
+        true,
+    )
+    .clicked()
+    {
+        let which: Vec<usize> = {
+            let mut v: Vec<usize> = sel.iter().map(|r| r.subpath).collect();
+            v.sort();
+            v.dedup();
+            v
+        };
+        op = Some((
+            tr("Reduzir nós", "Reduce nodes"),
+            Box::new(move |p, s| {
+                nodes::reduce(p, &which, tol, 10.0);
+                s.clear();
+            }),
+        ));
+    }
     if let Some((name, f)) = op {
         let mut no = o.clone();
         let mut s = sel;

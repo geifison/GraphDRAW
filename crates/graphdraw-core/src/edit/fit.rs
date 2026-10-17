@@ -74,6 +74,30 @@ pub fn fit_closed(points: &[Point], tol: f64, corner_deg: f64) -> BezPath {
     out
 }
 
+/// Ajusta um trecho aberto de pontos com as tangentes das pontas dadas
+/// (`t1` saindo do primeiro, `t2` chegando ao último, apontando para
+/// dentro do trecho); `tol` é o erro máximo.
+pub fn fit_open(points: &[Point], t1: Vec2, t2: Vec2, tol: f64) -> BezPath {
+    let mut pts: Vec<Point> = Vec::with_capacity(points.len());
+    for p in points {
+        if pts
+            .last()
+            .is_none_or(|q: &Point| (*q - *p).hypot() > tol * 1e-3)
+        {
+            pts.push(*p);
+        }
+    }
+    let mut out = BezPath::new();
+    let Some(first) = pts.first() else {
+        return out;
+    };
+    out.move_to(*first);
+    if pts.len() >= 2 {
+        fit_cubic(&pts, t1, t2, tol, &mut out, 0);
+    }
+    out
+}
+
 fn chord_params(p: &[Point]) -> Vec<f64> {
     let mut u = vec![0.0; p.len()];
     for i in 1..p.len() {

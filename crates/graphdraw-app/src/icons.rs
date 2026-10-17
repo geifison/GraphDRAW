@@ -150,6 +150,7 @@ pub fn get(name: &str) -> ImageSource<'static> {
         "dist-top" => icon!("dist-top"),
         "dist-space-h" => icon!("dist-space-h"),
         "dist-space-v" => icon!("dist-space-v"),
+        "node-reduce" => icon!("node-reduce"),
         "bool-weld" => icon!("bool-weld"),
         "bool-trim" => icon!("bool-trim"),
         "bool-intersect" => icon!("bool-intersect"),

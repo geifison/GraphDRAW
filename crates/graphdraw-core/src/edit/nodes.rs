@@ -2,7 +2,9 @@
 //! em coordenadas locais do objeto; a interface converte o cursor para o
 //! espaço local antes de chamá-las.
 
-use kurbo::{CubicBez, ParamCurve, PathSeg, Point, Vec2};
+use kurbo::{
+    CubicBez, ParamCurve, ParamCurveArclen, ParamCurveNearest, PathEl, PathSeg, Point, Vec2,
+};
 
 use crate::geometry::{SegRef, segment, segment_count};
 use crate::model::{Node, NodeKind, PathData, Subpath};
@@ -477,6 +479,169 @@ fn enforce_kind(n: &mut Node, _hint: Option<Handle>) {
     }
 }
 
+/// Reduzir nós (GD-NOD-07): nos subcaminhos `which` (todos, se vazio),
+/// troca os nós entre cantos de verdade por menos curvas, com desvio de no
+/// máximo `tol` do desenho original. Cantos (virada acima de
+/// `corner_deg`) e pontas de caminho aberto ficam. Devolve quantos nós
+/// saíram.
+pub fn reduce(path: &mut PathData, which: &[usize], tol: f64, corner_deg: f64) -> usize {
+    let before: usize = path.subpaths.iter().map(|s| s.nodes.len()).sum();
+    for (si, sp) in path.subpaths.iter_mut().enumerate() {
+        if !which.is_empty() && !which.contains(&si) {
+            continue;
+        }
+        if let Some(new) = reduce_subpath(sp, tol, corner_deg) {
+            sp.nodes = new;
+        }
+    }
+    let after: usize = path.subpaths.iter().map(|s| s.nodes.len()).sum();
+    before.saturating_sub(after)
+}
+
+/// Segmento `i` (do nó `i` ao seguinte) como cúbica.
+fn seg_cubic(sp: &crate::model::Subpath, i: usize) -> CubicBez {
+    let n = sp.nodes.len();
+    let (s, e) = (&sp.nodes[i], &sp.nodes[(i + 1) % n]);
+    let (p0, p3) = (pt(s.p), pt(e.p));
+    CubicBez::new(
+        p0,
+        s.handle_out.map_or(p0, pt),
+        e.handle_in.map_or(p3, pt),
+        p3,
+    )
+}
+
+fn is_line(c: &CubicBez) -> bool {
+    c.p1 == c.p0 && c.p2 == c.p3
+}
+
+/// Direção de saída/chegada de um segmento (cai na corda se a alça é nula).
+fn dir_out(c: &CubicBez) -> Vec2 {
+    [c.p1, c.p2, c.p3]
+        .iter()
+        .map(|q| *q - c.p0)
+        .find(|d| d.hypot() > 1e-9)
+        .unwrap_or(Vec2::ZERO)
+}
+fn dir_in(c: &CubicBez) -> Vec2 {
+    [c.p2, c.p1, c.p0]
+        .iter()
+        .map(|q| c.p3 - *q)
+        .find(|d| d.hypot() > 1e-9)
+        .unwrap_or(Vec2::ZERO)
+}
+
+/// As pontas de todas as retas do trecho ficam a até `tol` da reta que
+/// liga o começo ao fim.
+fn collinear(run: &[CubicBez], tol: f64) -> bool {
+    let line = kurbo::Line::new(run[0].p0, run[run.len() - 1].p3);
+    run.iter()
+        .all(|c| line.nearest(c.p3, 1e-9).distance_sq.sqrt() <= tol)
+}
+
+fn reduce_subpath(sp: &crate::model::Subpath, tol: f64, corner_deg: f64) -> Option<Vec<Node>> {
+    let n = sp.nodes.len();
+    let segs = crate::geometry::segment_count(sp);
+    if n < 3 || segs < 2 {
+        return None;
+    }
+    let cubics: Vec<CubicBez> = (0..segs).map(|i| seg_cubic(sp, i)).collect();
+    let cos_corner = corner_deg.to_radians().cos();
+    // O nó fica se é ponta de caminho aberto ou se o desenho vira nele.
+    let fixed = |i: usize| -> bool {
+        if !sp.closed && (i == 0 || i == n - 1) {
+            return true;
+        }
+        let (u, w) = (
+            dir_in(&cubics[(i + segs - 1) % segs]),
+            dir_out(&cubics[i % segs]),
+        );
+        let (lu, lw) = (u.hypot(), w.hypot());
+        lu > 0.0 && lw > 0.0 && u.dot(w) / (lu * lw) < cos_corner
+    };
+    let mut anchors: Vec<usize> = (0..n).filter(|&i| fixed(i)).collect();
+    if anchors.is_empty() {
+        anchors.push(0);
+    }
+    let count = if sp.closed {
+        anchors.len()
+    } else {
+        anchors.len() - 1
+    };
+    // Cada trecho: nós (o primeiro é o canto do começo) e a alça de
+    // chegada no canto do fim.
+    let mut runs: Vec<(Vec<Node>, Option<[f64; 2]>)> = Vec::new();
+    for k in 0..count {
+        let s = anchors[k];
+        let e = if k + 1 < anchors.len() {
+            anchors[k + 1]
+        } else {
+            anchors[0] + n
+        };
+        let run: Vec<CubicBez> = (s..e).map(|i| cubics[i % segs]).collect();
+        let mut start = sp.nodes[s].clone();
+        start.handle_out = None;
+        start.handle_in = None;
+        let mut nodes_run = vec![start];
+        let mut end_in = None;
+        if run.iter().all(is_line) && collinear(&run, tol) {
+            // Retas alinhadas viram uma reta só.
+        } else if run.len() == 1 {
+            let c = run[0];
+            if !is_line(&c) {
+                nodes_run[0].handle_out = Some(a(c.p1.to_vec2()));
+                end_in = Some(a(c.p2.to_vec2()));
+            }
+        } else {
+            // Amostra o desenho original e reajusta com a tolerância.
+            let step = (tol * 0.5).max(1e-9);
+            let mut pts = vec![run[0].p0];
+            for c in &run {
+                let k = ((c.arclen(step * 0.1) / step).ceil() as usize).clamp(4, 400);
+                pts.extend((1..=k).map(|j| c.eval(j as f64 / k as f64)));
+            }
+            let t1 = dir_out(&run[0]).normalize();
+            let t2 = -dir_in(&run[run.len() - 1]).normalize();
+            let fitted = super::fit::fit_open(&pts, t1, t2, tol);
+            let els: Vec<PathEl> = fitted.elements().iter().copied().skip(1).collect();
+            for (j, el) in els.iter().enumerate() {
+                let (h_out, h_in, p) = match *el {
+                    PathEl::CurveTo(c1, c2, p) => (Some(a(c1.to_vec2())), Some(a(c2.to_vec2())), p),
+                    PathEl::LineTo(p) => (None, None, p),
+                    _ => continue,
+                };
+                nodes_run.last_mut().unwrap().handle_out = h_out;
+                if j + 1 < els.len() {
+                    let mut nd = Node::corner(p.x, p.y);
+                    nd.kind = NodeKind::Smooth;
+                    nd.handle_in = h_in;
+                    nodes_run.push(nd);
+                } else {
+                    end_in = h_in;
+                }
+            }
+        }
+        runs.push((nodes_run, end_in));
+    }
+    // A alça de chegada vai para o canto que abre o trecho seguinte.
+    for k in 0..runs.len() {
+        let h = runs[k].1;
+        if k + 1 < runs.len() {
+            runs[k + 1].0[0].handle_in = h;
+        } else if sp.closed {
+            runs[0].0[0].handle_in = h;
+        }
+    }
+    let mut out: Vec<Node> = runs.iter().flat_map(|r| r.0.clone()).collect();
+    if !sp.closed {
+        let mut last = sp.nodes[n - 1].clone();
+        last.handle_out = None;
+        last.handle_in = runs.last().and_then(|r| r.1);
+        out.push(last);
+    }
+    (out.len() < n).then_some(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -805,5 +970,88 @@ mod tests {
         let n = &p.subpaths[0].nodes[1];
         assert_eq!(n.p, [41.0, 2.0]);
         assert_eq!(n.handle_in, Some([31.0, 22.0]));
+    }
+    /// GD-NOD-07: reduzir nós mantém o desvio ≤ tolerância; cantos e retas
+    /// alinhadas viram o mínimo de nós.
+    #[test]
+    fn gd_nod_07_reduce_nodes() {
+        // Círculo de raio 50 desenhado com 64 retas: vira poucas curvas.
+        let mut sp = Subpath {
+            closed: true,
+            nodes: (0..64)
+                .map(|i| {
+                    let t = i as f64 / 64.0 * std::f64::consts::TAU;
+                    Node::corner(50.0 * t.cos(), 50.0 * t.sin())
+                })
+                .collect(),
+            extra: Default::default(),
+        };
+        // Retas: sem canto de verdade (virada de 5,6° < 10°).
+        let mut path = PathData {
+            subpaths: vec![sp.clone()],
+            fill_rule: Default::default(),
+            extra: Default::default(),
+        };
+        let original = path.clone();
+        let removed = reduce(&mut path, &[], 0.5, 10.0);
+        assert!(
+            path.subpaths[0].nodes.len() <= 8,
+            "{}",
+            path.subpaths[0].nodes.len()
+        );
+        assert_eq!(removed, 64 - path.subpaths[0].nodes.len());
+        assert!(
+            deviation(&original, &path) <= 0.5 + 1e-6,
+            "{}",
+            deviation(&original, &path)
+        );
+        assert!(path.subpaths[0].closed);
+        // Quadrado com nós a mais nas bordas: só os 4 cantos ficam, e retos.
+        sp.nodes = vec![
+            Node::corner(0.0, 0.0),
+            Node::corner(5.0, 0.0),
+            Node::corner(10.0, 0.0),
+            Node::corner(10.0, 3.0),
+            Node::corner(10.0, 10.0),
+            Node::corner(0.0, 10.0),
+            Node::corner(0.0, 5.0),
+        ];
+        let mut sq = PathData {
+            subpaths: vec![sp],
+            fill_rule: Default::default(),
+            extra: Default::default(),
+        };
+        reduce(&mut sq, &[], 0.01, 10.0);
+        let ps: Vec<[f64; 2]> = sq.subpaths[0].nodes.iter().map(|n| n.p).collect();
+        assert_eq!(ps, vec![[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0]]);
+        assert!(
+            sq.subpaths[0]
+                .nodes
+                .iter()
+                .all(|n| n.handle_in.is_none() && n.handle_out.is_none())
+        );
+        // Caminho aberto: as pontas ficam.
+        let mut open = PathData {
+            subpaths: vec![Subpath {
+                closed: false,
+                nodes: (0..=20)
+                    .map(|i| Node::corner(i as f64, (i as f64 * 0.3).sin() * 4.0))
+                    .collect(),
+                extra: Default::default(),
+            }],
+            fill_rule: Default::default(),
+            extra: Default::default(),
+        };
+        let before = open.clone();
+        reduce(&mut open, &[], 0.2, 10.0);
+        let nodes = &open.subpaths[0].nodes;
+        assert!(nodes.len() < 21);
+        assert_eq!(nodes[0].p, [0.0, 0.0]);
+        assert_eq!(nodes.last().unwrap().p, before.subpaths[0].nodes[20].p);
+        assert!(
+            deviation(&before, &open) <= 0.2 + 1e-6,
+            "{}",
+            deviation(&before, &open)
+        );
     }
 }
