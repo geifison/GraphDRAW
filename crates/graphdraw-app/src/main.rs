@@ -24,6 +24,7 @@ mod newdoc;
 mod pagebar;
 mod paletteui;
 mod panels;
+mod recovery;
 mod rulers;
 mod textedit;
 mod theme;
@@ -33,6 +34,7 @@ mod widgets;
 mod workspace;
 
 fn main() -> eframe::Result {
+    recovery::install_panic_log();
     let initial = std::env::args_os().nth(1).map(std::path::PathBuf::from);
     let options = eframe::NativeOptions {
         viewport: eframe::egui::ViewportBuilder::default()

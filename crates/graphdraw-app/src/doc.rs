@@ -26,6 +26,8 @@ pub struct DocState {
     pub nodes: Vec<NodeRef>,
     /// Camada ativa escolhida no painel (por ID, para sobreviver a desfazer).
     pub layer_id: Option<String>,
+    /// Identifica o documento nesta execução (cópia de recuperação).
+    pub key: String,
     scene: Option<(u64, usize, Arc<Scene>)>,
     images: ImageCache,
 }
@@ -52,6 +54,13 @@ impl DocState {
             selection: Vec::new(),
             nodes: Vec::new(),
             layer_id: None,
+            key: {
+                static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+                format!(
+                    "d{}",
+                    NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+                )
+            },
             scene: None,
             images: ImageCache::default(),
         };

@@ -330,6 +330,24 @@ gradientes calculados ganhar cache (era refeita por objeto e por faixa).
 No CI o passo roda com `--check` mas não bloqueia, porque o runner não é a
 máquina de referência.
 
+## 5.1 Salvamento automático e recuperação
+
+`recovery.rs` (app):
+- A cada 2 min, copia os documentos alterados para
+  `%APPDATA%GraphDrawecuperacao` (`<execução>-<documento>.gdr` + `.json`
+  com título, origem e hora), numa linha de execução à parte.
+- Salvar ou fechar o documento apaga a cópia; a saída normal apaga todas
+  as cópias da execução.
+- Cada execução segura `<execução>.alive` sem permitir apagar: no início, as
+  cópias cuja execução não segura mais o arquivo são de uma queda e o
+  programa oferece recuperar. O documento recuperado conta como alterado.
+- No Linux, o arquivo aberto pode ser apagado; duas instâncias ao mesmo
+  tempo veriam as cópias uma da outra.
+- Pânico grava versão, sistema e pilha em `%APPDATA%GraphDrawalhas`, e
+  o próximo início mostra onde ficou.
+- Salvar continua atômico (GD-GDR-09) e deixa o arquivo anterior em
+  `.gdr.bak`.
+
 ## 6. Limitações conhecidas
 
 Do M0, ainda valem:

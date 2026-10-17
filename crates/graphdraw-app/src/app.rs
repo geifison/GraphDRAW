@@ -163,6 +163,13 @@ pub struct App {
     /// Janela do contorno de deslocamento (GD-OFS-01) aberta.
     offset_dlg: Option<OffsetDialog>,
     pub(crate) ask_default: Option<DefaultAsk>,
+    /// Salvamento automático desta execução (None nos testes).
+    recovery: Option<crate::recovery::Session>,
+    /// Cópias de uma execução que caiu, oferecidas ao abrir.
+    pub(crate) recover_offer: Vec<crate::recovery::Orphan>,
+    /// Registro de falha da execução anterior, ainda não mostrado.
+    crash_log: Option<PathBuf>,
+    next_autosave: f64,
     /// Área de transferência interna: objetos com a matriz completa (página).
     clipboard: Vec<graphdraw_core::model::Object>,
     /// Último formato exportado (exportar seleção usa o mesmo).
@@ -245,6 +252,10 @@ impl App {
             export_choice: false,
             offset_dlg: None,
             ask_default: None,
+            recovery: None,
+            recover_offer: Vec::new(),
+            crash_log: None,
+            next_autosave: 0.0,
             clipboard: Vec::new(),
             last_export: ExportFormat::Pdf,
             tool_group_last: Default::default(),
@@ -270,10 +281,175 @@ impl App {
             app.ws_saved = ws.clone();
             app.ws = ws;
         }
+        if let Some(dir) = crate::recovery::dir() {
+            app.recovery = crate::recovery::Session::start(&dir);
+            let own = app
+                .recovery
+                .as_ref()
+                .map(|s| s.tag().to_string())
+                .unwrap_or_default();
+            app.recover_offer = crate::recovery::orphans(&dir, &own);
+        }
+        app.crash_log = crate::recovery::take_crash_log();
         if let Some(p) = initial {
             app.start_open(p, egui_ctx);
         }
         app
+    }
+
+    /// Salvamento automático: a cada `recovery::INTERVAL_S`, copia os
+    /// documentos alterados para a pasta de recuperação; os salvos ou
+    /// fechados saem de lá.
+    fn autosave(&mut self, ctx: &egui::Context) {
+        let now = ctx.input(|i| i.time);
+        if now < self.next_autosave {
+            return;
+        }
+        self.next_autosave = now + crate::recovery::INTERVAL_S;
+        ctx.request_repaint_after(std::time::Duration::from_secs_f64(
+            crate::recovery::INTERVAL_S,
+        ));
+        let Some(rec) = &mut self.recovery else {
+            return;
+        };
+        let mut open = Vec::new();
+        for d in self
+            .doc
+            .iter()
+            .chain(self.tabs.iter().filter_map(|t| t.doc.as_ref()))
+        {
+            open.push(d.key.clone());
+            if !d.editor.is_modified() {
+                rec.forget(&d.key);
+                continue;
+            }
+            let rev = d.editor.revision();
+            if rec.stale(&d.key, rev) {
+                let title = d
+                    .path
+                    .as_ref()
+                    .and_then(|p| p.file_name())
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| tr("Sem título", "Untitled").into());
+                let meta = crate::recovery::Meta {
+                    title,
+                    original: d.path.clone(),
+                    saved_at: crate::recovery::now_secs(),
+                };
+                rec.save(&d.key, rev, d.doc().clone(), meta);
+            }
+        }
+        rec.sweep(&open);
+    }
+
+    /// Abre a cópia recuperada `i` numa aba (conta como alterada) e apaga
+    /// a cópia.
+    pub(crate) fn recover(&mut self, i: usize) {
+        if i >= self.recover_offer.len() {
+            return;
+        }
+        let o = self.recover_offer.remove(i);
+        match graphdraw_core::gdr::read_file(&o.file) {
+            Ok((doc, report)) => {
+                let mut d = DocState::from_document(doc, o.meta.original.clone(), report);
+                d.editor.mark_unsaved();
+                self.open_in_tab(d);
+                o.discard();
+                self.status = format!("{} {}", tr("Recuperado:", "Recovered:"), o.meta.title);
+            }
+            Err(e) => {
+                self.message = Some((
+                    tr("Não foi possível recuperar", "Could not recover").into(),
+                    format!("{}\n\n{e}", o.file.display()),
+                ));
+            }
+        }
+    }
+
+    /// Janela do início depois de uma queda: documentos para recuperar e o
+    /// registro da falha.
+    fn recovery_window(&mut self, ctx: &egui::Context) {
+        if self.recover_offer.is_empty() && self.crash_log.is_none() {
+            return;
+        }
+        let mut pick: Option<(usize, bool)> = None;
+        let (mut all, mut close) = (false, false);
+        let now = crate::recovery::now_secs();
+        crate::widgets::modal(ctx, egui::Id::unique("recuperar")).show(ctx, |ui| {
+            ui.heading(tr("Recuperar trabalho", "Recover work"));
+            ui.add_space(theme::SPACE_300);
+            if let Some(p) = &self.crash_log {
+                ui.label(tr(
+                    "O GraphDraw fechou por causa de uma falha. O registro ficou em:",
+                    "GraphDraw closed because of a failure. The log is in:",
+                ));
+                ui.monospace(p.display().to_string());
+                ui.add_space(theme::SPACE_200);
+            }
+            if !self.recover_offer.is_empty() {
+                ui.label(tr(
+                    "Estes documentos tinham alterações não salvas:",
+                    "These documents had unsaved changes:",
+                ));
+                for (i, o) in self.recover_offer.iter().enumerate() {
+                    ui.horizontal(|ui| {
+                        ui.strong(&o.meta.title);
+                        let mins = now.saturating_sub(o.meta.saved_at) / 60;
+                        ui.weak(if mins < 60 {
+                            format!("{} {mins} min", tr("há", "ago:"))
+                        } else {
+                            format!("{} {} h", tr("há", "ago:"), mins / 60)
+                        });
+                        if let Some(p) = &o.meta.original {
+                            ui.weak(p.display().to_string());
+                        }
+                        if ui.button(tr("Recuperar", "Recover")).clicked() {
+                            pick = Some((i, true));
+                        }
+                        if ui.button(tr("Descartar", "Discard")).clicked() {
+                            pick = Some((i, false));
+                        }
+                    });
+                }
+            }
+            ui.add_space(theme::SPACE_300);
+            crate::widgets::footer(ui, |ui| {
+                if ui
+                    .add(crate::widgets::secondary_button(tr("Fechar", "Close")))
+                    .clicked()
+                {
+                    close = true;
+                }
+                if !self.recover_offer.is_empty()
+                    && ui
+                        .add(crate::widgets::secondary_button(tr(
+                            "Descartar todos",
+                            "Discard all",
+                        )))
+                        .clicked()
+                {
+                    all = true;
+                }
+            });
+        });
+        match pick {
+            Some((i, true)) => self.recover(i),
+            Some((i, false)) => self.recover_offer.remove(i).discard(),
+            None => {}
+        }
+        if all {
+            for o in self.recover_offer.drain(..) {
+                o.discard();
+            }
+        }
+        if close {
+            // O que não foi escolhido volta a ser oferecido no próximo início.
+            self.recover_offer.clear();
+            self.crash_log = None;
+        }
+        if self.recover_offer.is_empty() && pick.is_some() {
+            self.crash_log = None;
+        }
     }
 
     /// Algum documento aberto tem alterações não salvas?
@@ -536,6 +712,11 @@ impl App {
         } else {
             doc.path.clone().unwrap()
         };
+        // Cópia do anterior (`.gdr.bak`): se algo der errado, o último
+        // arquivo bom continua lá.
+        if target.exists() {
+            let _ = std::fs::copy(&target, target.with_extension("gdr.bak"));
+        }
         match graphdraw_core::gdr::write_file(doc.doc(), &target, &Default::default()) {
             Ok(()) => {
                 doc.editor.mark_saved();
@@ -2940,6 +3121,7 @@ impl App {
         }
         self.offset_window(ctx);
         self.default_color_window(ctx);
+        self.recovery_window(ctx);
         self.bitmap_window(ctx);
         self.cut_windows(ctx);
         if let Some(dlg) = &mut self.preset_dlg
@@ -3532,6 +3714,13 @@ impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.frame(ui);
     }
+
+    /// Saída normal: as cópias de recuperação desta execução saem.
+    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        if let Some(r) = self.recovery.take() {
+            r.end();
+        }
+    }
 }
 
 impl App {
@@ -3539,6 +3728,7 @@ impl App {
     pub(crate) fn frame(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
         self.poll_loading();
+        self.autosave(&ctx);
         theme::sync_window_theme(&ctx, &mut self.window_theme);
         // Arrastar-soltar (GD-CDR-01).
         if let Some(p) = ctx.input(|i| {
@@ -3696,6 +3886,58 @@ mod tests {
     }
 
     /// GD-CNV-03 / DS 4.4: a janela "Converter em bitmap" cabe em 1366 × 768.
+    /// Recuperar: a cópia de uma execução que caiu abre numa aba, alterada
+    /// (fechar pergunta), e sai da pasta; salvar por cima deixa o `.bak`.
+    #[test]
+    fn recover_crashed_copy_and_backup_on_save() {
+        let dir = std::env::temp_dir().join(format!("graphdraw-app-rec-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut doc = DocState::new_blank();
+        let o = graphdraw_core::model::Object::new(ObjectKind::Rectangle(
+            graphdraw_core::model::RectData {
+                width: 10_000.0,
+                height: 10_000.0,
+                corners: None,
+                extra: Default::default(),
+            },
+        ));
+        ops::add_object(&mut doc.editor, 0, 0, o, "r");
+        let mut crashed = crate::recovery::Session::start(&dir).unwrap();
+        let meta = crate::recovery::Meta {
+            title: "Cartaz".into(),
+            original: None,
+            saved_at: crate::recovery::now_secs(),
+        };
+        crashed
+            .save(&doc.key, 1, doc.doc().clone(), meta)
+            .join()
+            .unwrap();
+        drop(crashed);
+        let ctx = crate::theme::test_ctx();
+        let mut app = App::with_ctx(&ctx, None);
+        app.recover_offer = crate::recovery::orphans(&dir, "outra");
+        assert_eq!(app.recover_offer.len(), 1);
+        app.recover(0);
+        let d = app.doc.as_ref().unwrap();
+        assert_eq!(d.page().object_count(), 1);
+        assert!(d.editor.is_modified(), "recuperado conta como alterado");
+        assert!(
+            crate::recovery::orphans(&dir, "outra").is_empty(),
+            "cópia apagada"
+        );
+        // Salvar por cima de um arquivo existente deixa o anterior em .gdr.bak.
+        let path = dir.join("cartaz.gdr");
+        std::fs::write(&path, b"anterior").unwrap();
+        app.doc.as_mut().unwrap().path = Some(path.clone());
+        assert!(app.save(false));
+        assert_eq!(
+            std::fs::read(path.with_extension("gdr.bak")).unwrap(),
+            b"anterior"
+        );
+        assert!(!app.doc.as_ref().unwrap().editor.is_modified());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn bitmap_window_fits_small_screen() {
         let ctx = crate::theme::test_ctx();

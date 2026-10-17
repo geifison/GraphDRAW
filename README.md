@@ -6,7 +6,7 @@ Editor de ilustração vetorial **open source** para gráficas rápidas, comunic
 - Formato nativo aberto e documentado: `.gdr` ([descrição](docs/format/gdr-1.0.md), [schema](docs/format/gdr-1.0.schema.json))
 - Exporta PDF, SVG e PNG (DXF e PLT/HPGL previstos)
 
-> Status: marco **M1 — editor básico** implementado e em validação de uso (M0, visualizador e conversão, concluído). Ver [arquitetura](docs/ARCHITECTURE.md).
+> Status: M0, M1 e M2 concluídos; **M3 — polimento do MVP** em andamento. O que falta para a versão 1.0 está em [docs/PRODUCAO.md](docs/PRODUCAO.md). Ver também a [arquitetura](docs/ARCHITECTURE.md).
 
 ## Editor
 

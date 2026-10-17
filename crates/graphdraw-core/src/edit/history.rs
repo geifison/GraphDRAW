@@ -613,6 +613,11 @@ impl Editor {
         self.undo.last().map_or(0, |t| t.id)
     }
 
+    /// Documento recuperado: conta como alterado até salvar.
+    pub fn mark_unsaved(&mut self) {
+        self.saved_state = u64::MAX;
+    }
+
     pub fn mark_saved(&mut self) {
         self.saved_state = self.state();
         self.discarded.clear();

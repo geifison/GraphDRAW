@@ -8,13 +8,18 @@ fn main() {
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("windows") {
         return;
     }
-    let dir = std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap()).join("assets/brand");
+    let dir =
+        std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap()).join("assets/brand");
     let out = std::path::PathBuf::from(std::env::var("OUT_DIR").unwrap());
     let path = |name: &str| dir.join(name).to_string_lossy().replace('\\', "/");
     let rc = out.join("graphdraw.rc");
     std::fs::write(
         &rc,
-        format!("1 ICON \"{}\"\n2 ICON \"{}\"\n", path("app.ico"), path("gdr.ico")),
+        format!(
+            "1 ICON \"{}\"\n2 ICON \"{}\"\n",
+            path("app.ico"),
+            path("gdr.ico")
+        ),
     )
     .unwrap();
     let obj = out.join("graphdraw-res.o");

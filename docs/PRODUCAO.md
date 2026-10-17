@@ -12,13 +12,13 @@ Prioridade:
 - **P2** — proposta de ficar fora da 1.0 (precisa de aprovação).
 
 ## P0 — Segurança do trabalho do usuário
-- [ ] **Salvamento automático e recuperação**:
+- [x] **Salvamento automático e recuperação**:
   - cópia periódica do documento alterado numa pasta de recuperação;
   - ao abrir depois de uma queda, oferecer recuperar;
   - salvar com sucesso ou fechar sem salvar apaga a cópia.
-- [ ] **Registro de falhas**: em pânico, gravar o log (versão, sistema,
+- [x] **Registro de falhas**: em pânico, gravar o log (versão, sistema,
   pilha) na pasta do usuário e mostrar onde está no próximo início.
-- [ ] **Salvar seguro**: gravar num arquivo temporário e trocar no fim
+- [x] **Salvar seguro**: gravar num arquivo temporário e trocar no fim
   (queda no meio não corrompe o `.gdr`); manter uma cópia `.bak` do
   anterior.
 
@@ -62,7 +62,7 @@ Prioridade:
 - [ ] Release no CI: gerar o instalador por tag, com o checksum.
 - [ ] Janela "Sobre": versão, licença e THIRD_PARTY.
 - [ ] Versão 1.0.0 no workspace e um CHANGELOG.
-- [ ] Atualizar o README (ainda diz "M1 em validação").
+- [x] Atualizar o README (ainda diz "M1 em validação").
 
 ## P0 — Qualidade
 - [ ] Definição de pronto do MVP: um arquivo `.gdr` de teste em
