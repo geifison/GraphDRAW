@@ -274,6 +274,7 @@ Em Linux: `apt install libcdr-dev librevenge-dev pkg-config g++` e o mesmo
 | GD-CNV-03 | `ops::tests::gd_cnv_03_convert_to_bitmap`, `app::tests::bitmap_window_fits_small_screen` |
 | GD-PRE-01..10 (verificação prévia, sangria automática) | `preflight::tests::gd_pre_*` (core), `app::tests::gd_pre_preflight_panel_and_extend_command` |
 | GD-FER-20/21/25/26 (mão livre, linha 2 pontos, polilinha, curva 3 pontos) | `drawing::tests::gd_fer_*` (core), `canvas::tests::line_tools_on_canvas` (app) |
+| GD-FER-52 (preenchimento inteligente) | `smartfill::tests::*` (core), `canvas::tests::smart_fill_click` (app) |
 | GD-PRI-07, GD-FER-42 (formas básicas, chamada) | `basic::tests::*` (core), `canvas::tests::basic_shape_draw_and_adjust` (app) |
 | GD-GUI-03 (objeto vira guia) | `tests/guide_layer.rs` |
 | GD-CMS-04 (política de perfis ao abrir) | `palette::tests::gd_cms_04_convert_to_working_profile` (core), `app::tests::gd_cms_04_profile_policy_on_open` |

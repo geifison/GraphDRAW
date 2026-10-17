@@ -1931,6 +1931,7 @@ impl App {
             C::ToolSolidFill => self.set_tool(Tool::SolidFill),
             C::ToolEyedropper => self.set_tool(Tool::Eyedropper),
             C::ToolKnife => self.set_tool(Tool::Knife),
+            C::ToolSmartFill => self.set_tool(Tool::SmartFill),
             C::ToolDimension => self.set_tool(Tool::Dimension),
             C::ToolFreeTransform => self.set_tool(Tool::FreeTransform),
             C::ToolFreehand => self.set_tool(Tool::Freehand),

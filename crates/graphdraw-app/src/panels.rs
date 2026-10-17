@@ -108,6 +108,20 @@ impl App {
                     );
                 })
             }
+            Tool::SmartFill => widgets::single_line_bar(ui, "barra-preench-intel", |ui| {
+                ui.checkbox(
+                    &mut self.canvas.smart_outline,
+                    tr("Com contorno", "With outline"),
+                );
+                ui.separator();
+                widgets::hint_line(
+                    ui,
+                    tr(
+                        "Clique numa área cercada; o objeto novo usa o preenchimento padrão",
+                        "Click an enclosed area; the new object uses the default fill",
+                    ),
+                );
+            }),
             Tool::Dimension => widgets::single_line_bar(ui, "barra-cota", |ui| {
                 dimension_bar(ui, doc, &mut self.canvas)
             }),

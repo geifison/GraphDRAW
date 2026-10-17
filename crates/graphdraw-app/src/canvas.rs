@@ -72,6 +72,8 @@ pub enum Tool {
     /// Cota (GD-FER-40, GD-COT-01..03): cliques nos pontos medidos (encaixam
     /// e ligam nos nós) e um último clique para o afastamento.
     Dimension,
+    /// Preenchimento inteligente (GD-FER-52): clique numa área cercada.
+    SmartFill,
 }
 
 /// Cota sendo feita: tipo, pontos (página), ligações e segmento medido.
@@ -200,6 +202,17 @@ impl Tool {
                 ),
                 "",
             ),
+            Tool::SmartFill => (
+                "tool-smart-fill",
+                crate::keymap::hint(
+                    tr(
+                        "Preenchimento inteligente — clique numa área cercada por objetos para criar um objeto com ela",
+                        "Smart fill — click an area enclosed by objects to create an object from it",
+                    ),
+                    crate::keymap::Command::ToolSmartFill,
+                ),
+                "",
+            ),
             Tool::Dimension => (
                 "tool-dimension",
                 crate::keymap::hint(
@@ -312,7 +325,7 @@ impl Tool {
             ),
         }
     }
-    pub const ALL: [Tool; 23] = [
+    pub const ALL: [Tool; 24] = [
         Tool::Select,
         Tool::Shape,
         Tool::Zoom,
@@ -336,6 +349,7 @@ impl Tool {
         Tool::Curve3,
         Tool::FreeTransform,
         Tool::Dimension,
+        Tool::SmartFill,
     ];
 }
 
@@ -645,6 +659,8 @@ pub struct CanvasState {
     stamped: usize,
     /// Há o que colar (a área de transferência fica no App).
     pub can_paste: bool,
+    /// Preenchimento inteligente cria também o contorno padrão.
+    pub smart_outline: bool,
     /// Prévia de separações (GD-SEP-01): chapa ou composta; `None` = cores normais.
     pub separation: Option<graphdraw_core::render::separation::SepView>,
     /// Lacuna da faca e largura do pincel da borracha (µm).
@@ -752,6 +768,7 @@ impl Default for CanvasState {
             stamped: 0,
             can_paste: false,
             separation: None,
+            smart_outline: false,
             knife_gap: 0.0,
             eraser_width: 5_000.0,
             crop_pending: None,
@@ -2518,6 +2535,9 @@ impl CanvasState {
             Tool::Dimension => Glyph::Cross {
                 badge: "tool-dimension",
             },
+            Tool::SmartFill => Glyph::Cross {
+                badge: "tool-smart-fill",
+            },
             Tool::FreeTransform => Glyph::Cross {
                 badge: "tool-free-transform",
             },
@@ -3328,7 +3348,11 @@ impl CanvasState {
             }
             Tool::Gradient => self.start_gradient_drag(doc, p, origin, tol, rect, ph),
             // Ferramentas de clique: arrastar não faz nada.
-            Tool::SolidFill | Tool::Eyedropper | Tool::VirtualDelete | Tool::Dimension => {}
+            Tool::SolidFill
+            | Tool::Eyedropper
+            | Tool::VirtualDelete
+            | Tool::Dimension
+            | Tool::SmartFill => {}
             Tool::Select => self.start_select_drag(doc, p, origin, mods, tol, rect, ph),
             Tool::Shape => self.start_shape_drag(doc, p, origin, mods, tol, rect, ph),
             Tool::Artboard => {
@@ -5390,6 +5414,18 @@ impl CanvasState {
                 }
             }
             Tool::Dimension => self.dimension_click(doc, p, defaults),
+            Tool::SmartFill => {
+                let fill = defaults.fill.clone().unwrap_or_else(|| Fill::solid(graphdraw_core::model::Color::cmyk(0.0, 0.0, 0.0, 0.2)));
+                let stroke = self.smart_outline.then(|| defaults.stroke.clone()).flatten();
+                let page = doc.page;
+                let made = doc.layer_for_new_object().and_then(|layer| {
+                    graphdraw_core::edit::smartfill::smart_fill(&mut doc.editor, page, layer, p, fill, stroke)
+                });
+                match made {
+                    Some(id) => doc.selection = vec![id],
+                    None => ev.status = Some(tr("Essa área não está cercada", "That area is not enclosed").into()),
+                }
+            }
             Tool::VirtualDelete => {
                 let page = doc.page;
                 let done = pick(doc, p, tol, false).is_some_and(|id| {
@@ -6927,6 +6963,43 @@ mod tests {
         assert!((now - to).hypot() < 3.0 / cs.view.zoom, "{now:?}");
     }
 
+    /// GD-FER-52 na tela: clique dentro do quadrado cria o objeto da área;
+    /// fora de tudo, só avisa.
+    #[test]
+    fn smart_fill_click() {
+        let (ctx, mut cs, mut doc, _id, rect, ph) = bdr_setup();
+        let click = |cs: &mut CanvasState, doc: &mut DocState, p: Pos2| {
+            canvas_frame(
+                &ctx,
+                cs,
+                doc,
+                Tool::SmartFill,
+                vec![egui::Event::PointerMoved(p)],
+            );
+            canvas_frame(
+                &ctx,
+                cs,
+                doc,
+                Tool::SmartFill,
+                vec![button(p, PointerButton::Primary, true)],
+            );
+            canvas_frame(
+                &ctx,
+                cs,
+                doc,
+                Tool::SmartFill,
+                vec![button(p, PointerButton::Primary, false)],
+            );
+        };
+        let n = doc.page().layers[0].objects.len();
+        let inside = cs.screen(rect, ph, Point::new(60_000.0, 110_000.0));
+        let outside = cs.screen(rect, ph, Point::new(180_000.0, 250_000.0));
+        click(&mut cs, &mut doc, inside);
+        assert_eq!(doc.page().layers[0].objects.len(), n + 1);
+        click(&mut cs, &mut doc, outside);
+        assert_eq!(doc.page().layers[0].objects.len(), n + 1, "fora: nada");
+    }
+
     /// GD-SEP-01 na tela: com a prévia de uma chapa, a página é desenhada
     /// pela chapa (o quadro muda de chave e de pixels).
     #[test]
@@ -8232,7 +8305,8 @@ mod tests {
                 "mira+tool-line2",
                 "mira+tool-curve3",
                 "mira+tool-free-transform",
-                "mira+tool-dimension"
+                "mira+tool-dimension",
+                "mira+tool-smart-fill"
             ]
         );
         assert_eq!(

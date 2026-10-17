@@ -128,6 +128,7 @@ pub fn slots() -> Vec<Slot> {
             vec![
                 Variant::of(Tool::Gradient),
                 Variant::of(Tool::SolidFill),
+                Variant::of(Tool::SmartFill),
                 Variant::of(Tool::Eyedropper),
             ],
         ),

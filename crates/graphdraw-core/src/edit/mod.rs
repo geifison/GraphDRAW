@@ -22,6 +22,7 @@ pub mod palette;
 pub mod query;
 pub mod shapeops;
 pub mod smart;
+pub mod smartfill;
 pub mod snap;
 pub mod text;
 pub mod tree;

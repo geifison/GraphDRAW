@@ -559,7 +559,8 @@ Aba **Verificação** (ícone `preflight`) no painel direito:
     - na ferramenta Forma, as alças de ajuste são losangos em
       `accent-warning` com borda de alça;
     - a ponta do balão de fala é a chamada (GD-FER-42);
-  - **Preenchimento**: interativo/gradiente, uniforme, conta-gotas (o
+  - **Preenchimento**: interativo/gradiente, uniforme, inteligente (barra:
+    Com contorno), conta-gotas (o
     ciclo do conta-gotas está no doc 27 e na seção 5).
 - Ferramentas de corte (prévia na tela):
   - **Faca**: traço de `focus-width` em `accent-primary`. A barra tem

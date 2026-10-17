@@ -129,7 +129,7 @@ Para depois da 1.0, cada um com o motivo:
   GD-CON-01).
 - [x] Chamada (balão com seta, GD-FER-42): balão de fala das formas básicas.
 - [x] Formas básicas: setas, fluxograma, balões (GD-PRI-07).
-- [ ] Preenchimento inteligente: área entre objetos vira objeto
+- [x] Preenchimento inteligente: área entre objetos vira objeto
   (GD-FER-52).
 - [ ] Simetria ao vivo (GD-FER-33).
 - [ ] B-spline (GD-BSP-01, GD-FER-24).
