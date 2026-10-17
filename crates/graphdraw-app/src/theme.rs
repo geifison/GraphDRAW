@@ -220,6 +220,10 @@ pub const ICON_UI: f32 = 20.0;
 pub const ICON_MICRO: f32 = 16.0;
 pub const ICON_HUB: f32 = 24.0;
 pub const ICON_CURSOR: f32 = 24.0;
+/// Miniatura 1:1 de objeto no painel de camadas (4.7).
+pub const OBJECT_THUMB: f32 = 24.0;
+/// Campo de texto dentro de menu de contexto (nome do objeto, 4.7).
+pub const MENU_FIELD_WIDTH: f32 = 160.0;
 /// Cursor sobre o canvas: tinta preta com halo branco de 1 px (3.2).
 pub const CURSOR_INK: Color32 = Color32::from_rgb(0x10, 0x10, 0x12);
 pub const CURSOR_HALO: Color32 = Color32::WHITE;

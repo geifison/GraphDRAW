@@ -135,6 +135,45 @@ impl DocState {
         }
     }
 
+    /// Miniatura 1:1 de um objeto (painel de camadas): o objeto sozinho,
+    /// centrado e ajustado num quadrado de `px` pixels com fundo transparente.
+    /// Objetos ocultos também aparecem, para serem reconhecidos.
+    pub fn object_thumbnail(
+        &self,
+        r: &graphdraw_core::edit::ObjRef,
+        px: u32,
+    ) -> Option<eframe::egui::ColorImage> {
+        use graphdraw_core::edit::query;
+        let page = &self.editor.doc.data.pages[r.loc.page];
+        let mut o = self.editor.get(r)?.clone();
+        o.transform = graphdraw_core::model::Transform::from_affine(
+            self.editor.parent_affine(r) * o.transform.affine(),
+        );
+        o.visible = true;
+        let b = query::bounds(&o, Affine::IDENTITY, true)?;
+        let mut p = page.props_only();
+        let mut layer = Layer::new("miniatura");
+        layer.objects.push(o);
+        p.layers.push(layer);
+        let scene = build_scene(self.doc(), &p, SceneOptions { print: false }, &self.images);
+        // Margem de 1 px; formas sem largura ou altura (linhas) ainda aparecem.
+        let side = b.width().max(b.height()).max(1e-6);
+        let s = (px as f64 - 2.0) / side;
+        let c = b.center();
+        let half = px as f64 / 2.0;
+        // Mesma convenção da miniatura da página: y da página para cima.
+        let view = Affine::new([s, 0.0, 0.0, -s, half - s * c.x, half + s * c.y]);
+        let opts = RasterOptions {
+            antialias: true,
+            background: None,
+        };
+        let pm = raster::render(&scene, view, px, px, &opts)?;
+        Some(eframe::egui::ColorImage::from_rgba_premultiplied(
+            [px as usize, px as usize],
+            pm.data(),
+        ))
+    }
+
     pub fn title(&self) -> String {
         let name = self
             .path

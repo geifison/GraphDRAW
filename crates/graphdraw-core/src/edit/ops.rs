@@ -632,6 +632,82 @@ pub fn move_to_layer(ed: &mut Editor, sel: &[String], page: usize, layer: usize)
     );
 }
 
+/// Destino de um objeto arrastado no painel de camadas.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DropAt {
+    /// Logo acima (na frente) do objeto com este ID, no mesmo contêiner.
+    Above(String),
+    /// Logo abaixo (atrás) do objeto com este ID, no mesmo contêiner.
+    Below(String),
+    /// No topo da camada.
+    LayerTop { page: usize, layer: usize },
+}
+
+/// Move um objeto para outra posição de empilhamento, outra camada ou para
+/// dentro/fora de um grupo, mantendo a aparência na página (GD-CAM-03).
+/// Um passo no histórico. Devolve `false` quando não há o que fazer (o
+/// destino é o próprio objeto ou está dentro dele).
+pub fn move_to(ed: &mut Editor, id: &str, at: &DropAt) -> bool {
+    let Some(r) = ed.find(id) else {
+        return false;
+    };
+    let target = match at {
+        DropAt::Above(t) | DropAt::Below(t) => Some(t.as_str()),
+        DropAt::LayerTop { .. } => None,
+    };
+    if let Some(t) = target {
+        match ed.find(t) {
+            // O destino não pode ser o próprio objeto nem um descendente.
+            Some(tr) if t != id && !tr.is_within(&r) => {}
+            _ => return false,
+        }
+    }
+    let origin = r.loc;
+    let parent = ed.parent_affine(&r);
+    ed.transaction("Mover objeto", |ed| {
+        let Some(mut o) = ed.remove_at(&r) else {
+            return;
+        };
+        let page_m = parent * o.transform.affine();
+        // Posição calculada depois de remover: os índices já estão certos.
+        let place = match at {
+            DropAt::LayerTop { page, layer } => {
+                let c = Container::Layer {
+                    page: *page,
+                    layer: *layer,
+                };
+                Some((c, ed.objects(*page, *layer).len()))
+            }
+            DropAt::Above(t) | DropAt::Below(t) => ed.find(t).map(|tr| {
+                let c = tr.container();
+                let i = tr.index() + usize::from(matches!(at, DropAt::Above(_)));
+                (c, i)
+            }),
+        };
+        // Destino sumiu (era o grupo que ficou vazio): topo da camada de origem.
+        let (c, index) = place.unwrap_or_else(|| {
+            let c = Container::Layer {
+                page: origin.page,
+                layer: origin.layer,
+            };
+            let n = ed.objects(origin.page, origin.layer).len();
+            (c, n)
+        });
+        let dest_m = match &c {
+            Container::Layer { .. } => Affine::IDENTITY,
+            Container::Group(g) => {
+                ed.parent_affine(g) * ed.get(g).map_or(Affine::IDENTITY, |g| g.transform.affine())
+            }
+        };
+        let local = dest_m.inverse() * page_m;
+        if local != o.transform.affine() {
+            o.transform = Transform::from_affine(local);
+        }
+        ed.insert_at(&c, index, o);
+    });
+    true
+}
+
 /// Duplica com deslocamento (GD-DUP-01); devolve os IDs das cópias.
 pub fn duplicate(ed: &mut Editor, sel: &[String], offset: Vec2) -> Selection {
     transform_copies(ed, sel, Affine::translate(offset), 1)
@@ -1189,5 +1265,50 @@ mod tests {
         ed.undo();
         assert_eq!(ed.objects(0, 1).len(), 0);
         assert_eq!(ed.find(&ids[2]).unwrap().path.len(), 1);
+    }
+
+    /// Painel de camadas: arrastar muda a ordem, a camada e entra/sai de
+    /// grupos sem mudar a aparência; desfazer volta tudo num passo.
+    #[test]
+    fn move_to_reorders_changes_layer_and_enters_groups() {
+        let (mut ed, ids) = setup();
+        let order = |ed: &Editor, l: usize| {
+            ed.objects(0, l)
+                .iter()
+                .map(|o| ids.iter().position(|i| *i == o.id).unwrap_or(99))
+                .collect::<Vec<_>>()
+        };
+        // 0 vai para cima do 2 (topo).
+        assert!(move_to(&mut ed, &ids[0], &DropAt::Above(ids[2].clone())));
+        assert_eq!(order(&ed, 0), vec![1, 2, 0]);
+        // 0 volta para baixo do 1.
+        move_to(&mut ed, &ids[0], &DropAt::Below(ids[1].clone()));
+        assert_eq!(order(&ed, 0), vec![0, 1, 2]);
+        // Outra camada.
+        ed.insert_layer(0, 1, crate::model::Layer::new("B"));
+        let before = b(&ed, &ids[1]);
+        move_to(&mut ed, &ids[1], &DropAt::LayerTop { page: 0, layer: 1 });
+        assert_eq!((order(&ed, 0), order(&ed, 1)), (vec![0, 2], vec![1]));
+        assert_eq!(b(&ed, &ids[1]), before);
+        // Para dentro de um grupo deslocado: a caixa na página não muda.
+        let g = group(&mut ed, &[ids[0].clone(), ids[2].clone()]).unwrap();
+        transform(
+            &mut ed,
+            std::slice::from_ref(&g),
+            Affine::translate((5.0, 7.0)),
+            "Mover",
+        );
+        let before = b(&ed, &ids[1]);
+        move_to(&mut ed, &ids[1], &DropAt::Above(ids[0].clone()));
+        let r = ed.find(&ids[1]).unwrap();
+        assert_eq!(r.path, vec![1], "entre os filhos do grupo, acima do 0");
+        let o = ed.get(&r).unwrap();
+        let now = bounds(o, ed.parent_affine(&r), false).unwrap();
+        assert!((now.origin() - before.origin()).hypot() < 1e-9);
+        assert!((now.width() - before.width()).abs() < 1e-9);
+        // Destino dentro do próprio objeto: nada muda.
+        assert!(!move_to(&mut ed, &g, &DropAt::Above(ids[0].clone())));
+        ed.undo();
+        assert_eq!(order(&ed, 1), vec![1]);
     }
 }

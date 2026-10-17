@@ -13,6 +13,7 @@ mod i18n;
 mod icons;
 mod import;
 mod keymap;
+mod layertree;
 mod newdoc;
 mod pagebar;
 mod panels;

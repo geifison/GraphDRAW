@@ -30,7 +30,6 @@ type OpenResult = Result<(Document, ImportReport), String>;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum RightTab {
-    Objects,
     Transform,
     Align,
     Layers,
@@ -70,6 +69,8 @@ pub struct App {
     loading: Option<(PathBuf, Receiver<OpenResult>)>,
     pub(crate) tool: Tool,
     pub(crate) canvas: CanvasState,
+    /// Objetos dentro das camadas: miniaturas, renomear e arrastar.
+    pub(crate) layer_tree: crate::layertree::LayerTree,
     pub(crate) defaults: Defaults,
     pub(crate) right_tab: RightTab,
     show_right: bool,
@@ -129,6 +130,7 @@ impl App {
                 stroke: Some(default_stroke()),
             },
             right_tab: RightTab::Transform,
+            layer_tree: Default::default(),
             show_right: true,
             field_drag: false,
             window_theme: None,

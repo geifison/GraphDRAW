@@ -228,6 +228,8 @@ pub struct CanvasState {
     /// Prancheta solta com objetos na página: falta escolher manter ou
     /// escalar (GD-DIM-25). Novo retângulo da página e onde abrir a escolha.
     artboard_pending: Option<(kurbo::Rect, Pos2)>,
+    /// Objeto do menu de botão direito aberto no canvas.
+    menu_target: Option<String>,
     /// Retângulo e elipse no modo 3 pontos (GD-FER-30/31).
     pub three_point: bool,
     three: Option<ThreeDraft>,
@@ -256,6 +258,7 @@ impl Default for CanvasState {
             canvas_size: Vec2::new(800.0, 600.0),
             space_pans: true,
             artboard_pending: None,
+            menu_target: None,
             three_point: false,
             three: None,
         }
@@ -505,6 +508,34 @@ impl CanvasState {
                 defaults,
                 &mut ev,
             );
+        }
+        // Botão direito sobre um objeto: edições rápidas (travar, ocultar, nome).
+        if response.secondary_clicked()
+            && tool != Tool::Zoom
+            && !blocked
+            && let Some(pos) = response.interact_pointer_pos()
+        {
+            self.menu_target = pick(doc, to_page(pos), tol, mods.ctrl);
+            if let Some(id) = &self.menu_target
+                && !doc.selection.contains(id)
+            {
+                doc.selection = vec![id.clone()];
+            }
+        }
+        if let Some(id) = self.menu_target.clone() {
+            let mut menu_act = None;
+            let open = response.context_menu(|ui| {
+                match doc.editor.find(&id).and_then(|r| doc.editor.get(&r)) {
+                    Some(o) => menu_act = crate::layertree::object_menu(ui, o),
+                    None => ui.close(),
+                }
+            });
+            if open.is_none() && !response.secondary_clicked() {
+                self.menu_target = None;
+            }
+            if let Some(a) = menu_act {
+                crate::layertree::apply(doc, a);
+            }
         }
         if response.secondary_clicked()
             && tool == Tool::Zoom

@@ -299,9 +299,10 @@ Do M1:
 - Retângulo e elipse têm o modo 3 pontos (GD-FER-30/31) na barra de
   propriedades; distribuir (painel Alinhar) é do M3.
 - Painéis em abas fixas (sem flutuar nem perfis, GD-UI-03). Atalhos têm
-  perfis e importação/exportação (GD-UI-10). O painel Objetos (GD-UI-02)
-  mostra a árvore páginas → camadas → objetos, com olho e cadeado por
-  objeto; ainda não reordena por arrastar nem renomeia.
+  perfis e importação/exportação (GD-UI-10). O painel Camadas mostra os
+  objetos dentro de cada camada (GD-UI-02), com miniatura, renomear,
+  olho/cadeado, menu de botão direito e arrastar-soltar entre posições,
+  camadas e grupos (arrasta um objeto por vez).
 - A página mestra existe no núcleo, mas a interface não a mostra.
 - Agrupar exige objetos na mesma camada e no mesmo grupo.
 - Contorno externo no PDF pode sair errado em formas com auto-sobreposição

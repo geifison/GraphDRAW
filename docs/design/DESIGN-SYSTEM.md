@@ -346,6 +346,25 @@ de texto.
 - Todo contexto novo da barra tem teste de layout que confirma a altura de
   36 px em 1366 × 768.
 
+### 4.7 Painel de camadas e objetos
+
+- Cada camada é um recolhível (aberto por padrão) com olho, impressão,
+  cadeado e nome; os objetos ficam **dentro** da camada, do topo (frente)
+  para baixo. Grupos são recolhíveis (fechados por padrão) com os filhos.
+- **Linha de objeto:** olho e cadeado (microcontroles de 16 px), miniatura
+  1:1 de `object-thumb` = 24 px (fundo `page-paper`, borda 1 px
+  `border-subtle`, raio `radius-xs`, o objeto inteiro centrado com 1 px
+  de margem) e o nome — o dado pelo usuário ou o tipo.
+- Clique seleciona, Shift soma/tira; duplo clique no nome abre o campo de
+  renomear (Enter ou sair confirma, Esc cancela; vazio volta ao tipo).
+- **Arrastar e soltar:** a linha de destino mostra uma linha de 2 px
+  `accent-primary` em cima (fica na frente) ou embaixo (fica atrás);
+  soltar na linha da camada mostra a moldura de 2 px e põe o objeto no topo
+  dela. Entrar ou sair de grupo e trocar de camada mantêm a aparência.
+- **Botão direito** no objeto (no painel ou no canvas): menu de edição
+  rápida com o campo Nome (`menu-field-width` = 160 px, Enter confirma),
+  Travar/Destravar e Ocultar/Mostrar.
+
 ---
 
 ## 5. Canvas e controles sobre a arte
@@ -446,7 +465,6 @@ Itens abertos, em ordem de impacto:
 | Item | Hoje | Alvo |
 |---|---|---|
 | Guias inteligentes | só a marca no ponto encaixado | linhas de 1 px de borda a borda e marcadores de espaçamento igual (5.2) |
-| Sangria na página | não é desenhada no canvas | contorno tracejado com marcas de corte e cores de estado (5.3) |
 | Painéis recolhíveis, densidade, layout salvo | não existem | seção 6 |
 | Entrada animada de menus | padrão do egui (só opacidade) | deslocamento de 4 px + opacidade em `motion-fast` |
 | Botão Split (▾ com variantes) | não existe | quando houver ferramenta com variantes (4.1) |
