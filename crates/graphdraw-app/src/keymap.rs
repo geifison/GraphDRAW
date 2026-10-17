@@ -189,7 +189,7 @@ commands! {
     ToolArtistic = "tool.artistic", "Ferramenta Mídia Artística", "Artistic media tool", Tools, NotText, false;
     ToolPolygon = "tool.polygon", "Ferramenta Polígono", "Polygon tool", Tools, NotText, true;
     ToolText = "tool.text", "Ferramenta Texto", "Text tool", Tools, NotText, true;
-    ToolInteractiveFill = "tool.interactive_fill", "Preenchimento interativo", "Interactive fill", Tools, NotText, false;
+    ToolInteractiveFill = "tool.interactive_fill", "Preenchimento interativo", "Interactive fill", Tools, NotText, true;
     ToolMeshFill = "tool.mesh_fill", "Preenchimento em malha", "Mesh fill", Tools, NotText, false;
     ToolEraser = "tool.eraser", "Ferramenta Borracha", "Eraser tool", Tools, NotText, false;
 
@@ -401,6 +401,7 @@ impl Keymap {
                 (ToolArtboard, "Shift+P"),
                 (ToolText, "T"),
                 (ToolPolygon, "Y"),
+                (ToolInteractiveFill, "G"),
                 (PageNext, "PageDown"),
                 (PagePrev, "PageUp"),
                 (PageFirst, "Home"),

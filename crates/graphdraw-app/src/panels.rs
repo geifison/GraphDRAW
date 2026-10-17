@@ -76,6 +76,9 @@ impl App {
         let hint = |ui: &mut egui::Ui, t: &str| widgets::hint_line(ui, t);
         match self.tool {
             Tool::Shape => widgets::single_line_bar(ui, "barra-forma", |ui| shape_bar(ui, doc)),
+            Tool::Gradient => {
+                widgets::single_line_bar(ui, "barra-gradiente", |ui| gradient_bar(ui, doc))
+            }
             Tool::Bezier => {
                 hint(
                     ui,
@@ -402,6 +405,14 @@ impl App {
     /// Ação de amostra (clique, botão direito, Ctrl + clique).
     pub(crate) fn apply_pal(&mut self, a: crate::paletteui::PalAction) {
         use crate::paletteui::PalAction;
+        // Preenchimento interativo: a cor vai para a parada escolhida.
+        if let PalAction::Fill(Some(c)) = &a
+            && self.tool == Tool::Gradient
+            && let Some(d) = &mut self.doc
+            && self.canvas.set_grad_stop_color(d, c.clone())
+        {
+            return;
+        }
         match a {
             PalAction::Fill(c) => self.apply_fill(c.map(Fill::solid)),
             PalAction::Stroke(c) => self.apply_stroke_color(c),
@@ -2628,6 +2639,43 @@ fn report_panel(ui: &mut egui::Ui, doc: &mut DocState) {
     if let Some(p) = goto {
         doc.set_page(p);
     }
+}
+
+/// Barra do preenchimento interativo: tipo do gradiente do objeto e dicas.
+fn gradient_bar(ui: &mut egui::Ui, doc: &mut DocState) {
+    use graphdraw_core::edit::ops::{gradient_spec, set_gradient};
+    let current = match doc.selection.as_slice() {
+        [id] => doc
+            .editor
+            .find(id)
+            .and_then(|r| doc.editor.get(&r))
+            .and_then(|o| match &o.fill {
+                Some(Fill::Gradient(g)) => Some(g.clone()),
+                _ => None,
+            }),
+        _ => None,
+    };
+    if let Some(g) = &current {
+        for (kind, label) in [
+            ("linear", tr("Linear", "Linear")),
+            ("radial", tr("Radial", "Radial")),
+        ] {
+            if ui.selectable_label(g.kind == kind, label).clicked() && g.kind != kind {
+                let mut spec = gradient_spec(g);
+                spec.kind = kind.into();
+                let sel = doc.selection.clone();
+                set_gradient(&mut doc.editor, &sel, &spec);
+            }
+        }
+        ui.separator();
+    }
+    widgets::hint_line(
+        ui,
+        tr(
+            "Arraste sobre o objeto para criar · arraste alças e paradas · duplo clique na linha cria parada · Delete tira a parada · Ctrl = ângulo em 15°",
+            "Drag over the object to create · drag handles and stops · double-click the line to add a stop · Delete removes the stop · Ctrl = 15° angle steps",
+        ),
+    );
 }
 
 #[cfg(test)]

@@ -321,8 +321,11 @@ Do M3:
   guias de página mestra e camada especial de guias (GD-CAM-04) não
   existem; a origem das réguas não é salva.
 - Gradientes: linear e radial pela janela (geometria pela caixa do
-  objeto); sem ferramenta interativa de gradiente, sem elíptico, cônico
-  ou retangular.
+  objeto) e pela ferramenta de preenchimento interativo (G; GD-FIL-11:
+  arrastar cria linear, alças de início/fim ou centro/raio, paradas
+  deslizam na linha, duplo clique cria parada com a cor do ponto, Delete
+  tira, clique na paleta pinta a parada escolhida). Sem elíptico, cônico
+  ou retangular; ponto médio das paradas não é editável.
 - Paletas: arquivos ASE/GPL/CSV/JSON; .xml/.cpl de terceiros não são lidos.
 
 Do M2:

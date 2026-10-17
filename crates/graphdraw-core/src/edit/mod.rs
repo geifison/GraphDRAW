@@ -4,6 +4,7 @@
 
 pub mod convert;
 pub mod fit;
+pub mod gradtool;
 pub mod guides;
 pub mod history;
 pub mod nodes;

@@ -627,6 +627,9 @@ impl App {
 
     fn delete(&mut self) {
         let Some(d) = &mut self.doc else { return };
+        if self.tool == Tool::Gradient && self.canvas.delete_grad_stop(d) {
+            return;
+        }
         if self.tool == Tool::Shape && !d.nodes.is_empty() {
             if let Some((loc, o)) = crate::canvas::single_path(d).map(|s| (s.r, s.obj.clone())) {
                 let mut no = o;
@@ -1196,6 +1199,7 @@ impl App {
             C::ToolEllipse => self.set_tool(Tool::Ellipse),
             C::ToolText => self.set_tool(Tool::Text),
             C::ToolPolygon => self.set_tool(Tool::Polygon),
+            C::ToolInteractiveFill => self.set_tool(Tool::Gradient),
             C::TextAlignLeft | C::TextAlignCenter | C::TextAlignRight | C::TextJustify => {
                 let align = match c {
                     C::TextAlignLeft => "left",

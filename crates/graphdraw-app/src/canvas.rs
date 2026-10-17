@@ -41,6 +41,9 @@ pub enum Tool {
     Text,
     /// Prancheta: redimensiona a página pelas bordas (doc 22, GD-DIM-23).
     Artboard,
+    /// Preenchimento interativo: gradiente editado na tela (GD-FIL-11,
+    /// GD-FER-50).
+    Gradient,
 }
 
 impl Tool {
@@ -117,9 +120,20 @@ impl Tool {
                 ),
                 "Shift+P",
             ),
+            Tool::Gradient => (
+                "tool-gradient",
+                crate::keymap::hint(
+                    tr(
+                        "Preenchimento interativo — arraste sobre o objeto para criar o gradiente; arraste alças e paradas; duplo clique na linha cria parada",
+                        "Interactive fill — drag over the object to create a gradient; drag handles and stops; double-click the line to add a stop",
+                    ),
+                    crate::keymap::Command::ToolInteractiveFill,
+                ),
+                "G",
+            ),
         }
     }
-    pub const ALL: [Tool; 10] = [
+    pub const ALL: [Tool; 11] = [
         Tool::Select,
         Tool::Shape,
         Tool::Zoom,
@@ -129,6 +143,7 @@ impl Tool {
         Tool::Ellipse,
         Tool::Polygon,
         Tool::Text,
+        Tool::Gradient,
         Tool::Artboard,
     ];
 }
@@ -176,6 +191,20 @@ impl Prim {
 
 enum Drag {
     None,
+    /// Alça ou parada do gradiente sendo arrastada (matriz local → página).
+    GradHandle {
+        handle: graphdraw_core::edit::gradtool::Handle,
+        r: ObjRef,
+        original: Object,
+        m: Affine,
+    },
+    /// Novo gradiente linear sendo puxado sobre o objeto.
+    GradNew {
+        start: Point,
+        r: ObjRef,
+        original: Object,
+        m: Affine,
+    },
     Pan,
     Rubber {
         start: Pos2,
@@ -318,6 +347,8 @@ pub struct CanvasState {
     smart_lines: Vec<graphdraw_core::edit::smart::SmartLine>,
     /// Ponto do desenho já encaixado pelas guias inteligentes.
     smart_point: Option<Point>,
+    /// Parada de gradiente escolhida (ferramenta de preenchimento interativo).
+    pub grad_stop: Option<usize>,
     /// Réguas e guias (GD-REG-01, GD-GUI-01).
     pub show_rulers: bool,
     pub show_guides: bool,
@@ -366,6 +397,7 @@ impl Default for CanvasState {
             smart: None,
             smart_lines: Vec::new(),
             smart_point: None,
+            grad_stop: None,
             show_rulers: true,
             show_guides: true,
             guides_locked: false,
@@ -1207,6 +1239,9 @@ impl CanvasState {
                 badge: "tool-ellipse",
             },
             Tool::Text => Glyph::Cross { badge: "tool-text" },
+            Tool::Gradient => Glyph::Cross {
+                badge: "tool-gradient",
+            },
             Tool::Polygon => Glyph::Cross {
                 badge: "tool-polygon",
             },
@@ -1408,6 +1443,9 @@ impl CanvasState {
         }
         if tool == Tool::Shape {
             self.paint_nodes(painter, doc, rect, ph);
+        }
+        if tool == Tool::Gradient {
+            self.paint_gradient(painter, doc, rect, ph);
         }
         // Retângulos elásticos e prévias.
         let hover = ui.input(|i| i.pointer.hover_pos());
@@ -1636,6 +1674,46 @@ impl CanvasState {
         }
     }
 
+    /// Linha do gradiente, alças de início/fim e paradas com a cor de cada uma.
+    fn paint_gradient(&self, painter: &egui::Painter, doc: &DocState, rect: Rect, ph: f64) {
+        use graphdraw_core::edit::gradtool::{self, Handle};
+        let Some((_, _, g, m)) = single_gradient(doc) else {
+            return;
+        };
+        let Some((a, b)) = gradtool::axis(&g) else {
+            return;
+        };
+        let (sa, sb) = (self.screen(rect, ph, m * a), self.screen(rect, ph, m * b));
+        painter.line_segment(
+            [sa, sb],
+            EStroke::new(theme::HANDLE_STROKE + 1.0, theme::HANDLE_FILL),
+        );
+        painter.line_segment([sa, sb], thin());
+        let hs = handle_stroke();
+        for (h, q) in gradtool::handles(&g) {
+            let c = self.screen(rect, ph, m * q);
+            match h {
+                Handle::Start | Handle::End => {
+                    let r = Rect::from_center_size(c, Vec2::splat(theme::HANDLE_SIZE + 2.0));
+                    painter.rect_filled(r, theme::RADIUS_XS, theme::HANDLE_FILL);
+                    painter.rect_stroke(r, theme::RADIUS_XS, hs, egui::StrokeKind::Middle);
+                }
+                Handle::Stop(i) => {
+                    let s = &g.stops[i];
+                    let fill = crate::widgets::to_color32(&s.color);
+                    painter.circle(c, theme::GRADIENT_MARK / 2.0, fill, hs);
+                    if self.grad_stop == Some(i) {
+                        painter.circle_stroke(
+                            c,
+                            theme::GRADIENT_MARK / 2.0 + theme::SPACE_050 + 1.0,
+                            EStroke::new(theme::FOCUS_WIDTH, accent()),
+                        );
+                    }
+                }
+            }
+        }
+    }
+
     fn stroke_bez(
         &self,
         painter: &egui::Painter,
@@ -1781,6 +1859,7 @@ impl CanvasState {
                     self.drag = Drag::BezierHandle;
                 }
             }
+            Tool::Gradient => self.start_gradient_drag(doc, p, origin, tol, rect, ph),
             Tool::Select => self.start_select_drag(doc, p, origin, mods, tol, rect, ph),
             Tool::Shape => self.start_shape_drag(doc, p, origin, mods, tol, rect, ph),
             Tool::Artboard => {
@@ -1795,6 +1874,105 @@ impl CanvasState {
                 }
             }
         }
+    }
+
+    /// Preenchimento interativo: alça do gradiente do objeto selecionado, ou
+    /// um gradiente novo puxado sobre o objeto clicado.
+    fn start_gradient_drag(
+        &mut self,
+        doc: &mut DocState,
+        p: Point,
+        origin: Pos2,
+        tol: f64,
+        rect: Rect,
+        ph: f64,
+    ) {
+        use graphdraw_core::edit::gradtool;
+        if let Some((r, o, g, m)) = single_gradient(doc) {
+            let hit = gradtool::handles(&g).into_iter().find(|(_, q)| {
+                (self.screen(rect, ph, m * *q) - origin).length() <= theme::HANDLE_HIT
+            });
+            if let Some((handle, _)) = hit {
+                self.grad_stop = match handle {
+                    gradtool::Handle::Stop(i) => Some(i),
+                    _ => self.grad_stop,
+                };
+                doc.editor.begin(tr("Editar gradiente", "Edit gradient"));
+                self.drag = Drag::GradHandle {
+                    handle,
+                    r,
+                    original: o,
+                    m,
+                };
+                return;
+            }
+        }
+        let id = pick(doc, p, tol, true).or_else(|| match doc.selection.as_slice() {
+            [one] => Some(one.clone()),
+            _ => None,
+        });
+        let target = id.and_then(|id| {
+            let r = doc.editor.find(&id)?;
+            let o = doc.editor.get(&r)?.clone();
+            (!matches!(o.kind, ObjectKind::Group(_) | ObjectKind::Image(_)) && !o.locked)
+                .then_some((r, o))
+        });
+        let Some((r, o)) = target else {
+            self.drag = Drag::Rubber {
+                start: origin,
+                lasso: None,
+            };
+            return;
+        };
+        if doc.selection != [o.id.clone()] {
+            doc.selection = vec![o.id.clone()];
+            self.grad_stop = None;
+        }
+        let m = doc.editor.parent_affine(&r) * o.transform.affine();
+        doc.editor
+            .begin(tr("Gradiente interativo", "Interactive gradient"));
+        self.drag = Drag::GradNew {
+            start: p,
+            r,
+            original: o,
+            m,
+        };
+    }
+
+    /// Cor da parada escolhida (clique na paleta); `false` se não há parada.
+    pub fn set_grad_stop_color(
+        &mut self,
+        doc: &mut DocState,
+        color: graphdraw_core::model::Color,
+    ) -> bool {
+        let (Some(i), Some((r, mut o, mut g, _))) = (self.grad_stop, single_gradient(doc)) else {
+            return false;
+        };
+        let Some(s) = g.stops.get_mut(i) else {
+            return false;
+        };
+        s.color = color;
+        o.fill = Some(Fill::Gradient(g));
+        doc.editor
+            .transaction(tr("Cor da parada", "Stop color"), |ed| ed.replace_at(&r, o));
+        true
+    }
+
+    /// Tira a parada escolhida do gradiente (Delete); `false` se não havia.
+    pub fn delete_grad_stop(&mut self, doc: &mut DocState) -> bool {
+        let (Some(i), Some((r, mut o, g, _))) = (self.grad_stop, single_gradient(doc)) else {
+            return false;
+        };
+        self.grad_stop = None;
+        let Some(ng) = graphdraw_core::edit::gradtool::remove_stop(&g, i) else {
+            return true;
+        };
+        o.fill = Some(Fill::Gradient(ng));
+        doc.editor
+            .transaction(tr("Excluir parada", "Delete stop"), |ed| {
+                ed.replace_at(&r, o)
+            });
+        true
     }
 
     /// Alça da página (cantos e meios das bordas) sob o ponto de tela.
@@ -2369,6 +2547,44 @@ impl CanvasState {
                     }
                 }
             }
+            Drag::GradHandle {
+                handle,
+                r,
+                original,
+                m,
+            } => {
+                if let Some(Fill::Gradient(g)) = &original.fill {
+                    let ng = graphdraw_core::edit::gradtool::drag(g, *handle, m.inverse() * cur);
+                    let mut o = original.clone();
+                    o.fill = Some(Fill::Gradient(ng));
+                    doc.editor.replace_at(r, o);
+                }
+            }
+            Drag::GradNew {
+                start,
+                r,
+                original,
+                m,
+            } => {
+                let mut end = cur;
+                if mods.ctrl {
+                    // Ângulo em passos de 15°.
+                    let d = cur - *start;
+                    let a = (d.y.atan2(d.x).to_degrees() / 15.0).round() * 15.0;
+                    let a = a.to_radians();
+                    end = *start + kurbo::Vec2::new(a.cos(), a.sin()) * d.hypot();
+                }
+                let mut o = original.clone();
+                if (end - *start).hypot() * self.view.zoom >= 3.0 {
+                    let g = graphdraw_core::edit::gradtool::linear_from(
+                        m.inverse() * *start,
+                        m.inverse() * end,
+                        original.fill.as_ref(),
+                    );
+                    o.fill = Some(Fill::Gradient(g));
+                }
+                doc.editor.replace_at(r, o);
+            }
             Drag::PolyVertex { inner, r, original } => {
                 if let ObjectKind::Polygon(p0) = &original.kind {
                     let m = doc.editor.parent_affine(r) * original.transform.affine();
@@ -2512,6 +2728,27 @@ impl CanvasState {
             | Drag::Segment { .. }
             | Drag::PolyVertex { .. } => {
                 doc.editor.commit();
+            }
+            Drag::GradHandle { r, .. } => {
+                // Paradas em ordem; a escolhida continua escolhida.
+                if let Some(mut o) = doc.editor.get(&r).cloned()
+                    && let Some(Fill::Gradient(g)) = &mut o.fill
+                {
+                    let mut g = g.clone();
+                    let keep = graphdraw_core::edit::gradtool::sort_stops(&mut g, self.grad_stop);
+                    self.grad_stop = keep.or(self.grad_stop);
+                    o.fill = Some(Fill::Gradient(g));
+                    doc.editor.replace_at(&r, o);
+                }
+                doc.editor.commit();
+            }
+            Drag::GradNew { start, .. } => {
+                if (cur - start).hypot() * self.view.zoom >= 3.0 {
+                    self.grad_stop = None;
+                    doc.editor.commit();
+                } else {
+                    doc.editor.cancel();
+                }
             }
             Drag::GuideNew { horizontal } => {
                 let (rtop, rleft, _) = crate::rulers::areas(rect);
@@ -2742,6 +2979,24 @@ impl CanvasState {
         ev: &mut CanvasEvents,
     ) {
         match tool {
+            Tool::Gradient => {
+                use graphdraw_core::edit::gradtool;
+                if let Some((r, mut o, g, m)) = single_gradient(doc) {
+                    let q = m.inverse() * p;
+                    // Tolerância de tela levada ao espaço local.
+                    let scale = (m.determinant().abs()).sqrt().max(1e-9);
+                    if gradtool::distance_to_axis(&g, q).is_some_and(|d| d * scale <= tol)
+                        && let Some((ng, i)) = gradtool::add_stop(&g, q)
+                    {
+                        o.fill = Some(Fill::Gradient(ng));
+                        doc.editor
+                            .transaction(tr("Adicionar parada", "Add stop"), |ed| {
+                                ed.replace_at(&r, o)
+                            });
+                        self.grad_stop = Some(i);
+                    }
+                }
+            }
             Tool::Select
                 if pick(doc, p, tol, true).is_some_and(|id| {
                     doc.editor
@@ -3129,6 +3384,24 @@ pub struct PathSel<'a> {
     pub m: Affine,
 }
 
+/// Objeto selecionado sozinho com gradiente: referência, objeto, gradiente
+/// e matriz local → página.
+fn single_gradient(
+    doc: &DocState,
+) -> Option<(ObjRef, Object, graphdraw_core::model::Gradient, Affine)> {
+    let [id] = doc.selection.as_slice() else {
+        return None;
+    };
+    let r = doc.editor.find(id)?;
+    let o = doc.editor.get(&r)?.clone();
+    let Some(Fill::Gradient(g)) = &o.fill else {
+        return None;
+    };
+    let g = g.clone();
+    let m = doc.editor.parent_affine(&r) * o.transform.affine();
+    Some((r, o, g, m))
+}
+
 pub fn single_path(doc: &DocState) -> Option<PathSel<'_>> {
     if doc.selection.len() != 1 {
         return None;
@@ -3477,6 +3750,130 @@ mod tests {
         let r = doc.editor.find(&o.id).unwrap();
         let nb = ops::object_bounds(&doc.editor, &r, false).unwrap();
         assert!((nb.x1 - 30_000.0).abs() < 1e-6, "canto encaixou: {}", nb.x1);
+    }
+
+    /// GD-FIL-11: na ferramenta de preenchimento interativo, arrastar sobre o
+    /// objeto cria o gradiente; arrastar a alça do fim muda o eixo; duplo
+    /// clique na linha cria parada e Delete a tira.
+    #[test]
+    fn interactive_gradient_tool() {
+        use graphdraw_core::model::Gradient;
+        let ctx = crate::theme::test_ctx();
+        let mut cs = CanvasState::default();
+        cs.snap.enabled = false;
+        let mut doc = DocState::new_blank();
+        let mut o = Object::new(ObjectKind::Rectangle(RectData {
+            width: 60_000.0,
+            height: 40_000.0,
+            corners: None,
+            extra: Map::new(),
+        }));
+        o.transform = graphdraw_core::model::Transform::translate(50_000.0, 100_000.0);
+        let red = graphdraw_core::model::Color::from_hex("#ff0000").unwrap();
+        o.fill = Some(Fill::solid(red.clone()));
+        let id = o.id.clone();
+        doc.editor.insert_object(
+            graphdraw_core::edit::ObjLoc {
+                page: 0,
+                layer: 0,
+                index: 0,
+            },
+            o,
+        );
+        let t = Tool::Gradient;
+        for _ in 0..2 {
+            canvas_frame(&ctx, &mut cs, &mut doc, t, vec![]);
+        }
+        let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(1366.0, 768.0));
+        let (_, ph) = doc.page_size();
+        let btn = |pos, pressed| egui::Event::PointerButton {
+            pos,
+            button: PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        let drag = |cs: &mut CanvasState, doc: &mut DocState, a: Point, b: Point| {
+            let (sa, sb) = (cs.screen(rect, ph, a), cs.screen(rect, ph, b));
+            canvas_frame(&ctx, cs, doc, t, vec![egui::Event::PointerMoved(sa)]);
+            canvas_frame(&ctx, cs, doc, t, vec![btn(sa, true)]);
+            for k in 1..=6 {
+                let pos = sa + (sb - sa) * (k as f32 / 6.0);
+                canvas_frame(&ctx, cs, doc, t, vec![egui::Event::PointerMoved(pos)]);
+            }
+            canvas_frame(&ctx, cs, doc, t, vec![btn(sb, false)]);
+        };
+        let grad = |doc: &DocState| -> Gradient {
+            match &doc.page().layers[0].objects[0].fill {
+                Some(Fill::Gradient(g)) => g.clone(),
+                f => panic!("sem gradiente: {f:?}"),
+            }
+        };
+        let tol = 2.0 / cs.view.zoom;
+        // Da esquerda (55, 120) à direita (105, 120) da página.
+        drag(
+            &mut cs,
+            &mut doc,
+            Point::new(55_000.0, 120_000.0),
+            Point::new(105_000.0, 120_000.0),
+        );
+        assert_eq!(doc.selection, vec![id.clone()]);
+        let g = grad(&doc);
+        let (a, b) = (g.start.unwrap(), g.end.unwrap());
+        // Coordenadas locais: o objeto começa em (50, 100).
+        assert!(
+            (a[0] - 5_000.0).abs() < tol && (a[1] - 20_000.0).abs() < tol,
+            "{a:?}"
+        );
+        assert!((b[0] - 55_000.0).abs() < tol, "{b:?}");
+        assert_eq!(g.stops[0].color, red, "parte da cor sólida");
+        // Arrastar a alça do fim para (85, 120).
+        drag(
+            &mut cs,
+            &mut doc,
+            Point::new(105_000.0, 120_000.0),
+            Point::new(85_000.0, 120_000.0),
+        );
+        assert!((grad(&doc).end.unwrap()[0] - 35_000.0).abs() < tol);
+        // Duplo clique no meio da linha: parada nova.
+        let mid = cs.screen(rect, ph, Point::new(70_000.0, 120_000.0));
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            t,
+            vec![egui::Event::PointerMoved(mid)],
+        );
+        for _ in 0..2 {
+            canvas_frame(&ctx, &mut cs, &mut doc, t, vec![btn(mid, true)]);
+            canvas_frame(&ctx, &mut cs, &mut doc, t, vec![btn(mid, false)]);
+        }
+        let g = grad(&doc);
+        assert_eq!(g.stops.len(), 3);
+        assert_eq!(cs.grad_stop, Some(1));
+        assert!(
+            (g.stops[1].offset - 0.5).abs() < 0.02,
+            "{}",
+            g.stops[1].offset
+        );
+        let blue = graphdraw_core::model::Color::from_hex("#0000ff").unwrap();
+        assert!(cs.set_grad_stop_color(&mut doc, blue.clone()));
+        assert_eq!(grad(&doc).stops[1].color, blue);
+        doc.editor.undo();
+        assert!(cs.delete_grad_stop(&mut doc));
+        assert_eq!(grad(&doc).stops.len(), 2);
+        // Desfazer volta passo a passo: exclusão, parada, alça, criação.
+        doc.editor.undo();
+        assert_eq!(grad(&doc).stops.len(), 3);
+        doc.editor.undo();
+        assert_eq!(grad(&doc).stops.len(), 2);
+        assert!((grad(&doc).end.unwrap()[0] - 35_000.0).abs() < tol);
+        doc.editor.undo();
+        assert!((grad(&doc).end.unwrap()[0] - 55_000.0).abs() < tol);
+        doc.editor.undo();
+        assert!(matches!(
+            doc.page().layers[0].objects[0].fill,
+            Some(Fill::Solid { .. })
+        ));
     }
 
     /// GD-GUI-01: arrastar da régua cria guia; arrastar a guia de volta
@@ -3953,6 +4350,7 @@ mod tests {
                 "mira+tool-ellipse",
                 "mira+tool-polygon",
                 "mira+tool-text",
+                "mira+tool-gradient",
                 "cur-select"
             ]
         );
