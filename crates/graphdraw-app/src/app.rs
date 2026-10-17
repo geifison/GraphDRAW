@@ -1559,6 +1559,54 @@ impl App {
                         self.run_command(cmd, &ctx);
                     }
                 }
+                // Mover/copiar para outra página (GD-CAM-03).
+                if let Some(d) = &mut self.doc
+                    && d.doc().data.pages.len() > 1
+                {
+                    for copy in [false, true] {
+                        let title = if copy {
+                            tr("Copiar para a página", "Copy to page")
+                        } else {
+                            tr("Mover para a página", "Move to page")
+                        };
+                        ui.add_enabled_ui(!d.selection.is_empty(), |ui| {
+                            ui.menu_button(title, |ui| {
+                                let names: Vec<String> = (0..d.doc().data.pages.len())
+                                    .map(|p| {
+                                        graphdraw_core::edit::pages::display_name(
+                                            &d.doc().data.pages[p],
+                                            p,
+                                        )
+                                    })
+                                    .collect();
+                                for (p, n) in names.iter().enumerate() {
+                                    if p == d.page {
+                                        continue;
+                                    }
+                                    if ui.button(n).clicked() {
+                                        let sel = d.selection.clone();
+                                        let layer = d.chosen_layer().unwrap_or(0);
+                                        let ids =
+                                            ops::move_to_page(&mut d.editor, &sel, p, layer, copy);
+                                        if !copy {
+                                            d.selection.clear();
+                                        }
+                                        self.status = format!(
+                                            "{} {} → {n}",
+                                            ids.len(),
+                                            if copy {
+                                                tr("copiado(s)", "copied")
+                                            } else {
+                                                tr("movido(s)", "moved")
+                                            }
+                                        );
+                                        ui.close();
+                                    }
+                                }
+                            });
+                        });
+                    }
+                }
                 ui.separator();
                 if ui
                     .add_enabled(

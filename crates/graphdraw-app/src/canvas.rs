@@ -1285,10 +1285,18 @@ impl CanvasState {
         // Contorno fino de cada objeto selecionado + caixa da seleção com alças.
         for r in ops::refs(&doc.editor, &doc.selection) {
             if let Some(b) = ops::object_bounds(&doc.editor, &r, false) {
+                // Cor de identificação da camada (GD-CAM-01), se houver.
+                let c = doc
+                    .page()
+                    .layers
+                    .get(r.loc.layer)
+                    .and_then(|l| l.color.as_ref())
+                    .map(crate::widgets::to_color32)
+                    .unwrap_or(theme::SELECTION_OBJECT);
                 painter.rect_stroke(
                     self.screen_rect(rect, ph, b),
                     0.0,
-                    EStroke::new(theme::GUIDE_WIDTH, theme::SELECTION_OBJECT),
+                    EStroke::new(theme::GUIDE_WIDTH, c),
                     egui::StrokeKind::Middle,
                 );
             }

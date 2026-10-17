@@ -927,6 +927,55 @@ pub fn move_to(ed: &mut Editor, id: &str, at: &DropAt) -> bool {
     true
 }
 
+/// Move ou copia a seleção para o topo da camada `layer` de outra página
+/// (GD-CAM-03), na mesma posição (as páginas têm o mesmo tamanho). Objetos
+/// de dentro de grupos saem com a transformação na página. Devolve os IDs
+/// na página de destino (as cópias ganham IDs novos). Um passo.
+pub fn move_to_page(
+    ed: &mut Editor,
+    sel: &[String],
+    page: usize,
+    layer: usize,
+    copy: bool,
+) -> Vec<String> {
+    let mut refs: Vec<ObjRef> = refs(ed, sel);
+    refs.sort();
+    let items: Vec<(String, Object, Affine)> = refs
+        .iter()
+        .filter_map(|r| {
+            Some((
+                ed.get(r)?.id.clone(),
+                ed.get(r)?.clone(),
+                ed.parent_affine(r),
+            ))
+        })
+        .collect();
+    if items.is_empty() || page >= ed.doc.data.pages.len() {
+        return Vec::new();
+    }
+    let mut ids = Vec::new();
+    let name = if copy {
+        "Copiar para a página"
+    } else {
+        "Mover para a página"
+    };
+    ed.transaction(name, |ed| {
+        for (id, mut o, parent) in items {
+            if copy {
+                renew_ids(&mut o);
+            } else if let Some(r) = ed.find(&id) {
+                ed.remove_at(&r);
+            }
+            o.transform = Transform::from_affine(parent * o.transform.affine());
+            let layer = layer.min(ed.layers(page).len().saturating_sub(1));
+            let index = ed.objects(page, layer).len();
+            ids.push(o.id.clone());
+            ed.insert_object(ObjLoc { page, layer, index }, o);
+        }
+    });
+    ids
+}
+
 /// Duplica com deslocamento (GD-DUP-01); devolve os IDs das cópias.
 pub fn duplicate(ed: &mut Editor, sel: &[String], offset: Vec2) -> Selection {
     transform_copies(ed, sel, Affine::translate(offset), 1)
@@ -1625,5 +1674,31 @@ mod tests {
             ed.object(ed.locate(&ids[1]).unwrap()).unwrap().fill,
             None | Some(Fill::Solid { .. })
         ));
+    }
+
+    /// GD-CAM-03: mover e copiar para outra página, na mesma posição.
+    #[test]
+    fn gd_cam_03_move_and_copy_to_page() {
+        let (mut ed, ids) = setup();
+        ed.doc
+            .data
+            .pages
+            .push(crate::model::Page::new(200.0, 100.0));
+        let before = b(&ed, &ids[0]);
+        let copies = move_to_page(&mut ed, &ids[..1], 1, 0, true);
+        assert_eq!(ed.objects(0, 0).len(), 3, "cópia mantém o original");
+        assert_eq!(ed.objects(1, 0).len(), 1);
+        assert_ne!(copies[0], ids[0], "cópia com ID novo");
+        let moved = move_to_page(&mut ed, &ids[1..2], 1, 0, false);
+        assert_eq!(moved, vec![ids[1].clone()]);
+        assert_eq!((ed.objects(0, 0).len(), ed.objects(1, 0).len()), (2, 2));
+        let o = &ed.objects(1, 0)[0];
+        assert_eq!(
+            bounds(o, Affine::IDENTITY, false).unwrap(),
+            before,
+            "mesma posição"
+        );
+        ed.undo();
+        assert_eq!(ed.objects(0, 0).len(), 3);
     }
 }

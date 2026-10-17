@@ -298,7 +298,20 @@ Do M0, ainda valem:
 - Carregamento sob demanda de páginas (GD-GDR-11) não implementado: páginas
   separadas são lidas na abertura.
 
-Do M2 (em andamento):
+Do M3:
+
+- Polígono/estrela/estrela complexa são primitivas paramétricas; editar um
+  vértice replicando nos outros (GD-PRI-03) ainda não existe (converter em
+  curvas edita nó a nó).
+- Guias: horizontais, verticais e inclinadas, da página ou do documento;
+  guias de página mestra e camada especial de guias (GD-CAM-04) não
+  existem; a origem das réguas não é salva.
+- Gradientes: linear e radial pela janela (geometria pela caixa do
+  objeto); sem ferramenta interativa de gradiente, sem elíptico, cônico
+  ou retangular.
+- Paletas: arquivos ASE/GPL/CSV/JSON; .xml/.cpl de terceiros não são lidos.
+
+Do M2:
 
 - Booleanas (soldar, aparar, interseção), combinar/separar e contorno de
   deslocamento operam sobre polígonos com tolerância de 1 µm

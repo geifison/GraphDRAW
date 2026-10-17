@@ -308,6 +308,17 @@ pub const FONT_POPUP_WIDTH: f32 = 300.0;
 pub const FONT_LIST_HEIGHT: f32 = 360.0;
 pub const FONT_PREVIEW_HEIGHT: f32 = 22.0;
 pub const FONT_PREVIEW_MAX_WIDTH: f32 = 270.0;
+/// Cores de identificação de camada (GD-CAM-01), em sRGB 0–255.
+pub const LAYER_COLORS: [[u8; 3]; 8] = [
+    [0x3B, 0x82, 0xF6],
+    [0xEF, 0x44, 0x44],
+    [0x22, 0xC5, 0x5E],
+    [0xF5, 0x9E, 0x0B],
+    [0xA8, 0x55, 0xF7],
+    [0x06, 0xB6, 0xD4],
+    [0xEC, 0x48, 0x99],
+    [0x64, 0x74, 0x8B],
+];
 /// Escolha da paleta na barra de paleta.
 pub const PALETTE_SOURCE_WIDTH: f32 = 110.0;
 /// Amostras de cor (paleta e indicadores).

@@ -2227,6 +2227,7 @@ fn pages_panel(ui: &mut egui::Ui, doc: &mut DocState) -> bool {
 }
 
 enum LayerAction {
+    Color(usize, Option<graphdraw_core::model::Color>),
     Visible(usize, bool),
     Printable(usize, bool),
     Locked(usize, bool),
@@ -2262,6 +2263,37 @@ fn layers_panel(ui: &mut egui::Ui, doc: &mut DocState, tree: &mut crate::layertr
             true,
         );
         let header = state.show_header(ui, |ui| {
+            // Cor de identificação: contorno da seleção dos objetos da camada.
+            let sw = match &l.color {
+                Some(c) => swatch(ui, Some(c), theme::SWATCH * 0.7),
+                None => swatch(ui, None, theme::SWATCH * 0.7),
+            }
+            .on_hover_text(tr(
+                "Cor de identificação da camada",
+                "Layer identification color",
+            ));
+            egui::Popup::from_toggle_button_response(&sw).show(|ui| {
+                ui.horizontal(|ui| {
+                    for [r, g, b] in theme::LAYER_COLORS {
+                        let c = graphdraw_core::model::Color::rgb(
+                            r as f64 / 255.0,
+                            g as f64 / 255.0,
+                            b as f64 / 255.0,
+                        );
+                        if swatch(ui, Some(&c), theme::SWATCH).clicked() {
+                            act = Some(LayerAction::Color(i, Some(c)));
+                            ui.close();
+                        }
+                    }
+                    if swatch(ui, None, theme::SWATCH)
+                        .on_hover_text(tr("Sem cor", "No color"))
+                        .clicked()
+                    {
+                        act = Some(LayerAction::Color(i, None));
+                        ui.close();
+                    }
+                });
+            });
             let (eye, eye_tip) = if l.visible {
                 (
                     "eye-on",
@@ -2429,6 +2461,9 @@ fn layers_panel(ui: &mut egui::Ui, doc: &mut DocState, tree: &mut crate::layertr
     let Some(act) = act else { return };
     let ed = &mut doc.editor;
     match act {
+        LayerAction::Color(i, c) => ed.transaction(tr("Cor da camada", "Layer color"), |ed| {
+            ed.edit_layer(page, i, |l| l.color = c)
+        }),
         LayerAction::Visible(i, v) => ed.transaction(
             if v {
                 tr("Mostrar camada", "Show layer")
