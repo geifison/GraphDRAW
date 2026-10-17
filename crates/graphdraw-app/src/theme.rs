@@ -323,6 +323,8 @@ pub const LAYER_COLORS: [[u8; 3]; 8] = [
 ];
 /// Escolha da paleta na barra de paleta.
 pub const PALETTE_SOURCE_WIDTH: f32 = 110.0;
+/// Lista de formas de ponta de seta (janela de contorno).
+pub const ARROW_COMBO_WIDTH: f32 = 96.0;
 /// Campos de chave e valor dos dados do objeto (painel Camadas).
 pub const USER_DATA_FIELD_WIDTH: f32 = 90.0;
 /// Amostras de cor (paleta e indicadores).

@@ -294,6 +294,10 @@ de texto.
   confirma que cabe numa tela de 1366 × 768.
 - Botões no rodapé, à direita: Cancelar (secondary) e a ação (primary).
   `Esc` cancela.
+- **Janela de contorno, seção Pontas de seta** (GD-OUT-05): uma linha para
+  o início e outra para o fim, com a lista de formas (`arrow-combo-width` =
+  96 px; Nenhuma, Triângulo, Aberta, Farpada, Círculo, Quadrado, Barra) e,
+  com forma escolhida, tamanho (%), giro (°), Espelhar e afastamento.
 
 ### 4.5 Abas
 

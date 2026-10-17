@@ -386,6 +386,14 @@ impl StrokeDialog {
                     true,
                 );
             });
+            section(ui, tr("Pontas de seta", "Arrowheads"), |ui| {
+                arrow_row(ui, "seta-inicio", tr("Início", "Start"), &mut s.start_arrow);
+                arrow_row(ui, "seta-fim", tr("Fim", "End"), &mut s.end_arrow);
+                ui.weak(tr(
+                    "Só em curvas abertas; o tamanho acompanha a espessura.",
+                    "Open curves only; the size follows the width.",
+                ));
+            });
             section(ui, tr("Posição", "Position"), |ui| {
                 icon_choice(
                     ui,
@@ -491,8 +499,89 @@ fn merge_changes(s: &mut Stroke, old: &Stroke, new: &Stroke) {
         cap,
         position,
         scale_with_object,
-        behind_fill
+        behind_fill,
+        start_arrow,
+        end_arrow
     );
+}
+
+/// Nome da forma de ponta na interface.
+fn arrow_label(shape: &str) -> &'static str {
+    match shape {
+        "open" => tr("Aberta", "Open"),
+        "barbed" => tr("Farpada", "Barbed"),
+        "circle" => tr("Círculo", "Circle"),
+        "square" => tr("Quadrado", "Square"),
+        "bar" => tr("Barra", "Bar"),
+        _ => tr("Triângulo", "Triangle"),
+    }
+}
+
+/// Uma linha de ponta de seta (GD-OUT-05): forma, escala, giro, espelho e
+/// afastamento.
+fn arrow_row(
+    ui: &mut egui::Ui,
+    id: &str,
+    label: &str,
+    a: &mut Option<graphdraw_core::model::Arrow>,
+) {
+    use graphdraw_core::model::Arrow;
+    ui.horizontal(|ui| {
+        ui.label(label);
+        let text = a
+            .as_ref()
+            .map_or(tr("Nenhuma", "None"), |x| arrow_label(&x.shape));
+        egui::ComboBox::from_id_salt(id)
+            .selected_text(text)
+            .width(theme::ARROW_COMBO_WIDTH)
+            .show_ui(ui, |ui| {
+                if ui
+                    .selectable_label(a.is_none(), tr("Nenhuma", "None"))
+                    .clicked()
+                {
+                    *a = None;
+                }
+                for shape in graphdraw_core::render::arrows::SHAPES {
+                    let on = a.as_ref().is_some_and(|x| x.shape == shape);
+                    if ui.selectable_label(on, arrow_label(shape)).clicked() {
+                        match a {
+                            Some(x) => x.shape = shape.into(),
+                            None => *a = Some(Arrow::new(shape)),
+                        }
+                    }
+                }
+            });
+        if let Some(x) = a {
+            let mut pct = (x.scale * 100.0).round();
+            if ui
+                .add(
+                    egui::DragValue::new(&mut pct)
+                        .range(5.0..=5000.0)
+                        .suffix("%"),
+                )
+                .on_hover_text(tr("Tamanho", "Size"))
+                .changed()
+            {
+                x.scale = pct / 100.0;
+            }
+            ui.add(
+                egui::DragValue::new(&mut x.rotation)
+                    .range(-360.0..=360.0)
+                    .suffix("°"),
+            )
+            .on_hover_text(tr("Giro", "Rotation"));
+            ui.checkbox(&mut x.mirror, tr("Espelhar", "Mirror"));
+            if let Some(v) = crate::widgets::labeled_length(
+                ui,
+                tr("Afast.", "Offset"),
+                &format!("{id}-afast"),
+                x.offset,
+                None,
+            ) {
+                x.offset = v;
+            }
+        }
+    });
 }
 
 /// Amostra do padrão de traço para a lista.

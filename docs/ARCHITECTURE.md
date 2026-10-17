@@ -263,6 +263,7 @@ Em Linux: `apt install libcdr-dev librevenge-dev pkg-config g++` e o mesmo
 | GD-GEO-05, aceite do doc 03 | `geometry::tests::*`, `convert::tests::gd_geo_acceptance_circle_to_curves` |
 | GD-NOD-01..07 | `nodes::tests::*` (`gd_nod_06_align_nodes`, `gd_nod_07_reduce_nodes`) |
 | GD-PRI-05, GD-PRI-06, GD-FER-32 | `generate::tests::*`, `canvas::tests::polygon_tool_draws_spiral_and_graph_paper` (app) |
+| GD-OUT-05 | `arrows::tests::gd_out_05_arrow_at_end`, `tests/arrows.rs` |
 | GD-OBJ-05 | `ops::tests::gd_obj_05_user_data` |
 | GD-NOD-08, GD-TRF-03 | `ops::tests::gd_nod_08_extract_subpath`, `ops::tests::gd_trf_03_clear_transformations` |
 | GD-UND-01..07 + aceite do doc 12 | `history::tests::gd_und_*` |

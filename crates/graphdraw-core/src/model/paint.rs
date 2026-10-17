@@ -188,8 +188,46 @@ pub struct Stroke {
     pub scale_with_object: bool,
     #[serde(default, skip_serializing_if = "is_false")]
     pub behind_fill: bool,
+    /// Pontas de seta no início e no fim de caminhos abertos (GD-OUT-05).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start_arrow: Option<Arrow>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub end_arrow: Option<Arrow>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
+}
+
+/// Ponta de seta (GD-OUT-05). `shape` é uma forma da biblioteca própria
+/// (`triangle`, `open`, `barbed`, `circle`, `square`, `bar`);
+/// `scale` multiplica o tamanho padrão (4 × a espessura), `offset` (µm)
+/// afasta a ponta da extremidade, `rotation` em graus, `mirror` espelha.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Arrow {
+    pub shape: String,
+    #[serde(default = "one", skip_serializing_if = "is_one")]
+    pub scale: f64,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub offset: f64,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub rotation: f64,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub mirror: bool,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+impl Arrow {
+    pub fn new(shape: &str) -> Arrow {
+        Arrow {
+            shape: shape.into(),
+            scale: 1.0,
+            offset: 0.0,
+            rotation: 0.0,
+            mirror: false,
+            extra: Map::new(),
+        }
+    }
 }
 
 impl Stroke {
@@ -206,6 +244,8 @@ impl Stroke {
             position: center(),
             scale_with_object: true,
             behind_fill: false,
+            start_arrow: None,
+            end_arrow: None,
             extra: Map::new(),
         }
     }

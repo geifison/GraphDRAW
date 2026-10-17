@@ -17,4 +17,4 @@ pub use object::{
     Corner, EllipseData, FontSpec, GroupData, ImageData, Object, ObjectKind, Paragraph, PathData,
     PolygonData, RectData, TextData, TextSpan, new_id,
 };
-pub use paint::{Fill, Gradient, GradientStop, Stroke};
+pub use paint::{Arrow, Fill, Gradient, GradientStop, Stroke};

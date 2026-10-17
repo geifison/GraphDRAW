@@ -177,7 +177,20 @@
         "cap": { "enum": ["butt", "round", "square"] },
         "position": { "enum": ["center", "inside", "outside"] },
         "scaleWithObject": { "type": "boolean" },
-        "behindFill": { "type": "boolean" }
+        "behindFill": { "type": "boolean" },
+        "startArrow": { "$ref": "#/$defs/arrow" },
+        "endArrow": { "$ref": "#/$defs/arrow" }
+      }
+    },
+    "arrow": {
+      "type": "object",
+      "required": ["shape"],
+      "properties": {
+        "shape": { "type": "string", "description": "triangle, open, barbed, circle, square ou bar; outros valores são preservados e desenhados como triangle." },
+        "scale": { "type": "number", "exclusiveMinimum": 0 },
+        "offset": { "type": "number", "description": "µm" },
+        "rotation": { "type": "number", "description": "graus" },
+        "mirror": { "type": "boolean" }
       }
     },
     "node": {

@@ -131,4 +131,7 @@ desenhados como "nenhum".
 `{ "width", "color", "opacity?", "dash?": [traço, espaço, ...], "dashOffset?",
 "join?": "miter|round|bevel", "miterLimit?", "cap?": "butt|round|square",
 "position?": "center|inside|outside", "scaleWithObject?": true,
-"behindFill?": false }` — comprimentos em µm; `width: 0` = fio de cabelo.
+"behindFill?": false, "startArrow?": arrow, "endArrow?": arrow }` — comprimentos em µm; `width: 0` = fio de cabelo.
+Ponta de seta (GD-OUT-05, só em subcaminhos abertos): `{ "shape": "triangle|open|barbed|circle|square|bar",
+"scale?": 1, "offset?": 0, "rotation?": 0, "mirror?": false }` — tamanho padrão 4 × a espessura
+(mínimo 0,25 mm), `offset` em µm, `rotation` em graus; o traço recua para não passar da ponta.

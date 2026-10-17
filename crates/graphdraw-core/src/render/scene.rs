@@ -382,10 +382,50 @@ impl Builder<'_> {
             {
                 st.position = StrokePosition::Center;
             }
+            let fill = o.fill.as_ref().and_then(|f| resolve_fill(f, m, alpha));
+            // Pontas de seta (GD-OUT-05): o traço recua e as pontas entram
+            // como formas preenchidas com a tinta do contorno.
+            let heads = match (&o.stroke, &stroke) {
+                (Some(s), Some(st)) if !self.wireframe => super::arrows::arrows(
+                    &path,
+                    s.start_arrow.as_ref(),
+                    s.end_arrow.as_ref(),
+                    st.width,
+                ),
+                _ => None,
+            };
+            if let (Some((heads, trimmed)), Some(st)) = (heads, stroke.clone()) {
+                if fill.is_some() {
+                    self.items.push(Item::Shape(ShapeItem {
+                        object_id: o.id.clone(),
+                        path: path.clone(),
+                        fill: fill.clone(),
+                        fill_rule,
+                        stroke: None,
+                    }));
+                }
+                self.items.push(Item::Shape(ShapeItem {
+                    object_id: o.id.clone(),
+                    path: trimmed,
+                    fill: None,
+                    fill_rule,
+                    stroke: Some(st.clone()),
+                }));
+                for h in heads {
+                    self.items.push(Item::Shape(ShapeItem {
+                        object_id: o.id.clone(),
+                        path: h,
+                        fill: Some(st.paint.clone()),
+                        fill_rule: FillRule::Nonzero,
+                        stroke: None,
+                    }));
+                }
+                return;
+            }
             let mut item = ShapeItem {
                 object_id: o.id.clone(),
                 path,
-                fill: o.fill.as_ref().and_then(|f| resolve_fill(f, m, alpha)),
+                fill,
                 fill_rule,
                 stroke,
             };
