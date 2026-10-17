@@ -2225,6 +2225,37 @@ mod tests {
         (panel, content)
     }
 
+    /// Só mostrar a barra de seleção não altera o documento.
+    #[test]
+    fn showing_select_bar_does_not_modify() {
+        use graphdraw_core::model::{Object, ObjectKind, RectData};
+        let mut doc = DocState::new_blank();
+        for k in 0..3 {
+            let mut o = Object::new(ObjectKind::Rectangle(RectData {
+                width: 10_000.0 + k as f64,
+                height: 30_000.0,
+                corners: None,
+                extra: Default::default(),
+            }));
+            o.transform = graphdraw_core::model::Transform::translate(k as f64 * 20_000.0, 0.0);
+            ops::add_object(&mut doc.editor, 0, 0, o, "t");
+        }
+        doc.editor.mark_saved();
+        doc.selection = doc.page().layers[0]
+            .objects
+            .iter()
+            .map(|o| o.id.clone())
+            .collect();
+        let rev = doc.editor.revision();
+        let select = |ui: &mut egui::Ui, d: &mut DocState| {
+            let (mut a, mut l) = (Anchor::Center, true);
+            select_bar(ui, d, &mut a, &mut l);
+        };
+        let _ = bar(&mut doc, select);
+        assert_eq!(doc.editor.revision(), rev, "nada mudou");
+        assert!(!doc.editor.is_modified());
+    }
+
     /// O campo de ângulo mostra a rotação atual e girar até um valor
     /// deixa o objeto naquele ângulo.
     #[test]
@@ -2247,7 +2278,10 @@ mod tests {
         ops::transform(&mut doc.editor, &sel, ops::rotate_about(c, 90.0 - cur), "g");
         assert!((selection_angle(&doc, &sel) - 90.0).abs() < 1e-6);
         ops::transform(&mut doc.editor, &sel, ops::rotate_about(c, 100.0), "g");
-        assert!((selection_angle(&doc, &sel) + 170.0).abs() < 1e-6, "faixa −180..180");
+        assert!(
+            (selection_angle(&doc, &sel) + 170.0).abs() < 1e-6,
+            "faixa −180..180"
+        );
     }
 
     /// DESIGN-SYSTEM 4.6: em todo contexto (página, objeto selecionado,
