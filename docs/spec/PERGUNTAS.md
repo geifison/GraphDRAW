@@ -91,3 +91,15 @@ objeto a objeto?
 em `docs/format/gdr-1.0.md` e no schema; biblioteca de pontas própria
 (triângulo, aberta, farpada, círculo, quadrado, barra).
 **Pergunta:** confirmar os nomes e a biblioteca inicial.
+
+## P-11 — Fontes incorporadas no `.gdr` (GD-FNT-03)
+**Contexto:** o doc 13 prevê `resources/fonts/<sha256>.otf` com
+**subconjuntos**. O subconjunto que o projeto já gera (para o PDF) troca os
+números dos glifos e não serve para diagramar o texto de novo ao abrir; e
+um subconjunto só tem as letras usadas, então digitar letras novas cairia
+na fonte substituta.
+**Decisão provisória:** nada implementado.
+**Pergunta:** (a) incorporar a fonte **inteira** quando o fsType permitir
+(instalável ou editável), aceitando arquivos maiores; (b) subconjunto com
+mapa de caracteres próprio (só para ver/imprimir, sem editar letras novas);
+ou (c) outra regra?
