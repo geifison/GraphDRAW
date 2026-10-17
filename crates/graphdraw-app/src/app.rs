@@ -135,6 +135,8 @@ pub struct App {
     new_doc: Option<crate::newdoc::NewDocDialog>,
     /// Condição de impressão escolhida para o PDF/X-1a (GD-EXP-07).
     print_condition: export::PrintCondition,
+    /// Exportar texto em curvas em vez de texto vivo (GD-EXP-02).
+    text_curves: bool,
     /// Tipo do próximo PDF exportado.
     pdf_standard: export::PdfStandard,
     /// Abas de documento. O ativo fica em `doc`/`canvas`/`page_bar`; a
@@ -190,6 +192,7 @@ impl App {
             new_doc: None,
             print_condition: export::PrintCondition::Fogra39,
             pdf_standard: export::PdfStandard::Screen,
+            text_curves: false,
         };
         keymap::set_current(&app.keys);
         // Testes não leem nem gravam o perfil do usuário.
@@ -536,6 +539,7 @@ impl App {
             } else {
                 export::PdfStandard::Screen
             },
+            text_to_curves: self.text_curves,
             ..Default::default()
         };
         match export::export_with_report(doc.doc(), &out, format, &opts) {
@@ -665,6 +669,60 @@ impl App {
         }
     }
 
+    /// Objetos de texto alvo da barra de texto: o que está em edição ou os
+    /// textos selecionados.
+    pub(crate) fn text_targets(&self) -> Vec<String> {
+        let Some(d) = &self.doc else {
+            return Vec::new();
+        };
+        if let Some(t) = &self.canvas.text {
+            return vec![t.id.clone()];
+        }
+        d.selection
+            .iter()
+            .filter(|id| {
+                d.editor
+                    .find(id)
+                    .and_then(|r| d.editor.get(&r))
+                    .is_some_and(|o| matches!(o.kind, ObjectKind::Text(_)))
+            })
+            .cloned()
+            .collect()
+    }
+
+    /// Corpo do primeiro texto alvo.
+    fn text_size(&self) -> Option<f64> {
+        let d = self.doc.as_ref()?;
+        let id = self.text_targets().into_iter().next()?;
+        let r = d.editor.find(&id)?;
+        match &d.editor.get(&r)?.kind {
+            ObjectKind::Text(t) => Some(graphdraw_core::edit::text::current_style(t).1),
+            _ => None,
+        }
+    }
+
+    /// Aplica fonte/corpo/estilo/alinhamento aos textos alvo (um passo, ou
+    /// dentro da sessão de edição).
+    pub(crate) fn text_style(&mut self, st: graphdraw_core::edit::text::TextStyle) {
+        let ids = self.text_targets();
+        if let Some(d) = &mut self.doc
+            && !ids.is_empty()
+        {
+            ops::modify(
+                &mut d.editor,
+                &ids,
+                tr("Estilo do texto", "Text style"),
+                |o| match &mut o.kind {
+                    ObjectKind::Text(t) => {
+                        graphdraw_core::edit::text::apply_style(t, &st);
+                        true
+                    }
+                    _ => false,
+                },
+            );
+        }
+    }
+
     fn with_selection(
         &mut self,
         f: impl FnOnce(&mut graphdraw_core::edit::Editor, &[String]) -> Option<Vec<String>>,
@@ -742,6 +800,9 @@ impl App {
                 d.nodes.clear();
             }
             self.canvas.drop_three();
+            if let Some(d) = &mut self.doc {
+                self.canvas.end_text(d);
+            }
             self.tool = t;
         }
     }
@@ -754,14 +815,24 @@ impl App {
         if self.key_capture.is_some() {
             return;
         }
+        let editing = self.canvas.text.is_some();
         let state = keymap::State {
             selected: self.doc.as_ref().map_or(0, |d| d.selection.len()),
-            editing_text: false,
+            editing_text: editing,
         };
         for c in self.keys.fired(ctx, state) {
             self.run_command(c, ctx);
         }
         if ctx.egui_wants_keyboard_input() {
+            return;
+        }
+        // Digitando no texto: o teclado é do quadro (GD-TXT-01/02).
+        if editing {
+            if let (Some(te), Some(d)) = (&mut self.canvas.text, &mut self.doc)
+                && !te.handle_input(ctx, d)
+            {
+                self.canvas.end_text(d);
+            }
             return;
         }
         let mods = ctx.input(|i| i.modifiers);
@@ -848,6 +919,20 @@ impl App {
                 )
             );
             return;
+        }
+        if self.canvas.text.is_some()
+            && !matches!(
+                c,
+                C::TextAlignLeft
+                    | C::TextAlignCenter
+                    | C::TextAlignRight
+                    | C::TextJustify
+                    | C::TextBigger
+                    | C::TextSmaller
+            )
+            && let Some(d) = &mut self.doc
+        {
+            self.canvas.end_text(d);
         }
         let repeatable = matches!(
             c,
@@ -1044,6 +1129,29 @@ impl App {
             C::ToolBezier => self.set_tool(Tool::Bezier),
             C::ToolRect => self.set_tool(Tool::Rect),
             C::ToolEllipse => self.set_tool(Tool::Ellipse),
+            C::ToolText => self.set_tool(Tool::Text),
+            C::TextAlignLeft | C::TextAlignCenter | C::TextAlignRight | C::TextJustify => {
+                let align = match c {
+                    C::TextAlignLeft => "left",
+                    C::TextAlignCenter => "center",
+                    C::TextAlignRight => "right",
+                    _ => "justify",
+                };
+                self.text_style(graphdraw_core::edit::text::TextStyle {
+                    align: Some(align.into()),
+                    ..Default::default()
+                });
+            }
+            C::TextBigger | C::TextSmaller => {
+                // Um ponto por vez.
+                let step = if c == C::TextBigger { 1.0 } else { -1.0 } * 25_400.0 / 72.0;
+                if let Some(size) = self.text_size() {
+                    self.text_style(graphdraw_core::edit::text::TextStyle {
+                        size: Some((size + step).max(25_400.0 / 72.0)),
+                        ..Default::default()
+                    });
+                }
+            }
             C::ToolArtboard => self.set_tool(Tool::Artboard),
             C::ToolToggleSelect => {
                 if self.tool != Tool::Select {
@@ -1971,6 +2079,14 @@ impl App {
                         pick = Some(f);
                     }
                 }
+                ui.checkbox(
+                    &mut self.text_curves,
+                    tr("Texto em curvas (sem fontes no arquivo)", "Text as curves (no fonts in the file)"),
+                )
+                .on_hover_text(tr(
+                    "Desligado: PDF e SVG levam o texto vivo, com a fonte incorporada no PDF.",
+                    "Off: PDF and SVG keep live text, with the font embedded in the PDF.",
+                ));
                 ui.add_space(theme::SPACE_300);
                 ui.separator();
                 ui.label(egui::RichText::new(tr("Para gráfica", "For print")).strong());

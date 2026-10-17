@@ -100,6 +100,56 @@ struct W {
     x1a: bool,
     report: PdfReport,
     page_no: usize,
+    /// Texto em curvas (opção do usuário); senão, texto vivo com a fonte
+    /// incorporada (GD-EXP-02).
+    text_curves: bool,
+    fonts: Vec<EmbeddedFont>,
+}
+
+/// Fonte incorporada (Type0/CID com subconjunto) e os glifos usados.
+struct EmbeddedFont {
+    face: fontdb::ID,
+    name: String,
+    font_ref: Ref,
+    cff: bool,
+    remapper: subsetter::GlyphRemapper,
+    /// Glifo novo → (texto, largura em milésimos do corpo).
+    glyphs: std::collections::BTreeMap<u16, (String, f32)>,
+}
+
+impl W {
+    /// Fonte incorporável para a face; `None` = o texto sai em curvas
+    /// (fonte que não deixa fazer subconjunto, ou CFF no PDF/X-1a, que é PDF
+    /// 1.3 e não aceita OpenType).
+    fn font_for(&mut self, face: fontdb::ID) -> Option<usize> {
+        if let Some(i) = self.fonts.iter().position(|f| f.face == face) {
+            return Some(i);
+        }
+        let (ok, cff) = crate::render::text::with_font_data(face, |data, index| {
+            let cff = rustybuzz::ttf_parser::Face::parse(data, index)
+                .map(|f| f.tables().cff.is_some() || f.tables().cff2.is_some())
+                .unwrap_or(true);
+            let mut probe = subsetter::GlyphRemapper::new();
+            probe.remap(0);
+            (subsetter::subset(data, index, &probe).is_ok(), cff)
+        })?;
+        if !ok || (cff && self.x1a) {
+            return None;
+        }
+        let font_ref = self.alloc();
+        let name = format!("F{}", self.fonts.len() + 1);
+        let mut remapper = subsetter::GlyphRemapper::new();
+        remapper.remap(0);
+        self.fonts.push(EmbeddedFont {
+            face,
+            name,
+            font_ref,
+            cff,
+            remapper,
+            glyphs: Default::default(),
+        });
+        Some(self.fonts.len() - 1)
+    }
 }
 
 impl W {
@@ -173,6 +223,8 @@ pub fn write_pdf_report(
         x1a,
         report: PdfReport::default(),
         page_no: 0,
+        text_curves: opts.text_to_curves,
+        fonts: Vec::new(),
     };
     if x1a {
         w.pdf.set_version(1, 3);
@@ -223,6 +275,7 @@ pub fn write_pdf_report(
         w.page_no = i + 1;
         write_page(&mut w, scene, page_id, tree_id);
     }
+    write_fonts(&mut w);
 
     if x1a {
         // /ID: hash do conteúdo de identificação (PDF/X exige).
@@ -283,11 +336,7 @@ fn write_page(w: &mut W, scene: &Scene, page_id: Ref, tree_id: Ref) {
         match item {
             Item::Shape(s) => shape(&mut c, s, &mut res, w),
             Item::Image(i) => image(&mut c, i, &mut res, w),
-            Item::Text(t) => {
-                for s in &t.outlines {
-                    shape(&mut c, s, &mut res, w);
-                }
-            }
+            Item::Text(t) => text_item(&mut c, t, &mut res, w),
         }
     }
     let content_id = w.alloc();
@@ -331,6 +380,12 @@ fn write_page(w: &mut W, scene: &Scene, page_id: Ref, tree_id: Ref) {
             d.pair(Name(name.as_bytes()), *id);
         }
     }
+    if !res.fonts.is_empty() {
+        let mut d = r.fonts();
+        for (name, id) in &res.fonts {
+            d.pair(Name(name.as_bytes()), *id);
+        }
+    }
     if !res.spaces_list.is_empty() {
         let mut d = r.color_spaces();
         for (name, id) in &res.spaces_list {
@@ -339,6 +394,182 @@ fn write_page(w: &mut W, scene: &Scene, page_id: Ref, tree_id: Ref) {
     }
     r.finish();
     page.finish();
+}
+
+/// Texto: cada trecho sai como texto vivo (glifos posicionados um a um,
+/// o que mantém kerning e justificado) quando dá; senão, em curvas. Fica em
+/// curvas: opção do usuário, contorno no texto, gradiente, transparência ou
+/// fonte que não pode ser incorporada.
+fn text_item(c: &mut Content, t: &crate::render::scene::TextItem, res: &mut Resources, w: &mut W) {
+    let runs: Vec<&crate::render::text::Run> =
+        t.layout.lines.iter().flat_map(|l| l.runs.iter()).collect();
+    for (i, item) in t.outlines.iter().enumerate() {
+        let live = !w.text_curves && item.stroke.is_none();
+        let color = match &item.fill {
+            Some(Paint::Solid { color, alpha }) if *alpha >= 1.0 - 1e-9 => Some(color.clone()),
+            _ => None,
+        };
+        let run = runs.get(i).filter(|r| !r.glyphs.is_empty());
+        let font = match (live, &color, run) {
+            (true, Some(_), Some(r)) => w.font_for(r.font),
+            _ => None,
+        };
+        let (Some(fi), Some(color), Some(run)) = (font, color, run) else {
+            shape(c, item, res, w);
+            continue;
+        };
+        let col = if w.x1a {
+            w.print_color(&color, 1.0)
+        } else {
+            color
+        };
+        let name = w.fonts[fi].name.clone();
+        if !res.fonts.iter().any(|(n, _)| *n == name) {
+            res.fonts.push((name.clone(), w.fonts[fi].font_ref));
+        }
+        c.save_state();
+        let m = t.transform.as_coeffs();
+        c.transform(m.map(|v| v as f32));
+        set_color(c, &col, false, res, w);
+        c.begin_text();
+        c.set_font(Name(name.as_bytes()), run.size as f32);
+        let f = &mut w.fonts[fi];
+        for g in &run.glyphs {
+            let cid = f.remapper.remap(g.id);
+            let width = if run.size > 0.0 {
+                (g.advance / run.size * 1000.0) as f32
+            } else {
+                0.0
+            };
+            let entry = f
+                .glyphs
+                .entry(cid)
+                .or_insert_with(|| (String::new(), width));
+            if entry.0.is_empty() && !g.text.is_empty() {
+                entry.0 = g.text.clone();
+            }
+            c.set_text_matrix([1.0, 0.0, 0.0, 1.0, g.x as f32, g.y as f32]);
+            c.show(pdf_writer::Str(&cid.to_be_bytes()));
+        }
+        c.end_text();
+        c.restore_state();
+    }
+}
+
+/// Grava as fontes usadas: Type0 + CIDFont + descritor + subconjunto +
+/// ToUnicode (copiar e buscar texto no leitor de PDF).
+fn write_fonts(w: &mut W) {
+    use pdf_writer::types::{CidFontType, FontFlags, SystemInfo, UnicodeCmap};
+    let fonts = std::mem::take(&mut w.fonts);
+    for (n, f) in fonts.iter().enumerate() {
+        let Some(Some((data, metrics))) =
+            crate::render::text::with_font_data(f.face, |data, index| {
+                let sub = subsetter::subset(data, index, &f.remapper).ok()?;
+                let face = rustybuzz::ttf_parser::Face::parse(data, index).ok()?;
+                let k = 1000.0 / face.units_per_em() as f32;
+                let b = face.global_bounding_box();
+                let metrics = (
+                    Rect::new(
+                        b.x_min as f32 * k,
+                        b.y_min as f32 * k,
+                        b.x_max as f32 * k,
+                        b.y_max as f32 * k,
+                    ),
+                    face.ascender() as f32 * k,
+                    face.descender() as f32 * k,
+                    face.capital_height().unwrap_or(face.ascender()) as f32 * k,
+                    face.italic_angle(),
+                    face.is_italic(),
+                    face.is_monospaced(),
+                );
+                Some((sub, metrics))
+            })
+        else {
+            continue;
+        };
+        let (bbox, ascent, descent, cap, angle, italic, mono) = metrics;
+        // Etiqueta de subconjunto: 6 letras maiúsculas, diferente por fonte.
+        let tag: String = (0..6)
+            .map(|i| (b'A' + ((n * 7 + i * 3) % 26) as u8) as char)
+            .collect();
+        let ps = crate::render::text::font_postscript_name(f.face).replace(' ', "");
+        let base = format!("{tag}+{ps}");
+        let (cid_ref, desc_ref, file_ref, cmap_ref) = (w.alloc(), w.alloc(), w.alloc(), w.alloc());
+        w.pdf
+            .type0_font(f.font_ref)
+            .base_font(Name(base.as_bytes()))
+            .encoding_predefined(Name(b"Identity-H"))
+            .descendant_font(cid_ref)
+            .to_unicode(cmap_ref);
+        let info = SystemInfo {
+            registry: pdf_writer::Str(b"Adobe"),
+            ordering: pdf_writer::Str(b"Identity"),
+            supplement: 0,
+        };
+        {
+            let mut cid = w.pdf.cid_font(cid_ref);
+            cid.subtype(if f.cff {
+                CidFontType::Type0
+            } else {
+                CidFontType::Type2
+            })
+            .base_font(Name(base.as_bytes()))
+            .system_info(info)
+            .font_descriptor(desc_ref)
+            .default_width(0.0);
+            if !f.cff {
+                cid.cid_to_gid_map_predefined(Name(b"Identity"));
+            }
+            let mut ws = cid.widths();
+            for (gid, (_, width)) in &f.glyphs {
+                ws.consecutive(*gid, [*width]);
+            }
+        }
+        let mut flags = FontFlags::SYMBOLIC;
+        if italic {
+            flags |= FontFlags::ITALIC;
+        }
+        if mono {
+            flags |= FontFlags::FIXED_PITCH;
+        }
+        {
+            let mut d = w.pdf.font_descriptor(desc_ref);
+            d.name(Name(base.as_bytes()))
+                .flags(flags)
+                .bbox(bbox)
+                .italic_angle(angle)
+                .ascent(ascent)
+                .descent(descent)
+                .cap_height(cap)
+                .stem_v(80.0);
+            if f.cff {
+                d.font_file3(file_ref);
+            } else {
+                d.font_file2(file_ref);
+            }
+        }
+        let packed = miniz_oxide::deflate::compress_to_vec_zlib(&data, 6);
+        let mut stream = w.pdf.stream(file_ref, &packed);
+        stream.filter(Filter::FlateDecode);
+        if f.cff {
+            stream.pair(Name(b"Subtype"), Name(b"OpenType"));
+        }
+        stream.finish();
+        let mut cmap = UnicodeCmap::new(
+            Name(b"Custom"),
+            SystemInfo {
+                registry: pdf_writer::Str(b"Adobe"),
+                ordering: pdf_writer::Str(b"UCS"),
+                supplement: 0,
+            },
+        );
+        for (gid, (text, _)) in &f.glyphs {
+            if !text.is_empty() {
+                cmap.pair_with_multiple(*gid, text.chars());
+            }
+        }
+        w.pdf.cmap(cmap_ref, &cmap.finish());
+    }
 }
 
 /// Resolução do achatamento de transparência.
@@ -554,6 +785,7 @@ struct Resources {
     gstates_list: Vec<(String, Ref)>,
     shadings: Vec<(String, Ref)>,
     xobjects: Vec<(String, Ref)>,
+    fonts: Vec<(String, Ref)>,
     spaces: HashMap<String, String>,
     spaces_list: Vec<(String, Ref)>,
 }

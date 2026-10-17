@@ -182,7 +182,7 @@ commands! {
     ToolFreehand = "tool.freehand", "Ferramenta Mão Livre", "Freehand tool", Tools, NotText, false;
     ToolArtistic = "tool.artistic", "Ferramenta Mídia Artística", "Artistic media tool", Tools, NotText, false;
     ToolPolygon = "tool.polygon", "Ferramenta Polígono", "Polygon tool", Tools, NotText, false;
-    ToolText = "tool.text", "Ferramenta Texto", "Text tool", Tools, NotText, false;
+    ToolText = "tool.text", "Ferramenta Texto", "Text tool", Tools, NotText, true;
     ToolInteractiveFill = "tool.interactive_fill", "Preenchimento interativo", "Interactive fill", Tools, NotText, false;
     ToolMeshFill = "tool.mesh_fill", "Preenchimento em malha", "Mesh fill", Tools, NotText, false;
     ToolEraser = "tool.eraser", "Ferramenta Borracha", "Eraser tool", Tools, NotText, false;
@@ -198,12 +198,12 @@ commands! {
     TextProperties = "text.properties", "Propriedades de texto", "Text properties", Text, Always, false;
     TextGlyphs = "text.glyphs", "Glifos e caracteres especiais", "Glyphs and special characters", Text, Always, false;
     TextEdit = "text.edit", "Editar texto em janela", "Edit text in a window", Text, Always, false;
-    TextBigger = "text.size_up", "Aumentar a fonte", "Increase font size", Text, Text, false;
-    TextSmaller = "text.size_down", "Diminuir a fonte", "Decrease font size", Text, Text, false;
-    TextAlignLeft = "text.align_left", "Texto à esquerda", "Align text left", Text, Text, false;
-    TextAlignCenter = "text.align_center", "Centralizar texto", "Center text", Text, Text, false;
-    TextAlignRight = "text.align_right", "Texto à direita", "Align text right", Text, Text, false;
-    TextJustify = "text.justify", "Justificar texto", "Justify text", Text, Text, false;
+    TextBigger = "text.size_up", "Aumentar a fonte", "Increase font size", Text, Text, true;
+    TextSmaller = "text.size_down", "Diminuir a fonte", "Decrease font size", Text, Text, true;
+    TextAlignLeft = "text.align_left", "Texto à esquerda", "Align text left", Text, Text, true;
+    TextAlignCenter = "text.align_center", "Centralizar texto", "Center text", Text, Text, true;
+    TextAlignRight = "text.align_right", "Texto à direita", "Align text right", Text, Text, true;
+    TextJustify = "text.justify", "Justificar texto", "Justify text", Text, Text, true;
 }
 
 /// Combinação de teclas.
@@ -393,6 +393,7 @@ impl Keymap {
                 (ToolRect, "R"),
                 (ToolEllipse, "E"),
                 (ToolArtboard, "Shift+P"),
+                (ToolText, "T"),
                 (PageNext, "PageDown"),
                 (PagePrev, "PageUp"),
                 (PageFirst, "Home"),

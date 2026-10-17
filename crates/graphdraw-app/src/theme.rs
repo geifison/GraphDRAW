@@ -271,6 +271,8 @@ pub const PANEL_FLOAT_SIZE: [f32; 2] = [260.0, 360.0];
 /// Prévia do percurso de corte (doc 17, GD-CRT-06): tamanho e duração.
 pub const CUT_PREVIEW: [f32; 2] = [420.0, 240.0];
 pub const CUT_PREVIEW_SECONDS: f32 = 4.0;
+/// Escolha de família de fonte na barra de propriedades (doc 06).
+pub const FONT_COMBO_WIDTH: f32 = 180.0;
 /// Amostras de cor (paleta e indicadores).
 pub const SWATCH: f32 = 18.0;
 

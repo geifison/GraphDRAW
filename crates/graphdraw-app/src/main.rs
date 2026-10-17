@@ -18,6 +18,7 @@ mod layertree;
 mod newdoc;
 mod pagebar;
 mod panels;
+mod textedit;
 mod theme;
 mod view;
 mod widgets;

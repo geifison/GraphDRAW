@@ -64,12 +64,59 @@ pub fn to_curves(o: &Object) -> Option<Object> {
     let bez = match &o.kind {
         ObjectKind::Rectangle(r) => rect_path(r),
         ObjectKind::Ellipse(e) => ellipse_path(e),
+        ObjectKind::Text(t) => return text_to_curves(o, t),
         _ => return None,
     };
     let mut out = o.clone();
     out.kind = ObjectKind::Path(PathData {
         subpaths: bez_to_subpaths(&bez),
         fill_rule: FillRule::Nonzero,
+        extra: Map::new(),
+    });
+    Some(out)
+}
+
+/// Texto em curvas (GD-TXT-04): os glifos viram caminhos. Com a mesma cor
+/// em todo o texto sai um caminho só; com cores por trecho, um grupo com um
+/// caminho por trecho.
+fn text_to_curves(o: &Object, t: &crate::model::TextData) -> Option<Object> {
+    let layout = crate::render::text::layout_text(t);
+    let runs: Vec<_> = layout.lines.iter().flat_map(|l| l.runs.iter()).collect();
+    if runs.iter().all(|r| r.outline.elements().is_empty()) {
+        return None;
+    }
+    let path = |bez: &BezPath| {
+        ObjectKind::Path(PathData {
+            subpaths: bez_to_subpaths(bez),
+            fill_rule: FillRule::Nonzero,
+            extra: Map::new(),
+        })
+    };
+    let first = runs[0].fill.clone();
+    let mut out = o.clone();
+    if runs.iter().all(|r| r.fill == first) {
+        let mut all = BezPath::new();
+        for r in &runs {
+            all.extend(r.outline.elements().iter().copied());
+        }
+        out.kind = path(&all);
+        if first.is_some() {
+            out.fill = first;
+        }
+        return Some(out);
+    }
+    let children = runs
+        .iter()
+        .filter(|r| !r.outline.elements().is_empty())
+        .map(|r| {
+            let mut c = Object::new(path(&r.outline));
+            c.fill = r.fill.clone().or_else(|| o.fill.clone());
+            c.stroke = o.stroke.clone();
+            c
+        })
+        .collect();
+    out.kind = ObjectKind::Group(crate::model::GroupData {
+        children,
         extra: Map::new(),
     });
     Some(out)

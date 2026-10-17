@@ -282,12 +282,17 @@ máquina de referência.
 Do M0, ainda valem:
 
 - Cores de `.cdr` chegam em RGB (limitação da interface librevenge; P-01).
-- Texto no PDF sai em curvas; texto vivo com fontes incorporadas é M2 (GD-EXP-02/03).
+- Texto no PDF sai vivo (Type0/CID, subconjunto da fonte com `subsetter`,
+  ToUnicode); fontes OpenType/CFF ficam em curvas no PDF/X-1a (PDF 1.3).
+  Contorno, gradiente ou transparência no texto também saem em curvas.
 - Sem gerenciamento ICC (M2): a conversão para CMYK do PDF/X-1a é a
   fórmula simples, sem perfil.
 - Gradientes: só linear e radial; repetir/espelhar não existe no PDF (sai como "estender").
 - Transparência de grupo é aproximada multiplicando a opacidade dos filhos.
-- Diagramação de texto simples: sem bidi, hifenização ou justificação.
+- Diagramação de texto: quebra no quadro, alinhamentos e justificado,
+  aviso de texto excedente; sem bidi, hifenização, quadros encadeados nem
+  formatação por trecho na edição (os estilos da barra valem para o objeto
+  inteiro).
 - Carregamento sob demanda de páginas (GD-GDR-11) não implementado: páginas
   separadas são lidas na abertura.
 

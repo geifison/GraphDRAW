@@ -12,6 +12,7 @@ pub mod pagesize;
 pub mod query;
 pub mod shapeops;
 pub mod snap;
+pub mod text;
 pub mod tree;
 
 pub use history::{Editor, MASTER, ObjLoc};

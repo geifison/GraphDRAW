@@ -3,8 +3,9 @@
 //! rustybuzz (porte Rust do HarfBuzz, GD-TXT-05) e conversão de glifos em
 //! curvas (GD-TXT-04).
 //!
-//! Limitações do M0: sem bidi/hifenização; justificação tratada como
-//! alinhamento à esquerda; quebra automática apenas para texto de parágrafo.
+//! Parágrafo: quebra automática no quadro, justificado (o espaço extra vai
+//! para os espaços entre palavras) e indicação de texto excedente. Sem
+//! bidi nem hifenização.
 
 use std::sync::OnceLock;
 
@@ -31,17 +32,30 @@ pub struct Run {
     pub fill: Option<Fill>,
     /// Glifos em curvas, coordenadas locais.
     pub outline: BezPath,
+    /// Face usada e glifos posicionados (texto vivo no PDF).
+    pub font: fontdb::ID,
+    pub glyphs: Vec<GlyphPos>,
 }
 
 #[derive(Debug, Clone)]
 pub struct Line {
     pub runs: Vec<Run>,
+    /// Caracteres [start, end) do texto corrido nesta linha.
+    pub start: usize,
+    pub end: usize,
+    pub baseline: f64,
+    /// Maior corpo da linha (altura do cursor).
+    pub size: f64,
+    /// x de cada fronteira de caractere (índice no texto corrido).
+    pub carets: Vec<(usize, f64)>,
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct TextLayout {
     pub lines: Vec<Line>,
     pub missing_fonts: Vec<String>,
+    /// Texto de parágrafo que não coube no quadro (GD-TXT-02).
+    pub overflow: bool,
 }
 
 struct Fonts {
@@ -97,44 +111,112 @@ pub fn resolve_family(family: &str, weight: u16, italic: bool) -> Option<(String
     resolve_font(family, weight, italic).map(|(_, name, substituted)| (name, substituted))
 }
 
-struct Shaped {
+/// Glifo já posicionado (coordenadas locais do objeto de texto).
+#[derive(Debug, Clone, PartialEq)]
+pub struct GlyphPos {
+    pub id: u16,
+    pub x: f64,
+    pub y: f64,
+    /// Avanço horizontal.
+    pub advance: f64,
+    /// Caracteres que o glifo representa (vazio nos glifos seguintes de
+    /// um mesmo grupo); vai para o ToUnicode do PDF.
+    pub text: String,
+}
+
+struct ShapedGlyph {
+    id: u16,
+    x: f64,
+    y: f64,
+    advance: f64,
+    /// Byte do texto do trecho onde o glifo começa.
+    cluster: usize,
     outline: BezPath,
+}
+
+struct Shaped {
+    glyphs: Vec<ShapedGlyph>,
     advance: f64,
     ascent: f64,
 }
 
-/// Faz o shaping de `text` e devolve curvas com origem na linha de base em (0,0).
+/// Faz o shaping de `text`; glifos com origem na linha de base em (0,0).
 fn shape(id: fontdb::ID, text: &str, size: f64) -> Option<Shaped> {
     fonts().db.with_face_data(id, |data, index| {
         let face = rustybuzz::Face::from_slice(data, index)?;
         let scale = size / face.units_per_em() as f64;
         let mut buffer = rustybuzz::UnicodeBuffer::new();
         buffer.push_str(text);
-        let glyphs = rustybuzz::shape(&face, &[], buffer);
-        let mut outline = BezPath::new();
+        let shaped = rustybuzz::shape(&face, &[], buffer);
+        let mut glyphs = Vec::new();
         let mut pen = 0.0;
-        for (info, pos) in glyphs.glyph_infos().iter().zip(glyphs.glyph_positions()) {
+        for (info, pos) in shaped.glyph_infos().iter().zip(shaped.glyph_positions()) {
             let gx = pen + pos.x_offset as f64 * scale;
             let gy = pos.y_offset as f64 * scale;
             let mut sink = Sink {
                 path: BezPath::new(),
             };
+            let gid = info.glyph_id as u16;
+            let mut outline = BezPath::new();
             if face
-                .outline_glyph(ttf_parser::GlyphId(info.glyph_id as u16), &mut sink)
+                .outline_glyph(ttf_parser::GlyphId(gid), &mut sink)
                 .is_some()
             {
-                let mut p = sink.path;
-                p.apply_affine(Affine::new([scale, 0.0, 0.0, scale, gx, gy]));
-                outline.extend(p);
+                outline = sink.path;
+                outline.apply_affine(Affine::new([scale, 0.0, 0.0, scale, gx, gy]));
             }
-            pen += pos.x_advance as f64 * scale;
+            let advance = pos.x_advance as f64 * scale;
+            glyphs.push(ShapedGlyph {
+                id: gid,
+                x: gx,
+                y: gy,
+                advance,
+                cluster: info.cluster as usize,
+                outline,
+            });
+            pen += advance;
         }
         Some(Shaped {
-            outline,
+            glyphs,
             advance: pen,
             ascent: face.ascender() as f64 * scale,
         })
     })?
+}
+
+/// Famílias de fonte instaladas, em ordem alfabética (GD-FNT-01).
+pub fn font_families() -> Vec<String> {
+    let mut v: Vec<String> = fonts()
+        .db
+        .faces()
+        .filter_map(|f| f.families.first().map(|(n, _)| n.clone()))
+        .collect();
+    v.sort_by_key(|a| a.to_lowercase());
+    v.dedup();
+    v
+}
+
+/// Dados da face da fonte usada num trecho (para incorporar no PDF).
+pub fn with_font_data<R>(id: fontdb::ID, f: impl FnOnce(&[u8], u32) -> R) -> Option<R> {
+    fonts().db.with_face_data(id, f)
+}
+
+/// Nome PostScript da face (ou a família), para o PDF.
+pub fn font_postscript_name(id: fontdb::ID) -> String {
+    fonts()
+        .db
+        .face(id)
+        .map(|f| {
+            if f.post_script_name.is_empty() {
+                f.families
+                    .first()
+                    .map(|(n, _)| n.replace(' ', ""))
+                    .unwrap_or_default()
+            } else {
+                f.post_script_name.clone()
+            }
+        })
+        .unwrap_or_else(|| "Fonte".into())
 }
 
 struct Sink {
@@ -166,20 +248,36 @@ impl ttf_parser::OutlineBuilder for Sink {
     }
 }
 
+/// Pedaço de linha de um mesmo trecho; `start` = índice (em caracteres) no
+/// texto corrido do objeto (ver [`plain_text`]).
 struct Piece {
     text: String,
     span: usize,
+    start: usize,
+}
+
+/// Texto corrido do objeto: parágrafos unidos por `\n`. É a base dos índices
+/// de caractere do cursor de edição.
+pub fn plain_text(t: &TextData) -> String {
+    t.paragraphs
+        .iter()
+        .map(|p| p.spans.iter().map(|s| s.text.as_str()).collect::<String>())
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// Diagrama o texto. Origem local = canto superior esquerdo do bloco.
 pub fn layout_text(t: &TextData) -> TextLayout {
     let mut out = TextLayout::default();
     let frame_w = t.frame.map(|f| f[0]);
+    let frame_h = t.frame.map(|f| f[1]);
+    let wrap = t.text_kind == "paragraph" && frame_w.is_some();
     let mut baseline = 0.0;
     let mut first_line = true;
+    // Índice do primeiro caractere do parágrafo no texto corrido.
+    let mut para_start = 0usize;
 
     for para in &t.paragraphs {
-        // Resolve fontes por trecho.
         let fonts: Vec<_> = para
             .spans
             .iter()
@@ -192,69 +290,169 @@ pub fn layout_text(t: &TextData) -> TextLayout {
             })
             .collect();
 
-        // Quebra em linhas (só texto de parágrafo com quadro).
-        let wrap = t.text_kind == "paragraph" && frame_w.is_some();
-        let mut lines: Vec<Vec<Piece>> = vec![Vec::new()];
+        // Quebra em linhas; `hard` = a linha termina por \n ou fim de parágrafo.
+        let mut lines: Vec<(Vec<Piece>, usize, bool)> = vec![(Vec::new(), para_start, false)];
         let mut line_width = 0.0;
+        let mut cursor = para_start;
         for (si, span) in para.spans.iter().enumerate() {
             for (li, segment) in span.text.split('\n').enumerate() {
                 if li > 0 {
-                    lines.push(Vec::new());
+                    lines.last_mut().unwrap().2 = true;
+                    cursor += 1; // o \n
+                    lines.push((Vec::new(), cursor, false));
                     line_width = 0.0;
                 }
-                if !wrap {
-                    lines.last_mut().unwrap().push(Piece {
-                        text: segment.to_string(),
-                        span: si,
-                    });
-                    continue;
-                }
-                for word in segment.split_inclusive(' ') {
-                    let w = fonts[si]
-                        .as_ref()
-                        .and_then(|(id, _, _)| shape(*id, word, span.font.size))
-                        .map(|s| s.advance)
-                        .unwrap_or(0.0);
-                    if line_width + w > frame_w.unwrap() && line_width > 0.0 {
-                        lines.push(Vec::new());
-                        line_width = 0.0;
+                let words: Vec<&str> = if wrap {
+                    segment.split_inclusive(' ').collect()
+                } else {
+                    vec![segment]
+                };
+                for word in words {
+                    if word.is_empty() {
+                        continue;
                     }
-                    line_width += w;
-                    let cur = lines.last_mut().unwrap();
+                    if wrap {
+                        let w = fonts[si]
+                            .as_ref()
+                            .and_then(|(id, _, _)| shape(*id, word.trim_end(), span.font.size))
+                            .map(|s| s.advance)
+                            .unwrap_or(0.0);
+                        if line_width + w > frame_w.unwrap() && line_width > 0.0 {
+                            lines.push((Vec::new(), cursor, false));
+                            line_width = 0.0;
+                        }
+                        let full = fonts[si]
+                            .as_ref()
+                            .and_then(|(id, _, _)| shape(*id, word, span.font.size))
+                            .map(|s| s.advance)
+                            .unwrap_or(0.0);
+                        line_width += full;
+                    }
+                    let cur = &mut lines.last_mut().unwrap().0;
                     match cur.last_mut() {
                         Some(p) if p.span == si => p.text.push_str(word),
                         _ => cur.push(Piece {
                             text: word.to_string(),
                             span: si,
+                            start: cursor,
                         }),
                     }
+                    cursor += word.chars().count();
                 }
             }
         }
+        lines.last_mut().unwrap().2 = true;
 
-        for pieces in lines {
-            let max_size = pieces.iter().map(|p| para.spans[p.span].font.size).fold(
-                para.spans.first().map(|s| s.font.size).unwrap_or(0.0),
-                f64::max,
-            );
+        for (pieces, line_start, hard) in lines {
+            let first_size = para.spans.first().map(|s| s.font.size).unwrap_or(0.0);
+            let max_size = pieces
+                .iter()
+                .map(|p| para.spans[p.span].font.size)
+                .fold(first_size, f64::max);
             let mut runs = Vec::new();
             let mut pen = 0.0;
             let mut ascent: f64 = 0.0;
+            // Fronteiras de caractere: (índice no texto corrido, x sem justificar).
+            let mut bounds: Vec<(usize, f64)> = Vec::new();
+            let mut shaped_runs = Vec::new();
             for p in &pieces {
                 let span = &para.spans[p.span];
                 let Some((id, used, _)) = fonts[p.span].clone() else {
                     continue;
                 };
                 let shaped = shape(id, &p.text, span.font.size).unwrap_or(Shaped {
-                    outline: BezPath::new(),
+                    glyphs: Vec::new(),
                     advance: 0.0,
                     ascent: span.font.size * 0.8,
                 });
                 ascent = ascent.max(shaped.ascent);
+                for (k, (byte, _)) in p.text.char_indices().enumerate() {
+                    let x = shaped
+                        .glyphs
+                        .iter()
+                        .find(|g| g.cluster >= byte)
+                        .map_or(shaped.advance, |g| g.x);
+                    bounds.push((p.start + k, pen + x));
+                }
+                shaped_runs.push((p, span, id, used, pen, shaped));
+                pen += shaped_runs.last().unwrap().5.advance;
+            }
+            let line_end = pieces
+                .last()
+                .map_or(line_start, |p| p.start + p.text.chars().count());
+            bounds.push((line_end, pen));
+            if first_line {
+                baseline = -(if ascent > 0.0 { ascent } else { max_size * 0.8 });
+                first_line = false;
+            } else {
+                baseline -= max_size * t.line_spacing;
+            }
+            // Justificar: espaço extra repartido entre os espaços da linha
+            // (não na última linha do parágrafo nem antes de \n).
+            let line_text: String = pieces.iter().map(|p| p.text.as_str()).collect();
+            let trailing = line_text.len() - line_text.trim_end().len();
+            let content_w = if trailing > 0 {
+                // Largura sem os espaços do fim.
+                bounds.iter().rev().nth(trailing).map_or(pen, |b| b.1)
+            } else {
+                pen
+            };
+            let justify = matches!(para.align.as_str(), "justify" | "forceJustify")
+                && wrap
+                && (!hard || para.align == "forceJustify");
+            let spaces = line_text.trim_end().matches(' ').count();
+            let extra = match (justify, frame_w) {
+                (true, Some(w)) if spaces > 0 && w > content_w => (w - content_w) / spaces as f64,
+                _ => 0.0,
+            };
+            let dx = match (para.align.as_str(), frame_w) {
+                ("center", Some(w)) => (w - content_w) / 2.0,
+                ("right", Some(w)) => w - content_w,
+                ("center", None) => -content_w / 2.0,
+                ("right", None) => -content_w,
+                _ => 0.0,
+            };
+            // Espaços antes de cada caractere da linha (para o deslocamento).
+            let chars: Vec<char> = line_text.chars().collect();
+            let spaces_before = |idx: usize| -> f64 {
+                let k = idx.saturating_sub(line_start).min(chars.len());
+                chars[..k].iter().filter(|c| **c == ' ').count().min(spaces) as f64
+            };
+            for (p, span, id, used, run_x, shaped) in shaped_runs {
+                let mut outline = BezPath::new();
+                let mut glyphs = Vec::new();
+                let mut clusters: Vec<usize> = shaped.glyphs.iter().map(|g| g.cluster).collect();
+                clusters.sort_unstable();
+                clusters.dedup();
+                let mut seen = std::collections::HashSet::new();
+                for g in &shaped.glyphs {
+                    let next = clusters
+                        .iter()
+                        .find(|&&c| c > g.cluster)
+                        .copied()
+                        .unwrap_or(p.text.len());
+                    let text = if seen.insert(g.cluster) {
+                        p.text.get(g.cluster..next).unwrap_or("").to_string()
+                    } else {
+                        String::new()
+                    };
+                    let char_idx = p.start + p.text[..g.cluster.min(p.text.len())].chars().count();
+                    let shift = dx + run_x + extra * spaces_before(char_idx);
+                    let mut o = g.outline.clone();
+                    o.apply_affine(Affine::translate((shift, baseline)));
+                    outline.extend(o);
+                    glyphs.push(GlyphPos {
+                        id: g.id,
+                        x: shift + g.x,
+                        y: baseline + g.y,
+                        advance: g.advance,
+                        text,
+                    });
+                }
                 runs.push(Run {
                     text: p.text.clone(),
-                    x: pen,
-                    y: 0.0,
+                    x: dx + run_x,
+                    y: baseline,
                     width: shaped.advance,
                     family: span.font.family.clone(),
                     used_family: used,
@@ -262,32 +460,162 @@ pub fn layout_text(t: &TextData) -> TextLayout {
                     weight: span.font.weight,
                     italic: span.font.italic,
                     fill: span.fill.clone(),
-                    outline: shaped.outline,
+                    outline,
+                    font: id,
+                    glyphs,
                 });
-                pen += shaped.advance;
             }
-            if first_line {
-                baseline = -(if ascent > 0.0 { ascent } else { max_size * 0.8 });
-                first_line = false;
-            } else {
-                baseline -= max_size * t.line_spacing;
+            let carets = bounds
+                .iter()
+                .map(|(i, x)| (*i, dx + x + extra * spaces_before(*i)))
+                .collect();
+            // Quadro de parágrafo: linhas que passam do fundo ficam de fora.
+            if let Some(h) = frame_h
+                && wrap
+                && baseline < -h
+            {
+                out.overflow = true;
+                continue;
             }
-            let dx = match (para.align.as_str(), frame_w) {
-                ("center", Some(w)) => (w - pen) / 2.0,
-                ("right", Some(w)) => w - pen,
-                ("center", None) => -pen / 2.0,
-                ("right", None) => -pen,
-                _ => 0.0,
-            };
-            for r in &mut runs {
-                r.x += dx;
-                r.y = baseline;
-                r.outline.apply_affine(Affine::translate((r.x, r.y)));
-            }
-            out.lines.push(Line { runs });
+            out.lines.push(Line {
+                runs,
+                start: line_start,
+                end: line_end,
+                baseline,
+                size: max_size,
+                carets,
+            });
         }
+        para_start = cursor + 1;
     }
     out.missing_fonts.sort();
     out.missing_fonts.dedup();
     out
+}
+
+impl TextLayout {
+    /// Posição do cursor antes do caractere `idx` do texto corrido:
+    /// (x, linha de base, corpo), em coordenadas locais.
+    pub fn caret(&self, idx: usize) -> Option<(f64, f64, f64)> {
+        let line = self
+            .lines
+            .iter()
+            .find(|l| idx >= l.start && idx <= l.end)
+            .or_else(|| self.lines.last())?;
+        let x = line
+            .carets
+            .iter()
+            .find(|(i, _)| *i == idx)
+            .or_else(|| line.carets.last())
+            .map_or(0.0, |c| c.1);
+        Some((x, line.baseline, line.size))
+    }
+
+    /// Caractere mais próximo de um ponto local (clique no texto).
+    pub fn index_at(&self, p: Point) -> usize {
+        let Some(line) = self.lines.iter().min_by(|a, b| {
+            let da = (a.baseline + a.size * 0.3 - p.y).abs();
+            let db = (b.baseline + b.size * 0.3 - p.y).abs();
+            da.total_cmp(&db)
+        }) else {
+            return 0;
+        };
+        line.carets
+            .iter()
+            .min_by(|a, b| (a.1 - p.x).abs().total_cmp(&(b.1 - p.x).abs()))
+            .map_or(line.start, |c| c.0)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::{FontSpec, Paragraph, TextSpan};
+    use serde_json::Map;
+
+    fn text(kind: &str, align: &str, s: &str, frame: Option<[f64; 2]>) -> TextData {
+        TextData {
+            text_kind: kind.into(),
+            frame,
+            paragraphs: s
+                .split('\n')
+                .map(|p| Paragraph {
+                    align: align.into(),
+                    spans: vec![TextSpan {
+                        text: p.into(),
+                        font: FontSpec {
+                            family: "Arial".into(),
+                            size: 10_000.0,
+                            weight: 400,
+                            italic: false,
+                            extra: Map::new(),
+                        },
+                        fill: None,
+                        extra: Map::new(),
+                    }],
+                    extra: Map::new(),
+                })
+                .collect(),
+            line_spacing: 1.2,
+            extra: Map::new(),
+        }
+    }
+
+    fn has_font() -> bool {
+        resolve_font("Arial", 400, false).is_some()
+    }
+
+    #[test]
+    fn carets_cover_every_character_and_paragraphs() {
+        if !has_font() {
+            return;
+        }
+        let t = text("artistic", "left", "ab\ncd", None);
+        assert_eq!(plain_text(&t), "ab\ncd");
+        let l = layout_text(&t);
+        assert_eq!(l.lines.len(), 2);
+        assert_eq!((l.lines[0].start, l.lines[0].end), (0, 2));
+        assert_eq!((l.lines[1].start, l.lines[1].end), (3, 5));
+        let (x0, b0, _) = l.caret(0).unwrap();
+        let (x2, _, _) = l.caret(2).unwrap();
+        let (x3, b3, _) = l.caret(3).unwrap();
+        assert!(x0 == 0.0 && x2 > 0.0 && x3 == 0.0 && b3 < b0);
+        assert_eq!(l.index_at(Point::new(x2 + 1.0, b0)), 2);
+        // Glifos guardados para o PDF.
+        assert_eq!(l.lines[0].runs[0].glyphs.len(), 2);
+    }
+
+    #[test]
+    fn justify_fills_the_frame_and_overflow_is_flagged() {
+        if !has_font() {
+            return;
+        }
+        let words = "um dois tres quatro cinco seis sete oito nove dez onze doze";
+        let w = 60_000.0;
+        let t = text("paragraph", "justify", words, Some([w, 1_000_000.0]));
+        let l = layout_text(&t);
+        assert!(l.lines.len() >= 2);
+        // Linhas cheias terminam na borda do quadro; a última, não.
+        let end = |line: &Line| {
+            line.runs
+                .iter()
+                .flat_map(|r| r.glyphs.iter())
+                .filter(|g| g.advance > 0.0)
+                .map(|g| g.x + g.advance)
+                .fold(0.0, f64::max)
+        };
+        let first = &l.lines[0];
+        let trimmed_end = first.carets.iter().rev().find(|c| c.1 < w + 1.0).unwrap().1;
+        assert!(
+            (end(first) - w).abs() < 50.0 || (trimmed_end - w).abs() < 50.0,
+            "{}",
+            end(first)
+        );
+        assert!(end(l.lines.last().unwrap()) < w - 1_000.0);
+        assert!(!l.overflow);
+        // Quadro baixo: só cabe uma linha.
+        let short = layout_text(&text("paragraph", "left", words, Some([w, 12_000.0])));
+        assert!(short.overflow);
+        assert_eq!(short.lines.len(), 1);
+    }
 }

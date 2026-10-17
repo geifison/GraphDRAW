@@ -354,6 +354,9 @@ mod tests {
                     .map_or(Vec2::ZERO, |r| r.size())
             });
         }
-        assert!(size.y > 0.0 && size.y <= 768.0 && size.x <= 1366.0, "{size:?}");
+        assert!(
+            size.y > 0.0 && size.y <= 768.0 && size.x <= 1366.0,
+            "{size:?}"
+        );
     }
 }

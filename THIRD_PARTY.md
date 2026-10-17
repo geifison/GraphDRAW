@@ -15,6 +15,7 @@ permitida). A lista completa de crates transitivos fica em `Cargo.lock`.
 | sha2 | 0.11.1 | MIT OR Apache-2.0 | Hashes do manifesto e nomes de imagens |
 | uuid | 1.28.0 | Apache-2.0 OR MIT | IDs UUID v7 (GD-GDR-04) |
 | kurbo | 0.13.1 | Apache-2.0 OR MIT | Geometria Bézier e matrizes |
+| subsetter | 0.2.6 | MIT OR Apache-2.0 | Subconjunto de fontes para incorporar no PDF (GD-EXP-02); traz write-fonts, read-fonts, skrifa e font-types (MIT OR Apache-2.0) |
 | i_overlay | 9.1.0 | MIT OR Apache-2.0 | Booleanas e deslocamento de polígonos (doc 09); traz i_float, i_shape, i_tree e i_key_sort, mesma licença |
 | tiny-skia | 0.12.0 | BSD-3-Clause | Rasterização (tela, PNG, miniaturas) |
 | png | 0.18.1 | MIT OR Apache-2.0 | Codificação PNG |

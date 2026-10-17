@@ -35,6 +35,8 @@ pub enum Tool {
     Bezier,
     Rect,
     Ellipse,
+    /// Texto artístico (clique) e de parágrafo (arrastar um quadro), doc 06.
+    Text,
     /// Prancheta: redimensiona a página pelas bordas (doc 22, GD-DIM-23).
     Artboard,
 }
@@ -86,6 +88,17 @@ impl Tool {
                 crate::keymap::hint(tr("Elipse", "Ellipse"), crate::keymap::Command::ToolEllipse),
                 "E",
             ),
+            Tool::Text => (
+                "tool-text",
+                crate::keymap::hint(
+                    tr(
+                        "Texto — clique para texto artístico, arraste para um quadro de parágrafo",
+                        "Text — click for artistic text, drag for a paragraph frame",
+                    ),
+                    crate::keymap::Command::ToolText,
+                ),
+                "T",
+            ),
             Tool::Artboard => (
                 "tool-artboard",
                 crate::keymap::hint(
@@ -96,7 +109,7 @@ impl Tool {
             ),
         }
     }
-    pub const ALL: [Tool; 8] = [
+    pub const ALL: [Tool; 9] = [
         Tool::Select,
         Tool::Shape,
         Tool::Zoom,
@@ -104,6 +117,7 @@ impl Tool {
         Tool::Bezier,
         Tool::Rect,
         Tool::Ellipse,
+        Tool::Text,
         Tool::Artboard,
     ];
 }
@@ -179,6 +193,10 @@ enum Drag {
         cands: Vec<(Point, SnapKind)>,
     },
     BezierHandle,
+    /// Quadro de texto de parágrafo sendo desenhado.
+    TextFrame {
+        start: Point,
+    },
     /// Prancheta: borda/canto da página sendo arrastado.
     Artboard {
         handle: Anchor,
@@ -230,6 +248,8 @@ pub struct CanvasState {
     artboard_pending: Option<(kurbo::Rect, Pos2)>,
     /// Objeto do menu de botão direito aberto no canvas.
     menu_target: Option<String>,
+    /// Texto em edição (ferramenta Texto).
+    pub text: Option<crate::textedit::TextEditing>,
     /// Retângulo e elipse no modo 3 pontos (GD-FER-30/31).
     pub three_point: bool,
     three: Option<ThreeDraft>,
@@ -259,6 +279,7 @@ impl Default for CanvasState {
             space_pans: true,
             artboard_pending: None,
             menu_target: None,
+            text: None,
             three_point: false,
             three: None,
         }
@@ -317,6 +338,66 @@ impl CanvasState {
 
     pub fn has_draft(&self) -> bool {
         self.bezier.is_some() || self.three.is_some()
+    }
+
+    /// Termina a edição de texto em andamento (um passo no histórico).
+    pub fn end_text(&mut self, doc: &mut DocState) {
+        if let Some(t) = self.text.take() {
+            t.finish(doc);
+        }
+    }
+
+    /// Edita o texto `id`; com `at` (ponto da página), o cursor vai para o
+    /// caractere mais próximo, senão para o fim.
+    pub fn edit_text(&mut self, doc: &mut DocState, id: String, at: Option<Point>) {
+        self.end_text(doc);
+        let Some(r) = doc.editor.find(&id) else {
+            return;
+        };
+        let Some(o) = doc.editor.get(&r) else { return };
+        let ObjectKind::Text(t) = &o.kind else { return };
+        let m = doc.editor.parent_affine(&r) * o.transform.affine();
+        let layout = graphdraw_core::render::text::layout_text(t);
+        let caret = match at {
+            Some(p) => layout.index_at(m.inverse() * p),
+            None => graphdraw_core::edit::text::len(t),
+        };
+        self.text = Some(crate::textedit::TextEditing::start(doc, id, caret, false));
+    }
+
+    /// Cria texto novo com origem (canto superior esquerdo) em `at` e começa
+    /// a editar; criar e digitar viram um passo só.
+    fn new_text(&mut self, doc: &mut DocState, at: Point, frame: Option<[f64; 2]>) {
+        self.end_text(doc);
+        let Some(layer) = doc.layer_for_new_object() else {
+            return;
+        };
+        let size = graphdraw_core::edit::text::DEFAULT_SIZE;
+        // Texto artístico: o clique marca a linha de base da primeira linha.
+        let y = if frame.is_some() {
+            at.y
+        } else {
+            at.y + size * 0.8
+        };
+        let o = graphdraw_core::edit::text::new_text(
+            at.x,
+            y,
+            frame,
+            &crate::textedit::default_family(),
+            size,
+        );
+        let id = o.id.clone();
+        doc.editor.begin(tr("Criar texto", "Create text"));
+        let index = doc.editor.objects(doc.page, layer).len();
+        doc.editor.insert_object(
+            graphdraw_core::edit::ObjLoc {
+                page: doc.page,
+                layer,
+                index,
+            },
+            o,
+        );
+        self.text = Some(crate::textedit::TextEditing::start(doc, id, 0, true));
     }
 
     /// Descarta o retângulo/elipse de 3 pontos pela metade.
@@ -817,6 +898,7 @@ impl CanvasState {
             Tool::Ellipse => Glyph::Cross {
                 badge: "tool-ellipse",
             },
+            Tool::Text => Glyph::Cross { badge: "tool-text" },
             Tool::Artboard => {
                 let (pw, ph) = doc.page_size();
                 match self.page_handle_at(rect, ph, kurbo::Rect::new(0.0, 0.0, pw, ph), pos) {
@@ -1114,6 +1196,38 @@ impl CanvasState {
             }
             _ => {}
         }
+        if let (Drag::TextFrame { start }, Some(cur)) = (&self.drag, self.cursor_page) {
+            let sr = self.screen_rect(rect, ph, kurbo::Rect::from_points(*start, cur));
+            painter.extend(egui::Shape::dashed_line(
+                &[
+                    sr.left_top(),
+                    sr.right_top(),
+                    sr.right_bottom(),
+                    sr.left_bottom(),
+                    sr.left_top(),
+                ],
+                thin,
+                theme::BLEED_DASH,
+                theme::BLEED_GAP,
+            ));
+        }
+        let to_screen = |q: Point| self.screen(rect, ph, q);
+        match &self.text {
+            Some(te) => te.paint(painter, doc, to_screen, ui.input(|i| i.time)),
+            None => {
+                // Quadro e aviso de excedente dos textos de parágrafo selecionados.
+                for id in &doc.selection {
+                    if let Some(r) = doc.editor.find(id)
+                        && let Some(o) = doc.editor.get(&r)
+                        && let ObjectKind::Text(t) = &o.kind
+                    {
+                        let m = doc.editor.parent_affine(&r) * o.transform.affine();
+                        let l = graphdraw_core::render::text::layout_text(t);
+                        crate::textedit::frame_and_overflow(painter, t, &l, &|q| to_screen(m * q));
+                    }
+                }
+            }
+        }
         if let (Some(t), Some(cur)) = (&self.three, self.cursor_page) {
             let c = self.snap_hit.map_or(cur, |s| s.point);
             if let Some((w, h, m)) = three_point_frame(t.a, t.b, c) {
@@ -1272,6 +1386,10 @@ impl CanvasState {
         match tool {
             Tool::Pan => self.drag = Drag::Pan,
             Tool::Zoom => self.drag = Drag::ZoomRect { start: origin },
+            Tool::Text => {
+                self.end_text(doc);
+                self.drag = Drag::TextFrame { start: p };
+            }
             Tool::Rect | Tool::Ellipse => {
                 let cands = snap::candidates(doc.page(), &self.snap, &[]);
                 let start = snap::snap(p, &cands, &self.snap, snap_radius(&self.view))
@@ -1866,6 +1984,13 @@ impl CanvasState {
             | Drag::Segment { .. } => {
                 doc.editor.commit();
             }
+            Drag::TextFrame { start } => {
+                let r = kurbo::Rect::from_points(start, cur);
+                if r.width() * self.view.zoom >= 8.0 && r.height() * self.view.zoom >= 8.0 {
+                    // Origem no canto superior esquerdo (página com Y para cima).
+                    self.new_text(doc, Point::new(r.x0, r.y1), Some([r.width(), r.height()]));
+                }
+            }
             Drag::Artboard { rect: r, .. } => {
                 let (pw, _) = doc.page_size();
                 let unchanged =
@@ -2013,6 +2138,26 @@ impl CanvasState {
                     self.finish_three(doc, t, c, defaults);
                 }
             }
+            Tool::Text => {
+                let hit = pick(doc, p, tol, true).filter(|id| {
+                    doc.editor
+                        .find(id)
+                        .and_then(|r| doc.editor.get(&r))
+                        .is_some_and(|o| matches!(o.kind, ObjectKind::Text(_)))
+                });
+                match (hit, &mut self.text) {
+                    (Some(id), Some(te)) if te.id == id => te.click(doc, p, mods.shift),
+                    (Some(id), _) => self.edit_text(doc, id, Some(p)),
+                    (None, _) => {
+                        let was_editing = self.text.is_some();
+                        self.end_text(doc);
+                        // Clique fora do texto em edição só termina a edição.
+                        if !was_editing {
+                            self.new_text(doc, p, None);
+                        }
+                    }
+                }
+            }
             _ => {}
         }
         let _ = ev;
@@ -2028,6 +2173,19 @@ impl CanvasState {
         ev: &mut CanvasEvents,
     ) {
         match tool {
+            Tool::Select
+                if pick(doc, p, tol, true).is_some_and(|id| {
+                    doc.editor
+                        .find(&id)
+                        .and_then(|r| doc.editor.get(&r))
+                        .is_some_and(|o| matches!(o.kind, ObjectKind::Text(_)))
+                }) =>
+            {
+                if let Some(id) = pick(doc, p, tol, true) {
+                    ev.switch_tool = Some(Tool::Text);
+                    self.edit_text(doc, id, Some(p));
+                }
+            }
             Tool::Select => {
                 if let Some(o) = pick(doc, p, tol, true)
                     .and_then(|id| doc.editor.find(&id))
@@ -2377,6 +2535,75 @@ mod tests {
     /// Aceite de GD-DIM-24: arrastar o canto de uma A4 até perto de 148 × 210
     /// mm gruda em A5; sem objetos, o tamanho muda direto em todas as páginas
     /// (GD-PAG-01), num passo do histórico.
+    /// Ferramenta Texto: clique cria texto artístico já em edição; arrastar
+    /// cria texto de parágrafo com o quadro desenhado.
+    #[test]
+    fn text_tool_click_and_drag() {
+        let ctx = crate::theme::test_ctx();
+        let mut cs = CanvasState::default();
+        cs.snap.grid = None;
+        let mut doc = DocState::new_blank();
+        for _ in 0..2 {
+            canvas_frame(&ctx, &mut cs, &mut doc, Tool::Text, vec![]);
+        }
+        let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(1366.0, 768.0));
+        let (_, ph) = doc.page_size();
+        let at = |cs: &CanvasState, x: f64, y: f64| cs.screen(rect, ph, Point::new(x, y));
+        let btn = |pos, pressed| egui::Event::PointerButton {
+            pos,
+            button: PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        let c = at(&cs, 50_000.0, 200_000.0);
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::Text,
+            vec![egui::Event::PointerMoved(c)],
+        );
+        canvas_frame(&ctx, &mut cs, &mut doc, Tool::Text, vec![btn(c, true)]);
+        canvas_frame(&ctx, &mut cs, &mut doc, Tool::Text, vec![btn(c, false)]);
+        assert!(cs.text.is_some(), "editando");
+        assert!(doc.editor.in_transaction());
+        cs.end_text(&mut doc);
+        assert!(doc.page().layers[0].objects.is_empty(), "texto vazio sai");
+        // Arrastar um quadro de 60 × 30 mm.
+        let (s0, s1) = (at(&cs, 20_000.0, 250_000.0), at(&cs, 80_000.0, 220_000.0));
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::Text,
+            vec![egui::Event::PointerMoved(s0)],
+        );
+        canvas_frame(&ctx, &mut cs, &mut doc, Tool::Text, vec![btn(s0, true)]);
+        for k in 1..=6 {
+            let pos = s0 + (s1 - s0) * (k as f32 / 6.0);
+            canvas_frame(
+                &ctx,
+                &mut cs,
+                &mut doc,
+                Tool::Text,
+                vec![egui::Event::PointerMoved(pos)],
+            );
+        }
+        canvas_frame(&ctx, &mut cs, &mut doc, Tool::Text, vec![btn(s1, false)]);
+        let te = cs.text.as_ref().expect("editando o parágrafo");
+        let r = doc.editor.find(&te.id).unwrap();
+        let ObjectKind::Text(t) = &doc.editor.get(&r).unwrap().kind else {
+            panic!("texto")
+        };
+        let [w, h] = t.frame.unwrap();
+        let tol = 2.0 / cs.view.zoom;
+        assert_eq!(t.text_kind, "paragraph");
+        assert!(
+            (w - 60_000.0).abs() < tol && (h - 30_000.0).abs() < tol,
+            "{w} × {h}"
+        );
+    }
+
     /// Retângulo de 3 pontos: base girada 90°, altura para qualquer lado.
     #[test]
     fn three_point_frame_follows_base_and_height() {
@@ -2670,6 +2897,7 @@ mod tests {
                 "mira+tool-bezier",
                 "mira+tool-rect",
                 "mira+tool-ellipse",
+                "mira+tool-text",
                 "cur-select"
             ]
         );

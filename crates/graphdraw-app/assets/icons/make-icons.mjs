@@ -25,6 +25,14 @@ const icons = {
   "tool-rect": `<rect x="4" y="6" width="16" height="12" rx="1"/>`,
   "tool-artboard": `<rect x="6.5" y="6.5" width="11" height="11" rx="1"/><path d="M3.5 7 V3.5 H7 M17 3.5 H20.5 V7 M20.5 17 V20.5 H17 M7 20.5 H3.5 V17"/>`,
   "tool-ellipse": `<ellipse cx="12" cy="12" rx="8.5" ry="6.5"/>`,
+  "tool-text": `<path d="M5 6.5 V4.5 H19 V6.5 M12 4.5 V19.5 M9 19.5 H15"/>`,
+  // ---- texto (doc 06) ----
+  "text-bold": `<path d="M7.5 4.5 H13 a3.75 3.75 0 0 1 0 7.5 H7.5 Z M7.5 12 H14 a3.75 3.75 0 0 1 0 7.5 H7.5 Z" stroke-width="2.2"/>`,
+  "text-italic": `<path d="M10 4.5 H17 M7 19.5 H14 M13.5 4.5 L10.5 19.5"/>`,
+  "text-left": `<path d="M4 6 H20 M4 10 H14 M4 14 H20 M4 18 H12"/>`,
+  "text-center": `<path d="M4 6 H20 M7 10 H17 M4 14 H20 M8 18 H16"/>`,
+  "text-right": `<path d="M4 6 H20 M10 10 H20 M4 14 H20 M12 18 H20"/>`,
+  "text-justify": `<path d="M4 6 H20 M4 10 H20 M4 14 H20 M4 18 H13"/>`,
   // ---- arquivo e histórico ----
   "file-new": `<path d="M6 3 H14 L19 8 V21 H6 Z M14 3 V8 H19"/><path d="M12.5 12 V18 M9.5 15 H15.5"/>`,
   "file-open": `<path d="M3.5 18.5 V6 H9 L11 8 H19 V10.5"/><path d="M3.5 18.5 L6.5 11 H21 L18 18.5 Z"/>`,

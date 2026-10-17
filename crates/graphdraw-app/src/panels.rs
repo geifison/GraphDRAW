@@ -64,11 +64,13 @@ pub fn anchor_picker(ui: &mut egui::Ui, anchor: &mut Anchor) {
 impl App {
     /// Barra de propriedades: muda conforme a ferramenta e a seleção.
     pub fn property_bar(&mut self, ui: &mut egui::Ui) {
+        let text_targets = self.text_targets();
         let Some(doc) = self.doc.as_mut() else {
             ui.label(tr("Nenhum documento aberto", "No document open"));
             return;
         };
         let mut refit = false;
+        let mut pending_style = None;
         // Altura fixa e uma linha só (DESIGN-SYSTEM 4.6): dicas longas são
         // cortadas; controles que não cabem rolam na horizontal.
         let hint = |ui: &mut egui::Ui, t: &str| widgets::hint_line(ui, t);
@@ -137,6 +139,13 @@ impl App {
             }
             // Prancheta: dados da página; arrastar as alças muda o tamanho
             // (GD-DIM-23). Vale para todas as páginas (GD-PAG-01).
+            Tool::Text => {
+                widgets::single_line_bar(ui, "barra-texto", |ui| {
+                    if let Some(st) = text_bar(ui, doc, &text_targets) {
+                        pending_style = Some(st);
+                    }
+                });
+            }
             Tool::Artboard => {
                 widgets::single_line_bar(ui, "barra-prancheta", |ui| {
                     refit = page_bar_props(ui, doc);
@@ -150,13 +159,24 @@ impl App {
                 });
             }
             Tool::Select => {
+                let texts = &text_targets;
                 widgets::single_line_bar(ui, "barra-selecao", |ui| {
                     refit = select_bar(ui, doc, &mut self.anchor, &mut self.lock_ratio);
+                    // Só textos selecionados: os controles de texto vêm junto.
+                    if !texts.is_empty() && texts.len() == doc.selection.len() {
+                        ui.separator();
+                        if let Some(st) = text_bar(ui, doc, texts) {
+                            pending_style = Some(st);
+                        }
+                    }
                 });
             }
         }
         if refit {
             self.canvas.fit_pending = true;
+        }
+        if let Some(st) = pending_style {
+            self.text_style(st);
         }
     }
 
@@ -565,6 +585,117 @@ fn page_bar_props(ui: &mut egui::Ui, doc: &mut DocState) -> bool {
         changed |= new_size.is_some();
     }
     changed
+}
+
+/// Barra de texto (doc 06): família, corpo em pontos, negrito, itálico e
+/// alinhamento. Sem alvo, os valores são os do texto novo. Devolve o
+/// estilo a aplicar.
+fn text_bar(
+    ui: &mut egui::Ui,
+    doc: &DocState,
+    targets: &[String],
+) -> Option<graphdraw_core::edit::text::TextStyle> {
+    use graphdraw_core::edit::text::{self as tedit, TextStyle};
+    let current = targets
+        .first()
+        .and_then(|id| doc.editor.find(id))
+        .and_then(|r| doc.editor.get(&r))
+        .and_then(|o| match &o.kind {
+            ObjectKind::Text(t) => Some(tedit::current_style(t)),
+            _ => None,
+        });
+    let Some((family, size, bold, italic, align)) = current else {
+        widgets::hint_line(
+            ui,
+            tr(
+                "Clique para texto artístico · arraste para um quadro de parágrafo · Esc termina",
+                "Click for artistic text · drag for a paragraph frame · Esc finishes",
+            ),
+        );
+        return None;
+    };
+    let mut out = None;
+    let mut fam = family.clone();
+    egui::ComboBox::from_id_salt("texto-familia")
+        .selected_text(&fam)
+        .width(theme::FONT_COMBO_WIDTH)
+        .show_ui(ui, |ui| {
+            for f in crate::textedit::families() {
+                ui.selectable_value(&mut fam, f.clone(), f);
+            }
+        });
+    if fam != family {
+        out = Some(TextStyle {
+            family: Some(fam),
+            ..Default::default()
+        });
+    }
+    let pt = 25_400.0 / 72.0;
+    let mut points = (size / pt * 10.0).round() / 10.0;
+    if ui
+        .add(
+            egui::DragValue::new(&mut points)
+                .range(1.0..=1000.0)
+                .speed(0.2)
+                .suffix(" pt"),
+        )
+        .changed()
+    {
+        out = Some(TextStyle {
+            size: Some(points * pt),
+            ..Default::default()
+        });
+    }
+    if icons::button(ui, "text-bold", tr("Negrito", "Bold"), bold, true).clicked() {
+        out = Some(TextStyle {
+            bold: Some(!bold),
+            ..Default::default()
+        });
+    }
+    if icons::button(ui, "text-italic", tr("Itálico", "Italic"), italic, true).clicked() {
+        out = Some(TextStyle {
+            italic: Some(!italic),
+            ..Default::default()
+        });
+    }
+    ui.separator();
+    for (icon, tip, a, cmd) in [
+        (
+            "text-left",
+            tr("À esquerda", "Left"),
+            "left",
+            crate::keymap::Command::TextAlignLeft,
+        ),
+        (
+            "text-center",
+            tr("Centralizado", "Center"),
+            "center",
+            crate::keymap::Command::TextAlignCenter,
+        ),
+        (
+            "text-right",
+            tr("À direita", "Right"),
+            "right",
+            crate::keymap::Command::TextAlignRight,
+        ),
+        (
+            "text-justify",
+            tr(
+                "Justificado (texto de parágrafo)",
+                "Justified (paragraph text)",
+            ),
+            "justify",
+            crate::keymap::Command::TextJustify,
+        ),
+    ] {
+        if icons::button(ui, icon, crate::keymap::hint(tip, cmd), align == a, true).clicked() {
+            out = Some(TextStyle {
+                align: Some(a.into()),
+                ..Default::default()
+            });
+        }
+    }
+    out
 }
 
 fn select_bar(ui: &mut egui::Ui, doc: &mut DocState, anchor: &mut Anchor, lock: &mut bool) -> bool {
