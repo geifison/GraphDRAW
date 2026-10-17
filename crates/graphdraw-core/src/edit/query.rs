@@ -151,6 +151,45 @@ pub fn hit_test(page: &Page, p: Point, tol: f64) -> Option<Hit> {
     None
 }
 
+/// Objeto bloqueado mais à frente sob o ponto (também dentro de grupos),
+/// se nada destravado o cobre: só o botão direito chega nele, para
+/// desbloquear (GD-BDR-45). Camadas ocultas ou travadas ficam de fora.
+pub fn hit_test_locked(page: &Page, p: Point, tol: f64) -> Option<String> {
+    fn find(o: &Object, parent: Affine, p: Point, tol: f64) -> Option<Option<String>> {
+        if !o.visible || !hits(o, parent, p, tol) {
+            return None;
+        }
+        if o.locked {
+            return Some(Some(o.id.clone()));
+        }
+        if let ObjectKind::Group(g) = &o.kind {
+            let m = parent * o.transform.affine();
+            return g
+                .children
+                .iter()
+                .rev()
+                .find_map(|c| find(c, m, p, tol))
+                .or(Some(None));
+        }
+        // Destravado por cima: o esquerdo já pega ele.
+        Some(None)
+    }
+    for layer in page.layers.iter().rev() {
+        if !layer.visible || layer.locked {
+            continue;
+        }
+        if let Some(r) = layer
+            .objects
+            .iter()
+            .rev()
+            .find_map(|o| find(o, Affine::IDENTITY, p, tol))
+        {
+            return r;
+        }
+    }
+    None
+}
+
 /// Objeto (não grupo) mais à frente sob o ponto, descendo nos grupos
 /// (GD-SEL-02). Devolve o ID.
 pub fn hit_test_deep(page: &Page, p: Point, tol: f64) -> Option<String> {
@@ -317,6 +356,37 @@ mod tests {
         o.transform = Transform::translate(x, y);
         o.fill = Some(Fill::solid(Color::black()));
         o
+    }
+
+    /// Bloqueado: hit_test não acha; hit_test_locked acha (também dentro de
+    /// grupo), mas não por baixo de um destravado.
+    #[test]
+    fn gd_bdr_45_locked_only_by_right_click() {
+        let mut page = crate::model::Page::new(100.0, 100.0);
+        let mut a = rect(0.0, 0.0, 10.0, 10.0);
+        a.locked = true;
+        let mut inner = rect(20.0, 0.0, 10.0, 10.0);
+        inner.locked = true;
+        let g = Object::new(ObjectKind::Group(GroupData {
+            children: vec![inner.clone(), rect(40.0, 0.0, 10.0, 10.0)],
+            extra: Map::new(),
+        }));
+        let cover = rect(60.0, 0.0, 10.0, 10.0);
+        let mut under = rect(60.0, 0.0, 10.0, 10.0);
+        under.locked = true;
+        page.layers[0].objects = vec![a.clone(), g, under, cover];
+        let at = |x| Point::new(x, 5.0);
+        assert!(
+            hit_test(&page, at(5.0), 0.1).is_none(),
+            "esquerdo passa reto"
+        );
+        assert_eq!(hit_test_locked(&page, at(5.0), 0.1), Some(a.id.clone()));
+        assert_eq!(
+            hit_test_locked(&page, at(25.0), 0.1),
+            Some(inner.id.clone())
+        );
+        assert_eq!(hit_test_locked(&page, at(45.0), 0.1), None);
+        assert_eq!(hit_test_locked(&page, at(65.0), 0.1), None, "coberto");
     }
 
     #[test]

@@ -1038,6 +1038,19 @@ impl CanvasState {
             );
             return;
         }
+        // Bloqueado: o esquerdo passa reto; só o direito chega nele, com o
+        // menu de desbloquear e ordem. A seleção só muda ao escolher.
+        if let Some(id) = query::hit_test_locked(doc.page(), p, tol)
+            .filter(|id| self.focus_ids(doc).is_none_or(|f| f.contains(id)))
+        {
+            self.open_menu(
+                pos,
+                MenuTarget::Ctx(crate::ctxmenu::Target::Object(id)),
+                p,
+                ui.ctx(),
+            );
+            return;
+        }
         if self.show_guides
             && let Some((r, _)) = self.guide_at(doc, p)
         {
@@ -1225,11 +1238,21 @@ impl CanvasState {
             MenuTarget::Ctx(t) => t.clone(),
             MenuTarget::Guide(_) => return,
         };
+        // Objeto bloqueado: o comando (desbloquear, ordem) vale para ele.
+        if let (Target::Object(id), Cmd::Run(_)) = (&target, &c)
+            && doc
+                .editor
+                .find(id)
+                .and_then(|r| doc.editor.get(&r))
+                .is_some_and(|o| o.locked)
+        {
+            doc.selection = vec![id.clone()];
+        }
         let sel = doc.selection.clone();
         match c {
             Cmd::Run(crate::keymap::Command::Paste) => ev.paste_at = Some(m.at),
             Cmd::Run(cmd) => ev.command = Some(cmd),
-            Cmd::Cancel => {}
+            Cmd::Cancel | Cmd::ClipInside | Cmd::ImageFrame | Cmd::LinkedInstance => {}
             Cmd::ExitFocus => {
                 self.focus = None;
                 self.rendered = None;
@@ -5691,6 +5714,65 @@ mod tests {
         ops::object_bounds(&doc.editor, &doc.editor.find(id).unwrap(), false)
             .unwrap()
             .x0
+    }
+
+    /// Bloqueado: o esquerdo não seleciona; o direito abre o menu dele
+    /// (Desbloquear e Ordem) e desbloquear vale para ele.
+    #[test]
+    fn locked_object_reached_only_by_right_click() {
+        let (ctx, mut cs, mut doc, id, rect, ph) = bdr_setup();
+        ops::set_locked(&mut doc.editor, std::slice::from_ref(&id), true);
+        let at = cs.screen(rect, ph, Point::new(60_000.0, 110_000.0));
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::Select,
+            vec![egui::Event::PointerMoved(at)],
+        );
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::Select,
+            vec![button(at, PointerButton::Primary, true)],
+        );
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::Select,
+            vec![button(at, PointerButton::Primary, false)],
+        );
+        assert!(doc.selection.is_empty(), "esquerdo passa reto");
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::Select,
+            vec![button(at, PointerButton::Secondary, true)],
+        );
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::Select,
+            vec![button(at, PointerButton::Secondary, false)],
+        );
+        let m = cs.menu.clone().expect("menu do bloqueado");
+        assert!(
+            matches!(&m.target, MenuTarget::Ctx(crate::ctxmenu::Target::Object(o)) if *o == id)
+        );
+        assert!(doc.selection.is_empty(), "abrir o menu não seleciona");
+        let mut ev = CanvasEvents::default();
+        cs.exec_menu(
+            crate::ctxmenu::Cmd::Run(crate::keymap::Command::UnlockSelection),
+            &m,
+            &mut doc,
+            &mut ev,
+        );
+        assert_eq!(doc.selection, vec![id]);
+        assert_eq!(ev.command, Some(crate::keymap::Command::UnlockSelection));
     }
 
     /// GD-BDR-01: 3 px ainda é clique (abre o menu); 5 px é arrasto (não abre).

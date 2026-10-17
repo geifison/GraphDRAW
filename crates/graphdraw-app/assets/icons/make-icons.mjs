@@ -15,6 +15,13 @@ const dot = (x, y, r = 1.6) => `<circle cx="${x}" cy="${y}" r="${r}" fill="#fff"
 const node = (x, y, s = 2.4) => `<rect x="${x - s}" y="${y - s}" width="${2 * s}" height="${2 * s}" rx="0.6" fill="#fff" stroke="none"/>`;
 const hnode = (x, y, s = 2.4) => `<rect x="${x - s}" y="${y - s}" width="${2 * s}" height="${2 * s}" rx="0.6"/>`;
 
+// Seta de "escolher o alvo" no canto (À frente de… / Atrás de…).
+const pick = (x, y) => `<path d="M${x} ${y} V${y + 6.5} L${x + 1.7} ${y + 5} L${x + 2.8} ${y + 7.3} L${x + 4} ${y + 6.7} L${x + 2.9} ${y + 4.4} L${x + 5.2} ${y + 4.2} Z" fill="#fff"/>`;
+// "Todos": três pontos embaixo (Mostrar todos, Desbloquear todos).
+const all = `${dot(7, 19.5, 1.3)}${dot(12, 19.5, 1.3)}${dot(17, 19.5, 1.3)}`;
+// Seta da origem para o destino (copiar propriedades).
+const hand = `<path d="M11.5 7.5 H16.5 V10.5 M14.8 8.8 L16.5 10.5 L18.2 8.8"/>`;
+
 const icons = {
   // ---- ferramentas ----
   "tool-select": `<path d="M6 3.5 L6 19 L10 15 L12.8 20.5 L15.2 19.3 L12.5 13.8 L18 13.5 Z"/>`,
@@ -173,6 +180,31 @@ const icons = {
   "dist-top": `<g transform="rotate(-90 12 12)"><path d="M7 3.5V20.5 M14 3.5V20.5 M20.5 3.5V20.5" stroke-dasharray="1.6 1.8"/><rect x="3" y="6" width="4" height="5" rx="0.8" fill="#fff"/><rect x="9" y="10" width="5" height="5" rx="0.8" fill="#fff"/><rect x="17.5" y="14" width="3" height="5" rx="0.8" fill="#fff"/></g>`,
   "dist-space-h": `<rect x="3" y="7" width="4" height="10" rx="0.8" fill="#fff"/><rect x="10" y="7" width="4" height="10" rx="0.8" fill="#fff"/><rect x="17" y="7" width="4" height="10" rx="0.8" fill="#fff"/><path d="M7.5 20 H9.5 M14.5 20 H16.5"/>`,
   "dist-space-v": `<g transform="rotate(-90 12 12)"><rect x="3" y="7" width="4" height="10" rx="0.8" fill="#fff"/><rect x="10" y="7" width="4" height="10" rx="0.8" fill="#fff"/><rect x="17" y="7" width="4" height="10" rx="0.8" fill="#fff"/><path d="M7.5 20 H9.5 M14.5 20 H16.5"/></g>`,
+  // ---- menu do botão direito (doc 26) ----
+  "outline-to-object": `<path d="M4 18 C 6 8, 18 8, 20 18 H16.5 C 15 12.5, 9 12.5, 7.5 18 Z"/>${node(4, 18, 1.6)}${node(20, 18, 1.6)}`,
+  "order-in-front-of": `<rect x="3.5" y="9" width="10" height="10" rx="1"/><rect x="8.5" y="12.5" width="8" height="8" rx="1" fill="#fff"/>${pick(14.5, 3.5)}`,
+  "order-behind-of": `<rect x="8.5" y="12.5" width="8" height="8" rx="1" stroke-dasharray="2 2"/><rect x="3.5" y="9" width="10" height="10" rx="1" fill="#fff"/>${pick(14.5, 3.5)}`,
+  "ungroup-all": `<rect x="3.5" y="3.5" width="6.5" height="6.5" rx="1" stroke-dasharray="2 1.8"/><rect x="14" y="3.5" width="6.5" height="6.5" rx="1" stroke-dasharray="2 1.8"/><rect x="3.5" y="14" width="6.5" height="6.5" rx="1" stroke-dasharray="2 1.8"/><rect x="14" y="14" width="6.5" height="6.5" rx="1" stroke-dasharray="2 1.8"/>${dot(6.75, 6.75, 1.4)}${dot(17.25, 6.75, 1.4)}${dot(6.75, 17.25, 1.4)}${dot(17.25, 17.25, 1.4)}`,
+  "show-all": `<path d="M3 10 C 5.5 6, 9 4.5, 12 4.5 S 18.5 6, 21 10 C 18.5 14, 15 15.5, 12 15.5 S 5.5 14, 3 10 Z"/><circle cx="12" cy="10" r="2.5"/>${all}`,
+  "unlock-all": `<rect x="6" y="9" width="12" height="7.5" rx="1.3"/><path d="M8.5 9 V6.5 a3.5 3.5 0 0 1 6.8 -1.2"/>${all}`,
+  "text-sample": `<rect x="3.5" y="3.5" width="17" height="17" rx="1"/><path d="M7 8 H17 M7 12 H17 M7 16 H13"/>`,
+  "text-convert": `<path d="M3.5 17 L7.5 7 L11.5 17 M5 13.5 H10"/><rect x="14" y="4.5" width="6.5" height="15" rx="0.8" stroke-dasharray="1.6 1.6"/><path d="M15.8 8.5 H18.7 M15.8 12 H18.7 M15.8 15.5 H17.5"/>`,
+  "text-frame": `<ellipse cx="12" cy="12" rx="8.5" ry="7.5" stroke-dasharray="2 2"/><path d="M7.5 9.5 H16.5 M6 12.5 H18 M7.5 15.5 H14"/>`,
+  "image-frame": `<ellipse cx="12" cy="12" rx="8.5" ry="7.5" stroke-dasharray="2 2"/><path d="M6.5 16 L10 11.5 L12.5 14 L14.5 12 L17.5 16 Z"/>${dot(14.5, 8.5, 1.3)}`,
+  "text-path": `<path d="M3.5 19 C 7 10, 17 10, 20.5 19" stroke-dasharray="2 2"/><path d="M7 12 L9 6.5 L11 12 M7.7 10.3 H10.3 M13.5 6.5 V12 H15.7 a1.4 1.4 0 0 0 0 -2.8 H13.5 M13.5 6.5 H15.4 a1.35 1.35 0 0 1 0 2.7"/>`,
+  "cut-line": `<rect x="7.5" y="7.5" width="9" height="9" rx="1" fill="#fff"/><rect x="4" y="4" width="16" height="16" rx="3" stroke-dasharray="2 2"/><path d="M17.5 21 L21 17.5"/>`,
+  "export-selection": `<rect x="3.5" y="9" width="10" height="11" rx="1" stroke-dasharray="2 2"/>${node(3.5, 9, 1.5)}${node(13.5, 20, 1.5)}<path d="M10.5 12.5 L20 4 M15 4 H20 V9"/>`,
+  focus: `<path d="M3.5 8 V3.5 H8 M16 3.5 H20.5 V8 M20.5 16 V20.5 H16 M8 20.5 H3.5 V16"/><circle cx="12" cy="12" r="3.5" fill="#fff"/>`,
+  paste: `<rect x="5" y="5" width="14" height="16" rx="1.5"/><rect x="8.5" y="3" width="7" height="4" rx="1" fill="#fff"/><path d="M8.5 12 H15.5 M8.5 16 H13"/>`,
+  "select-all": `<rect x="4" y="4" width="16" height="16" rx="1" stroke-dasharray="2 2"/><rect x="7.5" y="7.5" width="4" height="4" rx="0.6" fill="#fff"/><rect x="12.5" y="12.5" width="4" height="4" rx="0.6" fill="#fff"/>`,
+  "clip-inside": `<rect x="3.5" y="3.5" width="13" height="13" rx="1"/><circle cx="14" cy="14" r="6.5" stroke-dasharray="1.8 1.8"/><path d="M16.5 8 A6.5 6.5 0 0 0 8 16.5 H16.5 Z" fill="#fff"/>`,
+  "copy-props": `<rect x="3.5" y="3.5" width="8" height="8" rx="1" fill="#fff" stroke-width="2.6"/><rect x="12.5" y="12.5" width="8" height="8" rx="1" stroke-dasharray="2 2"/>${hand}`,
+  "copy-stroke": `<rect x="3.5" y="3.5" width="8" height="8" rx="1" stroke-width="2.6"/><rect x="12.5" y="12.5" width="8" height="8" rx="1" stroke-dasharray="2 2"/>${hand}`,
+  "copy-fill": `<rect x="3.5" y="3.5" width="8" height="8" rx="1" fill="#fff" stroke="none"/><rect x="12.5" y="12.5" width="8" height="8" rx="1" stroke-dasharray="2 2"/>${hand}`,
+  "center-on": `<circle cx="12" cy="12" r="8.5"/><rect x="9" y="9" width="6" height="6" rx="0.8" fill="#fff"/><path d="M12 3.5 V6 M12 18 V20.5 M3.5 12 H6 M18 12 H20.5"/>`,
+  "move-here": `<rect x="3.5" y="3.5" width="7" height="7" rx="1" stroke-dasharray="2 2"/><rect x="13.5" y="13.5" width="7" height="7" rx="1" fill="#fff"/><path d="M8.5 8.5 L12.5 12.5 M12.5 9 V12.5 H9"/>`,
+  instance: `<rect x="3.5" y="3.5" width="7" height="7" rx="1"/><rect x="13.5" y="13.5" width="7" height="7" rx="1" stroke-dasharray="2 2"/><path d="M10.5 10.5 L13.5 13.5"/>${dot(12, 12, 1.3)}`,
+  cancel: `<circle cx="12" cy="12" r="8.5"/><path d="M8.5 8.5 L15.5 15.5 M15.5 8.5 L8.5 15.5"/>`,
   // ---- painéis (área de trabalho, GD-UI-03) ----
   "panel-collapse": `<rect x="3.5" y="4.5" width="17" height="15" rx="1.5"/><path d="M14.5 4.5 V19.5"/><path d="M7.5 9 L10.5 12 L7.5 15"/>`,
   "panel-expand": `<rect x="3.5" y="4.5" width="17" height="15" rx="1.5"/><path d="M14.5 4.5 V19.5"/><path d="M10.5 9 L7.5 12 L10.5 15"/>`,

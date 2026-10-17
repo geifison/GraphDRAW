@@ -57,6 +57,10 @@ pub enum Cmd {
     Intersect,
     CenterOnTarget,
     Cancel,
+    /// Itens Beta (desabilitados; nada a executar).
+    ClipInside,
+    ImageFrame,
+    LinkedInstance,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -232,7 +236,7 @@ pub fn object_entries(doc: &DocState, clicked: &str, focus: bool) -> Vec<Entry> 
         ));
         text.push(beta(
             tr("Usar como quadro de imagem", "Use as image frame"),
-            Cmd::Cancel,
+            Cmd::ImageFrame,
         ));
     }
     if n == 2 && texts.len() == 1 {
@@ -341,7 +345,7 @@ pub fn drop_entries(over_object: bool) -> Vec<Entry> {
     if over_object {
         out.push(beta(
             tr("Colocar dentro (recorte)", "Place inside (clip)"),
-            Cmd::Cancel,
+            Cmd::ClipInside,
         ));
         out.push(item(
             tr("Copiar todas as propriedades", "Copy all properties"),
@@ -370,7 +374,7 @@ pub fn drop_entries(over_object: bool) -> Vec<Entry> {
     if !over_object {
         out.push(beta(
             tr("Criar instância vinculada", "Create linked instance"),
-            Cmd::Cancel,
+            Cmd::LinkedInstance,
         ));
     }
     out.push(Entry::Sep);
@@ -393,6 +397,74 @@ fn tidy(v: Vec<Entry>) -> Vec<Entry> {
     out
 }
 
+/// Ícone do item (assets/icons): o mesmo da função onde ela já tem um
+/// (barra de propriedades, painéis); `""` = sem ícone.
+pub fn icon_of(c: &Cmd) -> &'static str {
+    use Command as K;
+    match c {
+        Cmd::Run(k) => match k {
+            K::ToCurves => "to-curves",
+            K::BreakApart => "break-apart",
+            K::OutlineToObject => "outline-to-object",
+            K::ToFront => "order-front",
+            K::ToBack => "order-back",
+            K::Forward => "order-forward",
+            K::Backward => "order-backward",
+            K::InFrontOf => "order-in-front-of",
+            K::BehindOf => "order-behind-of",
+            K::Group_ => "group",
+            K::Ungroup => "ungroup",
+            K::UngroupAll => "ungroup-all",
+            K::LockSelection => "lock-on",
+            K::UnlockSelection => "lock-off",
+            K::HideSelection => "eye-off",
+            K::ShowAll => "show-all",
+            K::UnlockAll => "unlock-all",
+            K::ConvertTextKind => "text-convert",
+            K::FitTextToPath => "text-path",
+            K::CutLine => "cut-line",
+            K::ExportSelection => "export-selection",
+            K::FocusMode => "focus",
+            K::Paste => "paste",
+            K::SelectAll => "select-all",
+            _ => "",
+        },
+        Cmd::NodeKind(NodeKind::Corner) => "node-corner",
+        Cmd::NodeKind(NodeKind::Smooth) => "node-smooth",
+        Cmd::NodeKind(NodeKind::Symmetric) => "node-symmetric",
+        Cmd::BreakNode => "node-break",
+        Cmd::JoinEnds => "node-join",
+        Cmd::DeleteNode => "node-delete",
+        Cmd::SegToCurve => "seg-curve",
+        Cmd::SegToLine => "seg-line",
+        Cmd::AddNodeHere => "node-add",
+        Cmd::Reverse => "path-reverse",
+        Cmd::SampleText => "text-sample",
+        Cmd::UseAsTextFrame => "text-frame",
+        Cmd::ImageFrame => "image-frame",
+        Cmd::ExitFocus => "focus",
+        Cmd::MoveHere => "move-here",
+        Cmd::CopyHere => "duplicate",
+        Cmd::CopyAll => "copy-props",
+        Cmd::CopyStroke => "copy-stroke",
+        Cmd::CopyFill => "copy-fill",
+        Cmd::Weld => "bool-weld",
+        Cmd::Trim => "bool-trim",
+        Cmd::Intersect => "bool-intersect",
+        Cmd::CenterOnTarget => "center-on",
+        Cmd::ClipInside => "clip-inside",
+        Cmd::LinkedInstance => "instance",
+        Cmd::Cancel => "cancel",
+    }
+}
+
+/// Ícone de 16 px na cor do texto do tema.
+fn menu_icon(ui: &egui::Ui, name: &str) -> egui::Image<'static> {
+    egui::Image::new(crate::icons::get_micro(name))
+        .tint(crate::theme::palette(ui).fg_primary)
+        .fit_to_exact_size(egui::Vec2::splat(crate::theme::ICON_MICRO))
+}
+
 /// Desenha os itens; devolve o escolhido.
 pub fn show(ui: &mut egui::Ui, entries: &[Entry]) -> Option<Cmd> {
     let mut picked = None;
@@ -412,7 +484,11 @@ pub fn show(ui: &mut egui::Ui, entries: &[Entry]) -> Option<Cmd> {
                 } else {
                     label.to_string()
                 };
-                let r = ui.add_enabled(disabled.is_none(), egui::Button::new(text));
+                let button = match icon_of(cmd) {
+                    "" => egui::Button::new(text),
+                    name => egui::Button::image_and_text(menu_icon(ui, name), text),
+                };
+                let r = ui.add_enabled(disabled.is_none(), button);
                 let r = match disabled {
                     Some(why) => r.on_disabled_hover_text(*why),
                     None => r,
@@ -422,7 +498,7 @@ pub fn show(ui: &mut egui::Ui, entries: &[Entry]) -> Option<Cmd> {
                 }
             }
             Entry::Sub(label, items) => {
-                ui.menu_button(*label, |ui| {
+                ui.menu_image_text_button(menu_icon(ui, "order-front"), *label, |ui| {
                     if let Some(c) = show(ui, items) {
                         picked = Some(c);
                     }
@@ -481,6 +557,52 @@ mod tests {
             locked,
             vec![tr("Desbloquear", "Unlock"), tr("Ordem", "Order")]
         );
+    }
+
+    /// Todo item dos menus tem ícone, e o desenho existe em assets/icons.
+    #[test]
+    fn every_menu_item_has_an_icon() {
+        let mut doc = DocState::new_blank();
+        let mut o = Object::new(ObjectKind::Rectangle(RectData {
+            width: 10.0,
+            height: 10.0,
+            corners: None,
+            extra: Default::default(),
+        }));
+        o.stroke = Some(graphdraw_core::model::Stroke::new(
+            1.0,
+            graphdraw_core::model::Color::black(),
+        ));
+        let a = ops::add_object(&mut doc.editor, 0, 0, o.clone(), "a");
+        let b = ops::add_object(&mut doc.editor, 0, 0, o, "b");
+        doc.selection = vec![a.clone(), b];
+        fn walk(v: &[Entry], out: &mut Vec<Cmd>) {
+            for e in v {
+                match e {
+                    Entry::Item { cmd, .. } => out.push(cmd.clone()),
+                    Entry::Sub(_, s) => walk(s, out),
+                    Entry::Sep => {}
+                }
+            }
+        }
+        let mut cmds = Vec::new();
+        for v in [
+            object_entries(&doc, &a, false),
+            object_entries(&doc, &a, true),
+            empty_entries(true, true),
+            node_entries(NodeKind::Corner, true),
+            segment_entries(),
+            drop_entries(true),
+            drop_entries(false),
+        ] {
+            walk(&v, &mut cmds);
+        }
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/icons");
+        for c in cmds {
+            let name = icon_of(&c);
+            assert!(!name.is_empty(), "sem ícone: {c:?}");
+            assert!(dir.join(format!("{name}.svg")).exists(), "falta {name}.svg");
+        }
     }
 
     #[test]

@@ -298,6 +298,20 @@ segmento ou soltura de arrasto direito. Item que ainda não existe (Beta)
 aparece desabilitado com o motivo na dica — nunca some. Clique fora ou Esc
 fecha sem efeito. Clique é soltar com menos de 4 px de movimento e menos de
 0,5 s; toque longo no canvas não abre nada.
+Cada item tem ícone de 16 px (`icon-micro`) na cor do texto, à esquerda do
+rótulo. A função que já tem ícone em outro lugar usa o mesmo, por exemplo:
+- `to-curves`, `group`/`ungroup`, `order-*`, `lock-on`/`lock-off`
+  e `eye-off`;
+- os de nó e de segmento;
+- `bool-weld`/`trim`/`intersect` e `duplicate` (Copiar para cá).
+
+Os ícones próprios do menu ficam no grupo “menu do botão direito” do
+gerador. O teste `every_menu_item_has_an_icon` garante que nenhum item fica
+sem ícone.
+
+**Objeto bloqueado** (GD-BDR-45): o clique esquerdo passa reto por ele. Só
+o botão direito chega nele e abre Desbloquear e Ordem. Abrir o menu não muda
+a seleção; o comando escolhido vale para o objeto bloqueado.
 
 ### 4.4 Janelas (modais)
 
