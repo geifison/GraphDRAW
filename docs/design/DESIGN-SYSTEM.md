@@ -370,6 +370,11 @@ de texto.
 - **Botão direito** no objeto (no painel ou no canvas): menu de edição
   rápida com o campo Nome (`menu-field-width` = 160 px, Enter confirma),
   Travar/Destravar e Ocultar/Mostrar.
+- **Dados do objeto** (GD-OBJ-05), abaixo da árvore com um objeto
+  selecionado: recolhível com uma linha por par (chave, campo de valor de
+  `user-data-field-width` = 90 px, botão de tirar) e uma linha para o par
+  novo (chave e valor com dica, botão de adicionar ou Enter). O valor é
+  gravado ao sair do campo; cada alteração é um passo de desfazer.
 
 ---
 

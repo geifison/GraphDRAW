@@ -1207,6 +1207,19 @@ pub fn convert_to_curves(ed: &mut Editor, sel: &[String]) {
     });
 }
 
+/// Dados de usuário do objeto (GD-OBJ-05); mapa vazio tira o campo.
+pub fn set_user_data(ed: &mut Editor, id: &str, data: BTreeMap<String, String>) {
+    let ids = [id.to_string()];
+    modify(ed, &ids, "Dados do objeto", |o| {
+        let new = (!data.is_empty()).then(|| data.clone());
+        if o.user_data == new {
+            return false;
+        }
+        o.user_data = new;
+        true
+    });
+}
+
 /// Extrair subcaminhos (GD-NOD-08): os subcaminhos `which` saem do caminho
 /// `id` e viram um objeto novo logo acima, com os mesmos atributos.
 /// Devolve o ID do novo objeto.
@@ -1851,5 +1864,25 @@ mod tests {
         let b = object_bounds(&ed, &r, false).unwrap();
         assert!((b.width() - 20.0).abs() < 1e-9 && (b.height() - 10.0).abs() < 1e-9);
         assert!((b.center() - before).hypot() < 1e-9);
+    }
+
+    /// GD-OBJ-05: pares chave/valor no objeto, com desfazer.
+    #[test]
+    fn gd_obj_05_user_data() {
+        let (mut ed, ids) = setup();
+        let mut m = BTreeMap::new();
+        m.insert("código".to_string(), "OP-123".to_string());
+        set_user_data(&mut ed, &ids[0], m.clone());
+        let get = |ed: &Editor| {
+            ed.object(ed.locate(&ids[0]).unwrap())
+                .unwrap()
+                .user_data
+                .clone()
+        };
+        assert_eq!(get(&ed), Some(m));
+        set_user_data(&mut ed, &ids[0], BTreeMap::new());
+        assert_eq!(get(&ed), None);
+        ed.undo();
+        assert!(get(&ed).is_some());
     }
 }

@@ -385,7 +385,10 @@ impl App {
         match tab {
             RightTab::Transform => transform_panel(ui, doc, &mut self.xf),
             RightTab::Align => align_panel(ui, doc, &mut self.align),
-            RightTab::Layers => layers_panel(ui, doc, &mut self.layer_tree),
+            RightTab::Layers => {
+                layers_panel(ui, doc, &mut self.layer_tree);
+                user_data_section(ui, doc);
+            }
             RightTab::History => history_panel(ui, doc),
             RightTab::Pages => {
                 if pages_panel(ui, doc) {
@@ -2791,6 +2794,112 @@ fn gradient_bar(ui: &mut egui::Ui, doc: &mut DocState) {
             "Drag over the object to create · drag handles and stops · double-click the line to add a stop · Delete removes the stop · Ctrl = 15° angle steps",
         ),
     );
+}
+
+/// Dados do objeto (GD-OBJ-05): pares chave/valor do objeto selecionado
+/// sozinho (orçamento, código de produção). Cada alteração é um passo.
+fn user_data_section(ui: &mut egui::Ui, doc: &mut DocState) {
+    let [id] = doc.selection.as_slice() else {
+        return;
+    };
+    let id = id.clone();
+    let Some(data) = doc
+        .editor
+        .find(&id)
+        .and_then(|r| doc.editor.get(&r))
+        .map(|o| o.user_data.clone().unwrap_or_default())
+    else {
+        return;
+    };
+    ui.separator();
+    let mut next: Option<std::collections::BTreeMap<String, String>> = None;
+    egui::CollapsingHeader::new(tr("Dados do objeto", "Object data"))
+        .id_salt("dados-objeto")
+        .default_open(true)
+        .show(ui, |ui| {
+            egui::Grid::new("dados-objeto-grade")
+                .num_columns(3)
+                .spacing([theme::SPACE_100, theme::SPACE_050])
+                .show(ui, |ui| {
+                    for (k, v) in &data {
+                        ui.label(k);
+                        // Texto em edição fica guardado até sair do campo.
+                        let buf_id = ui.make_persistent_id(("dado", &id, k));
+                        let mut val = ui
+                            .data(|d| d.get_temp::<String>(buf_id))
+                            .unwrap_or_else(|| v.clone());
+                        let r = ui.add(
+                            egui::TextEdit::singleline(&mut val)
+                                .desired_width(theme::USER_DATA_FIELD_WIDTH),
+                        );
+                        if r.changed() {
+                            ui.data_mut(|d| d.insert_temp(buf_id, val.clone()));
+                        }
+                        if r.lost_focus() {
+                            ui.data_mut(|d| d.remove::<String>(buf_id));
+                            if val != *v {
+                                let mut m = data.clone();
+                                m.insert(k.clone(), val);
+                                next = Some(m);
+                            }
+                        }
+                        if icons::button(
+                            ui,
+                            "delete",
+                            tr("Tirar este dado", "Remove this entry"),
+                            false,
+                            true,
+                        )
+                        .clicked()
+                        {
+                            let mut m = data.clone();
+                            m.remove(k);
+                            next = Some(m);
+                        }
+                        ui.end_row();
+                    }
+                });
+            // Novo par.
+            let new_id = ui.make_persistent_id(("dado-novo", &id));
+            let (mut key, mut val) = ui
+                .data(|d| d.get_temp::<(String, String)>(new_id))
+                .unwrap_or_default();
+            let mut add = false;
+            ui.horizontal(|ui| {
+                let k = ui.add(
+                    egui::TextEdit::singleline(&mut key)
+                        .hint_text(tr("chave", "key"))
+                        .desired_width(theme::USER_DATA_FIELD_WIDTH),
+                );
+                let v = ui.add(
+                    egui::TextEdit::singleline(&mut val)
+                        .hint_text(tr("valor", "value"))
+                        .desired_width(theme::USER_DATA_FIELD_WIDTH),
+                );
+                let enter = (k.lost_focus() || v.lost_focus())
+                    && ui.input(|i| i.key_pressed(egui::Key::Enter));
+                add = icons::button(
+                    ui,
+                    "layer-add",
+                    tr("Adicionar dado", "Add entry"),
+                    false,
+                    !key.trim().is_empty(),
+                )
+                .clicked()
+                    || (enter && !key.trim().is_empty());
+            });
+            if add {
+                let mut m = data.clone();
+                m.insert(key.trim().to_string(), val.clone());
+                next = Some(m);
+                ui.data_mut(|d| d.remove::<(String, String)>(new_id));
+            } else {
+                ui.data_mut(|d| d.insert_temp(new_id, (key, val)));
+            }
+        });
+    if let Some(m) = next {
+        ops::set_user_data(&mut doc.editor, &id, m);
+    }
 }
 
 #[cfg(test)]
