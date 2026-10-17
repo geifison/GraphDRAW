@@ -89,6 +89,8 @@ pub struct App {
     pub(crate) canvas: CanvasState,
     /// Objetos dentro das camadas: miniaturas, renomear e arrastar.
     pub(crate) layer_tree: crate::layertree::LayerTree,
+    /// Seletor de fonte com prévia e busca.
+    pub(crate) font_picker: crate::fontpicker::FontPicker,
     /// Área de trabalho (GD-UI-03): recolhida, largura e painéis soltos;
     /// `ws_saved` é a última versão gravada no arquivo.
     pub(crate) ws: crate::workspace::Workspace,
@@ -162,6 +164,7 @@ impl App {
             },
             right_tab: RightTab::Transform,
             layer_tree: Default::default(),
+            font_picker: Default::default(),
             ws: Default::default(),
             ws_saved: Default::default(),
             show_right: true,

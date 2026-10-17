@@ -11,6 +11,7 @@ mod cutui;
 mod dialogs;
 mod doc;
 mod doctabs;
+mod fontpicker;
 mod i18n;
 mod icons;
 mod import;

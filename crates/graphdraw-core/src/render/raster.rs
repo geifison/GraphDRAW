@@ -375,6 +375,45 @@ fn draw_image(pm: &mut sk::Pixmap, img: &ImageItem, view: Affine, opts: &RasterO
     );
 }
 
+/// Prévia de família de fonte (seletor de fonte, GD-FNT-01): cobertura
+/// (alfa 0–255) de `text` desenhado na própria família, com `height` px de
+/// altura e no máximo `max_width` px de largura. `None` se a família não
+/// estiver instalada.
+pub fn font_preview(
+    family: &str,
+    text: &str,
+    height: u32,
+    max_width: u32,
+) -> Option<(u32, u32, Vec<u8>)> {
+    use kurbo::Shape;
+    let h = height.max(4) as f64;
+    // Corpo para a ascendente ocupar ~80% da altura.
+    let size = h * 0.72;
+    let (path, ascent) = crate::render::text::family_outline(family, text, size)?;
+    if path.elements().is_empty() {
+        return None;
+    }
+    let bb = path.bounding_box();
+    let w = ((bb.x1.max(1.0)).ceil() as u32 + 2).min(max_width.max(8));
+    // Linha de base um pouco abaixo da ascendente; Y da tela para baixo.
+    let base = (ascent.min(h * 0.8)).max(h * 0.6) + 1.0;
+    let view = Affine::new([1.0, 0.0, 0.0, -1.0, 1.0, base]);
+    let mut pm = sk::Pixmap::new(w, height)?;
+    let p = to_sk_path(&path, view)?;
+    let mut paint = sk::Paint::default();
+    paint.set_color(sk::Color::WHITE);
+    paint.anti_alias = true;
+    pm.fill_path(
+        &p,
+        &paint,
+        sk::FillRule::Winding,
+        sk::Transform::identity(),
+        None,
+    );
+    let alpha = pm.pixels().iter().map(|px| px.alpha()).collect();
+    Some((w, height, alpha))
+}
+
 pub fn premultiplied_pixmap(rgba: &[u8], w: u32, h: u32) -> Option<sk::Pixmap> {
     let mut data = rgba.to_vec();
     for px in data.as_chunks_mut::<4>().0 {

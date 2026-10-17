@@ -275,6 +275,12 @@ pub const CUT_PREVIEW_SECONDS: f32 = 4.0;
 pub const HEX_FIELD_WIDTH: f32 = 72.0;
 /// Escolha de família de fonte na barra de propriedades (doc 06).
 pub const FONT_COMBO_WIDTH: f32 = 180.0;
+/// Lista do seletor de fonte: largura, altura máxima, altura da prévia de
+/// cada família e largura máxima da prévia (doc 06, GD-FNT-01).
+pub const FONT_POPUP_WIDTH: f32 = 300.0;
+pub const FONT_LIST_HEIGHT: f32 = 360.0;
+pub const FONT_PREVIEW_HEIGHT: f32 = 22.0;
+pub const FONT_PREVIEW_MAX_WIDTH: f32 = 270.0;
 /// Amostras de cor (paleta e indicadores).
 pub const SWATCH: f32 = 18.0;
 

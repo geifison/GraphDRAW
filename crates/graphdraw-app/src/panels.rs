@@ -65,6 +65,7 @@ impl App {
     /// Barra de propriedades: muda conforme a ferramenta e a seleção.
     pub fn property_bar(&mut self, ui: &mut egui::Ui) {
         let text_targets = self.text_targets();
+        let picker = &mut self.font_picker;
         let Some(doc) = self.doc.as_mut() else {
             ui.label(tr("Nenhum documento aberto", "No document open"));
             return;
@@ -141,7 +142,7 @@ impl App {
             // (GD-DIM-23). Vale para todas as páginas (GD-PAG-01).
             Tool::Text => {
                 widgets::single_line_bar(ui, "barra-texto", |ui| {
-                    if let Some(st) = text_bar(ui, doc, &text_targets) {
+                    if let Some(st) = text_bar(ui, doc, &text_targets, picker) {
                         pending_style = Some(st);
                     }
                 });
@@ -165,7 +166,7 @@ impl App {
                     // Só textos selecionados: os controles de texto vêm junto.
                     if !texts.is_empty() && texts.len() == doc.selection.len() {
                         ui.separator();
-                        if let Some(st) = text_bar(ui, doc, texts) {
+                        if let Some(st) = text_bar(ui, doc, texts, picker) {
                             pending_style = Some(st);
                         }
                     }
@@ -594,6 +595,7 @@ fn text_bar(
     ui: &mut egui::Ui,
     doc: &DocState,
     targets: &[String],
+    picker: &mut crate::fontpicker::FontPicker,
 ) -> Option<graphdraw_core::edit::text::TextStyle> {
     use graphdraw_core::edit::text::{self as tedit, TextStyle};
     let current = targets
@@ -615,16 +617,9 @@ fn text_bar(
         return None;
     };
     let mut out = None;
-    let mut fam = family.clone();
-    egui::ComboBox::from_id_salt("texto-familia")
-        .selected_text(&fam)
-        .width(theme::FONT_COMBO_WIDTH)
-        .show_ui(ui, |ui| {
-            for f in crate::textedit::families() {
-                ui.selectable_value(&mut fam, f.clone(), f);
-            }
-        });
-    if fam != family {
+    if let Some(fam) = picker.show(ui, &family)
+        && fam != family
+    {
         out = Some(TextStyle {
             family: Some(fam),
             ..Default::default()

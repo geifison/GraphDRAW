@@ -184,6 +184,21 @@ fn shape(id: fontdb::ID, text: &str, size: f64) -> Option<Shaped> {
     })?
 }
 
+/// Contorno de `text` na família pedida (sem substituir), com corpo
+/// `size`, linha de base em y = 0 e Y para cima; devolve também a ascendente.
+pub fn family_outline(family: &str, text: &str, size: f64) -> Option<(BezPath, f64)> {
+    let (id, _, substituted) = resolve_font(family, 400, false)?;
+    if substituted {
+        return None;
+    }
+    let s = shape(id, text, size)?;
+    let mut out = BezPath::new();
+    for g in s.glyphs {
+        out.extend(g.outline);
+    }
+    Some((out, s.ascent))
+}
+
 /// Famílias de fonte instaladas, em ordem alfabética (GD-FNT-01).
 pub fn font_families() -> Vec<String> {
     let mut v: Vec<String> = fonts()
