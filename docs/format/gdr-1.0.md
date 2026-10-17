@@ -42,6 +42,26 @@ Guias (GD-GUI-01): `settings.guides` valem em todas as páginas e
 `angle` (inclinada: ponto por onde passa e graus a partir de +X), `locked?`
 e `color?`. Listas vazias não são gravadas.
 
+**Cota** (`dimension`, GD-COT-01..03):
+- `points` no espaço local:
+  - lineares e `segment`: `[a, b]`;
+  - `angular`: `[vértice, a, b]`;
+  - `radius`/`diameter`: `[centro, ponto da borda]`.
+- `offset` (µm): distância da linha de cota (lineares), raio do arco
+  (angular) ou guia além da borda (raio).
+- `links`: para cada ponto, `null` ou `{ "object", "subpath", "node" }` — o
+  nó medido (GD-COT-02); `segment` liga o segmento medido.
+- O leitor resolve as ligações ao desenhar. O editor grava os pontos novos
+  no mesmo passo da alteração.
+- `format`:
+  - `unit` (`mm`, `cm`, `m`, `in`, `pt`), `precision`, `prefix`, `suffix`;
+  - `showUnit`, `textPosition` (`above`/`inline`);
+  - `arrow` (forma de ponta ou `none`), `extensionLines`;
+  - `textSize` (µm), `font`.
+- O valor usa `settings.drawingScale` (GD-DOC-03). A vírgula é o separador
+  decimal; raio leva "R" e diâmetro "Ø".
+- A cor das linhas e do texto é a do `stroke` do objeto.
+
 `settings.preflight` (opcional; ausente = padrão) guarda os limites da verificação
 prévia (GD-PRE-02, doc 28): `tac` (%, padrão 300), `minLine` e `minLineNegative`
 (µm; 0,25 e 0,5 pt), `safeZone` (µm, 5 mm), `nearEdge` (µm, 1,5 mm) e
@@ -95,6 +115,7 @@ valor desconhecido é lido como `normal`; GD-TRA-02).
 | `group` | `children [objeto]` | — |
 | `text` | `textKind` (`artistic`/`paragraph`), `frame? [w,h]`, `lineSpacing` (múltiplo do corpo, padrão 1,2), `paragraphs [{align, spans [{text, font {family, size, weight, italic}, fill?}]}]`, `path? {subpaths, offset, distance, side above|below, orientation rotate|skew-v|skew-h|upright, mirror}` (texto em caminho, GD-TXT-09; caminho em coordenadas locais do texto) | origem no canto superior esquerdo do bloco; linhas descem (−Y) |
 | `image` | `width`, `height`, `src` (`resources/images/<sha256>.<ext>`) | `[0,width]×[0,height]`, topo da imagem em `y = height` |
+| `dimension` | `dimKind` (`horizontal`, `vertical`, `aligned`, `angular`, `radius`, `diameter`, `segment`), `points`, `offset?`, `links?`, `segment?`, `format?` | pontos medidos no espaço local (GD-COT-01..03; ver abaixo) |
 
 Segmento entre dois nós: reto se nem `out` do primeiro nem `in` do segundo
 existem; senão, Bézier cúbica (alça ausente = o próprio nó). `in`/`out` são

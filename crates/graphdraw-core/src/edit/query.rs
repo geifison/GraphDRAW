@@ -26,6 +26,7 @@ pub fn local_outline(o: &Object) -> Option<BezPath> {
             }
             all
         }
+        ObjectKind::Dimension(d) => super::dimension::outline(d),
         _ => return None,
     })
 }
@@ -92,7 +93,7 @@ pub fn hits(o: &Object, parent: Affine, p: Point, tol: f64) -> bool {
     let m = parent * o.transform.affine();
     match &o.kind {
         ObjectKind::Group(g) => g.children.iter().any(|c| hits(c, m, p, tol)),
-        ObjectKind::Image(_) | ObjectKind::Text(_) => {
+        ObjectKind::Image(_) | ObjectKind::Text(_) | ObjectKind::Dimension(_) => {
             bounds(o, parent, false).is_some_and(|b| b.inflate(tol, tol).contains(p))
         }
         ObjectKind::Unknown { .. } => false,

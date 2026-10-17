@@ -89,6 +89,8 @@ pub enum ObjectKind {
     Group(GroupData),
     Text(TextData),
     Image(ImageData),
+    /// Cota (GD-COT-01..03, doc 08).
+    Dimension(DimensionData),
     /// Tipo desconhecido ou objeto inválido: JSON original preservado.
     Unknown {
         raw: Value,
@@ -274,6 +276,77 @@ fn rotate() -> String {
     "rotate".into()
 }
 
+/// Cota (GD-COT-01..03). `dim_kind`: `horizontal`, `vertical`,
+/// `aligned` (paralela), `angular`, `radius`, `diameter` ou `segment`
+/// (comprimento de um segmento de curva). `points` no espaço local:
+/// lineares e segmento `[a, b]`; angular `[vértice, a, b]`; raio e
+/// diâmetro `[centro, ponto da borda]`. `offset` (µm): distância da linha
+/// de cota (lineares), raio do arco (angular) ou guia além da borda (raio).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DimensionData {
+    pub dim_kind: String,
+    pub points: Vec<[f64; 2]>,
+    #[serde(default)]
+    pub offset: f64,
+    /// Nó ligado a cada ponto (GD-COT-02); `None` = ponto livre.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub links: Vec<Option<DimLink>>,
+    /// Segmento medido (tipo `segment`): `node` = índice do segmento.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub segment: Option<DimLink>,
+    #[serde(default)]
+    pub format: DimFormat,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+/// Nó (ou segmento) de outro objeto a que a cota está ligada.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DimLink {
+    pub object: String,
+    pub subpath: usize,
+    pub node: usize,
+}
+
+/// Formato da cota (GD-COT-03).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct DimFormat {
+    /// `mm`, `cm`, `m`, `in`, `pt`.
+    pub unit: String,
+    pub precision: u32,
+    pub prefix: String,
+    pub suffix: String,
+    pub show_unit: bool,
+    /// `above` (acima da linha) ou `inline` (sobre a linha).
+    pub text_position: String,
+    /// Ponta: `triangle`, `bar`, `circle` ou `none`.
+    pub arrow: String,
+    pub extension_lines: bool,
+    /// Corpo do texto (µm) e família.
+    pub text_size: f64,
+    pub font: String,
+}
+
+impl Default for DimFormat {
+    fn default() -> Self {
+        DimFormat {
+            unit: "mm".into(),
+            precision: 1,
+            prefix: String::new(),
+            suffix: String::new(),
+            show_unit: true,
+            text_position: "above".into(),
+            arrow: "triangle".into(),
+            extension_lines: true,
+            text_size: 3_500.0,
+            font: "Arial".into(),
+        }
+    }
+}
+
 /// Imagem ocupando `[0,width]×[0,height]` no espaço local; `src` aponta
 /// para `resources/images/<sha256>.<ext>`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -346,6 +419,7 @@ impl Object {
             ObjectKind::Group(_) => "group",
             ObjectKind::Text(_) => "text",
             ObjectKind::Image(_) => "image",
+            ObjectKind::Dimension(_) => "dimension",
             ObjectKind::Unknown { raw, .. } => {
                 raw.get("type").and_then(Value::as_str).unwrap_or("?")
             }
@@ -438,6 +512,7 @@ impl Object {
             "group" => ObjectKind::Group(parse(rest, ty)?),
             "text" => ObjectKind::Text(parse(rest, ty)?),
             "image" => ObjectKind::Image(parse(rest, ty)?),
+            "dimension" => ObjectKind::Dimension(parse(rest, ty)?),
             _ => ObjectKind::Unknown {
                 raw: v.clone(),
                 error: None,
@@ -504,6 +579,7 @@ impl Object {
             ObjectKind::Group(d) => serde_json::to_value(d),
             ObjectKind::Text(d) => serde_json::to_value(d),
             ObjectKind::Image(d) => serde_json::to_value(d),
+            ObjectKind::Dimension(d) => serde_json::to_value(d),
             ObjectKind::Unknown { .. } => unreachable!(),
         };
         if let Ok(Value::Object(k)) = kind {

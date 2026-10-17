@@ -69,6 +69,17 @@ pub enum Tool {
     /// Transformação livre (GD-FER-03): o arrasto gira, reflete, escala ou
     /// inclina a seleção em torno do ponto onde começa.
     FreeTransform,
+    /// Cota (GD-FER-40, GD-COT-01..03): cliques nos pontos medidos (encaixam
+    /// e ligam nos nós) e um último clique para o afastamento.
+    Dimension,
+}
+
+/// Cota sendo feita: tipo, pontos (página), ligações e segmento medido.
+#[derive(Debug, Clone, Default)]
+pub struct DimDraft {
+    pub pts: Vec<Point>,
+    pub links: Vec<Option<graphdraw_core::model::DimLink>>,
+    pub segment: Option<graphdraw_core::model::DimLink>,
 }
 
 /// Modo da linha 2 pontos (GD-FER-21).
@@ -189,6 +200,17 @@ impl Tool {
                 ),
                 "",
             ),
+            Tool::Dimension => (
+                "tool-dimension",
+                crate::keymap::hint(
+                    tr(
+                        "Cota — clique nos pontos a medir (ligam nos nós), depois onde vai a linha de cota",
+                        "Dimension — click the points to measure (they link to nodes), then where the dimension line goes",
+                    ),
+                    crate::keymap::Command::ToolDimension,
+                ),
+                "",
+            ),
             Tool::FreeTransform => (
                 "tool-free-transform",
                 crate::keymap::hint(
@@ -290,7 +312,7 @@ impl Tool {
             ),
         }
     }
-    pub const ALL: [Tool; 22] = [
+    pub const ALL: [Tool; 23] = [
         Tool::Select,
         Tool::Shape,
         Tool::Zoom,
@@ -313,6 +335,7 @@ impl Tool {
         Tool::Line2,
         Tool::Curve3,
         Tool::FreeTransform,
+        Tool::Dimension,
     ];
 }
 
@@ -622,6 +645,10 @@ pub struct CanvasState {
     curve3: Option<(Point, Point)>,
     /// Modo da transformação livre.
     pub free_mode: graphdraw_core::edit::freexf::Mode,
+    /// Cota: tipo, formato das próximas e a que está sendo feita.
+    pub dim_kind: String,
+    pub dim_format: graphdraw_core::model::DimFormat,
+    pub dim_draft: Option<DimDraft>,
     /// Conta-gotas (doc 27).
     pub eyedrop: crate::eyedrop::Eyedrop,
     /// Último quadro renderizado (RGBA pré-multiplicado), guardado só com o
@@ -716,6 +743,9 @@ impl Default for CanvasState {
             line_mode: LineMode::Free,
             curve3: None,
             free_mode: Default::default(),
+            dim_kind: "horizontal".into(),
+            dim_format: Default::default(),
+            dim_draft: None,
             eyedrop: Default::default(),
             pixels: None,
             focus: None,
@@ -1341,7 +1371,7 @@ impl CanvasState {
         if self.pick_reference.take().is_some() {
             return true;
         }
-        if self.curve3.take().is_some() {
+        if self.curve3.take().is_some() || self.dim_draft.take().is_some() {
             return true;
         }
         if self.crop_pending.take().is_some()
@@ -1968,7 +1998,8 @@ impl CanvasState {
             self.double_click(tool, doc, to_page(pos), tol, defaults, &mut ev);
         }
         if (matches!(tool, Tool::Bezier | Tool::Polyline) && self.bezier.is_some()
-            || self.curve3.is_some())
+            || self.curve3.is_some()
+            || self.dim_draft.is_some())
             && self.cursor_page.is_some()
         {
             ui.ctx().request_repaint();
@@ -2446,6 +2477,9 @@ impl CanvasState {
             },
             Tool::SolidFill => Glyph::Cross {
                 badge: "tool-fill-solid",
+            },
+            Tool::Dimension => Glyph::Cross {
+                badge: "tool-dimension",
             },
             Tool::FreeTransform => Glyph::Cross {
                 badge: "tool-free-transform",
@@ -3230,7 +3264,7 @@ impl CanvasState {
             }
             Tool::Gradient => self.start_gradient_drag(doc, p, origin, tol, rect, ph),
             // Ferramentas de clique: arrastar não faz nada.
-            Tool::SolidFill | Tool::Eyedropper | Tool::VirtualDelete => {}
+            Tool::SolidFill | Tool::Eyedropper | Tool::VirtualDelete | Tool::Dimension => {}
             Tool::Select => self.start_select_drag(doc, p, origin, mods, tol, rect, ph),
             Tool::Shape => self.start_shape_drag(doc, p, origin, mods, tol, rect, ph),
             Tool::Artboard => {
@@ -3540,6 +3574,118 @@ impl CanvasState {
         self.note = Some(msg);
     }
 
+    /// Pontos que o tipo de cota pede antes do clique do afastamento
+    /// (diâmetro não tem afastamento).
+    fn dim_needs(kind: &str) -> usize {
+        match kind {
+            "angular" => 3,
+            "segment" => 0,
+            _ => 2,
+        }
+    }
+
+    /// Cota de prévia: os pontos do rascunho, o cursor como próximo ponto
+    /// ou, com os pontos completos, como afastamento.
+    fn dim_preview(
+        &self,
+        dr: &DimDraft,
+        cur: Point,
+    ) -> Option<graphdraw_core::model::DimensionData> {
+        use graphdraw_core::edit::dimension as dim;
+        let kind = self.dim_kind.as_str();
+        let need = Self::dim_needs(kind).max(if kind == "segment" { 2 } else { 0 });
+        let mut pts = dr.pts.clone();
+        let mut offset = 0.0;
+        if pts.len() < need {
+            pts.push(cur);
+        } else {
+            offset = dim_offset(kind, &pts, cur);
+        }
+        if pts.len() < 2 {
+            return None;
+        }
+        let o = dim::new_dimension(kind, &pts, offset, Vec::new());
+        match o.kind {
+            ObjectKind::Dimension(mut d) => {
+                d.format = self.dim_format.clone();
+                Some(d)
+            }
+            _ => None,
+        }
+    }
+
+    /// Clique da ferramenta Cota (GD-FER-40): junta pontos (encaixe nos nós
+    /// liga a cota a eles) e, completa, cria a cota com o afastamento.
+    fn dimension_click(&mut self, doc: &mut DocState, p: Point, defaults: &Defaults) {
+        use graphdraw_core::edit::dimension as dim;
+        let tol = 7.0 / self.view.zoom;
+        let kind = self.dim_kind.clone();
+        let dr = self.dim_draft.get_or_insert_with(DimDraft::default);
+        if kind == "segment" && dr.pts.is_empty() {
+            match dim::segment_near(doc.page(), p, tol) {
+                Some((l, a, b)) => {
+                    dr.pts = vec![a, b];
+                    dr.links = vec![None, None];
+                    dr.segment = Some(l);
+                }
+                None => {
+                    self.dim_draft = None;
+                    self.note = Some(
+                        tr(
+                            "Clique sobre um segmento de curva",
+                            "Click on a curve segment",
+                        )
+                        .into(),
+                    );
+                }
+            }
+            return;
+        }
+        let need = Self::dim_needs(&kind).max(if kind == "segment" { 2 } else { 0 });
+        if dr.pts.len() < need {
+            let (link, q) = match dim::node_near(doc.page(), p, tol) {
+                Some((l, q)) => (Some(l), q),
+                None => (None, p),
+            };
+            dr.pts.push(q);
+            dr.links.push(link);
+            // Diâmetro: dois pontos bastam.
+            if !(kind == "diameter" && dr.pts.len() == 2) {
+                return;
+            }
+        }
+        let Some(dr) = self.dim_draft.take() else {
+            return;
+        };
+        let offset = if kind == "diameter" {
+            0.0
+        } else {
+            dim_offset(&kind, &dr.pts, p)
+        };
+        let mut o = dim::new_dimension(&kind, &dr.pts, offset, dr.links);
+        if let ObjectKind::Dimension(d) = &mut o.kind {
+            d.segment = dr.segment;
+            d.format = self.dim_format.clone();
+        }
+        if let Some(s) = &defaults.stroke {
+            let mut s = s.clone();
+            s.width = s.width.min(dim::LINE_WIDTH * 2.0);
+            s.start_arrow = None;
+            s.end_arrow = None;
+            o.stroke = Some(s);
+        }
+        if let Some(layer) = doc.layer_for_new_object() {
+            let id = ops::add_object(
+                &mut doc.editor,
+                doc.page,
+                layer,
+                o,
+                tr("Criar cota", "Create dimension"),
+            );
+            doc.selection = vec![id];
+        }
+    }
+
     /// Objeto desenhado (linha aberta ou curva fechada) com os padrões.
     fn add_drawn(&mut self, doc: &mut DocState, sp: Subpath, defaults: &Defaults, name: &str) {
         let closed = sp.closed;
@@ -3627,6 +3773,26 @@ impl CanvasState {
                 );
             }
             _ => {}
+        }
+        // Cota em andamento: a prévia com o cursor como próximo ponto ou afastamento.
+        if let (Some(dr), Some(c)) = (&self.dim_draft, self.cursor_page)
+            && let Some(d) = self.dim_preview(dr, c)
+        {
+            let pts: Vec<Point> = d.points.iter().map(|p| Point::new(p[0], p[1])).collect();
+            if let Some(g) = graphdraw_core::edit::dimension::geometry(&d, &pts) {
+                self.stroke_bez(painter, rect, ph, &g.extension, thin);
+                for (l, _, _) in &g.lines {
+                    self.stroke_bez(painter, rect, ph, l, thin);
+                }
+                let value = graphdraw_core::edit::dimension::measure(&d, &pts, None, [1.0, 1.0]);
+                painter.text(
+                    self.screen(rect, ph, g.text_at),
+                    egui::Align2::CENTER_BOTTOM,
+                    graphdraw_core::edit::dimension::label(&d, value),
+                    theme::font_micro(),
+                    accent,
+                );
+            }
         }
         if let (Some((a, b)), Some(c)) = (self.curve3, self.cursor_page) {
             let sp = graphdraw_core::edit::drawing::curve3(a, b, c);
@@ -5130,6 +5296,7 @@ impl CanvasState {
                     self.add_drawn(doc, sp, defaults, tr("Desenhar curva", "Draw curve"));
                 }
             }
+            Tool::Dimension => self.dimension_click(doc, p, defaults),
             Tool::VirtualDelete => {
                 let page = doc.page;
                 let done = pick(doc, p, tol, false).is_some_and(|id| {
@@ -5775,6 +5942,33 @@ fn fit_rect(r: kurbo::Rect, ph: f64, size: Vec2) -> View {
 /// Ajusta a vista para mostrar `r` (zoom para seleção/tudo, GD-FER-04).
 pub fn zoom_to_rect(cs: &mut CanvasState, r: kurbo::Rect) {
     cs.zoom_to = Some(r.inflate(r.width() * 0.05, r.height() * 0.05));
+}
+
+/// Afastamento da cota pelo cursor: distância à linha medida (lineares),
+/// ao vértice (angular) ou além da borda (raio).
+fn dim_offset(kind: &str, pts: &[Point], cur: Point) -> f64 {
+    let (a, b) = (pts[0], pts.get(1).copied().unwrap_or(pts[0]));
+    match kind {
+        "angular" => (cur - a).hypot(),
+        "radius" => {
+            let u = b - a;
+            if u.hypot() > 0.0 {
+                (cur - b).dot(u.normalize()).max(0.0)
+            } else {
+                0.0
+            }
+        }
+        "diameter" => 0.0,
+        _ => {
+            let dir = match kind {
+                "horizontal" => kurbo::Vec2::new(1.0, 0.0),
+                "vertical" => kurbo::Vec2::new(0.0, 1.0),
+                _ if (b - a).hypot() > 0.0 => (b - a).normalize(),
+                _ => kurbo::Vec2::new(1.0, 0.0),
+            };
+            (cur - a).dot(kurbo::Vec2::new(-dir.y, dir.x))
+        }
+    }
 }
 
 /// Ponto e normal (página) do contorno do objeto sob `p` (GD-FER-21).
@@ -6505,6 +6699,74 @@ mod tests {
         );
         assert_eq!(doc.selection, vec![id]);
         assert_eq!(ev.command, Some(crate::keymap::Command::UnlockSelection));
+    }
+
+    /// GD-FER-40/GD-COT-02: três cliques fazem a cota horizontal da base do
+    /// quadrado, ligada aos cantos; mover o quadrado arrasta a cota junto.
+    #[test]
+    fn dimension_tool_on_canvas() {
+        let (ctx, mut cs, mut doc, id, rect, ph) = bdr_setup();
+        let view = cs.view;
+        let at = |x: f64, y: f64| {
+            let (a, b) = view.page_to_screen(ph, x, y);
+            rect.min + Vec2::new(a as f32, b as f32)
+        };
+        let click = |cs: &mut CanvasState, doc: &mut DocState, p: Pos2| {
+            canvas_frame(
+                &ctx,
+                cs,
+                doc,
+                Tool::Dimension,
+                vec![egui::Event::PointerMoved(p)],
+            );
+            canvas_frame(
+                &ctx,
+                cs,
+                doc,
+                Tool::Dimension,
+                vec![button(p, PointerButton::Primary, true)],
+            );
+            canvas_frame(
+                &ctx,
+                cs,
+                doc,
+                Tool::Dimension,
+                vec![button(p, PointerButton::Primary, false)],
+            );
+        };
+        click(&mut cs, &mut doc, at(50_000.0, 100_000.0));
+        click(&mut cs, &mut doc, at(70_000.0, 100_000.0));
+        assert!(cs.dim_draft.is_some());
+        click(&mut cs, &mut doc, at(60_000.0, 90_000.0));
+        assert!(cs.dim_draft.is_none());
+        let objs = &doc.page().layers[0].objects;
+        let ObjectKind::Dimension(d) = &objs.last().unwrap().kind else {
+            panic!("cota")
+        };
+        assert!(
+            d.links
+                .iter()
+                .all(|l| l.as_ref().is_some_and(|l| l.object == id)),
+            "ligada ao quadrado"
+        );
+        assert!((d.offset + 10_000.0).abs() < 300.0, "{}", d.offset);
+        let dim_id = objs.last().unwrap().id.clone();
+        ops::transform(
+            &mut doc.editor,
+            std::slice::from_ref(&id),
+            kurbo::Affine::translate((30_000.0, 0.0)),
+            "Mover",
+        );
+        let d = match &doc
+            .editor
+            .get(&doc.editor.find(&dim_id).unwrap())
+            .unwrap()
+            .kind
+        {
+            ObjectKind::Dimension(d) => d.clone(),
+            _ => unreachable!(),
+        };
+        assert!((d.points[0][0] - 80_000.0).abs() < 1.0, "{:?}", d.points);
     }
 
     /// GD-FER-03: escalar pela metade a partir do canto inferior esquerdo e
@@ -7726,7 +7988,8 @@ mod tests {
                 "mira+tool-polyline",
                 "mira+tool-line2",
                 "mira+tool-curve3",
-                "mira+tool-free-transform"
+                "mira+tool-free-transform",
+                "mira+tool-dimension"
             ]
         );
         assert_eq!(

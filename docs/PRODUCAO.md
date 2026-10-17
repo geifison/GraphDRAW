@@ -36,7 +36,7 @@ Prioridade:
 - [x] Caneta com prévia do próximo segmento (GD-FER-23): a Bézier já faz isso.
 - [x] Transformação livre: girar, refletir, escalar e inclinar em torno
   de um ponto (GD-FER-03).
-- [ ] Cotas: horizontal, vertical, paralela e angular, ligadas aos nós,
+- [x] Cotas: horizontal, vertical, paralela e angular, ligadas aos nós,
   no formato da escala de desenho (GD-FER-40, GD-COT-01..03).
 
 ## P0 — Preenchimento e saída

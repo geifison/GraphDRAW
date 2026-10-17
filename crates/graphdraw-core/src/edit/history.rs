@@ -190,6 +190,10 @@ impl Editor {
         if self.depth == 0 {
             return;
         }
+        if self.depth == 1 && self.open.as_ref().is_some_and(|t| !t.changes.is_empty()) {
+            // Cotas ligadas acompanham os nós medidos, no mesmo passo.
+            super::dimension::refresh(self);
+        }
         self.depth -= 1;
         if self.depth > 0 {
             return;

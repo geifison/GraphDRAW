@@ -388,6 +388,18 @@ impl Builder<'_> {
                 }
                 None
             }
+            // Cota (GD-COT-01..03): vira linhas, pontas e texto comuns; as
+            // ligações aos nós são resolvidas aqui, ao vivo.
+            ObjectKind::Dimension(d) => {
+                use crate::edit::dimension as dim;
+                let doc = self.doc;
+                let (pts, seg) = dim::resolve(d, m, &|id| dim::find_in_doc(doc, id));
+                let value = dim::measure(d, &pts, seg, doc.data.settings.drawing_scale);
+                for c in dim::expand(o, d, &pts, &dim::label(d, value)) {
+                    self.object_items(&c, m, alpha);
+                }
+                None
+            }
             ObjectKind::Image(img) => {
                 if let Some(decoded) = self.images.get(self.doc, &img.src) {
                     self.items.push(Item::Image(ImageItem {

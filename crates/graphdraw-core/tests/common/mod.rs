@@ -26,6 +26,7 @@ pub const VALID_GDR: &[&str] = &[
     "layers-print.gdr",
     "unknown-fields.gdr",
     "split-pages.gdr",
+    "prepress.gdr",
 ];
 
 /// Lê um membro de um pacote ZIP.

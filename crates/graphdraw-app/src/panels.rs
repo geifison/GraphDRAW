@@ -108,6 +108,9 @@ impl App {
                     );
                 })
             }
+            Tool::Dimension => widgets::single_line_bar(ui, "barra-cota", |ui| {
+                dimension_bar(ui, doc, &mut self.canvas)
+            }),
             Tool::FreeTransform => widgets::single_line_bar(ui, "barra-transf-livre", |ui| {
                 use graphdraw_core::edit::freexf::Mode;
                 for (m, icon, label) in [
@@ -3560,6 +3563,111 @@ fn eyedrop_bar(ui: &mut egui::Ui, e: &mut crate::eyedrop::Eyedrop) {
             "Click samples and becomes a bucket · click applies (right: outline) · Shift resamples · Alt toggles · Ctrl inside groups · Alt+click on a gradient clones the ramp · Esc empties",
         ),
     );
+}
+
+/// Barra da ferramenta Cota (GD-COT-01/03): tipo e formato. Com cotas
+/// selecionadas, o formato vale para elas (um passo de desfazer); senão,
+/// para as próximas.
+fn dimension_bar(ui: &mut egui::Ui, doc: &mut DocState, cs: &mut crate::canvas::CanvasState) {
+    use graphdraw_core::model::DimFormat;
+    for (k, label) in [
+        ("horizontal", tr("Horizontal", "Horizontal")),
+        ("vertical", tr("Vertical", "Vertical")),
+        ("aligned", tr("Paralela", "Aligned")),
+        ("angular", tr("Angular", "Angular")),
+        ("radius", tr("Raio", "Radius")),
+        ("diameter", tr("Diâmetro", "Diameter")),
+        ("segment", tr("Segmento", "Segment")),
+    ] {
+        if ui.selectable_label(cs.dim_kind == k, label).clicked() && cs.dim_kind != k {
+            cs.dim_kind = k.into();
+            cs.dim_draft = None;
+        }
+    }
+    ui.separator();
+    let selected: Vec<String> = doc
+        .selection
+        .iter()
+        .filter(|id| {
+            doc.editor
+                .find(id)
+                .and_then(|r| doc.editor.get(&r))
+                .is_some_and(|o| matches!(o.kind, ObjectKind::Dimension(_)))
+        })
+        .cloned()
+        .collect();
+    let mut f: DimFormat = selected
+        .first()
+        .and_then(|id| doc.editor.find(id).and_then(|r| doc.editor.get(&r)))
+        .and_then(|o| match &o.kind {
+            ObjectKind::Dimension(d) => Some(d.format.clone()),
+            _ => None,
+        })
+        .unwrap_or_else(|| cs.dim_format.clone());
+    let before = f.clone();
+    egui::ComboBox::from_id_salt("cota-unidade")
+        .selected_text(f.unit.clone())
+        .show_ui(ui, |ui| {
+            for u in ["mm", "cm", "m", "in", "pt"] {
+                ui.selectable_value(&mut f.unit, u.into(), u);
+            }
+        });
+    ui.add(
+        egui::DragValue::new(&mut f.precision)
+            .range(0..=6)
+            .prefix(tr("casas ", "decimals ")),
+    );
+    ui.checkbox(&mut f.show_unit, tr("Unidade", "Unit"));
+    let mut size_pt = f.text_size / graphdraw_core::units::UM_PER_PT;
+    if ui
+        .add(
+            egui::DragValue::new(&mut size_pt)
+                .range(2.0..=144.0)
+                .speed(0.2)
+                .suffix(" pt"),
+        )
+        .changed()
+    {
+        f.text_size = size_pt * graphdraw_core::units::UM_PER_PT;
+    }
+    egui::ComboBox::from_id_salt("cota-ponta")
+        .selected_text(crate::dialogs::arrow_label(&f.arrow))
+        .show_ui(ui, |ui| {
+            for a in ["triangle", "open", "bar", "circle", "none"] {
+                let label = if a == "none" {
+                    tr("Sem ponta", "No arrow")
+                } else {
+                    crate::dialogs::arrow_label(a)
+                };
+                ui.selectable_value(&mut f.arrow, a.into(), label);
+            }
+        });
+    ui.checkbox(&mut f.extension_lines, tr("Extensão", "Extension"));
+    let mut inline = f.text_position == "inline";
+    if ui
+        .checkbox(&mut inline, tr("Texto sobre a linha", "Text on the line"))
+        .changed()
+    {
+        f.text_position = if inline { "inline" } else { "above" }.into();
+    }
+    if f != before {
+        if selected.is_empty() {
+            cs.dim_format = f;
+        } else if !widgets::field_dragging(ui.ctx()) {
+            ops::modify(
+                &mut doc.editor,
+                &selected,
+                tr("Formato da cota", "Dimension format"),
+                |o| {
+                    if let ObjectKind::Dimension(d) = &mut o.kind {
+                        d.format = f.clone();
+                        return true;
+                    }
+                    false
+                },
+            );
+        }
+    }
 }
 
 /// Texto do problema da verificação prévia (GD-PRE-01).

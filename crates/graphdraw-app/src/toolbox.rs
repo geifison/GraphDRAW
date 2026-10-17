@@ -116,6 +116,7 @@ pub fn slots() -> Vec<Slot> {
             ],
         ),
         Slot::One(Tool::Text),
+        Slot::One(Tool::Dimension),
         Slot::Group(
             "preenchimento",
             vec![

@@ -749,6 +749,50 @@ fn m1_editing() -> Document {
 }
 
 /// Reescreve um membro de um `.gdr` (para simular corrupção, GD-GDR-10).
+/// Doc 28 e GD-COT-01..03: sangria, limites da verificação prévia,
+/// sobreimpressão no contorno e uma cota ligada aos nós de um retângulo.
+fn prepress() -> Document {
+    let mut ids = Ids::new(11);
+    let mut p = page(&mut ids, 210.0 * MM, 297.0 * MM);
+    p.bleed = Some(3.0 * MM);
+    let mut r = rect(
+        &mut ids,
+        20.0 * MM,
+        200.0 * MM,
+        100.0 * MM,
+        50.0 * MM,
+        Fill::solid(Color::cmyk(0.0, 0.6, 1.0, 0.0)),
+    );
+    let mut st = Stroke::new(0.5 * PT, Color::cmyk(0.0, 0.0, 0.0, 1.0));
+    st.overprint = true;
+    r.stroke = Some(st);
+    let rid = r.id.clone();
+    let link = |node| {
+        Some(DimLink {
+            object: rid.clone(),
+            subpath: 0,
+            node,
+        })
+    };
+    let mut d = obj(
+        &mut ids,
+        ObjectKind::Dimension(DimensionData {
+            dim_kind: "horizontal".into(),
+            points: vec![[20.0 * MM, 200.0 * MM], [120.0 * MM, 200.0 * MM]],
+            offset: -10.0 * MM,
+            links: vec![link(0), link(1)],
+            segment: None,
+            format: DimFormat::default(),
+            extra: Map::new(),
+        }),
+    );
+    d.stroke = Some(Stroke::new(0.25 * MM, Color::cmyk(0.0, 0.0, 0.0, 1.0)));
+    p.layers[0].objects = vec![r, d];
+    let mut doc = doc_with(vec![p], "Pré-impressão");
+    doc.data.settings.preflight.tac = graphdraw_core::preflight::TAC_UNCOATED;
+    doc
+}
+
 fn tamper(bytes: &[u8], member: &str, new: Option<&[u8]>) -> Vec<u8> {
     let mut zin = zip::ZipArchive::new(Cursor::new(bytes)).unwrap();
     let mut zout = zip::ZipWriter::new(Cursor::new(Vec::new()));
@@ -796,6 +840,7 @@ fn main() {
         ("layers-print", layers_print()),
         ("unknown-fields", unknown_fields()),
         ("m1-editing", m1_editing()),
+        ("prepress", prepress()),
     ];
     for (name, doc) in &docs {
         let path = dir.join(format!("{name}.gdr"));

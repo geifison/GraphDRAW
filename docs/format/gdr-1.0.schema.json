@@ -373,8 +373,46 @@
               "src": { "type": "string", "pattern": "^resources/images/[0-9a-f]{64}\\.(png|jpg|jpeg|tif|tiff|webp)$" }
             }
           }
+        },
+        {
+          "if": { "properties": { "type": { "const": "dimension" } } },
+          "then": {
+            "required": ["dimKind", "points"],
+            "properties": {
+              "dimKind": { "enum": ["horizontal", "vertical", "aligned", "angular", "radius", "diameter", "segment"] },
+              "points": { "type": "array", "items": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 }, "minItems": 2, "maxItems": 3 },
+              "offset": { "type": "number" },
+              "links": { "type": "array", "items": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/dimLink" }] } },
+              "segment": { "$ref": "#/$defs/dimLink" },
+              "format": {
+                "type": "object",
+                "properties": {
+                  "unit": { "enum": ["mm", "cm", "m", "in", "pt"] },
+                  "precision": { "type": "integer", "minimum": 0, "maximum": 6 },
+                  "prefix": { "type": "string" },
+                  "suffix": { "type": "string" },
+                  "showUnit": { "type": "boolean" },
+                  "textPosition": { "enum": ["above", "inline"] },
+                  "arrow": { "enum": ["triangle", "open", "barbed", "circle", "square", "bar", "none"] },
+                  "extensionLines": { "type": "boolean" },
+                  "textSize": { "$ref": "#/$defs/um" },
+                  "font": { "type": "string" }
+                }
+              }
+            }
+          }
         }
       ]
+    },
+    "dimLink": {
+      "type": "object",
+      "description": "Nó (ou segmento) medido por uma cota (GD-COT-02).",
+      "required": ["object", "subpath", "node"],
+      "properties": {
+        "object": { "type": "string" },
+        "subpath": { "type": "integer", "minimum": 0 },
+        "node": { "type": "integer", "minimum": 0 }
+      }
     },
     "layer": {
       "type": "object",

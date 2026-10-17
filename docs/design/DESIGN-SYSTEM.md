@@ -501,6 +501,13 @@ Aba **Verificação** (ícone `preflight`) no painel direito:
   ferramentas do grupo em linha, ao lado do botão, em `shadow-popover`.
   Escolher na gaveta usa e passa a mostrar aquela; clique fora ou Esc fecha.
 - Grupos:
+  - **Cota** (sozinha, depois de Texto):
+    - a barra tem o tipo (Horizontal, Vertical, Paralela, Angular, Raio,
+      Diâmetro, Segmento) e o formato (unidade, casas, Unidade, corpo em
+      pt, ponta, Extensão, Texto sobre a linha);
+    - com cotas selecionadas, o formato vale para elas;
+    - a prévia são as linhas de `border-width` em `accent-primary` e o
+      valor em `type-micro`.
   - **Seleção**: seleção e transformação livre. A barra tem
     Girar | Refletir | Escalar | Inclinar (ícones `rotate-ccw`, `mirror-h`,
     `fit-selection`, `clear-transform`). A prévia é a reta pivô → cursor

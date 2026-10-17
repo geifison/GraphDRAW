@@ -45,6 +45,7 @@ const icons = {
   "tool-line2": `<path d="M5 19 L19 5"/>${node(5, 19, 2)}${node(19, 5, 2)}`,
   "tool-curve3": `<path d="M3.5 18 C 6 6, 18 6, 20.5 18"/>${node(3.5, 18, 1.8)}${node(20.5, 18, 1.8)}${dot(12, 9, 1.8)}`,
   "tool-free-transform": `<path d="M6 3.5 L6 15 L9 12 L11 16.5 L13 15.5 L11 11.2 L15 11 Z" fill="#fff"/><path d="M15 20.5 A 6 6 0 0 0 20.5 15"/><path d="M18.5 13.5 L20.5 15 L22 13"/>`,
+  "tool-dimension": `<path d="M4 8 V18 M20 8 V18 M4 13 H20 M4 13 L7.5 11 M4 13 L7.5 15 M20 13 L16.5 11 M20 13 L16.5 15"/>`,
   "tool-knife": `<path d="M3.5 20.5 L8.5 15.5"/><path d="M8.5 15.5 L19.5 4.5 C 20.5 9.5 16 14 11 18 Z"/>`,
   "tool-crop": `<path d="M7 3.5 V17 H20.5 M3.5 7 H17 V20.5"/>`,
   "tool-eraser": `<path d="M9 20 L3.8 14.8 a1.5 1.5 0 0 1 0 -2.1 L12.7 3.8 a1.5 1.5 0 0 1 2.1 0 L20.2 9.2 a1.5 1.5 0 0 1 0 2.1 L11.3 20 Z M7.5 9 L15 16.5 M11.3 20 H20.5"/>`,

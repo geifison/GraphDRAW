@@ -1747,6 +1747,7 @@ impl App {
             C::ToolSolidFill => self.set_tool(Tool::SolidFill),
             C::ToolEyedropper => self.set_tool(Tool::Eyedropper),
             C::ToolKnife => self.set_tool(Tool::Knife),
+            C::ToolDimension => self.set_tool(Tool::Dimension),
             C::ToolFreeTransform => self.set_tool(Tool::FreeTransform),
             C::ToolFreehand => self.set_tool(Tool::Freehand),
             C::ToolPolyline => self.set_tool(Tool::Polyline),
@@ -3806,6 +3807,7 @@ pub(crate) fn kind_label(k: &ObjectKind) -> String {
         ObjectKind::Group(_) => tr("grupo", "group"),
         ObjectKind::Text(_) => tr("texto", "text"),
         ObjectKind::Image(_) => tr("imagem", "image"),
+        ObjectKind::Dimension(_) => tr("cota", "dimension"),
         ObjectKind::Unknown { .. } => tr("objeto desconhecido", "unknown object"),
     }
     .into()
