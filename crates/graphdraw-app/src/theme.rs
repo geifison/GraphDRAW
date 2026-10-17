@@ -323,6 +323,8 @@ pub const LAYER_COLORS: [[u8; 3]; 8] = [
 ];
 /// Escolha da paleta na barra de paleta.
 pub const PALETTE_SOURCE_WIDTH: f32 = 110.0;
+/// Largura do balão de cor da parada de gradiente.
+pub const STOP_POPUP_WIDTH: f32 = 240.0;
 /// Triângulo de gaveta no canto do botão de grupo da caixa de ferramentas.
 pub const TOOL_DRAWER_MARK: f32 = 5.0;
 /// Área do canto que abre a gaveta em vez de escolher a ferramenta.

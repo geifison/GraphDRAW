@@ -415,6 +415,9 @@ pub struct CanvasState {
     /// Revisão do documento quando a parada foi escolhida: mudou por fora
     /// (desfazer, outra ferramenta), a escolha deixa de valer.
     grad_rev: u64,
+    /// Balão de cor da parada aberto: posição na tela e o quadro em que
+    /// abriu. Enquanto aberto, as mudanças formam um passo de desfazer.
+    grad_popup: Option<(Pos2, u64)>,
     /// Réguas e guias (GD-REG-01, GD-GUI-01).
     pub show_rulers: bool,
     pub show_guides: bool,
@@ -471,6 +474,7 @@ impl Default for CanvasState {
             smart_point: None,
             grad_stop: None,
             grad_rev: 0,
+            grad_popup: None,
             show_rulers: true,
             show_guides: true,
             guides_locked: false,
@@ -1080,6 +1084,7 @@ impl CanvasState {
             }
         }
         self.paint_overlays(ui, &painter, doc, rect, tool);
+        self.stop_popup(ui.ctx(), doc, tool);
         if tool == Tool::Artboard {
             self.paint_page_handles(&painter, doc, rect);
         }
@@ -2238,14 +2243,112 @@ impl CanvasState {
                 .into_iter()
                 .find(|(_, q)| (self.screen(rect, ph, m * *q) - pos).length() <= theme::HANDLE_HIT)
         {
-            if let gradtool::Handle::Stop(i) = h {
+            // Início/fim: a parada da ponta (a de menor/maior posição).
+            let by_offset = |max: bool| {
+                (0..g.stops.len()).reduce(|a, b| {
+                    let (oa, ob) = (g.stops[a].offset, g.stops[b].offset);
+                    if (ob > oa) == max { b } else { a }
+                })
+            };
+            let i = match h {
+                gradtool::Handle::Stop(i) => Some(i),
+                gradtool::Handle::Start => by_offset(false),
+                gradtool::Handle::End => by_offset(true),
+            };
+            if let Some(i) = i {
+                self.close_stop_popup(doc);
                 self.grad_stop = Some((o.id.clone(), i));
                 self.grad_rev = doc.editor.revision();
+                // Clicar na parada abre o balão de cor e opacidade.
+                doc.editor.begin(tr("Cor da parada", "Stop color"));
+                self.grad_popup = Some((pos, 0));
             }
             return;
         }
+        self.close_stop_popup(doc);
         self.grad_stop = None;
         doc.selection = pick(doc, p, tol, true).into_iter().collect();
+    }
+
+    /// Fecha o balão de cor da parada (fecha o passo de desfazer).
+    pub fn close_stop_popup(&mut self, doc: &mut DocState) {
+        if self.grad_popup.take().is_some() && doc.editor.in_transaction() {
+            doc.editor.commit();
+        }
+    }
+
+    /// Balão de cor da parada: cor (no modelo da cor) e opacidade, aplicados
+    /// na hora; clique fora ou Esc fecha.
+    fn stop_popup(&mut self, ctx: &egui::Context, doc: &mut DocState, tool: Tool) {
+        let Some((pos, opened)) = self.grad_popup else {
+            return;
+        };
+        let frame = ctx.cumulative_frame_nr();
+        if opened == 0 {
+            self.grad_popup = Some((pos, frame));
+        }
+        let current = single_gradient(doc).and_then(|(r, o, g, _)| {
+            let (id, i) = self.grad_stop.clone()?;
+            (id == o.id && i < g.stops.len()).then_some((r, o, g, i))
+        });
+        let Some((r, o, g, i)) = current.filter(|_| tool == Tool::Gradient) else {
+            self.close_stop_popup(doc);
+            return;
+        };
+        let stop = g.stops[i].clone();
+        let mut new_color = None;
+        let mut new_opacity = None;
+        let mut close = false;
+        let area = egui::Area::new(egui::Id::unique("balao-parada"))
+            .order(egui::Order::Foreground)
+            .fixed_pos(pos + Vec2::new(theme::HANDLE_HIT, theme::HANDLE_HIT))
+            .show(ctx, |ui| {
+                egui::Frame::popup(ui.style()).show(ui, |ui| {
+                    ui.set_width(theme::STOP_POPUP_WIDTH);
+                    ui.label(format!(
+                        "{} {} · {:.0}%",
+                        tr("Parada", "Stop"),
+                        i + 1,
+                        stop.offset * 100.0
+                    ));
+                    if let Some(c) = crate::widgets::color_editor(ui, &stop.color) {
+                        new_color = Some(c);
+                    }
+                    let mut op = (stop.opacity * 100.0).round();
+                    if ui
+                        .add(
+                            egui::Slider::new(&mut op, 0.0..=100.0)
+                                .text(tr("Opacidade %", "Opacity %")),
+                        )
+                        .changed()
+                    {
+                        new_opacity = Some(op / 100.0);
+                    }
+                    if ui.button(tr("OK", "OK")).clicked() {
+                        close = true;
+                    }
+                });
+            });
+        if new_color.is_some() || new_opacity.is_some() {
+            let mut o = o;
+            let mut g = g;
+            if let Some(c) = new_color {
+                g.stops[i].color = c;
+            }
+            if let Some(v) = new_opacity {
+                g.stops[i].opacity = v;
+            }
+            o.fill = Some(Fill::Gradient(g));
+            doc.editor.replace_at(&r, o);
+            self.grad_rev = doc.editor.revision();
+        }
+        let outside = ctx.input(|i| i.pointer.any_pressed())
+            && !area.response.contains_pointer()
+            && opened != 0
+            && frame > opened + 1;
+        if close || outside || ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+            self.close_stop_popup(doc);
+        }
     }
 
     /// Conta-gotas: com seleção (sem o objeto clicado), pinta a seleção com o
@@ -4360,6 +4463,74 @@ mod tests {
         };
         assert_eq!(gd.children.len(), 6);
         assert_eq!(doc.selection, vec![g.id.clone()]);
+    }
+
+    /// Clicar na ponta do gradiente abre o balão da parada da ponta; Esc
+    /// fecha e fecha o passo de desfazer.
+    #[test]
+    fn clicking_gradient_end_opens_stop_popup() {
+        let ctx = crate::theme::test_ctx();
+        let mut cs = CanvasState::default();
+        cs.snap.enabled = false;
+        let mut doc = DocState::new_blank();
+        let mut o = Object::new(ObjectKind::Rectangle(RectData {
+            width: 60_000.0,
+            height: 40_000.0,
+            corners: None,
+            extra: Map::new(),
+        }));
+        o.transform = graphdraw_core::model::Transform::translate(50_000.0, 100_000.0);
+        o.fill = Some(Fill::Gradient(graphdraw_core::edit::gradtool::linear_from(
+            Point::new(0.0, 20_000.0),
+            Point::new(60_000.0, 20_000.0),
+            None,
+        )));
+        let id = o.id.clone();
+        doc.editor.insert_object(
+            graphdraw_core::edit::ObjLoc {
+                page: 0,
+                layer: 0,
+                index: 0,
+            },
+            o,
+        );
+        doc.selection = vec![id.clone()];
+        let t = Tool::Gradient;
+        for _ in 0..2 {
+            canvas_frame(&ctx, &mut cs, &mut doc, t, vec![]);
+        }
+        let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(1366.0, 768.0));
+        let (_, ph) = doc.page_size();
+        let end = cs.screen(rect, ph, Point::new(110_000.0, 120_000.0));
+        let btn = |pressed| egui::Event::PointerButton {
+            pos: end,
+            button: PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            t,
+            vec![egui::Event::PointerMoved(end)],
+        );
+        canvas_frame(&ctx, &mut cs, &mut doc, t, vec![btn(true)]);
+        canvas_frame(&ctx, &mut cs, &mut doc, t, vec![btn(false)]);
+        canvas_frame(&ctx, &mut cs, &mut doc, t, vec![]);
+        assert!(cs.grad_popup.is_some(), "balão aberto");
+        assert_eq!(cs.grad_stop.as_ref().map(|s| s.1), Some(1), "parada do fim");
+        assert!(doc.editor.in_transaction());
+        let esc = egui::Event::Key {
+            key: egui::Key::Escape,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        };
+        canvas_frame(&ctx, &mut cs, &mut doc, t, vec![esc]);
+        assert!(cs.grad_popup.is_none());
+        assert!(!doc.editor.in_transaction(), "passo fechado");
     }
 
     /// Conta-gotas: com seleção, clicar noutro objeto copia o preenchimento

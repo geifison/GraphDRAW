@@ -468,6 +468,7 @@ Tamanho constante em pixels de tela, qualquer que seja o zoom.
 | Nó de curva suave | círculo | 6 px de diâmetro, borda 1,5 px `accent-primary`; linha da alça 1 px `accent-primary` |
 | Alça de ângulo | ○—○ | comprimento livre; Shift prende a cada 15° |
 | Caixa de seleção | retângulo | linha sólida 1 px `accent-primary`, alças nos cantos e meios |
+| Balão da parada | clique numa parada ou na ponta do eixo | `shadow-popover`, largura `stop-popup-width` = 240 px: “Parada N · posição”, editor de cor no modelo da cor, opacidade %, OK; clique fora ou Esc fecha; o que muda enquanto aberto é um passo de desfazer |
 | Eixo do gradiente | ■—●—■ | linha 1 px `accent-primary` sobre 2,5 px branco; início/fim em quadrado de 8 px (`handle-size` + 2); paradas em círculo de `gradient-mark` (10 px) com a cor da parada; parada escolhida com anel `focus-width` `accent-primary` |
 
 Nós não selecionados têm fundo `#FFFFFF`; selecionados, fundo
