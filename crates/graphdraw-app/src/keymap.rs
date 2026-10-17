@@ -166,6 +166,7 @@ commands! {
     ToolBezier = "tool.bezier", "Ferramenta Bézier", "Bézier tool", Tools, NotText, true;
     ToolRect = "tool.rect", "Ferramenta Retângulo", "Rectangle tool", Tools, NotText, true;
     ToolEllipse = "tool.ellipse", "Ferramenta Elipse", "Ellipse tool", Tools, NotText, true;
+    ToolArtboard = "tool.artboard", "Ferramenta Prancheta (tamanho da página)", "Artboard tool (page size)", Tools, NotText, true;
     ToolFreehand = "tool.freehand", "Ferramenta Mão Livre", "Freehand tool", Tools, NotText, false;
     ToolArtistic = "tool.artistic", "Ferramenta Mídia Artística", "Artistic media tool", Tools, NotText, false;
     ToolPolygon = "tool.polygon", "Ferramenta Polígono", "Polygon tool", Tools, NotText, false;
@@ -376,6 +377,7 @@ impl Keymap {
                 (ToolBezier, "B"),
                 (ToolRect, "R"),
                 (ToolEllipse, "E"),
+                (ToolArtboard, "Shift+P"),
                 (PageNext, "PageDown"),
                 (PagePrev, "PageUp"),
                 (PageFirst, "Home"),
@@ -407,6 +409,7 @@ impl Keymap {
                 (ToolShape, "F10"),
                 (ToolRect, "F6"),
                 (ToolEllipse, "F7"),
+                (ToolArtboard, "Shift+P"),
                 (ToolFreehand, "F5"),
                 (ToolArtistic, "I"),
                 (ToolPolygon, "Y"),

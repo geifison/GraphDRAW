@@ -276,6 +276,17 @@ pub const SNAP_MARK: f32 = 6.0;
 /// Centro de rotação: círculo e braços da mira.
 pub const ROTATION_CENTER: f32 = 6.0;
 pub const ROTATION_CENTER_ARM: f32 = 9.0;
+/// Sangria na tela (5.3): contorno tracejado e marcas de corte nos cantos.
+pub const BLEED_DASH: f32 = 4.0;
+pub const BLEED_GAP: f32 = 3.0;
+pub const CROP_MARK: f32 = 12.0;
+pub const CROP_MARK_OFFSET: f32 = 4.0;
+/// HUD da página (doc 22, GD-DIM-20): distância até a borda da folha e
+/// opacidade do fundo (95%).
+pub const HUD_GAP: f32 = SPACE_200;
+pub const HUD_ALPHA: u8 = 242;
+/// Giro do ícone de orientação ao clicar (GD-DIM-04).
+pub const MOTION_ORIENTATION: f32 = 0.15;
 
 // ---- aplicação no egui (7) -----------------------------------------------------
 

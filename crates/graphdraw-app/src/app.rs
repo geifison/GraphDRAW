@@ -101,6 +101,8 @@ pub struct App {
     last_action: Option<LastAction>,
     /// Janela "Exportar" (escolha do formato) aberta.
     export_choice: bool,
+    /// Janela "Novo documento" aberta (GD-DIM-10).
+    new_doc: Option<crate::newdoc::NewDocDialog>,
     /// Condição de impressão escolhida para o PDF/X-1a (GD-EXP-07).
     print_condition: export::PrintCondition,
     /// Tipo do próximo PDF exportado.
@@ -149,6 +151,7 @@ impl App {
             prev_tool: None,
             last_action: None,
             export_choice: false,
+            new_doc: None,
             print_condition: export::PrintCondition::Fogra39,
             pdf_standard: export::PdfStandard::Screen,
         };
@@ -370,7 +373,7 @@ impl App {
 
     fn run(&mut self, action: Pending, ctx: &egui::Context) {
         match action {
-            Pending::New => self.open_in_tab(DocState::new_blank()),
+            Pending::New => self.new_doc = Some(Default::default()),
             Pending::Open(Some(p)) => match self.tab_with_path(&p) {
                 Some(i) => self.switch_tab(i),
                 None => self.start_open(p, ctx),
@@ -891,6 +894,7 @@ impl App {
             C::ToolBezier => self.set_tool(Tool::Bezier),
             C::ToolRect => self.set_tool(Tool::Rect),
             C::ToolEllipse => self.set_tool(Tool::Ellipse),
+            C::ToolArtboard => self.set_tool(Tool::Artboard),
             C::ToolToggleSelect => {
                 if self.tool != Tool::Select {
                     self.prev_tool = Some(self.tool);
@@ -1689,6 +1693,16 @@ impl App {
                 ui.label(format!("v{}", env!("CARGO_PKG_VERSION")));
             });
         }
+        if let Some(d) = &mut self.new_doc {
+            match d.show(ctx) {
+                crate::newdoc::Outcome::Open => {}
+                crate::newdoc::Outcome::Cancel => self.new_doc = None,
+                crate::newdoc::Outcome::Create(doc) => {
+                    self.new_doc = None;
+                    self.open_in_tab(*doc);
+                }
+            }
+        }
         if self.export_choice {
             let mut pick = None;
             let mut pdfx = false;
@@ -2083,6 +2097,12 @@ impl eframe::App for App {
             if let Some(doc) = &mut self.doc {
                 // Backspace na ferramenta Bézier remove o último nó do traçado.
                 let ev = self.canvas.show(ui, doc, self.tool, &self.defaults);
+                if ev.open_page_setup {
+                    self.page_bar.open_settings(doc);
+                }
+                if ev.refit {
+                    self.canvas.fit_pending = true;
+                }
                 if let Some(t) = ev.switch_tool {
                     self.tool = t;
                 }

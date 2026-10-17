@@ -23,6 +23,7 @@ const icons = {
   "tool-pan": `<path d="M8 12 V6.5 a1.5 1.5 0 0 1 3 0 V11 M11 10 V4.5 a1.5 1.5 0 0 1 3 0 V11 M14 10.5 V6 a1.5 1.5 0 0 1 3 0 V13 M8 11.5 a1.5 1.5 0 0 0 -3 0.5 L7.5 17 a5 5 0 0 0 4.5 3 H13 a4 4 0 0 0 4 -4 V12"/>`,
   "tool-bezier": `<path d="M3.5 19 C 6 9, 11 9, 13 13 S 19 17, 20.5 6"/>${node(3.5, 19, 2)}${node(13, 13, 2)}${node(20.5, 6, 2)}`,
   "tool-rect": `<rect x="4" y="6" width="16" height="12" rx="1"/>`,
+  "tool-artboard": `<rect x="6.5" y="6.5" width="11" height="11" rx="1"/><path d="M3.5 7 V3.5 H7 M17 3.5 H20.5 V7 M20.5 17 V20.5 H17 M7 20.5 H3.5 V17"/>`,
   "tool-ellipse": `<ellipse cx="12" cy="12" rx="8.5" ry="6.5"/>`,
   // ---- arquivo e histórico ----
   "file-new": `<path d="M6 3 H14 L19 8 V21 H6 Z M14 3 V8 H19"/><path d="M12.5 12 V18 M9.5 15 H15.5"/>`,
@@ -142,7 +143,7 @@ const MICRO = grid(16);
 // Cursores: grade própria de 24 px, desenhados direto nela.
 const CURSOR = { size: 24, transform: "", stroke: STROKE };
 // Ícones de microcontroles (linhas do painel de camadas, abas).
-const micro = ["eye-on", "eye-off", "print-on", "print-off", "lock-on", "lock-off", "doc"];
+const micro = ["eye-on", "eye-off", "print-on", "print-off", "lock-on", "lock-off", "doc", "bleed"];
 
 const gridOf = (name) => (name.startsWith("cur-") ? CURSOR : UI);
 const svg = (g, body) =>

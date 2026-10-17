@@ -29,6 +29,7 @@ pub fn get_micro(name: &str) -> ImageSource<'static> {
         "lock-on" => micro!("lock-on"),
         "lock-off" => micro!("lock-off"),
         "doc" => micro!("doc"),
+        "bleed" => micro!("bleed"),
         other => get(other),
     }
 }
@@ -42,6 +43,7 @@ pub fn get(name: &str) -> ImageSource<'static> {
         "tool-bezier" => icon!("tool-bezier"),
         "tool-rect" => icon!("tool-rect"),
         "tool-ellipse" => icon!("tool-ellipse"),
+        "tool-artboard" => icon!("tool-artboard"),
         "file-new" => icon!("file-new"),
         "file-open" => icon!("file-open"),
         "file-save" => icon!("file-save"),

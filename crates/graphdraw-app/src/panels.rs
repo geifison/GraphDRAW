@@ -110,6 +110,20 @@ impl App {
                     ),
                 );
             }
+            // Prancheta: dados da página; arrastar as alças muda o tamanho
+            // (GD-DIM-23). Vale para todas as páginas (GD-PAG-01).
+            Tool::Artboard => {
+                widgets::single_line_bar(ui, "barra-prancheta", |ui| {
+                    refit = page_bar_props(ui, doc);
+                    widgets::hint_line(
+                        ui,
+                        tr(
+                            "Arraste as alças da página · gruda nos formatos ISO · Alt solta o encaixe",
+                            "Drag the page handles · snaps to ISO formats · Alt disables snapping",
+                        ),
+                    );
+                });
+            }
             Tool::Select => {
                 widgets::single_line_bar(ui, "barra-selecao", |ui| {
                     refit = select_bar(ui, doc, &mut self.anchor, &mut self.lock_ratio);

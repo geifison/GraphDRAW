@@ -140,6 +140,16 @@ impl PageBar {
         doc.prune_selection();
     }
 
+    /// Abre a janela de tamanho das páginas (HUD da página, GD-DIM-20).
+    pub fn open_settings(&mut self, doc: &DocState) {
+        let page = doc.page();
+        self.settings = Some(Settings {
+            width: page.width,
+            height: page.height,
+            bleed: page.bleed.unwrap_or(doc.doc().data.settings.bleed),
+        });
+    }
+
     /// Comandos de página vindos dos atalhos (GD-PGT-04, 06, 07, 11; GD-UI-10).
     pub fn command(&mut self, c: crate::keymap::Command, doc: &mut DocState) -> Vec<PageAction> {
         use crate::keymap::Command as C;

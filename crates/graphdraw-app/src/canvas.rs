@@ -35,6 +35,8 @@ pub enum Tool {
     Bezier,
     Rect,
     Ellipse,
+    /// Prancheta: redimensiona a página pelas bordas (doc 22, GD-DIM-23).
+    Artboard,
 }
 
 impl Tool {
@@ -84,9 +86,17 @@ impl Tool {
                 crate::keymap::hint(tr("Elipse", "Ellipse"), crate::keymap::Command::ToolEllipse),
                 "E",
             ),
+            Tool::Artboard => (
+                "tool-artboard",
+                crate::keymap::hint(
+                    tr("Prancheta — tamanho da página", "Artboard — page size"),
+                    crate::keymap::Command::ToolArtboard,
+                ),
+                "Shift+P",
+            ),
         }
     }
-    pub const ALL: [Tool; 7] = [
+    pub const ALL: [Tool; 8] = [
         Tool::Select,
         Tool::Shape,
         Tool::Zoom,
@@ -94,6 +104,7 @@ impl Tool {
         Tool::Bezier,
         Tool::Rect,
         Tool::Ellipse,
+        Tool::Artboard,
     ];
 }
 
@@ -166,6 +177,12 @@ enum Drag {
         cands: Vec<(Point, SnapKind)>,
     },
     BezierHandle,
+    /// Prancheta: borda/canto da página sendo arrastado.
+    Artboard {
+        handle: Anchor,
+        rect: kurbo::Rect,
+        snapped: Option<&'static str>,
+    },
 }
 
 struct BezierDraft {
@@ -199,6 +216,9 @@ pub struct CanvasState {
     pub canvas_size: Vec2,
     /// Segurar Espaço vira a mão (quando o perfil de atalhos não usa o Espaço).
     pub space_pans: bool,
+    /// Prancheta solta com objetos na página: falta escolher manter ou
+    /// escalar (GD-DIM-25). Novo retângulo da página e onde abrir a escolha.
+    artboard_pending: Option<(kurbo::Rect, Pos2)>,
 }
 
 impl Default for CanvasState {
@@ -223,6 +243,7 @@ impl Default for CanvasState {
             show_grid: false,
             canvas_size: Vec2::new(800.0, 600.0),
             space_pans: true,
+            artboard_pending: None,
         }
     }
 }
@@ -262,6 +283,10 @@ fn snap_radius(view: &View) -> f64 {
 pub struct CanvasEvents {
     pub switch_tool: Option<Tool>,
     pub status: Option<String>,
+    /// Duplo clique nas medidas do HUD: abrir a janela de tamanho.
+    pub open_page_setup: bool,
+    /// O tamanho da página mudou pelo HUD: reajustar a vista.
+    pub refit: bool,
 }
 
 impl CanvasState {
@@ -486,9 +511,15 @@ impl CanvasState {
         // ---- desenho ----
         self.paint_page(ui, &painter, doc, rect);
         self.paint_overlays(ui, &painter, doc, rect, tool);
+        let hud_hovered = self.page_hud(ui, doc, rect, &mut ev);
+        if tool == Tool::Artboard {
+            self.paint_page_handles(&painter, doc, rect);
+        }
+        self.artboard_choice(ui, doc);
 
         // Cursor da ferramenta (desenhado por cima, no lugar do cursor do sistema).
         if response.hovered()
+            && !hud_hovered
             && let Some(pos) = hover
         {
             let ph = doc.page_size().1;
@@ -582,6 +613,42 @@ impl CanvasState {
                 Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
                 Color32::WHITE,
             );
+        }
+        // Sangria (GD-DIM-21): contorno tracejado na distância da sangria e
+        // marcas de corte nos cantos da página.
+        let bleed = doc.page().bleed.unwrap_or(doc.doc().data.settings.bleed);
+        if bleed > 0.0 {
+            let b = Rect::from_min_max(s(-bleed, ph + bleed), s(pw + bleed, -bleed));
+            let st = EStroke::new(theme::GUIDE_WIDTH, theme::ACCENT_SUCCESS);
+            let pts = [
+                b.left_top(),
+                b.right_top(),
+                b.right_bottom(),
+                b.left_bottom(),
+                b.left_top(),
+            ];
+            painter.extend(egui::Shape::dashed_line(
+                &pts,
+                st,
+                theme::BLEED_DASH,
+                theme::BLEED_GAP,
+            ));
+            let mark = EStroke::new(theme::GUIDE_WIDTH, theme::palette(ui).fg_muted);
+            let (o, l) = (theme::CROP_MARK_OFFSET, theme::CROP_MARK);
+            for (corner, dx, dy) in [
+                (page_rect.left_top(), -1.0, -1.0),
+                (page_rect.right_top(), 1.0, -1.0),
+                (page_rect.right_bottom(), 1.0, 1.0),
+                (page_rect.left_bottom(), -1.0, 1.0),
+            ] {
+                // Fora da área de sangria, alinhadas às bordas de corte.
+                let ox = (b.width() - page_rect.width()) / 2.0 + o;
+                let oy = (b.height() - page_rect.height()) / 2.0 + o;
+                let hx = corner + Vec2::new(dx * ox, 0.0);
+                painter.line_segment([hx, hx + Vec2::new(dx * l, 0.0)], mark);
+                let vy = corner + Vec2::new(0.0, dy * oy);
+                painter.line_segment([vy, vy + Vec2::new(0.0, dy * l)], mark);
+            }
         }
         // Grade (quando ligada e legível).
         if self.show_grid
@@ -682,7 +749,277 @@ impl CanvasState {
             Tool::Ellipse => Glyph::Cross {
                 badge: "tool-ellipse",
             },
+            Tool::Artboard => {
+                let (pw, ph) = doc.page_size();
+                match self.page_handle_at(rect, ph, kurbo::Rect::new(0.0, 0.0, pw, ph), pos) {
+                    Some(a) => resize(a),
+                    None => icon("cur-select", 6.0, 3.5),
+                }
+            }
         }
+    }
+
+    /// Alças nos cantos e meios das bordas da página (Prancheta, GD-DIM-23).
+    fn paint_page_handles(&self, painter: &egui::Painter, doc: &DocState, rect: Rect) {
+        if matches!(self.drag, Drag::Artboard { .. }) {
+            return;
+        }
+        let (pw, ph) = doc.page_size();
+        let page = kurbo::Rect::new(0.0, 0.0, pw, ph);
+        painter.rect_stroke(
+            self.screen_rect(rect, ph, page),
+            theme::RADIUS_NONE,
+            EStroke::new(theme::GUIDE_WIDTH, theme::ACCENT_PRIMARY),
+            egui::StrokeKind::Middle,
+        );
+        for a in Anchor::ALL.into_iter().filter(|a| *a != Anchor::Center) {
+            let c = self.screen(rect, ph, a.point(page));
+            let r = Rect::from_center_size(c, Vec2::splat(theme::HANDLE_SIZE));
+            painter.rect_filled(r, theme::RADIUS_XS, theme::HANDLE_FILL);
+            painter.rect_stroke(
+                r,
+                theme::RADIUS_XS,
+                EStroke::new(theme::HANDLE_STROKE, theme::ACCENT_PRIMARY),
+                egui::StrokeKind::Middle,
+            );
+        }
+    }
+
+    /// Depois de soltar a Prancheta com objetos: manter posição ou escalar o
+    /// conteúdo (GD-DIM-25). Esc cancela.
+    fn artboard_choice(&mut self, ui: &mut egui::Ui, doc: &mut DocState) {
+        use graphdraw_core::edit::pagesize::{self, ResizeMode};
+        let Some((r, at)) = self.artboard_pending else {
+            return;
+        };
+        let mut pick = None;
+        let mut cancel = ui.input(|i| i.key_pressed(Key::Escape));
+        egui::Area::new(ui.scope_id().with("prancheta-escolha"))
+            .order(egui::Order::Foreground)
+            .fixed_pos(at + Vec2::splat(theme::SPACE_200))
+            .show(ui.ctx(), |ui| {
+                egui::Frame::popup(ui.style()).show(ui, |ui| {
+                    ui.label(
+                        egui::RichText::new(tr("Objetos nas páginas", "Objects on the pages"))
+                            .font(theme::font_section()),
+                    );
+                    let w = 220.0;
+                    if ui
+                        .add(
+                            egui::Button::new(tr("Manter posição", "Keep position"))
+                                .min_size(Vec2::new(w, theme::BUTTON_DEFAULT)),
+                        )
+                        .on_hover_text(tr(
+                            "Os objetos ficam onde estão em relação ao papel que não se moveu",
+                            "Objects stay where they are relative to the paper that did not move",
+                        ))
+                        .clicked()
+                    {
+                        pick = Some(ResizeMode::KeepPosition);
+                    }
+                    if ui
+                        .add(
+                            egui::Button::new(tr("Escalar proporcional", "Scale proportionally"))
+                                .min_size(Vec2::new(w, theme::BUTTON_DEFAULT)),
+                        )
+                        .on_hover_text(tr(
+                            "Os objetos crescem ou diminuem por igual e ficam centralizados",
+                            "Objects grow or shrink evenly and are centered",
+                        ))
+                        .clicked()
+                    {
+                        pick = Some(ResizeMode::ScaleContent);
+                    }
+                    if ui.button(tr("Cancelar (Esc)", "Cancel (Esc)")).clicked() {
+                        cancel = true;
+                    }
+                });
+            });
+        if let Some(mode) = pick {
+            pagesize::resize(
+                &mut doc.editor,
+                doc.page,
+                r,
+                mode,
+                tr("Redimensionar páginas", "Resize pages"),
+            );
+            self.artboard_pending = None;
+            self.fit_pending = true;
+        } else if cancel {
+            self.artboard_pending = None;
+        }
+    }
+
+    /// HUD sobre a página ativa (doc 22, GD-DIM-20): formato e medidas
+    /// (duplo clique abre a janela de tamanho), orientação, sangria e ajustar
+    /// à arte. Devolve `true` se o ponteiro está sobre ele.
+    fn page_hud(
+        &mut self,
+        ui: &mut egui::Ui,
+        doc: &mut DocState,
+        rect: Rect,
+        ev: &mut CanvasEvents,
+    ) -> bool {
+        use graphdraw_core::edit::{pages, pagesize};
+        let (pw, ph) = doc.page_size();
+        let top_left = self.screen(rect, ph, Point::new(0.0, ph));
+        let pal = theme::palette(ui);
+        // Acima da folha; se ela sair por cima da tela, gruda no topo do canvas.
+        let height = theme::BUTTON_COMPACT + 2.0 * theme::SPACE_100;
+        let y = (top_left.y - theme::HUD_GAP - height).max(rect.top() + theme::HUD_GAP);
+        let x = top_left
+            .x
+            .clamp(rect.left() + theme::HUD_GAP, rect.right() - 200.0);
+        let area = Rect::from_min_size(Pos2::new(x, y), Vec2::new(rect.right() - x, height));
+        let bleed = doc.page().bleed.unwrap_or(doc.doc().data.settings.bleed);
+        let format = pagesize::snap_format(pw, ph, 500.0)
+            .map(|(p, ..)| p.name.to_string())
+            .unwrap_or_else(|| tr("Personalizado", "Custom").to_string());
+        let landscape = pw > ph;
+        let locked = doc.page_locked();
+        let has_art = pagesize::art_bounds(&doc.editor, doc.page).is_some();
+        let mut swap = false;
+        let mut fit = false;
+        let mut hovered = false;
+        ui.scope_builder(
+            egui::UiBuilder::new()
+                .max_rect(area)
+                .layout(egui::Layout::left_to_right(egui::Align::Center)),
+            |ui| {
+                let fill = Color32::from_rgba_unmultiplied(
+                    pal.bg_surface_1.r(),
+                    pal.bg_surface_1.g(),
+                    pal.bg_surface_1.b(),
+                    theme::HUD_ALPHA,
+                );
+                let r = egui::Frame::new()
+                    .fill(fill)
+                    .stroke(theme::border_subtle(ui))
+                    .corner_radius(theme::RADIUS_MD)
+                    .inner_margin(egui::Margin::symmetric(
+                        theme::SPACE_200 as i8,
+                        theme::SPACE_100 as i8,
+                    ))
+                    .show(ui, |ui| {
+                        ui.spacing_mut().item_spacing.x = theme::SPACE_200;
+                        let dims = ui
+                            .add(
+                                egui::Label::new(
+                                    egui::RichText::new(format!(
+                                        "[{format}]  {} × {} mm",
+                                        crate::widgets::fmt_mm(pw),
+                                        crate::widgets::fmt_mm(ph)
+                                    ))
+                                    .font(theme::font_numeric())
+                                    .color(pal.fg_primary),
+                                )
+                                .sense(Sense::click()),
+                            )
+                            .on_hover_text(tr(
+                                "Duplo clique para mudar o tamanho das páginas",
+                                "Double-click to change the page size",
+                            ));
+                        if dims.double_clicked() {
+                            ev.open_page_setup = true;
+                        }
+                        ui.separator();
+                        // Orientação: o ícone gira 90° (GD-DIM-04).
+                        let (r, resp) = ui.allocate_exact_size(
+                            Vec2::splat(theme::BUTTON_COMPACT),
+                            Sense::click(),
+                        );
+                        let resp = resp.on_hover_text(if landscape {
+                            tr(
+                                "Paisagem — clique para retrato",
+                                "Landscape — click for portrait",
+                            )
+                        } else {
+                            tr(
+                                "Retrato — clique para paisagem",
+                                "Portrait — click for landscape",
+                            )
+                        });
+                        if resp.hovered() && !locked {
+                            ui.painter()
+                                .rect_filled(r, theme::RADIUS_SM, pal.bg_surface_hover);
+                        }
+                        let angle = ui.ctx().animate_value_with_time(
+                            ui.scope_id().with("hud-orientacao"),
+                            if landscape {
+                                std::f32::consts::FRAC_PI_2
+                            } else {
+                                0.0
+                            },
+                            theme::MOTION_ORIENTATION,
+                        );
+                        egui::Image::new(crate::icons::get("page-portrait"))
+                            .tint(if locked { pal.fg_muted } else { pal.fg_primary })
+                            .rotate(angle, Vec2::splat(0.5))
+                            .paint_at(ui, r.shrink((theme::BUTTON_COMPACT - theme::ICON_UI) / 2.0));
+                        if resp.clicked() && !locked {
+                            swap = true;
+                        }
+                        ui.label(
+                            egui::RichText::new(if landscape {
+                                tr("Paisagem", "Landscape")
+                            } else {
+                                tr("Retrato", "Portrait")
+                            })
+                            .color(pal.fg_muted),
+                        );
+                        ui.separator();
+                        let (text, color) = if bleed > 0.0 {
+                            (
+                                format!(
+                                    "{} {} mm",
+                                    tr("Sangria", "Bleed"),
+                                    crate::widgets::fmt_mm(bleed)
+                                ),
+                                theme::ACCENT_SUCCESS,
+                            )
+                        } else {
+                            (tr("Sem sangria", "No bleed").to_string(), pal.fg_muted)
+                        };
+                        let (ir, _) =
+                            ui.allocate_exact_size(Vec2::splat(theme::ICON_MICRO), Sense::hover());
+                        egui::Image::new(crate::icons::get_micro("bleed"))
+                            .tint(color)
+                            .paint_at(ui, ir);
+                        ui.label(egui::RichText::new(text).color(color));
+                        ui.separator();
+                        if crate::icons::button(
+                            ui,
+                            "fit-art",
+                            tr(
+                                "Ajustar à arte: todas as páginas ficam do tamanho do desenho",
+                                "Fit to artwork: every page takes the drawing's size",
+                            ),
+                            false,
+                            has_art && !locked,
+                        )
+                        .clicked()
+                        {
+                            fit = true;
+                        }
+                    });
+                hovered = r.response.contains_pointer();
+            },
+        );
+        if swap {
+            let bleed_opt = doc.page().bleed;
+            pages::set_size_all(
+                &mut doc.editor,
+                ph,
+                pw,
+                bleed_opt,
+                tr("Trocar orientação", "Swap orientation"),
+            );
+            ev.refit = true;
+        }
+        if fit && pagesize::fit_to_art(&mut doc.editor, doc.page) {
+            ev.refit = true;
+        }
+        hovered
     }
 
     fn screen(&self, rect: Rect, ph: f64, p: Point) -> Pos2 {
@@ -784,6 +1121,63 @@ impl CanvasState {
                     painter.rect_filled(r, theme::RADIUS_NONE, theme::SELECTION_FILL);
                     painter.rect_stroke(r, theme::RADIUS_NONE, thin, egui::StrokeKind::Middle);
                 }
+            }
+            Drag::Artboard {
+                rect: r, snapped, ..
+            } => {
+                let sr = self.screen_rect(rect, ph, *r);
+                painter.extend(egui::Shape::dashed_line(
+                    &[
+                        sr.left_top(),
+                        sr.right_top(),
+                        sr.right_bottom(),
+                        sr.left_bottom(),
+                        sr.left_top(),
+                    ],
+                    EStroke::new(theme::FOCUS_WIDTH, theme::ACCENT_PRIMARY),
+                    theme::BLEED_DASH,
+                    theme::BLEED_GAP,
+                ));
+                let pal = theme::palette(ui);
+                let text = match snapped {
+                    Some(name) => format!(
+                        "{} {name}  ·  {} × {} mm",
+                        tr("Encaixado em: ISO", "Snapped to: ISO"),
+                        crate::widgets::fmt_mm(r.width()),
+                        crate::widgets::fmt_mm(r.height())
+                    ),
+                    None => format!(
+                        "{} × {} mm",
+                        crate::widgets::fmt_mm(r.width()),
+                        crate::widgets::fmt_mm(r.height())
+                    ),
+                };
+                let galley = painter.layout_no_wrap(
+                    text,
+                    theme::font_numeric(),
+                    if snapped.is_some() {
+                        theme::FG_ON_ACCENT
+                    } else {
+                        pal.fg_primary
+                    },
+                );
+                let pad = Vec2::new(theme::SPACE_200, theme::SPACE_100);
+                let at = sr.center_top()
+                    - Vec2::new(
+                        galley.size().x / 2.0 + pad.x,
+                        galley.size().y + 2.0 * pad.y + theme::SPACE_200,
+                    );
+                let bg = Rect::from_min_size(at, galley.size() + 2.0 * pad);
+                painter.rect_filled(
+                    bg,
+                    theme::RADIUS_FULL,
+                    if snapped.is_some() {
+                        theme::ACCENT_PRIMARY
+                    } else {
+                        pal.bg_surface_1
+                    },
+                );
+                painter.galley(at + pad, galley, pal.fg_primary);
             }
             Drag::DrawRect { start, ellipse, .. } => {
                 if let Some(cur) = self.cursor_page {
@@ -962,7 +1356,26 @@ impl CanvasState {
             }
             Tool::Select => self.start_select_drag(doc, p, origin, mods, tol, rect, ph),
             Tool::Shape => self.start_shape_drag(doc, p, origin, mods, tol, rect, ph),
+            Tool::Artboard => {
+                let (pw, _) = doc.page_size();
+                let page = kurbo::Rect::new(0.0, 0.0, pw, ph);
+                if let Some(a) = self.page_handle_at(rect, ph, page, origin) {
+                    self.drag = Drag::Artboard {
+                        handle: a,
+                        rect: page,
+                        snapped: None,
+                    };
+                }
+            }
         }
+    }
+
+    /// Alça da página (cantos e meios das bordas) sob o ponto de tela.
+    fn page_handle_at(&self, rect: Rect, ph: f64, page: kurbo::Rect, at: Pos2) -> Option<Anchor> {
+        Anchor::ALL
+            .into_iter()
+            .filter(|a| *a != Anchor::Center)
+            .find(|a| (self.screen(rect, ph, a.point(page)) - at).length() <= theme::HANDLE_HIT)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1329,6 +1742,48 @@ impl CanvasState {
                 }
                 doc.editor.replace_at(loc, o);
             }
+            Drag::Artboard { handle, rect, .. } => {
+                let (handle, mut r) = (*handle, *rect);
+                let (fx, fy) = handle.fraction();
+                let min = 1_000.0;
+                if fx == 0.0 {
+                    r.x0 = cur.x.min(r.x1 - min);
+                } else if fx == 1.0 {
+                    r.x1 = cur.x.max(r.x0 + min);
+                }
+                if fy == 0.0 {
+                    r.y0 = cur.y.min(r.y1 - min);
+                } else if fy == 1.0 {
+                    r.y1 = cur.y.max(r.y0 + min);
+                }
+                // Encaixe em formatos conhecidos (GD-DIM-24); Alt desliga.
+                let mut snapped = None;
+                if !mods.alt {
+                    let tol = (theme::SNAP_RADIUS_PX * 2.0 / self.view.zoom).max(500.0);
+                    if let Some((p, w, h)) =
+                        graphdraw_core::edit::pagesize::snap_format(r.width(), r.height(), tol)
+                    {
+                        if fx == 0.0 {
+                            r.x0 = r.x1 - w;
+                        } else if fx == 1.0 {
+                            r.x1 = r.x0 + w;
+                        }
+                        if fy == 0.0 {
+                            r.y0 = r.y1 - h;
+                        } else if fy == 1.0 {
+                            r.y1 = r.y0 + h;
+                        }
+                        if (r.width() - w).abs() < 1.0 && (r.height() - h).abs() < 1.0 {
+                            snapped = Some(p.name);
+                        }
+                    }
+                }
+                self.drag = Drag::Artboard {
+                    handle,
+                    rect: r,
+                    snapped,
+                };
+            }
             Drag::DrawRect { cands, .. } => {
                 self.snap_hit = snap::snap(cur, cands, &self.snap, radius);
             }
@@ -1453,6 +1908,25 @@ impl CanvasState {
             | Drag::NodeHandle { .. }
             | Drag::Segment { .. } => {
                 doc.editor.commit();
+            }
+            Drag::Artboard { rect: r, .. } => {
+                let (pw, _) = doc.page_size();
+                let unchanged =
+                    (r.x0.abs() + r.y0.abs() + (r.x1 - pw).abs() + (r.y1 - ph).abs()) < 1.0;
+                let has_objects = doc.doc().data.pages.iter().any(|p| p.object_count() > 0);
+                if unchanged {
+                } else if has_objects {
+                    self.artboard_pending = Some((r, end));
+                } else {
+                    graphdraw_core::edit::pagesize::resize(
+                        &mut doc.editor,
+                        doc.page,
+                        r,
+                        graphdraw_core::edit::pagesize::ResizeMode::KeepPosition,
+                        tr("Redimensionar páginas", "Resize pages"),
+                    );
+                    self.fit_pending = true;
+                }
             }
             Drag::BezierHandle | Drag::Pan | Drag::MoveCenter | Drag::None => {}
         }
@@ -1828,6 +2302,104 @@ pub fn zoom_to_rect(cs: &mut CanvasState, r: kurbo::Rect) {
 mod tests {
     use super::*;
 
+    /// Roda um quadro do canvas, sem janela, com os eventos dados.
+    fn canvas_frame(
+        ctx: &egui::Context,
+        cs: &mut CanvasState,
+        doc: &mut DocState,
+        tool: Tool,
+        events: Vec<egui::Event>,
+    ) {
+        let input = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(1366.0, 768.0))),
+            events,
+            ..Default::default()
+        };
+        let defaults = Defaults {
+            fill: None,
+            stroke: None,
+        };
+        let mut out = ctx.run_ui(input, |ui| {
+            egui::CentralPanel::no_frame().show(ui, |ui| {
+                cs.show(ui, doc, tool, &defaults);
+            });
+        });
+        out.textures_delta.clear();
+    }
+
+    /// Aceite de GD-DIM-24: arrastar o canto de uma A4 até perto de 148 × 210
+    /// mm gruda em A5; sem objetos, o tamanho muda direto em todas as páginas
+    /// (GD-PAG-01), num passo do histórico.
+    #[test]
+    fn artboard_snaps_a4_to_a5() {
+        let ctx = crate::theme::test_ctx();
+        let mut cs = CanvasState::default();
+        let mut doc = DocState::new_blank();
+        graphdraw_core::edit::pages::add_after(&mut doc.editor, 0);
+        for _ in 0..2 {
+            canvas_frame(&ctx, &mut cs, &mut doc, Tool::Artboard, vec![]);
+        }
+        let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(1366.0, 768.0));
+        let (pw, ph) = doc.page_size();
+        let start = cs.screen(rect, ph, Point::new(pw, 0.0));
+        // 1 mm além do A5: o encaixe corrige.
+        let end = cs.screen(rect, ph, Point::new(149_000.0, ph - 211_000.0));
+        let btn = |pos, pressed| egui::Event::PointerButton {
+            pos,
+            button: PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::Artboard,
+            vec![egui::Event::PointerMoved(start)],
+        );
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::Artboard,
+            vec![btn(start, true)],
+        );
+        let mut saw_snap = false;
+        for k in 1..=10 {
+            let t = k as f32 / 10.0;
+            let pos = start + (end - start) * t;
+            canvas_frame(
+                &ctx,
+                &mut cs,
+                &mut doc,
+                Tool::Artboard,
+                vec![egui::Event::PointerMoved(pos)],
+            );
+            if let Drag::Artboard {
+                snapped: Some("A5"),
+                ..
+            } = cs.drag
+            {
+                saw_snap = true;
+            }
+        }
+        assert!(saw_snap, "o selo 'Encaixado em: ISO A5' apareceu");
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::Artboard,
+            vec![btn(end, false)],
+        );
+        canvas_frame(&ctx, &mut cs, &mut doc, Tool::Artboard, vec![]);
+        for p in &doc.doc().data.pages {
+            assert!((p.width - 148_000.0).abs() < 1.0, "{}", p.width);
+            assert!((p.height - 210_000.0).abs() < 1.0, "{}", p.height);
+        }
+        doc.editor.undo();
+        assert!(doc.doc().data.pages.iter().all(|p| p.width == 210_000.0));
+    }
+
     /// Cada ferramenta tem o próprio cursor; alças da seleção usam os de
     /// redimensionar do sistema.
     #[test]
@@ -1854,7 +2426,8 @@ mod tests {
                 "cur-pan",
                 "mira+tool-bezier",
                 "mira+tool-rect",
-                "mira+tool-ellipse"
+                "mira+tool-ellipse",
+                "cur-select"
             ]
         );
         assert_eq!(
