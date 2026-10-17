@@ -264,6 +264,13 @@ Em Linux: `apt install libcdr-dev librevenge-dev pkg-config g++` e o mesmo
 | GD-OUT-04 | `tests/stroke_position.rs`, `tests/m1_editing.rs` |
 | GD-CAM-01 (esboço), GD-CAM-03 | `tests/m1_editing.rs`, `ops::tests::gd_cam_03_move_to_layer`, `history::tests::layers_undo` |
 | Zoom/pan do editor | `graphdraw-app/src/view.rs` (testes de unidade) |
+| GD-BOO-01..03 | `shapeops::tests::gd_boo_01_*`, `gd_boo_02_03_*` |
+| GD-BOO-04..08 | `shapeops::tests::gd_boo_04_simplify` … `gd_boo_08_boundary` |
+| GD-ALI-05 | `smart::tests::gd_ali_05_*`, `canvas::tests::smart_guides_*` (app) |
+| GD-FIL-11 / GD-FER-50 | `gradtool::tests::*`, `canvas::tests::interactive_gradient_tool` (app) |
+| GD-PRI-03 (edição) | `canvas::tests::polygon_vertex_edit_is_symmetric` (app) |
+| Doc 06, formatação por trecho | `text::tests::style_and_fill_by_range`, `app::tests::text_range_style_and_palette_color` |
+| GD-FID-10/13/14/15/30/31 | `fidelity::tests::*`, `tests/fidelity.rs` (corpus sintético; pulado sem Poppler) |
 
 Fixtures `.gdr` são geradas por
 `cargo run -p graphdraw-core --example make_fixtures` (IDs fixos). Amostras
