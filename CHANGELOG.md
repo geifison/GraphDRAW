@@ -32,6 +32,9 @@ entre parênteses são os requisitos de `docs/spec/`.
   - horizontal, vertical, paralela, angular, raio, diâmetro e segmento;
   - ligadas aos nós medidos, com a escala de desenho (GD-FER-40,
     GD-COT-01..03).
+- Conectores reto, em ângulo reto (cantos arredondados) e curvo, presos
+  aos encaixes dos objetos e refeitos no mesmo passo ao movê-los
+  (GD-FER-41, GD-CON-01).
 - Conta-gotas:
   - amostrar e despejar, com lupa e média de área;
   - atributos, rampas de gradiente e histórico (doc 27).

@@ -28,6 +28,11 @@ pub fn local_outline(o: &Object) -> Option<BezPath> {
         }
         ObjectKind::Dimension(d) => super::dimension::outline(d),
         ObjectKind::Basic(b) => crate::render::basic::path(b),
+        ObjectKind::Connector(c) => super::connector::route(
+            c,
+            Point::new(c.from.point[0], c.from.point[1]),
+            Point::new(c.to.point[0], c.to.point[1]),
+        ),
         _ => return None,
     })
 }

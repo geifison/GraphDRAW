@@ -1931,6 +1931,7 @@ impl App {
             C::ToolSolidFill => self.set_tool(Tool::SolidFill),
             C::ToolEyedropper => self.set_tool(Tool::Eyedropper),
             C::ToolKnife => self.set_tool(Tool::Knife),
+            C::ToolConnector => self.set_tool(Tool::Connector),
             C::ToolSmartFill => self.set_tool(Tool::SmartFill),
             C::ToolDimension => self.set_tool(Tool::Dimension),
             C::ToolFreeTransform => self.set_tool(Tool::FreeTransform),
@@ -4064,6 +4065,7 @@ pub(crate) fn kind_label(k: &ObjectKind) -> String {
         ObjectKind::Image(_) => tr("imagem", "image"),
         ObjectKind::Dimension(_) => tr("cota", "dimension"),
         ObjectKind::Basic(_) => tr("forma básica", "basic shape"),
+        ObjectKind::Connector(_) => tr("conector", "connector"),
         ObjectKind::Unknown { .. } => tr("objeto desconhecido", "unknown object"),
     }
     .into()

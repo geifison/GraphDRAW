@@ -415,6 +415,27 @@ impl Builder<'_> {
                 }
                 None
             }
+            // Conector (GD-CON-01): a rota entre as pontas resolvidas ao vivo,
+            // com o contorno (e as pontas de seta) do objeto.
+            ObjectKind::Connector(c) => {
+                use crate::edit::connector as conn;
+                let doc = self.doc;
+                let (a, b) = conn::ends(c, m, &|id| crate::edit::dimension::find_in_doc(doc, id));
+                let inv = m.inverse();
+                let mut line = Object::new(ObjectKind::Path(crate::model::PathData {
+                    subpaths: crate::edit::convert::bez_to_subpaths(&conn::route(
+                        c,
+                        inv * a,
+                        inv * b,
+                    )),
+                    fill_rule: FillRule::Nonzero,
+                    extra: Default::default(),
+                }));
+                line.id = o.id.clone();
+                line.stroke = o.stroke.clone();
+                self.object_items(&line, m, alpha);
+                None
+            }
             // Cota (GD-COT-01..03): vira linhas, pontas e texto comuns; as
             // ligações aos nós são resolvidas aqui, ao vivo.
             ObjectKind::Dimension(d) => {

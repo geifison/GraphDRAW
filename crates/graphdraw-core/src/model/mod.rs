@@ -14,8 +14,8 @@ pub use document::{
 };
 pub use geom::{FillRule, Node, NodeKind, Subpath, SubpathBuilder, Transform};
 pub use object::{
-    BasicShapeData, BlendMode, Corner, DimFormat, DimLink, DimensionData, EllipseData, FontSpec,
-    GroupData, ImageData, Object, ObjectKind, Paragraph, PathData, PolygonData, RectData, TextData,
-    TextPath, TextSpan, new_id,
+    BasicShapeData, BlendMode, ConnEnd, ConnectorData, Corner, DimFormat, DimLink, DimensionData,
+    EllipseData, FontSpec, GroupData, ImageData, Object, ObjectKind, Paragraph, PathData,
+    PolygonData, RectData, TextData, TextPath, TextSpan, new_id,
 };
 pub use paint::{Arrow, Fill, Gradient, GradientStop, Pattern, Stroke};

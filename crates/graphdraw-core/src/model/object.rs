@@ -93,6 +93,8 @@ pub enum ObjectKind {
     Dimension(DimensionData),
     /// Forma básica paramétrica (GD-PRI-07).
     Basic(BasicShapeData),
+    /// Conector entre objetos (GD-FER-41, GD-CON-01).
+    Connector(ConnectorData),
     /// Tipo desconhecido ou objeto inválido: JSON original preservado.
     Unknown {
         raw: Value,
@@ -318,6 +320,32 @@ pub struct BasicShapeData {
     pub extra: Map<String, Value>,
 }
 
+/// Conector (GD-CON-01): `style` = `straight`, `elbow` (ângulo reto, com
+/// `radius` nos cantos) ou `curved`; pontas na página.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectorData {
+    pub style: String,
+    pub from: ConnEnd,
+    pub to: ConnEnd,
+    #[serde(default)]
+    pub radius: f64,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+/// Ponta do conector: o ponto (página) e, se presa, o objeto e o encaixe
+/// relativo à caixa dele (0–1).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnEnd {
+    pub point: [f64; 2],
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub object: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub anchor: Option<[f64; 2]>,
+}
+
 /// Nó (ou segmento) de outro objeto a que a cota está ligada.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -438,6 +466,7 @@ impl Object {
             ObjectKind::Image(_) => "image",
             ObjectKind::Dimension(_) => "dimension",
             ObjectKind::Basic(_) => "basic",
+            ObjectKind::Connector(_) => "connector",
             ObjectKind::Unknown { raw, .. } => {
                 raw.get("type").and_then(Value::as_str).unwrap_or("?")
             }
@@ -532,6 +561,7 @@ impl Object {
             "image" => ObjectKind::Image(parse(rest, ty)?),
             "dimension" => ObjectKind::Dimension(parse(rest, ty)?),
             "basic" => ObjectKind::Basic(parse(rest, ty)?),
+            "connector" => ObjectKind::Connector(parse(rest, ty)?),
             _ => ObjectKind::Unknown {
                 raw: v.clone(),
                 error: None,
@@ -600,6 +630,7 @@ impl Object {
             ObjectKind::Image(d) => serde_json::to_value(d),
             ObjectKind::Dimension(d) => serde_json::to_value(d),
             ObjectKind::Basic(d) => serde_json::to_value(d),
+            ObjectKind::Connector(d) => serde_json::to_value(d),
             ObjectKind::Unknown { .. } => unreachable!(),
         };
         if let Ok(Value::Object(k)) = kind {

@@ -125,7 +125,7 @@ Para depois da 1.0, cada um com o motivo:
   modelo de dados novo.
 
 ## P1
-- [ ] Conector reto, em ângulo e curvo, que segue os objetos (GD-FER-41,
+- [x] Conector reto, em ângulo e curvo, que segue os objetos (GD-FER-41,
   GD-CON-01).
 - [x] Chamada (balão com seta, GD-FER-42): balão de fala das formas básicas.
 - [x] Formas básicas: setas, fluxograma, balões (GD-PRI-07).

@@ -811,6 +811,59 @@ fn patterns() -> Document {
     d
 }
 
+/// GD-CON-01: três caixas ligadas por conector reto, em ângulo reto
+/// (cantos arredondados) e curvo, com seta no fim.
+fn connectors() -> Document {
+    let mut ids = Ids::new(13);
+    let mut p = page(&mut ids, 200.0 * MM, 120.0 * MM);
+    let d = doc_with(vec![], "Conectores");
+    let boxes = [(10.0, 10.0), (130.0, 10.0), (10.0, 80.0), (130.0, 80.0)];
+    let mut bids = Vec::new();
+    for (x, y) in boxes {
+        let r = rect(
+            &mut ids,
+            x * MM,
+            y * MM,
+            50.0 * MM,
+            30.0 * MM,
+            Fill::solid(Color::cmyk(0.0, 0.0, 0.2, 0.0)),
+        );
+        bids.push((r.id.clone(), x * MM, y * MM));
+        p.layers[0].objects.push(r);
+    }
+    let end = |i: usize, a: [f64; 2]| {
+        let (id, x, y) = &bids[i];
+        ConnEnd {
+            point: [x + a[0] * 50.0 * MM, y + a[1] * 30.0 * MM],
+            object: Some(id.clone()),
+            anchor: Some(a),
+        }
+    };
+    for (style, from, to, radius) in [
+        ("straight", end(0, [1.0, 0.5]), end(1, [0.0, 0.5]), 0.0),
+        ("elbow", end(0, [0.5, 1.0]), end(3, [0.5, 0.0]), 3.0 * MM),
+        ("curved", end(2, [1.0, 0.5]), end(1, [0.5, 1.0]), 0.0),
+    ] {
+        let mut c = obj(
+            &mut ids,
+            ObjectKind::Connector(ConnectorData {
+                style: style.into(),
+                from,
+                to,
+                radius,
+                extra: Map::new(),
+            }),
+        );
+        let mut st = Stroke::new(0.75 * PT, Color::cmyk(0.0, 0.0, 0.0, 1.0));
+        st.end_arrow = Some(Arrow::new("triangle"));
+        c.stroke = Some(st);
+        p.layers[0].objects.push(c);
+    }
+    let mut d = d;
+    d.data.pages.push(p);
+    d
+}
+
 /// Doc 28 e GD-COT-01..03: sangria, limites da verificação prévia,
 /// sobreimpressão no contorno e uma cota ligada aos nós de um retângulo.
 fn prepress() -> Document {
@@ -904,6 +957,7 @@ fn main() {
         ("m1-editing", m1_editing()),
         ("prepress", prepress()),
         ("patterns", patterns()),
+        ("connectors", connectors()),
     ];
     for (name, doc) in &docs {
         let path = dir.join(format!("{name}.gdr"));

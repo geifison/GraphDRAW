@@ -74,6 +74,8 @@ pub enum Tool {
     Dimension,
     /// Preenchimento inteligente (GD-FER-52): clique numa área cercada.
     SmartFill,
+    /// Conector (GD-FER-41): arrastar de um objeto a outro.
+    Connector,
 }
 
 /// Cota sendo feita: tipo, pontos (página), ligações e segmento medido.
@@ -202,6 +204,17 @@ impl Tool {
                 ),
                 "",
             ),
+            Tool::Connector => (
+                "tool-connector",
+                crate::keymap::hint(
+                    tr(
+                        "Conector — arraste de um objeto a outro; as pontas encaixam nos cantos, lados e centro e seguem os objetos",
+                        "Connector — drag from one object to another; the ends snap to corners, sides and center and follow the objects",
+                    ),
+                    crate::keymap::Command::ToolConnector,
+                ),
+                "",
+            ),
             Tool::SmartFill => (
                 "tool-smart-fill",
                 crate::keymap::hint(
@@ -325,7 +338,7 @@ impl Tool {
             ),
         }
     }
-    pub const ALL: [Tool; 24] = [
+    pub const ALL: [Tool; 25] = [
         Tool::Select,
         Tool::Shape,
         Tool::Zoom,
@@ -350,6 +363,7 @@ impl Tool {
         Tool::FreeTransform,
         Tool::Dimension,
         Tool::SmartFill,
+        Tool::Connector,
     ];
 }
 
@@ -487,6 +501,11 @@ enum Drag {
         cur: Point,
         bounds: kurbo::Rect,
         originals: Vec<(ObjRef, Object)>,
+    },
+    /// Conector sendo puxado: ponta de origem e ponto atual.
+    ConnectorDraw {
+        from: graphdraw_core::model::ConnEnd,
+        cur: Point,
     },
     /// Base da curva 3 pontos sendo puxada.
     Curve3Base {
@@ -661,6 +680,10 @@ pub struct CanvasState {
     pub can_paste: bool,
     /// Preenchimento inteligente cria também o contorno padrão.
     pub smart_outline: bool,
+    /// Conector: estilo, raio dos cantos e seta no fim.
+    pub conn_style: String,
+    pub conn_radius: f64,
+    pub conn_arrow: bool,
     /// Prévia de separações (GD-SEP-01): chapa ou composta; `None` = cores normais.
     pub separation: Option<graphdraw_core::render::separation::SepView>,
     /// Lacuna da faca e largura do pincel da borracha (µm).
@@ -769,6 +792,9 @@ impl Default for CanvasState {
             can_paste: false,
             separation: None,
             smart_outline: false,
+            conn_style: "elbow".into(),
+            conn_radius: 2_000.0,
+            conn_arrow: true,
             knife_gap: 0.0,
             eraser_width: 5_000.0,
             crop_pending: None,
@@ -2538,6 +2564,9 @@ impl CanvasState {
             Tool::SmartFill => Glyph::Cross {
                 badge: "tool-smart-fill",
             },
+            Tool::Connector => Glyph::Cross {
+                badge: "tool-connector",
+            },
             Tool::FreeTransform => Glyph::Cross {
                 badge: "tool-free-transform",
             },
@@ -3301,6 +3330,10 @@ impl CanvasState {
                     originals,
                 };
             }
+            Tool::Connector => {
+                let from = conn_end(doc, p, 10.0 / self.view.zoom);
+                self.drag = Drag::ConnectorDraw { from, cur: p };
+            }
             Tool::Curve3 => {
                 if self.curve3.is_none() {
                     self.drag = Drag::Curve3Base { start: p, cur: p };
@@ -3846,6 +3879,14 @@ impl CanvasState {
         };
         let thin = EStroke::new(theme::BORDER_WIDTH, accent);
         match &self.drag {
+            Drag::ConnectorDraw { from, cur } => {
+                let a = kurbo::Point::new(from.point[0], from.point[1]);
+                painter.line_segment(
+                    [self.screen(rect, ph, a), self.screen(rect, ph, *cur)],
+                    thin,
+                );
+                painter.circle_stroke(self.screen(rect, ph, a), theme::HANDLE_SIZE / 2.0, thin);
+            }
             Drag::Freehand { pts, .. } => {
                 painter.add(egui::Shape::line(line(pts), thin));
             }
@@ -4656,7 +4697,7 @@ impl CanvasState {
                 *c = end;
                 return;
             }
-            Drag::Curve3Base { cur: c, .. } => {
+            Drag::Curve3Base { cur: c, .. } | Drag::ConnectorDraw { cur: c, .. } => {
                 *c = cur;
                 return;
             }
@@ -5132,6 +5173,36 @@ impl CanvasState {
                     doc.editor.cancel();
                 } else {
                     doc.editor.commit();
+                }
+            }
+            Drag::ConnectorDraw { from, cur: end } => {
+                let start = kurbo::Point::new(from.point[0], from.point[1]);
+                if (end - start).hypot() * self.view.zoom > 4.0 {
+                    let to = conn_end(doc, end, 10.0 / self.view.zoom);
+                    let mut o =
+                        graphdraw_core::edit::connector::new_connector(&self.conn_style, from, to);
+                    if let ObjectKind::Connector(c) = &mut o.kind {
+                        c.radius = self.conn_radius;
+                    }
+                    if let Some(s) = &mut o.stroke {
+                        if let Some(d) = &defaults.stroke {
+                            s.color = d.color.clone();
+                            s.width = d.width;
+                        }
+                        s.end_arrow = self
+                            .conn_arrow
+                            .then(|| graphdraw_core::model::Arrow::new("triangle"));
+                    }
+                    if let Some(layer) = doc.layer_for_new_object() {
+                        let id = ops::add_object(
+                            &mut doc.editor,
+                            doc.page,
+                            layer,
+                            o,
+                            tr("Criar conector", "Create connector"),
+                        );
+                        doc.selection = vec![id];
+                    }
                 }
             }
             Drag::Curve3Base { start, cur: end } => {
@@ -6107,6 +6178,23 @@ pub fn zoom_to_rect(cs: &mut CanvasState, r: kurbo::Rect) {
     cs.zoom_to = Some(r.inflate(r.width() * 0.05, r.height() * 0.05));
 }
 
+/// Ponta do conector em `p`: presa ao encaixe mais próximo (dentro de
+/// `tol`) ou livre.
+fn conn_end(doc: &DocState, p: Point, tol: f64) -> graphdraw_core::model::ConnEnd {
+    match graphdraw_core::edit::connector::anchor_near(doc.doc(), doc.page, p, tol) {
+        Some((id, a, q)) => graphdraw_core::model::ConnEnd {
+            point: [q.x, q.y],
+            object: Some(id),
+            anchor: Some(a),
+        },
+        None => graphdraw_core::model::ConnEnd {
+            point: [p.x, p.y],
+            object: None,
+            anchor: None,
+        },
+    }
+}
+
 /// Afastamento da cota pelo cursor: distância à linha medida (lineares),
 /// ao vértice (angular) ou além da borda (raio).
 fn dim_offset(kind: &str, pts: &[Point], cur: Point) -> f64 {
@@ -6998,6 +7086,67 @@ mod tests {
         assert_eq!(doc.page().layers[0].objects.len(), n + 1);
         click(&mut cs, &mut doc, outside);
         assert_eq!(doc.page().layers[0].objects.len(), n + 1, "fora: nada");
+    }
+
+    /// GD-CON-01 na tela: arrastar do meio do lado direito do quadrado até
+    /// um ponto livre cria o conector preso; mover o quadrado leva a ponta.
+    #[test]
+    fn connector_drag_links() {
+        let (ctx, mut cs, mut doc, id, rect, ph) = bdr_setup();
+        let a = cs.screen(rect, ph, Point::new(70_300.0, 110_200.0));
+        let b = cs.screen(rect, ph, Point::new(150_000.0, 160_000.0));
+        let t = Tool::Connector;
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            t,
+            vec![egui::Event::PointerMoved(a)],
+        );
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            t,
+            vec![button(a, PointerButton::Primary, true)],
+        );
+        for k in 1..=5 {
+            let p = a + (b - a) * (k as f32 / 5.0);
+            canvas_frame(
+                &ctx,
+                &mut cs,
+                &mut doc,
+                t,
+                vec![egui::Event::PointerMoved(p)],
+            );
+        }
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            t,
+            vec![button(b, PointerButton::Primary, false)],
+        );
+        let o = doc.page().layers[0].objects.last().unwrap().clone();
+        let ObjectKind::Connector(c) = &o.kind else {
+            panic!("{:?}", o.kind)
+        };
+        assert_eq!(c.from.object.as_deref(), Some(id.as_str()));
+        assert_eq!(c.from.anchor, Some([1.0, 0.5]));
+        assert_eq!(c.from.point, [70_000.0, 110_000.0]);
+        assert!(c.to.object.is_none());
+        assert!(o.stroke.as_ref().unwrap().end_arrow.is_some());
+        ops::transform(
+            &mut doc.editor,
+            std::slice::from_ref(&id),
+            kurbo::Affine::translate((0.0, 10_000.0)),
+            "Mover",
+        );
+        let o = doc.page().layers[0].objects.last().unwrap();
+        let ObjectKind::Connector(c) = &o.kind else {
+            panic!()
+        };
+        assert_eq!(c.from.point, [70_000.0, 120_000.0]);
     }
 
     /// GD-SEP-01 na tela: com a prévia de uma chapa, a página é desenhada
@@ -8306,7 +8455,8 @@ mod tests {
                 "mira+tool-curve3",
                 "mira+tool-free-transform",
                 "mira+tool-dimension",
-                "mira+tool-smart-fill"
+                "mira+tool-smart-fill",
+                "mira+tool-connector"
             ]
         );
         assert_eq!(

@@ -122,7 +122,10 @@ pub fn slots() -> Vec<Slot> {
             ],
         ),
         Slot::One(Tool::Text),
-        Slot::One(Tool::Dimension),
+        Slot::Group(
+            "medidas",
+            vec![Variant::of(Tool::Dimension), Variant::of(Tool::Connector)],
+        ),
         Slot::Group(
             "preenchimento",
             vec![

@@ -412,6 +412,18 @@
           }
         },
         {
+          "if": { "properties": { "type": { "const": "connector" } } },
+          "then": {
+            "required": ["style", "from", "to"],
+            "properties": {
+              "style": { "enum": ["straight", "elbow", "curved"] },
+              "radius": { "type": "number", "minimum": 0 },
+              "from": { "$ref": "#/$defs/connEnd" },
+              "to": { "$ref": "#/$defs/connEnd" }
+            }
+          }
+        },
+        {
           "if": { "properties": { "type": { "const": "dimension" } } },
           "then": {
             "required": ["dimKind", "points"],
@@ -440,6 +452,15 @@
           }
         }
       ]
+    },
+    "connEnd": {
+      "type": "object",
+      "required": ["point"],
+      "properties": {
+        "point": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
+        "object": { "type": "string" },
+        "anchor": { "type": "array", "items": { "type": "number", "minimum": 0, "maximum": 1 }, "minItems": 2, "maxItems": 2 }
+      }
     },
     "dimLink": {
       "type": "object",

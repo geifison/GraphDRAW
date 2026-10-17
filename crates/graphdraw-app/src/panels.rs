@@ -108,6 +108,9 @@ impl App {
                     );
                 })
             }
+            Tool::Connector => widgets::single_line_bar(ui, "barra-conector", |ui| {
+                connector_bar(ui, doc, &mut self.canvas)
+            }),
             Tool::SmartFill => widgets::single_line_bar(ui, "barra-preench-intel", |ui| {
                 ui.checkbox(
                     &mut self.canvas.smart_outline,
@@ -3722,6 +3725,77 @@ fn dimension_bar(ui: &mut egui::Ui, doc: &mut DocState, cs: &mut crate::canvas::
             );
         }
     }
+}
+
+/// Barra do Conector (GD-CON-01): estilo, raio dos cantos e seta no fim;
+/// com conectores selecionados, vale para eles.
+fn connector_bar(ui: &mut egui::Ui, doc: &mut DocState, cs: &mut crate::canvas::CanvasState) {
+    let sel: Vec<String> = doc
+        .selection
+        .iter()
+        .filter(|id| {
+            doc.editor
+                .find(id)
+                .and_then(|r| doc.editor.get(&r))
+                .is_some_and(|o| matches!(o.kind, ObjectKind::Connector(_)))
+        })
+        .cloned()
+        .collect();
+    let mut style = cs.conn_style.clone();
+    let mut radius = cs.conn_radius;
+    if let Some(ObjectKind::Connector(c)) = sel
+        .first()
+        .and_then(|id| doc.editor.find(id).and_then(|r| doc.editor.get(&r)))
+        .map(|o| &o.kind)
+    {
+        style = c.style.clone();
+        radius = c.radius;
+    }
+    let (s0, r0) = (style.clone(), radius);
+    for (k, label) in [
+        ("straight", tr("Reto", "Straight")),
+        ("elbow", tr("Ângulo reto", "Elbow")),
+        ("curved", tr("Curvo", "Curved")),
+    ] {
+        if ui.selectable_label(style == k, label).clicked() {
+            style = k.into();
+        }
+    }
+    if style == "elbow" {
+        ui.label(tr("Cantos", "Corners"));
+        if let Some(v) = widgets::length_field(ui, "conector-raio", radius, None) {
+            radius = v.max(0.0);
+        }
+    }
+    ui.checkbox(&mut cs.conn_arrow, tr("Seta no fim", "Arrow at the end"));
+    if style != s0 || radius != r0 {
+        if sel.is_empty() {
+            cs.conn_style = style;
+            cs.conn_radius = radius;
+        } else {
+            ops::modify(
+                &mut doc.editor,
+                &sel,
+                tr("Estilo do conector", "Connector style"),
+                |o| {
+                    if let ObjectKind::Connector(c) = &mut o.kind {
+                        c.style = style.clone();
+                        c.radius = radius;
+                        return true;
+                    }
+                    false
+                },
+            );
+        }
+    }
+    ui.separator();
+    widgets::hint_line(
+        ui,
+        tr(
+            "Arraste de um objeto a outro; as pontas encaixam nos cantos, lados e centro",
+            "Drag from one object to another; the ends snap to corners, sides and center",
+        ),
+    );
 }
 
 /// Texto do problema da verificação prévia (GD-PRE-01).

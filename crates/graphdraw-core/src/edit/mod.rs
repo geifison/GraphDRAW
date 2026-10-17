@@ -3,6 +3,7 @@
 //! seleção.
 
 pub mod breakapart;
+pub mod connector;
 pub mod convert;
 pub mod cutting;
 pub mod dimension;

@@ -219,6 +219,7 @@ commands! {
     ToolMeshFill = "tool.mesh_fill", "Preenchimento em malha", "Mesh fill", Tools, NotText, false;
     ToolEraser = "tool.eraser", "Ferramenta Borracha", "Eraser tool", Tools, NotText, true;
     ToolKnife = "tool.knife", "Ferramenta Faca", "Knife tool", Tools, NotText, true;
+    ToolConnector = "tool.connector", "Ferramenta Conector", "Connector tool", Tools, NotText, true;
     ToolSmartFill = "tool.smart_fill", "Preenchimento inteligente", "Smart fill", Tools, NotText, true;
     ToolDimension = "tool.dimension", "Ferramenta Cota", "Dimension tool", Tools, NotText, true;
     ToolFreeTransform = "tool.free_transform", "Transformação livre", "Free transform", Tools, NotText, true;
