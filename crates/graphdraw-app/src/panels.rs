@@ -572,6 +572,47 @@ fn select_bar(ui: &mut egui::Ui, doc: &mut DocState, anchor: &mut Anchor, lock: 
     let Some(b) = ops::selection_bounds(&doc.editor, &sel, false) else {
         return page_bar_props(ui, doc);
     };
+    // Booleanas com dois ou mais objetos (doc 09): alvo = último selecionado.
+    if sel.len() >= 2 {
+        use graphdraw_core::edit::shapeops::{self, BoolOp};
+        for (icon, tip, op) in [
+            (
+                "bool-weld",
+                crate::keymap::hint(tr("Soldar", "Weld"), crate::keymap::Command::Weld),
+                BoolOp::Weld,
+            ),
+            (
+                "bool-trim",
+                crate::keymap::hint(
+                    tr(
+                        "Aparar: o último selecionado perde a área dos outros",
+                        "Trim: the last selected loses the others' area",
+                    ),
+                    crate::keymap::Command::Trim,
+                ),
+                BoolOp::Trim,
+            ),
+            (
+                "bool-intersect",
+                crate::keymap::hint(
+                    tr(
+                        "Interseção: novo objeto com a área comum",
+                        "Intersect: new object with the common area",
+                    ),
+                    crate::keymap::Command::Intersect,
+                ),
+                BoolOp::Intersect,
+            ),
+        ] {
+            if icons::button(ui, icon, tip, false, true).clicked()
+                && let Some(n) = shapeops::boolean(&mut doc.editor, &sel, op, op.default_options())
+            {
+                doc.selection = n;
+                return false;
+            }
+        }
+        ui.separator();
+    }
     anchor_picker(ui, anchor);
     let p = anchor.point(b);
     if let Some(x) = labeled_length(ui, "X", "x", p.x, None) {

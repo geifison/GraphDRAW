@@ -291,6 +291,14 @@ Do M0, ainda valem:
 - Carregamento sob demanda de páginas (GD-GDR-11) não implementado: páginas
   separadas são lidas na abertura.
 
+Do M2 (em andamento):
+
+- Booleanas (soldar, aparar, interseção), combinar/separar e contorno de
+  deslocamento operam sobre polígonos com tolerância de 1 µm
+  (`i_overlay`) e o resultado volta a Bézier por ajuste próprio com erro
+  de 2 µm (`edit/fit.rs`); simplificar, XOR, dividir e limite
+  (GD-BOO-04..08) ainda não existem.
+
 Do M1:
 
 - Seleção (GD-SEL-03): clique, Shift+clique, retângulo, laço (Alt +

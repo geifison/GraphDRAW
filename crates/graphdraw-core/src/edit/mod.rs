@@ -3,12 +3,14 @@
 //! seleção.
 
 pub mod convert;
+pub mod fit;
 pub mod history;
 pub mod nodes;
 pub mod ops;
 pub mod pages;
 pub mod pagesize;
 pub mod query;
+pub mod shapeops;
 pub mod snap;
 pub mod tree;
 

@@ -139,6 +139,12 @@ commands! {
     ToCurves = "obj.to_curves", "Converter em curvas", "Convert to curves", Object, Selection, true;
     OutlineToObject = "obj.outline_to_object", "Converter contorno em objeto", "Convert outline to object", Object, Selection, true;
     Group_ = "obj.group", "Agrupar", "Group", Object, Multi, true;
+    Weld = "obj.weld", "Soldar", "Weld", Object, Multi, true;
+    Trim = "obj.trim", "Aparar", "Trim", Object, Multi, true;
+    Intersect = "obj.intersect", "Interseção", "Intersect", Object, Multi, true;
+    Combine = "obj.combine", "Combinar", "Combine", Object, Multi, true;
+    BreakApart = "obj.break_apart", "Separar", "Break apart", Object, Selection, true;
+    Offset = "obj.offset", "Contorno de deslocamento", "Offset path", Object, Selection, true;
     Ungroup = "obj.ungroup", "Desagrupar", "Ungroup", Object, Selection, true;
     TransformPosition = "panel.transform_position", "Transformar: posição", "Transform: position", Object, Always, true;
     TransformRotate = "panel.transform_rotate", "Transformar: girar", "Transform: rotate", Object, Always, true;
@@ -365,6 +371,8 @@ impl Keymap {
                 (OutlineToObject, "Ctrl+Shift+Q"),
                 (Group_, "Ctrl+G"),
                 (Ungroup, "Ctrl+U"),
+                (Combine, "Ctrl+L"),
+                (BreakApart, "Ctrl+K"),
                 (ToFront, "Shift+PageUp"),
                 (ToBack, "Shift+PageDown"),
                 (Forward, "Ctrl+PageUp"),

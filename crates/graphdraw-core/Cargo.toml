@@ -8,6 +8,7 @@ description = "Núcleo do GraphDraw: modelo de documento, .gdr, importação .cd
 [dependencies]
 base64 = "0.23.1"
 fontdb = "0.24.0"
+i_overlay = "9.1.0"
 image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "bmp", "tiff", "webp", "gif"] }
 kurbo = "0.13.1"
 miniz_oxide = "0.9.1"

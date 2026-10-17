@@ -38,6 +38,24 @@ pub enum RightTab {
     Report,
 }
 
+/// Opções da janela de contorno de deslocamento.
+pub(crate) struct OffsetDialog {
+    /// Distância em µm.
+    distance: f64,
+    outward: bool,
+    join: graphdraw_core::edit::shapeops::Join,
+}
+
+impl Default for OffsetDialog {
+    fn default() -> Self {
+        OffsetDialog {
+            distance: 2_000.0,
+            outward: true,
+            join: graphdraw_core::edit::shapeops::Join::Round,
+        }
+    }
+}
+
 /// Ação que pode exigir confirmar alterações não salvas (GD-UND-07).
 #[derive(Clone)]
 enum Pending {
@@ -108,6 +126,8 @@ pub struct App {
     last_action: Option<LastAction>,
     /// Janela "Exportar" (escolha do formato) aberta.
     export_choice: bool,
+    /// Janela do contorno de deslocamento (GD-OFS-01) aberta.
+    offset_dlg: Option<OffsetDialog>,
     /// Janela "Novo documento" aberta (GD-DIM-10).
     new_doc: Option<crate::newdoc::NewDocDialog>,
     /// Condição de impressão escolhida para o PDF/X-1a (GD-EXP-07).
@@ -161,6 +181,7 @@ impl App {
             prev_tool: None,
             last_action: None,
             export_choice: false,
+            offset_dlg: None,
             new_doc: None,
             print_condition: export::PrintCondition::Fogra39,
             pdf_standard: export::PdfStandard::Screen,
@@ -829,6 +850,11 @@ impl App {
                 | C::PasteInPlace
                 | C::ToCurves
                 | C::OutlineToObject
+                | C::Weld
+                | C::Trim
+                | C::Intersect
+                | C::Combine
+                | C::BreakApart
                 | C::AlignTop
                 | C::AlignBottom
                 | C::AlignLeft
@@ -907,6 +933,44 @@ impl App {
                 (!n.is_empty()).then_some(n)
             }),
             C::Group_ => self.group(),
+            C::Weld | C::Trim | C::Intersect => {
+                use graphdraw_core::edit::shapeops::{self, BoolOp};
+                let op = match c {
+                    C::Weld => BoolOp::Weld,
+                    C::Trim => BoolOp::Trim,
+                    _ => BoolOp::Intersect,
+                };
+                let mut done = false;
+                self.with_selection(|ed, s| {
+                    let r = shapeops::boolean(ed, s, op, op.default_options());
+                    done = r.is_some();
+                    r
+                });
+                if !done {
+                    self.status = tr(
+                        "Nada a fazer: selecione dois ou mais objetos com área em comum",
+                        "Nothing to do: select two or more objects that overlap",
+                    )
+                    .into();
+                }
+            }
+            C::Combine => self.with_selection(|ed, s| {
+                graphdraw_core::edit::shapeops::combine(ed, s).map(|id| vec![id])
+            }),
+            C::BreakApart => self.with_selection(|ed, s| {
+                let mut out = Vec::new();
+                for id in s {
+                    out.extend(
+                        graphdraw_core::edit::shapeops::separate(ed, id, true).unwrap_or_default(),
+                    );
+                }
+                (!out.is_empty()).then_some(out)
+            }),
+            C::Offset => {
+                if self.doc.as_ref().is_some_and(|d| !d.selection.is_empty()) {
+                    self.offset_dlg = Some(OffsetDialog::default());
+                }
+            }
             C::Ungroup => self.with_selection(|ed, s| Some(ops::ungroup(ed, s))),
             C::TransformPosition | C::TransformRotate => {
                 self.show_right = true;
@@ -1292,6 +1356,28 @@ impl App {
                 {
                     self.run_command(Command::OutlineToObject, &ctx);
                 }
+                ui.separator();
+                let multi = self.doc.as_ref().is_some_and(|d| d.selection.len() >= 2);
+                for (label, cmd, enabled) in [
+                    (tr("Soldar", "Weld"), Command::Weld, multi),
+                    (tr("Aparar", "Trim"), Command::Trim, multi),
+                    (tr("Interseção", "Intersect"), Command::Intersect, multi),
+                    (tr("Combinar", "Combine"), Command::Combine, multi),
+                    (tr("Separar", "Break apart"), Command::BreakApart, has_sel),
+                    (
+                        tr("Contorno de deslocamento…", "Offset path…"),
+                        Command::Offset,
+                        has_sel,
+                    ),
+                ] {
+                    if ui
+                        .add_enabled(enabled, egui::Button::new(keymap::menu(label, cmd)))
+                        .clicked()
+                    {
+                        self.run_command(cmd, &ctx);
+                    }
+                }
+                ui.separator();
                 if ui
                     .add_enabled(
                         has_sel,
@@ -1895,6 +1981,80 @@ impl App {
         }
         if self.show_keys {
             self.keys_window(ctx);
+        }
+        self.offset_window(ctx);
+    }
+
+    /// Janela do contorno de deslocamento (GD-OFS-01).
+    fn offset_window(&mut self, ctx: &egui::Context) {
+        use graphdraw_core::edit::shapeops::{self, Join};
+        let Some(dlg) = &mut self.offset_dlg else {
+            return;
+        };
+        let mut apply = false;
+        let mut close = false;
+        crate::widgets::modal(ctx, egui::Id::unique("contorno-deslocamento")).show(ctx, |ui| {
+            ui.heading(tr("Contorno de deslocamento", "Offset path"));
+            ui.add_space(theme::SPACE_300);
+            ui.horizontal(|ui| {
+                ui.label(tr("Distância", "Distance"));
+                if let Some(v) =
+                    crate::widgets::length_field(ui, "deslocamento-d", dlg.distance, None)
+                {
+                    dlg.distance = v.max(0.0);
+                }
+            });
+            ui.horizontal(|ui| {
+                ui.radio_value(&mut dlg.outward, true, tr("Para fora", "Outside"));
+                ui.radio_value(&mut dlg.outward, false, tr("Para dentro", "Inside"));
+            });
+            ui.horizontal(|ui| {
+                ui.label(tr("Cantos", "Corners"));
+                ui.radio_value(&mut dlg.join, Join::Miter, tr("Vivos", "Sharp"));
+                ui.radio_value(&mut dlg.join, Join::Round, tr("Redondos", "Round"));
+                ui.radio_value(&mut dlg.join, Join::Bevel, tr("Chanfrados", "Bevel"));
+            });
+            ui.add_space(theme::SPACE_300);
+            crate::widgets::footer(ui, |ui| {
+                if ui
+                    .add(crate::widgets::primary_button(tr("Criar", "Create")))
+                    .clicked()
+                    || ui.input(|i| i.key_pressed(Key::Enter))
+                {
+                    apply = true;
+                }
+                if ui
+                    .add(crate::widgets::secondary_button(tr("Cancelar", "Cancel")))
+                    .clicked()
+                    || ui.input(|i| i.key_pressed(Key::Escape))
+                {
+                    close = true;
+                }
+            });
+        });
+        if apply {
+            let d = if dlg.outward {
+                dlg.distance
+            } else {
+                -dlg.distance
+            };
+            let join = dlg.join;
+            self.offset_dlg = None;
+            let mut made = false;
+            self.with_selection(|ed, s| {
+                let ids = shapeops::offset(ed, s, d, join);
+                made = !ids.is_empty();
+                made.then_some(ids)
+            });
+            if !made {
+                self.status = tr(
+                    "O deslocamento não deixou área (distância maior que a forma?)",
+                    "The offset left no area (distance larger than the shape?)",
+                )
+                .into();
+            }
+        } else if close {
+            self.offset_dlg = None;
         }
     }
 
