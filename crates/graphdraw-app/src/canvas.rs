@@ -187,6 +187,13 @@ enum Drag {
     },
 }
 
+/// Retângulo/elipse de 3 pontos: base já definida, falta a altura.
+struct ThreeDraft {
+    a: Point,
+    b: Point,
+    ellipse: bool,
+}
+
 struct BezierDraft {
     nodes: Vec<Node>,
 }
@@ -221,6 +228,9 @@ pub struct CanvasState {
     /// Prancheta solta com objetos na página: falta escolher manter ou
     /// escalar (GD-DIM-25). Novo retângulo da página e onde abrir a escolha.
     artboard_pending: Option<(kurbo::Rect, Pos2)>,
+    /// Retângulo e elipse no modo 3 pontos (GD-FER-30/31).
+    pub three_point: bool,
+    three: Option<ThreeDraft>,
 }
 
 impl Default for CanvasState {
@@ -246,6 +256,8 @@ impl Default for CanvasState {
             canvas_size: Vec2::new(800.0, 600.0),
             space_pans: true,
             artboard_pending: None,
+            three_point: false,
+            three: None,
         }
     }
 }
@@ -301,7 +313,21 @@ impl CanvasState {
     }
 
     pub fn has_draft(&self) -> bool {
-        self.bezier.is_some()
+        self.bezier.is_some() || self.three.is_some()
+    }
+
+    /// Descarta o retângulo/elipse de 3 pontos pela metade.
+    pub fn drop_three(&mut self) {
+        self.three = None;
+    }
+
+    /// Fecha o retângulo/elipse de 3 pontos com a altura até `c`.
+    fn finish_three(&mut self, doc: &mut DocState, t: ThreeDraft, c: Point, defaults: &Defaults) {
+        if let Some((w, h, m)) = three_point_frame(t.a, t.b, c)
+            && h * self.view.zoom >= 2.0
+        {
+            add_shape(doc, t.ellipse, w, h, m, defaults);
+        }
     }
 
     /// Encerra o traçado Bézier em andamento (cria o objeto se tiver 2+ nós).
@@ -352,6 +378,7 @@ impl CanvasState {
         }
         self.drag = Drag::None;
         self.bezier = None;
+        self.three = None;
     }
 
     pub fn show(
@@ -1028,6 +1055,16 @@ impl CanvasState {
                 );
                 painter.galley(at + pad, galley, pal.fg_primary);
             }
+            Drag::DrawRect { start, .. } if self.three_point => {
+                if let Some(cur) = self.cursor_page {
+                    let mods = ui.input(|i| i.modifiers);
+                    let b = base_end(*start, self.snap_hit.map_or(cur, |s| s.point), mods);
+                    painter.line_segment(
+                        [self.screen(rect, ph, *start), self.screen(rect, ph, b)],
+                        thin,
+                    );
+                }
+            }
             Drag::DrawRect { start, ellipse, .. } => {
                 if let Some(cur) = self.cursor_page {
                     let mods = ui.input(|i| i.modifiers);
@@ -1045,6 +1082,24 @@ impl CanvasState {
                 }
             }
             _ => {}
+        }
+        if let (Some(t), Some(cur)) = (&self.three, self.cursor_page) {
+            let c = self.snap_hit.map_or(cur, |s| s.point);
+            if let Some((w, h, m)) = three_point_frame(t.a, t.b, c) {
+                let mut path = shape_outline(t.ellipse, w, h);
+                path.apply_affine(m);
+                let mut line = Vec::new();
+                kurbo::flatten(path, 0.5 / self.view.zoom.max(1e-9), |el| {
+                    if let kurbo::PathEl::MoveTo(q) | kurbo::PathEl::LineTo(q) = el {
+                        line.push(self.screen(rect, ph, q));
+                    }
+                });
+                painter.add(egui::Shape::closed_line(line, thin));
+            }
+            painter.line_segment(
+                [self.screen(rect, ph, t.a), self.screen(rect, ph, t.b)],
+                thin,
+            );
         }
         if let Some(d) = &self.bezier {
             let mut path = BezPath::new();
@@ -1190,6 +1245,11 @@ impl CanvasState {
                 let cands = snap::candidates(doc.page(), &self.snap, &[]);
                 let start = snap::snap(p, &cands, &self.snap, snap_radius(&self.view))
                     .map_or(p, |s| s.point);
+                // Com a base pronta, apertar o botão fecha a forma.
+                if let Some(t) = self.three.take() {
+                    self.finish_three(doc, t, start, _defaults);
+                    return;
+                }
                 self.drag = Drag::DrawRect {
                     start,
                     ellipse: tool == Tool::Ellipse,
@@ -1747,44 +1807,23 @@ impl CanvasState {
                     self.view.zoom_at(2.0, (l.x as f64, l.y as f64));
                 }
             }
+            Drag::DrawRect { start, ellipse, .. } if self.three_point => {
+                // 3 pontos: o arrasto define a base; a altura vem a seguir.
+                let endp = base_end(start, self.snap_hit.map_or(cur, |s| s.point), mods);
+                if (endp - start).hypot() * self.view.zoom >= 2.0 {
+                    self.three = Some(ThreeDraft {
+                        a: start,
+                        b: endp,
+                        ellipse,
+                    });
+                }
+            }
             Drag::DrawRect { start, ellipse, .. } => {
                 let endp = self.snap_hit.map_or(cur, |s| s.point);
                 let r = draw_rect(start, endp, mods);
                 if r.width() * self.view.zoom >= 2.0 && r.height() * self.view.zoom >= 2.0 {
-                    let kind = if ellipse {
-                        ObjectKind::Ellipse(EllipseData {
-                            rx: r.width() / 2.0,
-                            ry: r.height() / 2.0,
-                            mode: "ellipse".into(),
-                            start_angle: 0.0,
-                            end_angle: 360.0,
-                            extra: Map::new(),
-                        })
-                    } else {
-                        ObjectKind::Rectangle(RectData {
-                            width: r.width(),
-                            height: r.height(),
-                            corners: None,
-                            extra: Map::new(),
-                        })
-                    };
-                    let mut o = Object::new(kind);
-                    o.transform = if ellipse {
-                        Transform::translate(r.center().x, r.center().y)
-                    } else {
-                        Transform::translate(r.x0, r.y0)
-                    };
-                    o.fill = defaults.fill.clone();
-                    o.stroke = defaults.stroke.clone();
-                    if let Some(layer) = doc.layer_for_new_object() {
-                        let name = if ellipse {
-                            tr("Criar elipse", "Create ellipse")
-                        } else {
-                            tr("Criar retângulo", "Create rectangle")
-                        };
-                        let id = ops::add_object(&mut doc.editor, doc.page, layer, o, name);
-                        doc.selection = vec![id];
-                    }
+                    let m = Affine::translate((r.x0, r.y0));
+                    add_shape(doc, ellipse, r.width(), r.height(), m, defaults);
                 }
             }
             Drag::Move { .. }
@@ -1937,6 +1976,12 @@ impl CanvasState {
                 if self.bezier_press(doc, p, pos, rect, ph) => {
                     self.finish_bezier(doc, defaults, true);
                 }
+            Tool::Rect | Tool::Ellipse => {
+                if let Some(t) = self.three.take() {
+                    let c = self.snap_hit.map_or(p, |s| s.point);
+                    self.finish_three(doc, t, c, defaults);
+                }
+            }
             _ => {}
         }
         let _ = ev;
@@ -2100,6 +2145,90 @@ fn plural_nodes(n: usize) -> String {
 }
 
 /// Retângulo desenhado entre dois pontos; Shift = quadrado, Ctrl = a partir do centro.
+/// Fim da base do modo 3 pontos; Shift prende o ângulo em passos de 15°.
+fn base_end(a: Point, b: Point, mods: egui::Modifiers) -> Point {
+    if !mods.shift {
+        return b;
+    }
+    let d = b - a;
+    let step = 15f64.to_radians();
+    let ang = (d.y.atan2(d.x) / step).round() * step;
+    a + kurbo::Vec2::new(ang.cos(), ang.sin()) * d.hypot()
+}
+
+/// Retângulo de 3 pontos: base `a`→`b` e altura até `c`, medida na
+/// perpendicular. Devolve largura, altura e a matriz que leva o retângulo
+/// local (0, 0)–(w, h) à página, com o eixo x ao longo da base.
+fn three_point_frame(a: Point, b: Point, c: Point) -> Option<(f64, f64, Affine)> {
+    let base = b - a;
+    let w = base.hypot();
+    if w <= 0.0 {
+        return None;
+    }
+    let u = base / w;
+    let n = kurbo::Vec2::new(-u.y, u.x);
+    let h = (c - a).dot(n);
+    let origin = if h < 0.0 { a + n * h } else { a };
+    let m = Affine::translate(origin.to_vec2()) * Affine::rotate(u.y.atan2(u.x));
+    Some((w, h.abs(), m))
+}
+
+/// Contorno local da forma (0, 0)–(w, h), para a prévia.
+fn shape_outline(ellipse: bool, w: f64, h: f64) -> BezPath {
+    use kurbo::Shape;
+    if ellipse {
+        kurbo::Ellipse::new((w / 2.0, h / 2.0), (w / 2.0, h / 2.0), 0.0).to_path(0.1)
+    } else {
+        kurbo::Rect::new(0.0, 0.0, w, h).to_path(0.1)
+    }
+}
+
+/// Cria um retângulo ou elipse com o quadro (0, 0)–(w, h) levado à página
+/// por `m`, com os atributos padrão, e o seleciona.
+fn add_shape(doc: &mut DocState, ellipse: bool, w: f64, h: f64, m: Affine, defaults: &Defaults) {
+    let kind = if ellipse {
+        ObjectKind::Ellipse(EllipseData {
+            rx: w / 2.0,
+            ry: h / 2.0,
+            mode: "ellipse".into(),
+            start_angle: 0.0,
+            end_angle: 360.0,
+            extra: Map::new(),
+        })
+    } else {
+        ObjectKind::Rectangle(RectData {
+            width: w,
+            height: h,
+            corners: None,
+            extra: Map::new(),
+        })
+    };
+    let mut o = Object::new(kind);
+    // A elipse tem a origem no centro.
+    let m = if ellipse {
+        m * Affine::translate((w / 2.0, h / 2.0))
+    } else {
+        m
+    };
+    let c = m.as_coeffs();
+    o.transform = if c[0] == 1.0 && c[1] == 0.0 && c[2] == 0.0 && c[3] == 1.0 {
+        Transform::translate(c[4], c[5])
+    } else {
+        Transform::from_affine(m)
+    };
+    o.fill = defaults.fill.clone();
+    o.stroke = defaults.stroke.clone();
+    if let Some(layer) = doc.layer_for_new_object() {
+        let name = if ellipse {
+            tr("Criar elipse", "Create ellipse")
+        } else {
+            tr("Criar retângulo", "Create rectangle")
+        };
+        let id = ops::add_object(&mut doc.editor, doc.page, layer, o, name);
+        doc.selection = vec![id];
+    }
+}
+
 fn draw_rect(a: Point, b: Point, mods: egui::Modifiers) -> kurbo::Rect {
     let mut d = b - a;
     if mods.shift {
@@ -2217,6 +2346,109 @@ mod tests {
     /// Aceite de GD-DIM-24: arrastar o canto de uma A4 até perto de 148 × 210
     /// mm gruda em A5; sem objetos, o tamanho muda direto em todas as páginas
     /// (GD-PAG-01), num passo do histórico.
+    /// Retângulo de 3 pontos: base girada 90°, altura para qualquer lado.
+    #[test]
+    fn three_point_frame_follows_base_and_height() {
+        let a = Point::new(10.0, 10.0);
+        let b = Point::new(10.0, 40.0);
+        // Base vertical (x local = +y da página); a normal aponta para -x.
+        let (w, h, m) = three_point_frame(a, b, Point::new(-10.0, 25.0)).unwrap();
+        assert_eq!((w, h), (30.0, 20.0));
+        let corners = [(0.0, 0.0), (w, 0.0), (w, h), (0.0, h)].map(|(x, y)| m * Point::new(x, y));
+        let near = |p: Point, q: (f64, f64)| (p - Point::new(q.0, q.1)).hypot() < 1e-9;
+        assert!(near(corners[0], (10.0, 10.0)));
+        assert!(near(corners[1], (10.0, 40.0)));
+        assert!(near(corners[2], (-10.0, 40.0)));
+        // Altura do outro lado: o canto de origem desloca, a forma não espelha.
+        let (_, h2, m2) = three_point_frame(a, b, Point::new(25.0, 0.0)).unwrap();
+        assert_eq!(h2, 15.0);
+        let r = kurbo::Rect::new(0.0, 0.0, 30.0, 15.0);
+        let bb = m2.transform_rect_bbox(r);
+        assert!((bb.x0 - 10.0).abs() < 1e-9 && (bb.x1 - 25.0).abs() < 1e-9);
+        assert!(m2.determinant() > 0.0);
+        assert!(three_point_frame(a, a, b).is_none());
+    }
+
+    /// GD-FER-30: no modo 3 pontos, arrastar a base e clicar na altura cria
+    /// um retângulo girado com as medidas certas, num passo do histórico.
+    #[test]
+    fn three_point_rectangle_by_drag_and_click() {
+        let ctx = crate::theme::test_ctx();
+        let mut cs = CanvasState {
+            three_point: true,
+            ..Default::default()
+        };
+        cs.snap.grid = None;
+        let mut doc = DocState::new_blank();
+        for _ in 0..2 {
+            canvas_frame(&ctx, &mut cs, &mut doc, Tool::Rect, vec![]);
+        }
+        let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(1366.0, 768.0));
+        let (_, ph) = doc.page_size();
+        let at = |cs: &CanvasState, x: f64, y: f64| cs.screen(rect, ph, Point::new(x, y));
+        let btn = |pos, pressed| egui::Event::PointerButton {
+            pos,
+            button: PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        // Base diagonal de (50, 50) mm a (90, 80) mm: 50 mm de comprimento.
+        let (s0, s1) = (at(&cs, 50_000.0, 50_000.0), at(&cs, 90_000.0, 80_000.0));
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::Rect,
+            vec![egui::Event::PointerMoved(s0)],
+        );
+        canvas_frame(&ctx, &mut cs, &mut doc, Tool::Rect, vec![btn(s0, true)]);
+        for k in 1..=8 {
+            let pos = s0 + (s1 - s0) * (k as f32 / 8.0);
+            canvas_frame(
+                &ctx,
+                &mut cs,
+                &mut doc,
+                Tool::Rect,
+                vec![egui::Event::PointerMoved(pos)],
+            );
+        }
+        canvas_frame(&ctx, &mut cs, &mut doc, Tool::Rect, vec![btn(s1, false)]);
+        assert!(cs.has_draft(), "base pronta, falta a altura");
+        assert_eq!(doc.page().object_count(), 0);
+        // Altura de 20 mm na perpendicular: normal (-0,6; 0,8).
+        let c = at(&cs, 90_000.0 - 12_000.0, 80_000.0 + 16_000.0);
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::Rect,
+            vec![egui::Event::PointerMoved(c)],
+        );
+        canvas_frame(&ctx, &mut cs, &mut doc, Tool::Rect, vec![btn(c, true)]);
+        canvas_frame(&ctx, &mut cs, &mut doc, Tool::Rect, vec![btn(c, false)]);
+        canvas_frame(&ctx, &mut cs, &mut doc, Tool::Rect, vec![]);
+        assert!(!cs.has_draft());
+        let objs = &doc
+            .page()
+            .layers
+            .iter()
+            .flat_map(|l| l.objects.iter())
+            .collect::<Vec<_>>();
+        assert_eq!(objs.len(), 1);
+        let ObjectKind::Rectangle(r) = &objs[0].kind else {
+            panic!("retângulo")
+        };
+        // Tolerância de meio pixel de tela convertido em µm.
+        let tol = 1.0 / cs.view.zoom;
+        assert!((r.width - 50_000.0).abs() < tol, "{}", r.width);
+        assert!((r.height - 20_000.0).abs() < tol, "{}", r.height);
+        let m = objs[0].transform.affine();
+        let ang = m.as_coeffs()[1].atan2(m.as_coeffs()[0]).to_degrees();
+        assert!((ang - 36.87).abs() < 0.5, "{ang}");
+        doc.editor.undo();
+        assert_eq!(doc.page().object_count(), 0);
+    }
+
     /// GD-SEL-03: Alt + arrastar desenha um laço; só o objeto cercado entra
     /// na seleção.
     #[test]

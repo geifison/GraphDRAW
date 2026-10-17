@@ -84,13 +84,38 @@ impl App {
                 );
             }
             Tool::Rect | Tool::Ellipse => {
-                hint(
-                    ui,
-                    tr(
-                        "Arraste para desenhar · Shift = proporcional · Ctrl = a partir do centro",
-                        "Drag to draw · Shift = proportional · Ctrl = from center",
-                    ),
-                );
+                let three = &mut self.canvas.three_point;
+                widgets::single_line_bar(ui, "barra-forma-basica", |ui| {
+                    // Modo de desenho (GD-FER-30/31): 2 pontos (caixa) ou 3 pontos
+                    // (base em qualquer ângulo + altura).
+                    if ui
+                        .selectable_label(!*three, tr("2 pontos", "2 points"))
+                        .clicked()
+                    {
+                        *three = false;
+                    }
+                    if ui
+                        .selectable_label(*three, tr("3 pontos", "3 points"))
+                        .clicked()
+                    {
+                        *three = true;
+                    }
+                    ui.separator();
+                    widgets::hint_line(
+                        ui,
+                        if *three {
+                            tr(
+                                "Arraste a base · mova para a altura e clique · Shift = ângulo em 15° · Esc cancela",
+                                "Drag the base · move for height and click · Shift = 15° steps · Esc cancels",
+                            )
+                        } else {
+                            tr(
+                                "Arraste para desenhar · Shift = proporcional · Ctrl = a partir do centro",
+                                "Drag to draw · Shift = proportional · Ctrl = from center",
+                            )
+                        },
+                    );
+                });
             }
             Tool::Zoom => {
                 hint(

@@ -296,8 +296,8 @@ Do M1:
 - Seleção (GD-SEL-03): clique, Shift+clique, retângulo, laço (Alt +
   arrastar), tudo, inverter e semelhantes (mesmo tipo, preenchimento ou cor
   de contorno). Os semelhantes comparam só objetos de primeiro nível.
-- Retângulo e elipse de 3 pontos (variantes de GD-FER-30/31) ainda não
-  existem; distribuir (painel Alinhar) é do M3.
+- Retângulo e elipse têm o modo 3 pontos (GD-FER-30/31) na barra de
+  propriedades; distribuir (painel Alinhar) é do M3.
 - Painéis em abas fixas (sem flutuar nem perfis, GD-UI-03). Atalhos têm
   perfis e importação/exportação (GD-UI-10). Falta o painel Objetos em
   árvore (GD-UI-02).

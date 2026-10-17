@@ -696,6 +696,7 @@ impl App {
                 self.canvas.finish_bezier(d, &self.defaults, false);
                 d.nodes.clear();
             }
+            self.canvas.drop_three();
             self.tool = t;
         }
     }
@@ -1631,10 +1632,8 @@ impl App {
                     tr("Zoom", "Zoom"),
                     self.canvas.view.zoom / ACTUAL_SIZE * 100.0
                 ));
-                if let Some(p) = self.canvas.cursor_page {
-                    ui.separator();
-                    ui.label(format!("x {} mm  y {} mm", fmt_mm(p.x), fmt_mm(p.y)));
-                }
+                ui.separator();
+                cursor_position(ui, self.canvas.cursor_page);
                 ui.separator();
                 let n = d.selection.len();
                 let what = match n {
@@ -2066,6 +2065,40 @@ impl App {
         if let Err(e) = self.keys.save() {
             self.status = format!("{} {e}", tr("Atalhos não salvos:", "Shortcuts not saved:"));
         }
+    }
+}
+
+/// Posição do cursor na barra de status em largura fixa: fonte numérica,
+/// sempre duas casas e cada número alinhado à direita numa célula do tamanho
+/// de "-0000,00". Assim o resto da barra não treme quando o mouse anda, nem
+/// pula quando o cursor sai do canvas (as células ficam vazias).
+fn cursor_position(ui: &mut egui::Ui, p: Option<kurbo::Point>) {
+    let font = theme::font_numeric();
+    let num = |v: f64| {
+        let s = format!("{:.2}", v / 1000.0);
+        if crate::i18n::english() {
+            s
+        } else {
+            s.replace('.', ",")
+        }
+    };
+    let cell = ui
+        .painter()
+        .layout_no_wrap("-0000,00".into(), font.clone(), egui::Color32::WHITE)
+        .size()
+        .x;
+    let height = ui.spacing().interact_size.y;
+    for (axis, v) in [("x", p.map(|p| p.x)), ("y", p.map(|p| p.y))] {
+        ui.label(axis);
+        ui.allocate_ui_with_layout(
+            egui::Vec2::new(cell, height),
+            egui::Layout::right_to_left(egui::Align::Center),
+            |ui| {
+                ui.set_min_width(cell);
+                ui.label(egui::RichText::new(v.map(num).unwrap_or_default()).font(font.clone()));
+            },
+        );
+        ui.label("mm");
     }
 }
 
