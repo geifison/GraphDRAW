@@ -41,6 +41,21 @@ pub fn step_mm(px_per_mm: f64) -> (f64, u32) {
     }
 }
 
+/// Marcas de uma régua entre `lo` e `hi` (µm do papel, a partir da
+/// origem): posição no papel (µm), medida do mundo (mm) e se é grande.
+/// `step`/`sub` estão em mm do mundo; `scale` = mundo ÷ papel.
+pub fn ticks(lo: f64, hi: f64, step: f64, sub: u32, scale: f64) -> Vec<(f64, f64, bool)> {
+    let minor = step / sub as f64;
+    let i0 = (lo / 1000.0 * scale / minor).floor() as i64;
+    let i1 = (hi / 1000.0 * scale / minor).ceil() as i64;
+    (i0..=i1)
+        .map(|i| {
+            let mm = i as f64 * minor;
+            (mm / scale * 1000.0, mm, i.rem_euclid(sub as i64) == 0)
+        })
+        .collect()
+}
+
 fn label(v_mm: f64) -> String {
     let v = if v_mm.abs() < 1e-9 { 0.0 } else { v_mm };
     if (v - v.round()).abs() < 1e-6 {
@@ -55,7 +70,9 @@ fn label(v_mm: f64) -> String {
 
 /// Desenha as duas réguas. `to_screen` leva um ponto da página (µm) à tela;
 /// `visible` é o retângulo da página (µm) que está na tela; `origin` é o
-/// zero das réguas (µm, na página); `cursor` marca a posição do mouse.
+/// zero das réguas (µm, na página); `cursor` marca a posição do mouse;
+/// `scale` é a escala de desenho (mundo ÷ papel, GD-DOC-03): as marcas e
+/// os números mostram medidas do mundo.
 #[allow(clippy::too_many_arguments)]
 pub fn paint(
     ui: &egui::Ui,
@@ -66,7 +83,13 @@ pub fn paint(
     px_per_um: f64,
     origin: Point,
     cursor: Option<Point>,
+    scale: f64,
 ) {
+    let scale = if scale.is_finite() && scale > 0.0 {
+        scale
+    } else {
+        1.0
+    };
     let (top, left, corner) = areas(canvas);
     let pal = theme::palette(ui);
     for r in [top, left, corner] {
@@ -79,17 +102,18 @@ pub fn paint(
     painter.line_segment([corner.left_bottom(), corner.right_bottom()], line);
     let tick = egui::Stroke::new(theme::BORDER_WIDTH, pal.fg_muted);
     let font = theme::font_micro();
-    let (step, sub) = step_mm(px_per_um * 1000.0);
-    let minor = step / sub as f64;
+    let (step, sub) = step_mm(px_per_um * 1000.0 / scale);
     let r = theme::RULER_SIZE;
     // Horizontal (x).
     let p_top = painter.with_clip_rect(top);
-    let x0 = ((visible.x0 - origin.x) / 1000.0 / minor).floor() as i64;
-    let x1 = ((visible.x1 - origin.x) / 1000.0 / minor).ceil() as i64;
-    for i in x0..=x1 {
-        let mm = i as f64 * minor;
-        let x = to_screen(Point::new(origin.x + mm * 1000.0, origin.y)).x;
-        let major = i.rem_euclid(sub as i64) == 0;
+    for (at, mm, major) in ticks(
+        visible.x0 - origin.x,
+        visible.x1 - origin.x,
+        step,
+        sub,
+        scale,
+    ) {
+        let x = to_screen(Point::new(origin.x + at, origin.y)).x;
         let len = if major {
             theme::RULER_TICK_MAJOR
         } else {
@@ -111,12 +135,14 @@ pub fn paint(
     }
     // Vertical (y, cresce para cima como a página).
     let p_left = painter.with_clip_rect(left);
-    let y0 = ((visible.y0 - origin.y) / 1000.0 / minor).floor() as i64;
-    let y1 = ((visible.y1 - origin.y) / 1000.0 / minor).ceil() as i64;
-    for i in y0..=y1 {
-        let mm = i as f64 * minor;
-        let y = to_screen(Point::new(origin.x, origin.y + mm * 1000.0)).y;
-        let major = i.rem_euclid(sub as i64) == 0;
+    for (at, mm, major) in ticks(
+        visible.y0 - origin.y,
+        visible.y1 - origin.y,
+        step,
+        sub,
+        scale,
+    ) {
+        let y = to_screen(Point::new(origin.x, origin.y + at)).y;
         let len = if major {
             theme::RULER_TICK_MAJOR
         } else {
@@ -174,5 +200,23 @@ mod tests {
         assert_eq!(step_mm(25.0).0, 5.0);
         assert_eq!(label(12.5), "12,5");
         assert_eq!(label(-0.0), "0");
+    }
+
+    /// GD-DOC-03: na escala 1 : 100, 10 mm de papel aparecem como 1000 mm
+    /// na régua; a posição no papel é a mesma.
+    #[test]
+    fn gd_doc_03_drawing_scale_on_rulers() {
+        let t = ticks(0.0, 10_000.0, 1000.0, 10, 100.0);
+        let last = t.iter().rev().find(|(_, _, major)| *major).unwrap();
+        assert!(
+            (last.0 - 10_000.0).abs() < 1e-6 && (last.1 - 1000.0).abs() < 1e-6,
+            "{last:?}"
+        );
+        let plain = ticks(0.0, 10_000.0, 10.0, 10, 1.0);
+        assert!(
+            plain.iter().any(|(at, mm, m)| *m
+                && (*at - 10_000.0).abs() < 1e-6
+                && (*mm - 10.0).abs() < 1e-6)
+        );
     }
 }

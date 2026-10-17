@@ -1943,6 +1943,26 @@ impl App {
                 ui.separator();
                 ui.separator();
                 ui.checkbox(&mut self.canvas.show_rulers, tr("Réguas", "Rulers"));
+                // Escala de desenho (GD-DOC-03): só réguas; a geometria não muda.
+                if let Some(d) = &mut self.doc {
+                    let [paper, world] = d.doc().data.settings.drawing_scale;
+                    let mut n = world / paper.max(1e-9);
+                    ui.horizontal(|ui| {
+                        ui.label(tr("Escala de desenho  1 :", "Drawing scale  1 :"));
+                        if ui
+                            .add(egui::DragValue::new(&mut n).range(0.001..=1_000_000.0).speed(1.0))
+                            .on_hover_text(tr(
+                                "As réguas mostram medidas do mundo (ex.: 1 : 100); o desenho não muda",
+                                "Rulers show real-world sizes (e.g. 1 : 100); the drawing does not change",
+                            ))
+                            .changed()
+                        {
+                            d.editor.transaction(tr("Escala de desenho", "Drawing scale"), |ed| {
+                                ed.edit_settings(|s| s.drawing_scale = [1.0, n])
+                            });
+                        }
+                    });
+                }
                 ui.checkbox(&mut self.canvas.show_guides, tr("Guias", "Guides"));
                 ui.checkbox(
                     &mut self.canvas.guides_locked,

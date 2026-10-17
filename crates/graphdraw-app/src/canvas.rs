@@ -1028,6 +1028,10 @@ impl CanvasState {
                 self.view.zoom,
                 self.ruler_origin,
                 cursor,
+                {
+                    let [paper, world] = doc.doc().data.settings.drawing_scale;
+                    world / paper
+                },
             );
         }
 
