@@ -145,15 +145,43 @@ impl App {
             // (GD-DIM-23). Vale para todas as páginas (GD-PAG-01).
             Tool::Polygon => {
                 widgets::single_line_bar(ui, "barra-poligono", |ui| {
-                    if let Some((n, m, k)) = polygon_controls(
-                        ui,
-                        defaults.polygon_sides,
-                        &defaults.polygon_mode,
-                        defaults.polygon_sharpness,
-                    ) {
-                        defaults.polygon_sides = n;
-                        defaults.polygon_mode = m;
-                        defaults.polygon_sharpness = k;
+                    // Família (GD-FER-32): polígono/estrelas, espiral, papel gráfico.
+                    let fam = &mut defaults.shape_family;
+                    widgets::stack(ui, |ui, row| {
+                        let items: &[(&str, &str, &str)] = if row == 0 {
+                            &[
+                                (
+                                    "polygon",
+                                    "tool-polygon",
+                                    tr("Polígono e estrelas", "Polygon and stars"),
+                                ),
+                                ("spiral", "tool-spiral", tr("Espiral", "Spiral")),
+                            ]
+                        } else {
+                            &[("graph", "tool-graph", tr("Papel gráfico", "Graph paper"))]
+                        };
+                        for (key, icon, tip) in items {
+                            if icons::button(ui, icon, tip, fam == key, true).clicked() {
+                                *fam = key.to_string();
+                            }
+                        }
+                    });
+                    ui.separator();
+                    match defaults.shape_family.as_str() {
+                        "spiral" => spiral_controls(ui, defaults),
+                        "graph" => graph_controls(ui, defaults),
+                        _ => {
+                            if let Some((n, m, k)) = polygon_controls(
+                                ui,
+                                defaults.polygon_sides,
+                                &defaults.polygon_mode,
+                                defaults.polygon_sharpness,
+                            ) {
+                                defaults.polygon_sides = n;
+                                defaults.polygon_mode = m;
+                                defaults.polygon_sharpness = k;
+                            }
+                        }
                     }
                     ui.separator();
                     widgets::hint_line(
@@ -903,6 +931,61 @@ fn selection_angle(doc: &DocState, sel: &[String]) -> f64 {
 
 /// Lados/pontas, modo (polígono, estrela, estrela complexa) e nitidez
 /// (GD-PRI-03/04). Devolve os novos valores quando algum muda.
+/// Espiral (GD-PRI-05): voltas, simétrica ou logarítmica e expansão.
+fn spiral_controls(ui: &mut egui::Ui, d: &mut crate::canvas::Defaults) {
+    widgets::stack(ui, |ui, row| {
+        if row == 0 {
+            ui.label(tr("Voltas", "Turns"));
+            ui.add(
+                egui::DragValue::new(&mut d.spiral_turns)
+                    .range(0.25..=100.0)
+                    .speed(0.05),
+            );
+        } else {
+            ui.selectable_value(&mut d.spiral_log, false, tr("Simétrica", "Symmetric"));
+            ui.selectable_value(&mut d.spiral_log, true, tr("Logarítmica", "Logarithmic"));
+            if d.spiral_log {
+                let mut pct = ((d.spiral_expansion - 1.0) * 100.0).round();
+                if ui
+                    .add(
+                        egui::DragValue::new(&mut pct)
+                            .range(1.0..=900.0)
+                            .suffix("%"),
+                    )
+                    .on_hover_text(tr(
+                        "Quanto o raio cresce a cada volta",
+                        "How much the radius grows per turn",
+                    ))
+                    .changed()
+                {
+                    d.spiral_expansion = 1.0 + pct / 100.0;
+                }
+            }
+        }
+    });
+}
+
+/// Papel gráfico (GD-PRI-06): colunas × linhas.
+fn graph_controls(ui: &mut egui::Ui, d: &mut crate::canvas::Defaults) {
+    widgets::stack(ui, |ui, row| {
+        if row == 0 {
+            ui.label(tr("Colunas", "Columns"));
+            ui.add(
+                egui::DragValue::new(&mut d.grid_cols)
+                    .range(1..=200)
+                    .speed(0.1),
+            );
+        } else {
+            ui.label(tr("Linhas", "Rows"));
+            ui.add(
+                egui::DragValue::new(&mut d.grid_rows)
+                    .range(1..=200)
+                    .speed(0.1),
+            );
+        }
+    });
+}
+
 pub fn polygon_controls(
     ui: &mut egui::Ui,
     sides: u32,

@@ -157,6 +157,16 @@ pub struct Defaults {
     pub polygon_sides: u32,
     pub polygon_mode: String,
     pub polygon_sharpness: f64,
+    /// Família da ferramenta Polígono (GD-FER-32): `polygon` (polígono e
+    /// estrelas), `spiral` ou `graph` (papel gráfico).
+    pub shape_family: String,
+    /// Espiral (GD-PRI-05): voltas, logarítmica e fator de expansão por volta.
+    pub spiral_turns: f64,
+    pub spiral_log: bool,
+    pub spiral_expansion: f64,
+    /// Papel gráfico (GD-PRI-06): colunas e linhas.
+    pub grid_cols: u32,
+    pub grid_rows: u32,
 }
 
 impl Default for Defaults {
@@ -167,6 +177,12 @@ impl Default for Defaults {
             polygon_sides: 5,
             polygon_mode: "polygon".into(),
             polygon_sharpness: 0.5,
+            shape_family: "polygon".into(),
+            spiral_turns: 4.0,
+            spiral_log: false,
+            spiral_expansion: 1.5,
+            grid_cols: 4,
+            grid_rows: 3,
         }
     }
 }
@@ -177,13 +193,19 @@ pub enum Prim {
     Rect,
     Ellipse,
     Polygon,
+    Spiral,
+    Grid,
 }
 
 impl Prim {
-    fn of(tool: Tool) -> Prim {
+    fn of(tool: Tool, d: &Defaults) -> Prim {
         match tool {
             Tool::Ellipse => Prim::Ellipse,
-            Tool::Polygon => Prim::Polygon,
+            Tool::Polygon => match d.shape_family.as_str() {
+                "spiral" => Prim::Spiral,
+                "graph" => Prim::Grid,
+                _ => Prim::Polygon,
+            },
             _ => Prim::Rect,
         }
     }
@@ -365,6 +387,8 @@ pub struct CanvasState {
     pub three_point: bool,
     /// Parâmetros do próximo polígono (para a prévia do arrasto).
     poly_preview: (u32, String, f64),
+    /// Atributos do próximo objeto, para a prévia de espiral e papel gráfico.
+    shape_preview: Defaults,
     three: Option<ThreeDraft>,
 }
 
@@ -406,6 +430,7 @@ impl Default for CanvasState {
             guide_menu: None,
             three_point: false,
             poly_preview: (5, "polygon".into(), 0.5),
+            shape_preview: Defaults::default(),
             three: None,
         }
     }
@@ -678,6 +703,19 @@ impl CanvasState {
             defaults.polygon_mode.clone(),
             defaults.polygon_sharpness,
         );
+        if self.shape_preview.shape_family != defaults.shape_family
+            || self.shape_preview.spiral_turns != defaults.spiral_turns
+            || self.shape_preview.spiral_log != defaults.spiral_log
+            || self.shape_preview.spiral_expansion != defaults.spiral_expansion
+            || (self.shape_preview.grid_cols, self.shape_preview.grid_rows)
+                != (defaults.grid_cols, defaults.grid_rows)
+        {
+            self.shape_preview = Defaults {
+                fill: None,
+                stroke: None,
+                ..defaults.clone()
+            };
+        }
         let (rect, response) = ui.allocate_exact_size(ui.available_size(), Sense::click_and_drag());
         self.canvas_size = rect.size();
         self.guides = if self.show_guides {
@@ -1556,6 +1594,16 @@ impl CanvasState {
                                 egui::StrokeKind::Middle,
                             );
                         }
+                        Prim::Spiral | Prim::Grid => {
+                            let mut path = generated_outline(
+                                *prim,
+                                r.width(),
+                                r.height(),
+                                &self.shape_preview,
+                            );
+                            path.apply_affine(Affine::translate((r.x0, r.y0)));
+                            self.preview_lines(painter, rect, ph, &path, thin);
+                        }
                         Prim::Polygon => {
                             let mut path = shape_outline_with(
                                 *prim,
@@ -1612,7 +1660,11 @@ impl CanvasState {
         if let (Some(t), Some(cur)) = (&self.three, self.cursor_page) {
             let c = self.draw_end(cur);
             if let Some((w, h, m)) = three_point_frame(t.a, t.b, c) {
-                let mut path = shape_outline_with(t.prim, w, h, _defaults_view(&self.poly_preview));
+                let mut path = if matches!(t.prim, Prim::Spiral | Prim::Grid) {
+                    generated_outline(t.prim, w, h, &self.shape_preview)
+                } else {
+                    shape_outline_with(t.prim, w, h, _defaults_view(&self.poly_preview))
+                };
                 path.apply_affine(m);
                 let mut line = Vec::new();
                 kurbo::flatten(path, 0.5 / self.view.zoom.max(1e-9), |el| {
@@ -1711,6 +1763,37 @@ impl CanvasState {
                     }
                 }
             }
+        }
+    }
+
+    /// Prévia em linhas abertas, uma por subcaminho (fechados voltam ao início).
+    fn preview_lines(
+        &self,
+        painter: &egui::Painter,
+        rect: Rect,
+        ph: f64,
+        path: &BezPath,
+        st: EStroke,
+    ) {
+        let mut lines: Vec<Vec<Pos2>> = Vec::new();
+        kurbo::flatten(path.iter(), 0.5 / self.view.zoom.max(1e-9), |el| match el {
+            kurbo::PathEl::MoveTo(q) => lines.push(vec![self.screen(rect, ph, q)]),
+            kurbo::PathEl::LineTo(q) => {
+                if let Some(l) = lines.last_mut() {
+                    l.push(self.screen(rect, ph, q));
+                }
+            }
+            kurbo::PathEl::ClosePath => {
+                if let Some(l) = lines.last_mut()
+                    && let Some(f) = l.first().copied()
+                {
+                    l.push(f);
+                }
+            }
+            _ => {}
+        });
+        for l in lines {
+            painter.add(egui::Shape::line(l, st));
         }
     }
 
@@ -1848,7 +1931,7 @@ impl CanvasState {
                 self.smart_point = None;
                 self.drag = Drag::DrawRect {
                     start,
-                    prim: Prim::of(tool),
+                    prim: Prim::of(tool, _defaults),
                     cands,
                 };
             }
@@ -3201,6 +3284,31 @@ fn _defaults_view(p: &(u32, String, f64)) -> graphdraw_core::model::PolygonData 
     }
 }
 
+/// Espiral ou papel gráfico no quadro (0, 0)–(w, h), para a prévia.
+fn generated_outline(prim: Prim, w: f64, h: f64, d: &Defaults) -> BezPath {
+    use graphdraw_core::edit::generate;
+    match prim {
+        Prim::Spiral => graphdraw_core::model::geom::subpaths_to_bez(
+            &generate::spiral(w, h, d.spiral_turns, d.spiral_log, d.spiral_expansion).subpaths,
+        ),
+        _ => {
+            let mut p = BezPath::new();
+            let (c, r) = (d.grid_cols.clamp(1, 200), d.grid_rows.clamp(1, 200));
+            for i in 0..=c {
+                let x = w * i as f64 / c as f64;
+                p.move_to((x, 0.0));
+                p.line_to((x, h));
+            }
+            for j in 0..=r {
+                let y = h * j as f64 / r as f64;
+                p.move_to((0.0, y));
+                p.line_to((w, y));
+            }
+            p
+        }
+    }
+}
+
 /// Contorno local da forma (0, 0)–(w, h), para a prévia.
 fn shape_outline_with(
     prim: Prim,
@@ -3213,7 +3321,8 @@ fn shape_outline_with(
         Prim::Ellipse => {
             kurbo::Ellipse::new((w / 2.0, h / 2.0), (w / 2.0, h / 2.0), 0.0).to_path(0.1)
         }
-        Prim::Rect => kurbo::Rect::new(0.0, 0.0, w, h).to_path(0.1),
+        Prim::Rect | Prim::Grid => kurbo::Rect::new(0.0, 0.0, w, h).to_path(0.1),
+        Prim::Spiral => BezPath::new(),
         Prim::Polygon => {
             let mut p =
                 graphdraw_core::render::scene::polygon_path(&graphdraw_core::model::PolygonData {
@@ -3230,6 +3339,10 @@ fn shape_outline_with(
 /// Cria um retângulo ou elipse com o quadro (0, 0)–(w, h) levado à página
 /// por `m`, com os atributos padrão, e o seleciona.
 fn add_shape(doc: &mut DocState, prim: Prim, w: f64, h: f64, m: Affine, defaults: &Defaults) {
+    if matches!(prim, Prim::Spiral | Prim::Grid) {
+        add_generated(doc, prim, w, h, m, defaults);
+        return;
+    }
     let kind = match prim {
         Prim::Ellipse => ObjectKind::Ellipse(EllipseData {
             rx: w / 2.0,
@@ -3247,7 +3360,7 @@ fn add_shape(doc: &mut DocState, prim: Prim, w: f64, h: f64, m: Affine, defaults
             sharpness: defaults.polygon_sharpness,
             extra: Map::new(),
         }),
-        Prim::Rect => ObjectKind::Rectangle(RectData {
+        Prim::Rect | Prim::Spiral | Prim::Grid => ObjectKind::Rectangle(RectData {
             width: w,
             height: h,
             corners: None,
@@ -3273,11 +3386,52 @@ fn add_shape(doc: &mut DocState, prim: Prim, w: f64, h: f64, m: Affine, defaults
         let name = match prim {
             Prim::Ellipse => tr("Criar elipse", "Create ellipse"),
             Prim::Polygon => tr("Criar polígono", "Create polygon"),
-            Prim::Rect => tr("Criar retângulo", "Create rectangle"),
+            _ => tr("Criar retângulo", "Create rectangle"),
         };
         let id = ops::add_object(&mut doc.editor, doc.page, layer, o, name);
         doc.selection = vec![id];
     }
+}
+
+/// Espiral (caminho aberto, só contorno) ou papel gráfico (grupo de
+/// retângulos) no quadro levado à página por `m`.
+fn add_generated(doc: &mut DocState, prim: Prim, w: f64, h: f64, m: Affine, defaults: &Defaults) {
+    use graphdraw_core::edit::generate;
+    let Some(layer) = doc.layer_for_new_object() else {
+        return;
+    };
+    let mut like = Object::new(ObjectKind::Group(graphdraw_core::model::GroupData {
+        children: Vec::new(),
+        extra: Map::new(),
+    }));
+    like.fill = defaults.fill.clone();
+    like.stroke = defaults.stroke.clone();
+    let (mut o, name) = match prim {
+        Prim::Spiral => {
+            let mut o = Object::new(ObjectKind::Path(generate::spiral(
+                w,
+                h,
+                defaults.spiral_turns,
+                defaults.spiral_log,
+                defaults.spiral_expansion,
+            )));
+            // Caminho aberto: contorno, sem preenchimento.
+            o.stroke = defaults.stroke.clone().or_else(|| {
+                Some(graphdraw_core::model::Stroke::new(
+                    250.0,
+                    graphdraw_core::model::Color::black(),
+                ))
+            });
+            (o, tr("Criar espiral", "Create spiral"))
+        }
+        _ => (
+            generate::graph_paper(w, h, defaults.grid_cols, defaults.grid_rows, &like),
+            tr("Criar papel gráfico", "Create graph paper"),
+        ),
+    };
+    o.transform = Transform::from_affine(m);
+    let id = ops::add_object(&mut doc.editor, doc.page, layer, o, name);
+    doc.selection = vec![id];
 }
 
 /// Guia arrastada de `grab` até `cur`: horizontal só muda y, vertical só
@@ -3874,6 +4028,49 @@ mod tests {
             doc.page().layers[0].objects[0].fill,
             Some(Fill::Solid { .. })
         ));
+    }
+
+    /// GD-FER-32: a família da ferramenta Polígono escolhe espiral (caminho
+    /// aberto, com contorno) ou papel gráfico (grupo de células).
+    #[test]
+    fn polygon_tool_draws_spiral_and_graph_paper() {
+        let mut doc = DocState::new_blank();
+        let mut d = Defaults {
+            shape_family: "spiral".into(),
+            ..Default::default()
+        };
+        assert_eq!(Prim::of(Tool::Polygon, &d), Prim::Spiral);
+        add_shape(
+            &mut doc,
+            Prim::Spiral,
+            40_000.0,
+            40_000.0,
+            Affine::translate((10_000.0, 10_000.0)),
+            &d,
+        );
+        let o = doc.page().layers[0].objects.last().unwrap().clone();
+        let ObjectKind::Path(p) = &o.kind else {
+            panic!("espiral é caminho")
+        };
+        assert!(!p.subpaths[0].closed && o.stroke.is_some() && o.fill.is_none());
+        d.shape_family = "graph".into();
+        d.grid_cols = 3;
+        d.grid_rows = 2;
+        assert_eq!(Prim::of(Tool::Polygon, &d), Prim::Grid);
+        add_shape(
+            &mut doc,
+            Prim::Grid,
+            30_000.0,
+            20_000.0,
+            Affine::translate((0.0, 0.0)),
+            &d,
+        );
+        let g = doc.page().layers[0].objects.last().unwrap();
+        let ObjectKind::Group(gd) = &g.kind else {
+            panic!("papel gráfico é grupo")
+        };
+        assert_eq!(gd.children.len(), 6);
+        assert_eq!(doc.selection, vec![g.id.clone()]);
     }
 
     /// GD-GUI-01: arrastar da régua cria guia; arrastar a guia de volta

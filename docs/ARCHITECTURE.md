@@ -262,6 +262,7 @@ Em Linux: `apt install libcdr-dev librevenge-dev pkg-config g++` e o mesmo
 | GD-NF-01, GD-NF-02 | `examples/bench.rs` (medição), `export::gd_nf_02_parallel_bands_match_sequential` |
 | GD-GEO-05, aceite do doc 03 | `geometry::tests::*`, `convert::tests::gd_geo_acceptance_circle_to_curves` |
 | GD-NOD-01..07 | `nodes::tests::*` (`gd_nod_06_align_nodes`, `gd_nod_07_reduce_nodes`) |
+| GD-PRI-05, GD-PRI-06, GD-FER-32 | `generate::tests::*`, `canvas::tests::polygon_tool_draws_spiral_and_graph_paper` (app) |
 | GD-OBJ-05 | `ops::tests::gd_obj_05_user_data` |
 | GD-NOD-08, GD-TRF-03 | `ops::tests::gd_nod_08_extract_subpath`, `ops::tests::gd_trf_03_clear_transformations` |
 | GD-UND-01..07 + aceite do doc 12 | `history::tests::gd_und_*` |
@@ -331,6 +332,9 @@ Do M0, ainda valem:
 
 Do M3:
 
+- A ferramenta Polígono tem três famílias (GD-FER-32): polígono/estrelas,
+  espiral (simétrica ou logarítmica, vira caminho aberto) e papel gráfico
+  (grupo de retângulos). Espiral e papel gráfico não ficam paramétricos.
 - Polígono/estrela/estrela complexa são primitivas paramétricas; na
   ferramenta Forma, o vértice externo muda tamanho e giro de todas as
   pontas e o interno a nitidez (GD-PRI-03). Para editar nó a nó, converter

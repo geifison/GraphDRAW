@@ -26,6 +26,8 @@ const icons = {
   "tool-artboard": `<rect x="6.5" y="6.5" width="11" height="11" rx="1"/><path d="M3.5 7 V3.5 H7 M17 3.5 H20.5 V7 M20.5 17 V20.5 H17 M7 20.5 H3.5 V17"/>`,
   "tool-ellipse": `<ellipse cx="12" cy="12" rx="8.5" ry="6.5"/>`,
   "tool-polygon": `<path d="M12 3.5 L20.1 9.4 L17 18.9 H7 L3.9 9.4 Z"/>`,
+  "tool-spiral": `<path d="M12 12 C 12 10.5, 14 10.5, 14 12 C 14 14.5, 10 14.5, 10 12 C 10 8.5, 16 8.5, 16 12 C 16 16.5, 8 16.5, 8 12 C 8 6.5, 18 6.5, 18 12 C 18 18.5, 5.5 18.5, 5.5 12"/>`,
+  "tool-graph": `<rect x="4" y="5" width="16" height="14" rx="1"/><path d="M9.33 5 V19 M14.67 5 V19 M4 9.67 H20 M4 14.33 H20"/>`,
   "poly-star": `<path d="M12 3.5 L14.2 9.3 L20.3 9.4 L15.5 13.2 L17.2 19.2 L12 15.7 L6.8 19.2 L8.5 13.2 L3.7 9.4 L9.8 9.3 Z"/>`,
   "poly-complex": `<path d="M12 3.5 L17.2 19.2 L3.7 9.4 H20.3 L6.8 19.2 Z"/>`,
   "tool-gradient": `<rect x="3.5" y="3.5" width="17" height="17" rx="2" stroke-dasharray="2 2"/><path d="M7 17 L17 7"/>${hnode(7, 17, 2)}${node(17, 7, 2)}${dot(12, 12, 1.5)}`,
