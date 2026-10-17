@@ -109,9 +109,26 @@ struct DocTab {
     page_bar: crate::pagebar::PageBar,
 }
 
+/// Fim de uma exportação em segundo plano: texto da barra de status e,
+/// se houver, uma mensagem (título, corpo).
+pub(crate) struct ExportDone {
+    pub status: String,
+    pub message: Option<(String, String)>,
+}
+
+/// Exportação em andamento (GD-UI-15): nome do arquivo e o resultado.
+pub(crate) struct Exporting {
+    pub name: String,
+    rx: Receiver<ExportDone>,
+}
+
 pub struct App {
     pub(crate) doc: Option<DocState>,
     loading: Option<(PathBuf, Receiver<OpenResult>)>,
+    /// Exportação rodando em segundo plano (a barra de status mostra).
+    pub(crate) exporting: Option<Exporting>,
+    /// Contexto da interface, para a exportação pedir um quadro ao terminar.
+    egui_ctx: egui::Context,
     pub(crate) tool: Tool,
     pub(crate) canvas: CanvasState,
     /// Objetos dentro das camadas: miniaturas, renomear e arrastar.
@@ -212,6 +229,8 @@ impl App {
         let mut app = App {
             doc: Some(DocState::new_blank()),
             loading: None,
+            exporting: None,
+            egui_ctx: egui_ctx.clone(),
             tool: Tool::Select,
             canvas: CanvasState::default(),
             defaults: Defaults {
@@ -736,6 +755,58 @@ impl App {
     }
 
     /// Exporta o documento em PDF/X-1a:2001 para gráfica (GD-EXP-07).
+    /// Roda `job` em segundo plano (GD-UI-15): a barra de status mostra o
+    /// disquete com "Exportando <nome>…" até terminar. Uma por vez.
+    fn spawn_export(
+        &mut self,
+        out: &std::path::Path,
+        job: impl FnOnce() -> ExportDone + Send + 'static,
+    ) {
+        let (tx, rx) = channel();
+        let ctx = self.egui_ctx.clone();
+        std::thread::spawn(move || {
+            let _ = tx.send(job());
+            ctx.request_repaint();
+        });
+        let name = out
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        self.status.clear();
+        self.exporting = Some(Exporting { name, rx });
+    }
+
+    /// Já há uma exportação rodando? Avisa e não começa outra.
+    fn export_busy(&mut self) -> bool {
+        if let Some(e) = &self.exporting {
+            self.status = format!(
+                "{} {}…",
+                tr("Aguarde: exportando", "Please wait: exporting"),
+                e.name
+            );
+            return true;
+        }
+        false
+    }
+
+    /// Exportação terminada: o indicador some e fica o resultado.
+    fn poll_export(&mut self) {
+        let Some(e) = &self.exporting else { return };
+        let done = match e.rx.try_recv() {
+            Ok(d) => d,
+            Err(std::sync::mpsc::TryRecvError::Empty) => return,
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => ExportDone {
+                status: format!("{} {}", tr("Falha ao exportar:", "Export failed:"), e.name),
+                message: None,
+            },
+        };
+        self.exporting = None;
+        self.status = done.status;
+        if let Some(m) = done.message {
+            self.message = Some(m);
+        }
+    }
+
     fn export_pdfx(&mut self) {
         self.pdf_standard = export::PdfStandard::X1a(self.print_condition);
         self.export_pages(ExportFormat::Pdf, Vec::new());
@@ -788,6 +859,9 @@ impl App {
     /// do tamanho deles, no último formato usado (PNG com fundo
     /// transparente).
     fn export_selection(&mut self) {
+        if self.export_busy() {
+            return;
+        }
         let Some(d) = &self.doc else { return };
         let Some(sel_doc) = ops::selection_document(&d.editor, &d.selection) else {
             return;
@@ -806,14 +880,18 @@ impl App {
             text_to_curves: self.text_curves,
             ..Default::default()
         };
-        self.status = match export::export_with_report(&sel_doc, &out, format, &opts) {
-            Ok(_) => format!(
-                "{} {}",
-                tr("Seleção exportada para", "Selection exported to"),
-                out.display()
-            ),
-            Err(e) => format!("{} {e}", tr("Falha ao exportar:", "Export failed:")),
-        };
+        let path = out.clone();
+        self.spawn_export(&out, move || ExportDone {
+            status: match export::export_with_report(&sel_doc, &path, format, &opts) {
+                Ok(_) => format!(
+                    "{} {}",
+                    tr("Seleção exportada para", "Selection exported to"),
+                    path.display()
+                ),
+                Err(e) => format!("{} {e}", tr("Falha ao exportar:", "Export failed:")),
+            },
+            message: None,
+        });
     }
 
     fn export(&mut self, format: ExportFormat) {
@@ -829,6 +907,31 @@ impl App {
 
     /// Exporta as páginas dadas (vazio = todas), GD-PGT-19.
     fn export_pages(&mut self, format: ExportFormat, pages: Vec<usize>) {
+        if self.export_busy() {
+            return;
+        }
+        // PNG: só a arte (GD-EXP-08) — a seleção (exportando a página
+        // atual) ou os objetos visíveis de cada página, sem a página nem fundo.
+        let png = match (&self.doc, format) {
+            (Some(doc), ExportFormat::Png) => {
+                let selection = pages.as_slice() == [doc.page] && !doc.selection.is_empty();
+                let art = if selection {
+                    ops::selection_document(&doc.editor, &doc.selection)
+                } else {
+                    ops::artwork_document(&doc.editor, &pages)
+                };
+                if art.is_none() {
+                    self.status = tr(
+                        "Nada para exportar: a página não tem objetos visíveis",
+                        "Nothing to export: the page has no visible objects",
+                    )
+                    .into();
+                    return;
+                }
+                art
+            }
+            _ => None,
+        };
         let Some(doc) = &self.doc else { return };
         let stem = doc
             .path
@@ -852,7 +955,8 @@ impl App {
         let pdfx =
             format == ExportFormat::Pdf && matches!(self.pdf_standard, export::PdfStandard::X1a(_));
         let opts = ExportOptions {
-            pages,
+            // O documento da arte já tem só as páginas pedidas.
+            pages: if png.is_some() { Vec::new() } else { pages },
             dpi: doc.doc().data.settings.resolution,
             pdf: if format == ExportFormat::Pdf {
                 self.pdf_standard
@@ -862,13 +966,21 @@ impl App {
             text_to_curves: self.text_curves,
             ..Default::default()
         };
-        match export::export_with_report(doc.doc(), &out, format, &opts) {
+        let document = png.unwrap_or_else(|| doc.doc().clone());
+        let target = out.clone();
+        self.spawn_export(&out, move || {
+            let out = target;
+            let mut done = ExportDone {
+                status: String::new(),
+                message: None,
+            };
+        match export::export_with_report(&document, &out, format, &opts) {
             Ok((files, warnings)) => {
                 let path = files
                     .first()
                     .map(|f| f.display().to_string())
                     .unwrap_or_default();
-                self.status = format!("{} {path}", tr("Exportado para", "Exported to"));
+                done.status = format!("{} {path}", tr("Exportado para", "Exported to"));
                 if pdfx {
                     // Relatório do PDF/X-1a: o que foi convertido para a gráfica.
                     let body = if warnings.is_empty() {
@@ -884,19 +996,21 @@ impl App {
                             .collect::<Vec<_>>()
                             .join("\n")
                     };
-                    self.message = Some((
+                    done.message = Some((
                         tr("PDF/X-1a exportado", "PDF/X-1a exported").into(),
                         format!("{path}\n\n{body}"),
                     ));
                 }
             }
             Err(e) => {
-                self.message = Some((
+                done.message = Some((
                     tr("Não foi possível exportar", "Could not export").into(),
                     format!("{}\n\n{e}", out.display()),
                 ))
             }
         }
+            done
+        });
     }
 
     // ---- comandos de edição -------------------------------------------------
@@ -2894,6 +3008,17 @@ impl App {
             if self.loading.is_some() {
                 ui.spinner();
             }
+            // Exportando (GD-UI-15): disquete + nome; some ao terminar.
+            if let Some(e) = &self.exporting {
+                ui.add(
+                    egui::Image::new(icons::get("file-save"))
+                        .fit_to_exact_size(egui::Vec2::splat(theme::ICON_MICRO))
+                        .tint(theme::palette(ui).fg_primary),
+                );
+                ui.label(format!("{} {}…", tr("Exportando", "Exporting"), e.name));
+                ui.spinner();
+                ui.separator();
+            }
             if let Some(d) = &self.doc {
                 let (w, h) = d.page_size();
                 let which = format!(
@@ -3249,6 +3374,9 @@ impl App {
         opts: &graphdraw_core::export::cut::CutOptions,
     ) {
         use graphdraw_core::export::cut;
+        if self.export_busy() {
+            return;
+        }
         let Some(doc) = &self.doc else { return };
         let ext = format.extension();
         let stem = doc
@@ -3265,19 +3393,26 @@ impl App {
             return;
         };
         let (pw, _) = doc.page_size();
-        let strokes = cut::cut_strokes(doc.doc(), doc.page, opts);
-        let text = match format {
-            crate::cutui::CutFormat::Plt => cut::hpgl(&strokes, pw, opts),
-            crate::cutui::CutFormat::Dxf => cut::dxf(&strokes, opts, pw),
-        };
-        self.status = match std::fs::write(&out, text) {
-            Ok(()) => format!(
-                "{} {}",
-                tr("Corte exportado:", "Cut exported:"),
-                out.display()
-            ),
-            Err(e) => format!("{} {e}", tr("Falha ao exportar:", "Export failed:")),
-        };
+        let (document, page, opts) = (doc.doc().clone(), doc.page, opts.clone());
+        let path = out.clone();
+        self.spawn_export(&out, move || {
+            let strokes = cut::cut_strokes(&document, page, &opts);
+            let text = match format {
+                crate::cutui::CutFormat::Plt => cut::hpgl(&strokes, pw, &opts),
+                crate::cutui::CutFormat::Dxf => cut::dxf(&strokes, &opts, pw),
+            };
+            ExportDone {
+                status: match std::fs::write(&path, text) {
+                    Ok(()) => format!(
+                        "{} {}",
+                        tr("Corte exportado:", "Cut exported:"),
+                        path.display()
+                    ),
+                    Err(e) => format!("{} {e}", tr("Falha ao exportar:", "Export failed:")),
+                },
+                message: None,
+            }
+        });
     }
 
     /// Pergunta da cor sem seleção (GD-BDR-10): vira padrão dos novos
@@ -3793,6 +3928,7 @@ impl App {
     pub(crate) fn frame(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
         self.poll_loading();
+        self.poll_export();
         self.autosave(&ctx);
         theme::sync_window_theme(&ctx, &mut self.window_theme);
         // Arrastar-soltar (GD-CDR-01).
@@ -4030,6 +4166,63 @@ mod tests {
             "{size:?}"
         );
         assert!(app.bitmap_dlg.is_some());
+    }
+
+    /// GD-UI-15: exportar roda em segundo plano; a barra de status mostra o
+    /// disquete com o nome enquanto dura, recusa outra exportação e o
+    /// indicador some ao terminar, ficando o resultado.
+    #[test]
+    fn gd_ui_13_export_runs_in_background_with_indicator() {
+        let ctx = crate::theme::test_ctx();
+        let mut app = App::with_ctx(&ctx, None);
+        let dir = std::env::temp_dir().join(format!("gd-exporta-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let out = dir.join("cartaz.pdf");
+        let (go_tx, go_rx) = std::sync::mpsc::channel::<()>();
+        let doc = app.doc.as_ref().unwrap().doc().clone();
+        let target = out.clone();
+        app.spawn_export(&out, move || {
+            go_rx.recv().unwrap();
+            let r =
+                export::export_with_report(&doc, &target, ExportFormat::Pdf, &Default::default());
+            ExportDone {
+                status: match r {
+                    Ok(_) => format!("Exportado para {}", target.display()),
+                    Err(e) => format!("Falha {e}"),
+                },
+                message: None,
+            }
+        });
+        let frame = |app: &mut App| {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::Vec2::new(1366.0, 768.0),
+                )),
+                ..Default::default()
+            };
+            let mut out = ctx.run_ui(input, |ui| app.frame(ui));
+            out.textures_delta.clear();
+        };
+        frame(&mut app);
+        assert_eq!(
+            app.exporting.as_ref().map(|e| e.name.as_str()),
+            Some("cartaz.pdf")
+        );
+        assert!(app.export_busy(), "outra exportação espera");
+        assert!(app.status.contains("cartaz.pdf"));
+        go_tx.send(()).unwrap();
+        for _ in 0..200 {
+            frame(&mut app);
+            if app.exporting.is_none() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert!(app.exporting.is_none(), "indicador some ao terminar");
+        assert!(app.status.starts_with("Exportado para"), "{}", app.status);
+        assert!(out.exists());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// GD-PAL-05/07 de ponta a ponta: com um objeto selecionado, clicar numa

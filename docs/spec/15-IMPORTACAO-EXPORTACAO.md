@@ -33,6 +33,8 @@
     9. Relatório ao final listando o que foi convertido ou achatado.
   - *Limitações enquanto não houver gerenciamento de cor (GD-CMS, M2):* a conversão RGB → CMYK é por fórmula, sem perfil ICC — o relatório avisa.
   - Aceite: um documento com um retângulo RGB semitransparente, um gradiente RGB e uma imagem PNG com alfa exporta um PDF/X-1a em que: versão é 1.3; não há `DeviceRGB`, `SMask` nem alfa < 1; toda página tem TrimBox/BleedBox coerentes com a sangria; há OutputIntent GTS_PDFX; Info traz as chaves GTS e Trapped; o relatório cita as conversões.
+- **GD-EXP-08** PNG exporta só a arte, nunca a página: com objetos selecionados (exportando a página atual), só a seleção; sem seleção, os objetos visíveis de camadas visíveis de cada página. A imagem tem o tamanho da caixa visual da arte, fundo transparente, sem página mestra; página sem arte fica de fora (sem nada para exportar, a barra de status avisa e o diálogo de salvar nem abre).
+  - Aceite: dois retângulos visíveis (e um oculto) numa A4 exportam um PNG do tamanho da caixa dos dois, com transparência entre eles.
 - **GD-EXP-04** Importar coloca objetos na página atual com opção de posição (centro / origem / clique).
 - **GD-EXP-05** Toda importação gera relatório de itens não suportados (como GD-CDR-03).
 - **GD-EXP-06** Linha de comando: `graphdraw convert <entrada> <saida> [--page N] [--dpi N] [--text-to-curves]`.

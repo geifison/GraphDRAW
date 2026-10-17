@@ -17,6 +17,7 @@ Identidade **própria**: nome, ícones, cores, layout e textos criados pelo proj
 - **GD-UI-12** Menu de contexto (botão direito) com ações relevantes ao objeto sob o cursor.
 - **GD-UI-13** Prévia ao vivo ao alterar parâmetros (antes de confirmar).
 - **GD-UI-14** Mensagens de erro e avisos em linguagem simples, com ação sugerida.
+- **GD-UI-15** Exportar (PDF, PDF/X, SVG, PNG, .gdr, seleção, corte) roda em segundo plano, sem travar a janela: enquanto dura, a barra de status mostra o ícone de disquete com "Exportando <arquivo>…"; ao terminar o indicador some e fica o resultado ("Exportado para …" ou a falha). Uma exportação por vez: pedir outra avisa para aguardar.
 
 ## Idiomas
 - **GD-UI-20** Interface internacionalizada desde o início (arquivos de tradução); idiomas iniciais: pt-BR e en.
