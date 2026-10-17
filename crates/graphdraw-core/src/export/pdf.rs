@@ -483,7 +483,7 @@ fn text_item(c: &mut Content, t: &crate::render::scene::TextItem, res: &mut Reso
     let runs: Vec<&crate::render::text::Run> =
         t.layout.lines.iter().flat_map(|l| l.runs.iter()).collect();
     for (i, item) in t.outlines.iter().enumerate() {
-        let live = !w.text_curves && item.stroke.is_none();
+        let live = !w.text_curves && item.stroke.is_none() && !t.layout.on_path;
         let color = match &item.fill {
             Some(Paint::Solid { color, alpha }) if *alpha >= 1.0 - 1e-9 => Some(color.clone()),
             _ => None,

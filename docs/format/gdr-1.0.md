@@ -88,7 +88,7 @@ valor desconhecido é lido como `normal`; GD-TRA-02).
 | `ellipse` | `rx`, `ry`, `mode` (`ellipse`/`arc`/`pie`), `startAngle`, `endAngle` (graus, anti-horário a partir de +X) | centrada em (0,0) |
 | `polygon` | `rx`, `ry`, `sides` (3–500), `mode` (`polygon`/`star`/`complex`), `sharpness` (0–1) | centrado em (0,0), primeiro vértice em cima; `complex` = estrela {n/k} com par-ímpar |
 | `group` | `children [objeto]` | — |
-| `text` | `textKind` (`artistic`/`paragraph`), `frame? [w,h]`, `lineSpacing` (múltiplo do corpo, padrão 1,2), `paragraphs [{align, spans [{text, font {family, size, weight, italic}, fill?}]}]` | origem no canto superior esquerdo do bloco; linhas descem (−Y) |
+| `text` | `textKind` (`artistic`/`paragraph`), `frame? [w,h]`, `lineSpacing` (múltiplo do corpo, padrão 1,2), `paragraphs [{align, spans [{text, font {family, size, weight, italic}, fill?}]}]`, `path? {subpaths, offset, distance, side above|below, orientation rotate|skew-v|skew-h|upright, mirror}` (texto em caminho, GD-TXT-09; caminho em coordenadas locais do texto) | origem no canto superior esquerdo do bloco; linhas descem (−Y) |
 | `image` | `width`, `height`, `src` (`resources/images/<sha256>.<ext>`) | `[0,width]×[0,height]`, topo da imagem em `y = height` |
 
 Segmento entre dois nós: reto se nem `out` do primeiro nem `in` do segundo

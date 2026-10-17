@@ -763,6 +763,7 @@ impl Mapper<'_> {
             frame: (w > 0.0).then_some([w, h]),
             paragraphs: Vec::new(),
             line_spacing: 1.2,
+            path: None,
             extra: Map::new(),
         };
         self.text = Some(TextBuild {

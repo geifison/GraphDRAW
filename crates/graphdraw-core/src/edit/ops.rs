@@ -1258,6 +1258,76 @@ pub fn convert_to_curves(ed: &mut Editor, sel: &[String]) {
     });
 }
 
+/// Ajustar texto ao caminho (GD-TXT-09): o texto passa a correr sobre o
+/// contorno de `path_id` (copiado para o espaço local do texto; o objeto
+/// do caminho continua). Texto de parágrafo vira artístico.
+pub fn fit_text_to_path(ed: &mut Editor, text_id: &str, path_id: &str) -> bool {
+    let (Some(rt), Some(rp)) = (ed.find(text_id), ed.find(path_id)) else {
+        return false;
+    };
+    let (Some(t), Some(po)) = (ed.get(&rt).cloned(), ed.get(&rp).cloned()) else {
+        return false;
+    };
+    if !matches!(t.kind, ObjectKind::Text(_))
+        || matches!(po.kind, ObjectKind::Text(_) | ObjectKind::Group(_))
+    {
+        return false;
+    }
+    let Some(mut outline) = super::query::local_outline(&po) else {
+        return false;
+    };
+    let to_page = ed.parent_affine(&rp) * po.transform.affine();
+    let text_m = ed.parent_affine(&rt) * t.transform.affine();
+    outline.apply_affine(text_m.inverse() * to_page);
+    let subpaths = super::convert::bez_to_subpaths(&outline);
+    let ids = [text_id.to_string()];
+    modify(ed, &ids, "Ajustar texto ao caminho", |o| {
+        let ObjectKind::Text(td) = &mut o.kind else {
+            return false;
+        };
+        td.text_kind = "artistic".into();
+        td.frame = None;
+        td.path = Some(crate::model::TextPath {
+            subpaths: subpaths.clone(),
+            offset: 0.0,
+            distance: 0.0,
+            side: "above".into(),
+            orientation: "rotate".into(),
+            mirror: false,
+            extra: Default::default(),
+        });
+        true
+    });
+    true
+}
+
+/// Separar o texto do caminho: volta a ser texto em linha reta.
+pub fn detach_text_path(ed: &mut Editor, sel: &[String]) {
+    modify(ed, sel, "Separar texto do caminho", |o| match &mut o.kind {
+        ObjectKind::Text(t) if t.path.is_some() => {
+            t.path = None;
+            true
+        }
+        _ => false,
+    });
+}
+
+/// Muda as opções do texto em caminho (posição, distância, lado,
+/// orientação, espelho).
+pub fn edit_text_path(ed: &mut Editor, sel: &[String], f: impl Fn(&mut crate::model::TextPath)) {
+    modify(ed, sel, "Texto em caminho", |o| match &mut o.kind {
+        ObjectKind::Text(t) => match &mut t.path {
+            Some(p) => {
+                let before = p.clone();
+                f(p);
+                *p != before
+            }
+            None => false,
+        },
+        _ => false,
+    });
+}
+
 /// Modo de mesclagem da seleção (GD-TRA-02).
 pub fn set_blend(ed: &mut Editor, sel: &[String], mode: crate::model::BlendMode) {
     modify(ed, sel, "Modo de mesclagem", |o| {
@@ -2117,5 +2187,64 @@ mod tests {
         let ya = text_baseline(&ed, &ed.find(&a).unwrap()).unwrap();
         let yb = text_baseline(&ed, &ed.find(&b).unwrap()).unwrap();
         assert!((ya - yb).abs() < 1e-6, "{ya} {yb}");
+    }
+
+    /// GD-TXT-09: texto ajustado a uma reta vertical fica de lado, ao longo
+    /// dela; separar volta ao normal; mudar a posição desloca as letras.
+    #[test]
+    fn gd_txt_09_text_on_path() {
+        use crate::edit::text::{insert, new_text};
+        use crate::model::{Document, Node, Page, PathData, Subpath};
+        if crate::render::text::resolve_family("Arial", 400, false).is_none() {
+            return;
+        }
+        let mut d = Document::new();
+        d.data.pages.push(Page::new(200_000.0, 200_000.0));
+        let mut ed = Editor::new(d);
+        let mut t = new_text(10_000.0, 10_000.0, None, "Arial", 10_000.0);
+        if let ObjectKind::Text(td) = &mut t.kind {
+            insert(td, 0, "ABCDE");
+        }
+        let tid = add_object(&mut ed, 0, 0, t, "t");
+        let line = Object::new(ObjectKind::Path(PathData {
+            subpaths: vec![Subpath {
+                closed: false,
+                nodes: vec![
+                    Node::corner(100_000.0, 20_000.0),
+                    Node::corner(100_000.0, 180_000.0),
+                ],
+                extra: Default::default(),
+            }],
+            fill_rule: Default::default(),
+            extra: Default::default(),
+        }));
+        let pid = add_object(&mut ed, 0, 0, line, "p");
+        let bounds = |ed: &Editor| object_bounds(ed, &ed.find(&tid).unwrap(), false).unwrap();
+        let flat = bounds(&ed);
+        assert!(flat.width() > flat.height());
+        assert!(fit_text_to_path(&mut ed, &tid, &pid));
+        let on = bounds(&ed);
+        assert!(on.height() > on.width(), "de lado: {on:?}");
+        // Texto acima (à esquerda) de uma reta que sobe, perto de x = 100 mm.
+        assert!(on.x1 <= 100_000.0 + 500.0 && on.x0 > 80_000.0, "{on:?}");
+        assert!(
+            on.y0 >= 20_000.0 - 500.0,
+            "começa no início do caminho: {on:?}"
+        );
+        edit_text_path(&mut ed, std::slice::from_ref(&tid), |p| p.offset = 50_000.0);
+        let moved = bounds(&ed);
+        assert!(
+            (moved.y0 - on.y0 - 50_000.0).abs() < 1_000.0,
+            "{on:?} → {moved:?}"
+        );
+        let svg = crate::export::svg_page(ed_doc(&ed), 0, &Default::default()).unwrap();
+        assert!(!svg.contains("<text"), "em caminho sai em curvas");
+        detach_text_path(&mut ed, std::slice::from_ref(&tid));
+        let back = bounds(&ed);
+        assert!((back.width() - flat.width()).abs() < 1.0);
+    }
+
+    fn ed_doc(ed: &Editor) -> &crate::model::Document {
+        &ed.doc
     }
 }

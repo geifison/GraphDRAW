@@ -35,6 +35,9 @@ pub struct Run {
     /// Face usada e glifos posicionados (texto vivo no PDF).
     pub font: fontdb::ID,
     pub glyphs: Vec<GlyphPos>,
+    /// Contorno de cada glifo (mesma ordem de `glyphs`), para o texto em
+    /// caminho reposicionar um a um.
+    pub glyph_outlines: Vec<BezPath>,
 }
 
 #[derive(Debug, Clone)]
@@ -56,6 +59,8 @@ pub struct TextLayout {
     pub missing_fonts: Vec<String>,
     /// Texto de parágrafo que não coube no quadro (GD-TXT-02).
     pub overflow: bool,
+    /// Glifos colocados num caminho (GD-TXT-09): no PDF/SVG saem em curvas.
+    pub on_path: bool,
 }
 
 struct Fonts {
@@ -474,6 +479,7 @@ pub fn layout_text(t: &TextData) -> TextLayout {
             for (p, span, id, used, run_x, shaped) in shaped_runs {
                 let mut outline = BezPath::new();
                 let mut glyphs = Vec::new();
+                let mut glyph_outlines = Vec::new();
                 let mut clusters: Vec<usize> = shaped.glyphs.iter().map(|g| g.cluster).collect();
                 clusters.sort_unstable();
                 clusters.dedup();
@@ -493,6 +499,7 @@ pub fn layout_text(t: &TextData) -> TextLayout {
                     let shift = dx + run_x + extra * spaces_before(char_idx);
                     let mut o = g.outline.clone();
                     o.apply_affine(Affine::translate((shift, baseline)));
+                    glyph_outlines.push(o.clone());
                     outline.extend(o);
                     glyphs.push(GlyphPos {
                         id: g.id,
@@ -516,6 +523,7 @@ pub fn layout_text(t: &TextData) -> TextLayout {
                     outline,
                     font: id,
                     glyphs,
+                    glyph_outlines,
                 });
             }
             let carets = bounds
@@ -543,7 +551,126 @@ pub fn layout_text(t: &TextData) -> TextLayout {
     }
     out.missing_fonts.sort();
     out.missing_fonts.dedup();
+    if let Some(tp) = &t.path {
+        place_on_path(&mut out, tp);
+    }
     out
+}
+
+/// Polilinha do primeiro subcaminho com o comprimento acumulado.
+struct Track {
+    pts: Vec<kurbo::Point>,
+    len: Vec<f64>,
+}
+
+impl Track {
+    fn new(path: &BezPath, tol: f64) -> Option<Track> {
+        let mut pts: Vec<kurbo::Point> = Vec::new();
+        let mut started = false;
+        let mut done = false;
+        kurbo::flatten(path.iter(), tol, |el| {
+            if done {
+                return;
+            }
+            match el {
+                kurbo::PathEl::MoveTo(p) => {
+                    if started {
+                        done = true;
+                    } else {
+                        started = true;
+                        pts.push(p);
+                    }
+                }
+                kurbo::PathEl::LineTo(p) => pts.push(p),
+                kurbo::PathEl::ClosePath => {
+                    if let Some(f) = pts.first().copied() {
+                        pts.push(f);
+                    }
+                    done = true;
+                }
+                _ => {}
+            }
+        });
+        pts.dedup_by(|a, b| (*a - *b).hypot() < 1e-9);
+        if pts.len() < 2 {
+            return None;
+        }
+        let mut len = vec![0.0];
+        for w in pts.windows(2) {
+            len.push(len.last().unwrap() + (w[1] - w[0]).hypot());
+        }
+        Some(Track { pts, len })
+    }
+
+    /// Ponto e ângulo da tangente no comprimento `s` (fora das pontas,
+    /// segue reto pela tangente da ponta).
+    fn at(&self, s: f64) -> (kurbo::Point, f64) {
+        let n = self.pts.len();
+        let total = self.len[n - 1];
+        let seg = if s <= 0.0 {
+            0
+        } else if s >= total {
+            n - 2
+        } else {
+            self.len
+                .partition_point(|l| *l <= s)
+                .saturating_sub(1)
+                .min(n - 2)
+        };
+        let (a, b) = (self.pts[seg], self.pts[seg + 1]);
+        let d = b - a;
+        let t = (s - self.len[seg]) / d.hypot().max(1e-12);
+        (a + d * t, d.y.atan2(d.x))
+    }
+}
+
+/// Texto em caminho (GD-TXT-09): cada glifo vai para o ponto do caminho no
+/// meio do seu avanço, com a orientação pedida; linhas seguintes ficam
+/// paralelas, afastadas pela entrelinha.
+fn place_on_path(out: &mut TextLayout, tp: &crate::model::TextPath) {
+    let mut path = crate::model::geom::subpaths_to_bez(&tp.subpaths);
+    if tp.mirror {
+        path = path.reverse_subpaths();
+    }
+    let size = out.lines.first().map_or(1000.0, |l| l.size);
+    let Some(track) = Track::new(&path, (size / 400.0).max(0.5)) else {
+        return;
+    };
+    let b0 = out.lines.first().map_or(0.0, |l| l.baseline);
+    for line in &mut out.lines {
+        for run in &mut line.runs {
+            let mut outline = BezPath::new();
+            for (g, go) in run.glyphs.iter_mut().zip(&run.glyph_outlines) {
+                let cx = g.x + g.advance / 2.0;
+                let (p, a) = track.at(tp.offset + cx);
+                let normal = kurbo::Vec2::new(-a.sin(), a.cos());
+                let below = if tp.side == "below" {
+                    -run.size * 0.75
+                } else {
+                    0.0
+                };
+                let base = p + normal * (tp.distance + below + (line.baseline - b0));
+                let tan = a.tan().clamp(-10.0, 10.0);
+                let orient = match tp.orientation.as_str() {
+                    "upright" => Affine::IDENTITY,
+                    "skew-v" => Affine::new([1.0, tan, 0.0, 1.0, 0.0, 0.0]),
+                    "skew-h" => Affine::new([1.0, 0.0, -tan, 1.0, 0.0, 0.0]),
+                    _ => Affine::rotate(a),
+                };
+                let m = Affine::translate(base.to_vec2())
+                    * orient
+                    * Affine::translate((-cx, -line.baseline));
+                let mut o = go.clone();
+                o.apply_affine(m);
+                outline.extend(o);
+                let q = m * kurbo::Point::new(g.x, line.baseline);
+                g.x = q.x;
+                g.y = q.y;
+            }
+            run.outline = outline;
+        }
+    }
+    out.on_path = true;
 }
 
 impl TextLayout {
@@ -610,6 +737,7 @@ mod tests {
                 })
                 .collect(),
             line_spacing: 1.2,
+            path: None,
             extra: Map::new(),
         }
     }

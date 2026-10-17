@@ -230,8 +230,42 @@ pub struct TextData {
     /// Entrelinha como múltiplo do corpo.
     #[serde(default = "line_spacing")]
     pub line_spacing: f64,
+    /// Texto em caminho (GD-TXT-09).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path: Option<TextPath>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
+}
+
+/// Caminho do texto (GD-TXT-09), em coordenadas locais do texto. A linha
+/// de base corre sobre o primeiro subcaminho a partir de `offset` (µm);
+/// `distance` afasta do caminho; `side` = `above` ou `below`;
+/// `orientation` = `rotate` (gira cada letra), `skew-v`/`skew-h`
+/// (inclina mantendo as verticais/horizontais) ou `upright` (de pé);
+/// `mirror` percorre o caminho ao contrário.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TextPath {
+    pub subpaths: Vec<Subpath>,
+    #[serde(default)]
+    pub offset: f64,
+    #[serde(default)]
+    pub distance: f64,
+    #[serde(default = "above")]
+    pub side: String,
+    #[serde(default = "rotate")]
+    pub orientation: String,
+    #[serde(default)]
+    pub mirror: bool,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+fn above() -> String {
+    "above".into()
+}
+fn rotate() -> String {
+    "rotate".into()
 }
 
 /// Imagem ocupando `[0,width]×[0,height]` no espaço local; `src` aponta

@@ -1105,6 +1105,44 @@ impl App {
                 ops::convert_to_curves(ed, s);
                 None
             }),
+            C::FitTextToPath => {
+                // GD-TXT-09: um texto e um objeto com contorno selecionados.
+                if let Some(d) = &mut self.doc {
+                    self.canvas.end_text(d);
+                    let is_text = |d: &crate::doc::DocState, id: &str| {
+                        d.editor
+                            .find(id)
+                            .and_then(|r| d.editor.get(&r))
+                            .is_some_and(|o| matches!(o.kind, ObjectKind::Text(_)))
+                    };
+                    let sel = d.selection.clone();
+                    let text = sel.iter().find(|id| is_text(d, id)).cloned();
+                    let path = sel.iter().find(|id| !is_text(d, id)).cloned();
+                    let ok = match (text, path) {
+                        (Some(t), Some(p)) if sel.len() == 2 => {
+                            let ok = ops::fit_text_to_path(&mut d.editor, &t, &p);
+                            if ok {
+                                d.selection = vec![t];
+                            }
+                            ok
+                        }
+                        _ => false,
+                    };
+                    if !ok {
+                        self.status = tr(
+                            "Selecione um texto e um objeto com contorno",
+                            "Select a text and an object with an outline",
+                        )
+                        .into();
+                    }
+                }
+            }
+            C::DetachTextPath => {
+                let ids = self.text_targets();
+                if let Some(d) = &mut self.doc {
+                    ops::detach_text_path(&mut d.editor, &ids);
+                }
+            }
             C::ConvertTextKind => {
                 // GD-TXT-03: cada texto troca de tipo mantendo as linhas.
                 if let Some(d) = &mut self.doc {
@@ -1665,6 +1703,18 @@ impl App {
                     self.run_command(Command::OutlineToObject, &ctx);
                 }
                 let has_text = !self.text_targets().is_empty();
+                let two = self.doc.as_ref().is_some_and(|d| d.selection.len() == 2);
+                for (label, cmd, on) in [
+                    (tr("Ajustar texto ao caminho", "Fit text to path"), Command::FitTextToPath, two),
+                    (tr("Separar texto do caminho", "Detach text from path"), Command::DetachTextPath, has_text),
+                ] {
+                    if ui
+                        .add_enabled(on, egui::Button::new(keymap::menu(label, cmd)))
+                        .clicked()
+                    {
+                        self.run_command(cmd, &ctx);
+                    }
+                }
                 if ui
                     .add_enabled(
                         has_text,

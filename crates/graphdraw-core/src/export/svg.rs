@@ -48,7 +48,7 @@ pub fn write_svg(scene: &Scene, opts: &ExportOptions) -> String {
             Item::Shape(s) => w.shape(s),
             Item::Image(i) => w.image(i),
             Item::Text(t) => {
-                if opts.text_to_curves {
+                if opts.text_to_curves || t.layout.on_path {
                     for s in &t.outlines {
                         w.shape(s);
                     }

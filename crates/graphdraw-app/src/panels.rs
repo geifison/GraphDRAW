@@ -198,6 +198,7 @@ impl App {
                     if let Some(st) = text_bar(ui, doc, &text_targets, text_at, picker) {
                         pending_style = Some(st);
                     }
+                    path_text_bar(ui, doc, &text_targets);
                 });
             }
             Tool::Artboard => {
@@ -228,6 +229,7 @@ impl App {
                         if let Some(st) = text_bar(ui, doc, texts, None, picker) {
                             pending_style = Some(st);
                         }
+                        path_text_bar(ui, doc, texts);
                     }
                 });
             }
@@ -2855,6 +2857,72 @@ fn report_panel(ui: &mut egui::Ui, doc: &mut DocState) {
     }
     if let Some(p) = goto {
         doc.set_page(p);
+    }
+}
+
+/// Opções do texto em caminho (GD-TXT-09), quando o primeiro texto alvo
+/// corre num caminho: posição, distância, lado, orientação e espelho.
+fn path_text_bar(ui: &mut egui::Ui, doc: &mut DocState, targets: &[String]) {
+    let Some(tp) = targets
+        .first()
+        .and_then(|id| doc.editor.find(id))
+        .and_then(|r| doc.editor.get(&r))
+        .and_then(|o| match &o.kind {
+            ObjectKind::Text(t) => t.path.clone(),
+            _ => None,
+        })
+    else {
+        return;
+    };
+    ui.separator();
+    let mut next = tp.clone();
+    widgets::stack(ui, |ui, row| {
+        if row == 0 {
+            if let Some(v) = widgets::labeled_length(
+                ui,
+                tr("Início", "Start"),
+                "texto-caminho-inicio",
+                next.offset,
+                None,
+            ) {
+                next.offset = v;
+            }
+            if let Some(v) = widgets::labeled_length(
+                ui,
+                tr("Dist.", "Dist."),
+                "texto-caminho-dist",
+                next.distance,
+                None,
+            ) {
+                next.distance = v;
+            }
+        } else {
+            ui.selectable_value(&mut next.side, "above".to_string(), tr("Acima", "Above"));
+            ui.selectable_value(&mut next.side, "below".to_string(), tr("Abaixo", "Below"));
+            egui::ComboBox::from_id_salt("texto-caminho-orientacao")
+                .selected_text(match next.orientation.as_str() {
+                    "skew-v" => tr("Inclinar vertical", "Skew vertical"),
+                    "skew-h" => tr("Inclinar horizontal", "Skew horizontal"),
+                    "upright" => tr("De pé", "Upright"),
+                    _ => tr("Girar letras", "Rotate letters"),
+                })
+                .width(theme::BLEND_COMBO_WIDTH)
+                .show_ui(ui, |ui| {
+                    for (k, l) in [
+                        ("rotate", tr("Girar letras", "Rotate letters")),
+                        ("skew-v", tr("Inclinar vertical", "Skew vertical")),
+                        ("skew-h", tr("Inclinar horizontal", "Skew horizontal")),
+                        ("upright", tr("De pé", "Upright")),
+                    ] {
+                        ui.selectable_value(&mut next.orientation, k.to_string(), l);
+                    }
+                });
+            ui.checkbox(&mut next.mirror, tr("Espelhar", "Mirror"));
+        }
+    });
+    if next != tp {
+        let ids = targets[..1].to_vec();
+        ops::edit_text_path(&mut doc.editor, &ids, move |p| *p = next.clone());
     }
 }
 

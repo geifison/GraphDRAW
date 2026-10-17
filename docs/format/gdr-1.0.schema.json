@@ -330,7 +330,19 @@
               "textKind": { "enum": ["artistic", "paragraph"] },
               "frame": { "$ref": "#/$defs/point" },
               "paragraphs": { "type": "array", "items": { "$ref": "#/$defs/paragraph" } },
-              "lineSpacing": { "type": "number", "exclusiveMinimum": 0 }
+              "lineSpacing": { "type": "number", "exclusiveMinimum": 0 },
+              "path": {
+                "type": "object",
+                "required": ["subpaths"],
+                "properties": {
+                  "subpaths": { "type": "array", "items": { "$ref": "#/$defs/subpath" } },
+                  "offset": { "type": "number" },
+                  "distance": { "type": "number" },
+                  "side": { "enum": ["above", "below"] },
+                  "orientation": { "enum": ["rotate", "skew-v", "skew-h", "upright"] },
+                  "mirror": { "type": "boolean" }
+                }
+              }
             }
           }
         },

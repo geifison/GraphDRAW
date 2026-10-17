@@ -379,6 +379,10 @@ de texto.
 - **Botão direito** no objeto (no painel ou no canvas): menu de edição
   rápida com o campo Nome (`menu-field-width` = 160 px, Enter confirma),
   Travar/Destravar e Ocultar/Mostrar.
+- **Texto em caminho** (GD-TXT-09), na barra de texto quando o texto corre
+  num caminho: Início e Dist. (comprimentos), Acima/Abaixo, orientação
+  (lista de 150 px: Girar letras, Inclinar vertical, Inclinar horizontal,
+  De pé) e Espelhar.
 - **Aparência** (GD-TRA-02), abaixo da árvore com seleção: opacidade do
   objeto (%) e modo de mesclagem (lista de `blend-combo-width` = 150 px).
 - **Dados do objeto** (GD-OBJ-05), abaixo da árvore com um objeto

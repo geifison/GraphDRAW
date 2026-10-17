@@ -263,6 +263,7 @@ Em Linux: `apt install libcdr-dev librevenge-dev pkg-config g++` e o mesmo
 | GD-GEO-05, aceite do doc 03 | `geometry::tests::*`, `convert::tests::gd_geo_acceptance_circle_to_curves` |
 | GD-NOD-01..07 | `nodes::tests::*` (`gd_nod_06_align_nodes`, `gd_nod_07_reduce_nodes`) |
 | GD-PRI-05, GD-PRI-06, GD-FER-32 | `generate::tests::*`, `canvas::tests::polygon_tool_draws_spiral_and_graph_paper` (app) |
+| GD-TXT-09 | `ops::tests::gd_txt_09_text_on_path` |
 | GD-TRA-02 | `tests/blend.rs` |
 | GD-DOC-03 | `rulers::tests::gd_doc_03_drawing_scale_on_rulers` (app) |
 | GD-TXT-03 | `text::tests::gd_txt_03_convert_artistic_paragraph` |
@@ -333,7 +334,10 @@ Do M0, ainda valem:
   aviso de texto excedente. Formatação por trecho: com texto selecionado
   na edição, fonte, estilo, corpo e a cor da paleta valem só para ele (o
   alinhamento para os parágrafos tocados); sem seleção, para o objeto
-  inteiro. Sem bidi, hifenização nem quadros encadeados.
+  inteiro. Texto em caminho (GD-TXT-09): o caminho é copiado para o
+  texto (o objeto original fica), cada glifo vai para o ponto do caminho no
+  meio do seu avanço; no PDF e no SVG sai em curvas; na edição o cursor não
+  acompanha o caminho. Sem bidi, hifenização nem quadros encadeados.
 - Carregamento sob demanda de páginas (GD-GDR-11) não implementado: páginas
   separadas são lidas na abertura.
 

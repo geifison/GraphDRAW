@@ -416,6 +416,7 @@ fn text() -> Document {
                 }],
             )],
             line_spacing: 1.2,
+            path: None,
             extra: Map::new(),
         }),
     );
@@ -439,6 +440,7 @@ fn text() -> Document {
                 para("right", vec![span("Alinhado à direita.", 12.0)]),
             ],
             line_spacing: 1.3,
+            path: None,
             extra: Map::new(),
         }),
     );
@@ -459,6 +461,7 @@ fn text() -> Document {
                 }],
             )],
             line_spacing: 1.2,
+            path: None,
             extra: Map::new(),
         }),
     );
