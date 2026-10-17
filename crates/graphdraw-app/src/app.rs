@@ -2820,8 +2820,10 @@ impl App {
         if let Some((name, k, v)) = chosen {
             self.choose_variant(name, k, v);
         }
+        // Retângulo da página criado: segue na Seleção, com ele selecionado.
         if page_rect && let Some(d) = &mut self.doc {
             crate::canvas::add_page_rect(d, &self.defaults);
+            self.set_tool(Tool::Select);
         }
         if let Some((name, vars, at)) = open {
             self.tool_drawer = Some((name, vars, at, ui.ctx().cumulative_frame_nr()));

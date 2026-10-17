@@ -488,7 +488,7 @@ barra (no máximo os 2–4 controles mais usados) e o que fica só na janela.
   ferramentas do grupo em linha, ao lado do botão, em `shadow-popover`.
   Escolher na gaveta usa e passa a mostrar aquela; clique fora ou Esc fecha.
 - Grupos: **Retângulo** (2 pontos, 3 pontos; duplo clique no botão cria um
-  retângulo do tamanho da página), **Elipse** (2 pontos, 3 pontos; cada
+  retângulo do tamanho da página e passa para a Seleção), **Elipse** (2 pontos, 3 pontos; cada
   ferramenta guarda o seu modo, o mesmo da barra de propriedades), **Formas** (polígono, estrela, estrela complexa, espiral, papel
   gráfico — a família sai da barra de propriedades) e **Preenchimento**
   (interativo/gradiente, uniforme, conta-gotas).
