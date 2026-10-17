@@ -261,7 +261,8 @@ Em Linux: `apt install libcdr-dev librevenge-dev pkg-config g++` e o mesmo
 | GD-EXP-01, 02, 06 | `tests/export.rs`, `graphdraw-cli/tests/cli.rs` |
 | GD-NF-01, GD-NF-02 | `examples/bench.rs` (medição), `export::gd_nf_02_parallel_bands_match_sequential` |
 | GD-GEO-05, aceite do doc 03 | `geometry::tests::*`, `convert::tests::gd_geo_acceptance_circle_to_curves` |
-| GD-NOD-01..05, GD-NOD-07 | `nodes::tests::*` (`gd_nod_07_reduce_nodes`) |
+| GD-NOD-01..07 | `nodes::tests::*` (`gd_nod_06_align_nodes`, `gd_nod_07_reduce_nodes`) |
+| GD-NOD-08, GD-TRF-03 | `ops::tests::gd_nod_08_extract_subpath`, `ops::tests::gd_trf_03_clear_transformations` |
 | GD-UND-01..07 + aceite do doc 12 | `history::tests::gd_und_*` |
 | GD-OBJ-06, GD-SEL-01..03 | `query::tests::*` |
 | GD-SEL-02 (dentro de grupo) | `ops::tests::gd_sel_02_edit_inside_group`, `query::tests::gd_sel_02_deep_hit_finds_child`, `tree::tests::*`, `tests/m1_editing.rs` |

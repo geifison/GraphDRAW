@@ -642,6 +642,35 @@ fn reduce_subpath(sp: &crate::model::Subpath, tol: f64, corner_deg: f64) -> Opti
     (out.len() < n).then_some(out)
 }
 
+/// Alinhar nós (GD-NOD-06): `horizontal` põe todos na mesma altura (y),
+/// senão na mesma coluna (x), no meio da caixa dos nós escolhidos; as
+/// alças acompanham cada nó.
+pub fn align_nodes(path: &mut PathData, refs: &[NodeRef], horizontal: bool) {
+    let axis = usize::from(horizontal);
+    let vals: Vec<f64> = refs
+        .iter()
+        .filter_map(|r| node(path, *r))
+        .map(|n| n.p[axis])
+        .collect();
+    if vals.len() < 2 {
+        return;
+    }
+    let lo = vals.iter().copied().fold(f64::INFINITY, f64::min);
+    let hi = vals.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    let target = (lo + hi) / 2.0;
+    let mut seen = refs.to_vec();
+    seen.sort();
+    seen.dedup();
+    for r in seen {
+        let Some(cur) = node(path, r).map(|n| n.p[axis]) else {
+            continue;
+        };
+        let mut d = [0.0, 0.0];
+        d[axis] = target - cur;
+        move_nodes(path, &[r], d);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1053,5 +1082,18 @@ mod tests {
             "{}",
             deviation(&before, &open)
         );
+    }
+
+    /// GD-NOD-06: alinhar nós na horizontal põe todos na mesma altura, com
+    /// as alças junto.
+    #[test]
+    fn gd_nod_06_align_nodes() {
+        let mut p = wave();
+        let refs = all_nodes(&p);
+        align_nodes(&mut p, &refs, true);
+        let ys: Vec<f64> = p.subpaths[0].nodes.iter().map(|n| n.p[1]).collect();
+        assert!(ys.windows(2).all(|w| (w[0] - w[1]).abs() < 1e-9), "{ys:?}");
+        let x0 = wave().subpaths[0].nodes[0].p[0];
+        assert_eq!(p.subpaths[0].nodes[0].p[0], x0, "x não muda");
     }
 }

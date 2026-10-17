@@ -1207,6 +1207,84 @@ pub fn convert_to_curves(ed: &mut Editor, sel: &[String]) {
     });
 }
 
+/// Extrair subcaminhos (GD-NOD-08): os subcaminhos `which` saem do caminho
+/// `id` e viram um objeto novo logo acima, com os mesmos atributos.
+/// Devolve o ID do novo objeto.
+pub fn extract_subpaths(ed: &mut Editor, id: &str, which: &[usize]) -> Option<String> {
+    let r = ed.find(id)?;
+    let o = ed.get(&r)?.clone();
+    let ObjectKind::Path(p) = &o.kind else {
+        return None;
+    };
+    let mut keep = Vec::new();
+    let mut take = Vec::new();
+    for (i, sp) in p.subpaths.iter().enumerate() {
+        if which.contains(&i) {
+            take.push(sp.clone());
+        } else {
+            keep.push(sp.clone());
+        }
+    }
+    if take.is_empty() || keep.is_empty() {
+        return None;
+    }
+    let mut rest = o.clone();
+    if let ObjectKind::Path(pd) = &mut rest.kind {
+        pd.subpaths = keep;
+    }
+    let mut new = o.clone();
+    new.id = crate::model::new_id();
+    new.name = None;
+    if let ObjectKind::Path(pd) = &mut new.kind {
+        pd.subpaths = take;
+    }
+    // Fora de grupo, vai para a camada com a matriz completa.
+    if !r.is_top() {
+        new.transform = Transform::from_affine(ed.parent_affine(&r) * o.transform.affine());
+    }
+    let new_id = new.id.clone();
+    let at = r.loc;
+    ed.transaction("Extrair subcaminho", |ed| {
+        ed.replace_at(&r, rest);
+        let index = if r.is_top() {
+            at.index + 1
+        } else {
+            ed.objects(at.page, at.layer).len()
+        };
+        ed.insert_object(ObjLoc { index, ..at }, new);
+    });
+    Some(new_id)
+}
+
+/// Limpar transformações (GD-TRF-03): primitivas e textos voltam ao tamanho
+/// e ao ângulo originais (sem escala, giro nem inclinação), com o centro
+/// no mesmo lugar. Caminhos, imagens e grupos não mudam.
+pub fn clear_transformations(ed: &mut Editor, sel: &[String]) {
+    modify(ed, sel, "Limpar transformações", |o| {
+        let primitive = matches!(
+            o.kind,
+            ObjectKind::Rectangle(_)
+                | ObjectKind::Ellipse(_)
+                | ObjectKind::Polygon(_)
+                | ObjectKind::Text(_)
+        );
+        if !primitive {
+            return false;
+        }
+        let Some(b) = super::query::local_outline(o).map(|p| kurbo::Shape::bounding_box(&p)) else {
+            return false;
+        };
+        let m = o.transform.affine();
+        let c = m * b.center();
+        let t = Transform::from_affine(Affine::translate(c.to_vec2() - b.center().to_vec2()));
+        if t == o.transform {
+            return false;
+        }
+        o.transform = t;
+        true
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1700,5 +1778,78 @@ mod tests {
         );
         ed.undo();
         assert_eq!(ed.objects(0, 0).len(), 3);
+    }
+    /// GD-NOD-08: extrair um subcaminho vira objeto novo logo acima, com os
+    /// mesmos atributos; um passo de desfazer.
+    #[test]
+    fn gd_nod_08_extract_subpath() {
+        use crate::model::{Document, Node, Page, PathData, Subpath};
+        let mut d = Document::new();
+        d.data.pages.push(Page::new(100.0, 100.0));
+        let mut ed = Editor::new(d);
+        let sq = |x: f64| Subpath {
+            closed: true,
+            nodes: vec![
+                Node::corner(x, 0.0),
+                Node::corner(x + 5.0, 0.0),
+                Node::corner(x + 5.0, 5.0),
+            ],
+            extra: Default::default(),
+        };
+        let mut o = Object::new(ObjectKind::Path(PathData {
+            subpaths: vec![sq(0.0), sq(10.0), sq(20.0)],
+            fill_rule: Default::default(),
+            extra: Default::default(),
+        }));
+        o.fill = Some(Fill::solid(crate::model::Color::black()));
+        let id = add_object(&mut ed, 0, 0, o, "p");
+        let new = extract_subpaths(&mut ed, &id, &[1]).unwrap();
+        let objs = ed.objects(0, 0);
+        assert_eq!(objs.len(), 2);
+        assert_eq!(
+            (objs[0].id.as_str(), objs[1].id.as_str()),
+            (id.as_str(), new.as_str())
+        );
+        let count = |o: &Object| match &o.kind {
+            ObjectKind::Path(p) => p.subpaths.len(),
+            _ => 0,
+        };
+        assert_eq!((count(&objs[0]), count(&objs[1])), (2, 1));
+        assert_eq!(objs[1].fill, objs[0].fill);
+        assert!(
+            extract_subpaths(&mut ed, &new, &[0]).is_none(),
+            "não esvazia o caminho"
+        );
+        ed.undo();
+        assert_eq!(count(&ed.objects(0, 0)[0]), 3);
+    }
+
+    /// GD-TRF-03: limpar transformações tira giro e escala das primitivas,
+    /// com o centro no mesmo lugar.
+    #[test]
+    fn gd_trf_03_clear_transformations() {
+        use crate::model::{Document, Page, RectData};
+        let mut d = Document::new();
+        d.data.pages.push(Page::new(100.0, 100.0));
+        let mut ed = Editor::new(d);
+        let mut o = Object::new(ObjectKind::Rectangle(RectData {
+            width: 20.0,
+            height: 10.0,
+            corners: None,
+            extra: Default::default(),
+        }));
+        o.transform = Transform::from_affine(
+            Affine::translate((50.0, 50.0))
+                * Affine::rotate(0.7)
+                * Affine::scale_non_uniform(2.0, 3.0),
+        );
+        let id = add_object(&mut ed, 0, 0, o, "r");
+        let r = ed.find(&id).unwrap();
+        let before = object_bounds(&ed, &r, false).unwrap().center();
+        clear_transformations(&mut ed, std::slice::from_ref(&id));
+        let r = ed.find(&id).unwrap();
+        let b = object_bounds(&ed, &r, false).unwrap();
+        assert!((b.width() - 20.0).abs() < 1e-9 && (b.height() - 10.0).abs() < 1e-9);
+        assert!((b.center() - before).hypot() < 1e-9);
     }
 }

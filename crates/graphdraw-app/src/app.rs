@@ -1192,6 +1192,10 @@ impl App {
                 }
             }
             C::Ungroup => self.with_selection(|ed, s| Some(ops::ungroup(ed, s))),
+            C::ClearTransformations => self.with_selection(|ed, s| {
+                ops::clear_transformations(ed, s);
+                Some(s.to_vec())
+            }),
             C::TransformPosition | C::TransformRotate => {
                 self.show_right = true;
                 self.right_tab = RightTab::Transform;
@@ -1748,6 +1752,18 @@ impl App {
                     .clicked()
                 {
                     self.with_selection(|ed, s| Some(ops::ungroup(ed, s)));
+                }
+                if ui
+                    .add_enabled(
+                        has_sel,
+                        egui::Button::new(crate::keymap::menu(
+                            tr("Limpar transformações", "Clear transformations"),
+                            crate::keymap::Command::ClearTransformations,
+                        )),
+                    )
+                    .clicked()
+                {
+                    self.run_command(Command::ClearTransformations, &ctx);
                 }
                 ui.separator();
                 for (label, order) in [

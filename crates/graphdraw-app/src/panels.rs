@@ -1847,6 +1847,57 @@ fn shape_bar(ui: &mut egui::Ui, doc: &mut DocState) {
     {
         doc.nodes = nodes::all_nodes(&path);
     }
+    // Alinhar nós (GD-NOD-06) e extrair subcaminho (GD-NOD-08).
+    for (icon, tip, horizontal) in [
+        (
+            "node-align-h",
+            tr(
+                "Alinhar nós na horizontal (mesma altura)",
+                "Align nodes horizontally (same height)",
+            ),
+            true,
+        ),
+        (
+            "node-align-v",
+            tr(
+                "Alinhar nós na vertical (mesma coluna)",
+                "Align nodes vertically (same column)",
+            ),
+            false,
+        ),
+    ] {
+        if icons::button(ui, icon, tip, false, n >= 2).clicked() {
+            op = Some((
+                tr("Alinhar nós", "Align nodes"),
+                Box::new(move |p, s| nodes::align_nodes(p, s, horizontal)),
+            ));
+        }
+    }
+    let subs: Vec<usize> = {
+        let mut v: Vec<usize> = sel.iter().map(|r| r.subpath).collect();
+        v.sort();
+        v.dedup();
+        v
+    };
+    if icons::button(
+        ui,
+        "node-extract",
+        tr(
+            "Extrair subcaminho: os subcaminhos dos nós escolhidos viram outro objeto",
+            "Extract subpath: the chosen nodes' subpaths become another object",
+        ),
+        false,
+        !subs.is_empty() && subs.len() < path.subpaths.len(),
+    )
+    .clicked()
+    {
+        let id = o.id.clone();
+        if let Some(new) = ops::extract_subpaths(&mut doc.editor, &id, &subs) {
+            doc.selection = vec![new];
+            doc.nodes.clear();
+            return;
+        }
+    }
     // Reduzir nós (GD-NOD-07): nos subcaminhos dos nós escolhidos, ou em
     // todos; a tolerância fica guardada na sessão.
     ui.separator();
