@@ -72,6 +72,52 @@ Prioridade:
   agregados.
 - [ ] Benchmark GD-NF-01/02 sem regressão depois das ferramentas novas.
 
+## P0 — Pré-impressão e manufatura (avaliação de 2026-10-17)
+Proposta de arquitetura trazida pelo responsável pelo produto, avaliada em
+2026-10-17. Estes itens entram porque são o diferencial para gráfica e
+corte; cada um vira requisito em spec nova (doc 28) antes do código.
+- [ ] Verificação prévia (preflight) contínua:
+  - cobertura total de tinta acima do limite (300–320% em papel revestido,
+    260% em não revestido), em falso tom por canal;
+  - linha fina demais (menor que 0,25 pt em positivo, 0,5 pt em negativo),
+    com botão de engrossar;
+  - objeto na zona de segurança do corte;
+  - preto 100% K sem sobreimpressão.
+
+  Junta GD-SEP-02 e GD-DIM-31.
+- [ ] Compensação de kerf para laser/CNC: deslocamento para fora nas
+  peças e para dentro nos furos, calculado na exportação sem mexer no
+  vetor original. É diferente da compensação de lâmina do vinil
+  (GD-CRT-05).
+- [ ] Sangria automática: objeto encostado na borda estende até a linha de
+  sangria (opcional, por objeto).
+
+## P1 — Da mesma avaliação
+- [ ] Aninhamento (nesting): encaixar as peças numa chapa de tamanho dado,
+  com rotações permitidas, sentido da fibra e folga da ferramenta.
+- [ ] Booleanas não destrutivas: soldar, aparar e interseção como
+  modificador. As formas originais continuam editáveis; "converter em
+  curvas" fecha o resultado.
+
+## Fora da 1.0 — da mesma avaliação
+Para depois da 1.0, cada um com o motivo:
+- **Renderização em GPU por compute shaders:** a renderização em CPU com
+  faixas paralelas já cumpre GD-NF-02 (26 ms por quadro com 10 mil
+  objetos). Trocar o motor agora atrasaria o lançamento sem ganho para o
+  público-alvo. Fica no radar se arquivos reais passarem de 30 mil
+  objetos.
+- **Redes vetoriais (nó com 3+ arestas):** mudaria o modelo do `.gdr`, a
+  importação `.cdr`, PDF, SVG, PLT/DXF e a edição de nós. Nenhum formato de
+  saída da gráfica representa isso. O preenchimento inteligente (GD-FER-52,
+  P1) cobre o caso de "pintar a região entre linhas".
+- **Curvas de Euler (G²):** possível como ferramenta ou opção de suavizar,
+  sem mudar o modelo (vira Bézier na saída). Pós-1.0.
+- **Vetorização de bitmap:** já está fora do MVP (GD-VET-01).
+- **Geração paramétrica (Voronoi, empacotamento de círculos):** fora do MVP.
+- **Colaboração em tempo real (CRDT):** o produto é de uso local. O doc 19
+  (comentários) está fora do MVP; colaboração exige servidor, conta e
+  modelo de dados novo.
+
 ## P1
 - [ ] Conector reto, em ângulo e curvo, que segue os objetos (GD-FER-41,
   GD-CON-01).
