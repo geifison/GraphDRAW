@@ -158,6 +158,9 @@ const icons = {
   offset: `<rect x="7.5" y="7.5" width="9" height="9" rx="1"/><rect x="3.5" y="3.5" width="17" height="17" rx="4" stroke-dasharray="2 2"/>`,
   palette: `<path d="M12 3.5 A8.5 8.5 0 1 0 12 20.5 C13.6 20.5 14 19.4 13.4 18.4 C12.8 17.4 13.4 15.9 14.8 15.9 H16.8 A3.7 3.7 0 0 0 20.5 12.2 C20.5 7.4 16.7 3.5 12 3.5 Z"/>${dot(8, 10)}${dot(11.5, 7.5)}${dot(15.5, 8.5)}${dot(7.8, 14)}`,
   "fill-linear": `<rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M8 4V20 M12 4V20 M16 4V20" stroke-dasharray="1.5 1.5"/>`,
+  "fill-elliptic": `<rect x="4" y="4" width="16" height="16" rx="1.5"/><ellipse cx="12" cy="12" rx="2.5" ry="1.5"/><ellipse cx="12" cy="12" rx="6" ry="3.5" stroke-dasharray="1.5 1.5"/>`,
+  "fill-conic": `<rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M12 12 L19 12 M12 12 L7 7 M12 12 L9 18.5"/>`,
+  "fill-rectangular": `<rect x="4" y="4" width="16" height="16" rx="1.5"/><rect x="10" y="10" width="4" height="4"/><rect x="7" y="7" width="10" height="10" stroke-dasharray="1.5 1.5"/>`,
   "fill-radial": `<rect x="4" y="4" width="16" height="16" rx="1.5"/><circle cx="12" cy="12" r="2.5"/><circle cx="12" cy="12" r="5.5" stroke-dasharray="1.5 1.5"/>`,
   // ---- distribuir (GD-ALI-03) ----
   "dist-left": `<path d="M4 3.5V20.5 M11 3.5V20.5 M18 3.5V20.5" stroke-dasharray="1.6 1.8"/><rect x="4" y="6" width="4" height="5" rx="0.8" fill="#fff"/><rect x="11" y="10" width="5" height="5" rx="0.8" fill="#fff"/><rect x="18" y="14" width="3" height="5" rx="0.8" fill="#fff"/>`,

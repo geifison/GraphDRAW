@@ -228,6 +228,11 @@ fn gradient_shader(
         _ => sk::SpreadMode::Pad,
     };
     let t = sk_transform(view * m);
+    if !crate::render::gradient::is_native(g) {
+        // Contorno com gradiente calculado: cor do meio.
+        let (c, o) = crate::render::gradient::color_at(g, 0.5);
+        return Some(sk::Shader::SolidColor(sk_color(&c, alpha * o)));
+    }
     match g.kind.as_str() {
         "radial" => {
             let c = g.center.unwrap_or([0.0, 0.0]);
@@ -265,6 +270,61 @@ fn make_paint(paint: &Paint, view: Affine, opts: &RasterOptions) -> Option<sk::P
     Some(p)
 }
 
+/// Gradiente sem desenho nativo (elíptico, cônico, retangular): pinta
+/// pixel a pixel a caixa do caminho e aplica pela máscara da forma.
+#[allow(clippy::too_many_arguments)]
+fn fill_computed(
+    pm: &mut sk::Pixmap,
+    sp: &sk::Path,
+    view: Affine,
+    g: &Gradient,
+    m: Affine,
+    alpha: f64,
+    rule: sk::FillRule,
+    opts: &RasterOptions,
+) {
+    let b = sp.bounds();
+    let x0 = (b.left().floor().max(0.0)) as i32;
+    let y0 = (b.top().floor().max(0.0)) as i32;
+    let x1 = (b.right().ceil() as i32).min(pm.width() as i32);
+    let y1 = (b.bottom().ceil() as i32).min(pm.height() as i32);
+    if x1 <= x0 || y1 <= y0 {
+        return;
+    }
+    let (w, h) = ((x1 - x0) as u32, (y1 - y0) as u32);
+    let Some(mut mask) = sk::Mask::new(pm.width(), pm.height()) else {
+        return;
+    };
+    mask.fill_path(sp, rule, opts.antialias, sk::Transform::identity());
+    let Some(mut pat) = sk::Pixmap::new(w, h) else {
+        return;
+    };
+    let lut = crate::render::gradient::lut(g, alpha);
+    let inv = (view * m).inverse();
+    let data = pat.pixels_mut();
+    for y in 0..h {
+        for x in 0..w {
+            let q = inv * kurbo::Point::new(x0 as f64 + x as f64 + 0.5, y0 as f64 + y as f64 + 0.5);
+            let t = crate::render::gradient::param(g, q);
+            let [r, gg, bb, a] = lut[(t * 255.0).round().clamp(0.0, 255.0) as usize];
+            let c = sk::ColorU8::from_rgba(r, gg, bb, a).premultiply();
+            data[(y * w + x) as usize] = c;
+        }
+    }
+    let paint = sk::PixmapPaint {
+        blend_mode: BLEND.with(|b| b.get()),
+        ..Default::default()
+    };
+    pm.draw_pixmap(
+        x0,
+        y0,
+        pat.as_ref(),
+        &paint,
+        sk::Transform::identity(),
+        Some(&mask),
+    );
+}
+
 fn fill_path(
     pm: &mut sk::Pixmap,
     path: &BezPath,
@@ -273,6 +333,23 @@ fn fill_path(
     rule: FillRule,
     opts: &RasterOptions,
 ) {
+    if let Paint::Gradient {
+        gradient,
+        transform,
+        alpha,
+    } = paint
+        && !crate::render::gradient::is_native(gradient)
+    {
+        let Some(sp) = to_sk_path(path, view) else {
+            return;
+        };
+        let r = match rule {
+            FillRule::Evenodd => sk::FillRule::EvenOdd,
+            FillRule::Nonzero => sk::FillRule::Winding,
+        };
+        fill_computed(pm, &sp, view, gradient, *transform, *alpha, r, opts);
+        return;
+    }
     let (Some(sp), Some(p)) = (to_sk_path(path, view), make_paint(paint, view, opts)) else {
         return;
     };

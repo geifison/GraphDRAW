@@ -699,9 +699,26 @@ pub struct GradientSpec {
 /// Gradiente com a geometria ajustada à caixa `b` (coordenadas locais).
 pub fn gradient_for(spec: &GradientSpec, b: Rect) -> crate::model::Gradient {
     let c = b.center();
+    let (mut radius_y, mut angle) = (None, None);
     let (start, end, center, radius) = if spec.kind == "radial" {
         let r = (b.width().hypot(b.height()) / 2.0).max(1e-9);
         (None, None, Some([c.x, c.y]), Some(r))
+    } else if matches!(spec.kind.as_str(), "elliptic" | "rectangular" | "conic") {
+        // Elíptico chega aos cantos; retangular às bordas; cônico só usa o
+        // ângulo.
+        let k = if spec.kind == "elliptic" {
+            std::f64::consts::SQRT_2
+        } else {
+            1.0
+        };
+        radius_y = Some((b.height() / 2.0 * k).max(1e-9));
+        angle = (spec.angle != 0.0).then_some(spec.angle);
+        (
+            None,
+            None,
+            Some([c.x, c.y]),
+            Some((b.width() / 2.0 * k).max(1e-9)),
+        )
     } else {
         let a = spec.angle.to_radians();
         let d = Vec2::new(a.cos(), a.sin());
@@ -716,6 +733,8 @@ pub fn gradient_for(spec: &GradientSpec, b: Rect) -> crate::model::Gradient {
         end,
         center,
         radius,
+        radius_y,
+        angle,
         spread: spec.spread.clone(),
         extra: Default::default(),
     }
@@ -725,13 +744,12 @@ pub fn gradient_for(spec: &GradientSpec, b: Rect) -> crate::model::Gradient {
 pub fn gradient_spec(g: &crate::model::Gradient) -> GradientSpec {
     let angle = match (g.start, g.end) {
         (Some(a), Some(b)) => (b[1] - a[1]).atan2(b[0] - a[0]).to_degrees(),
-        _ => 0.0,
+        _ => g.angle.unwrap_or(0.0),
     };
     GradientSpec {
-        kind: if g.kind == "radial" {
-            "radial".into()
-        } else {
-            "linear".into()
+        kind: match g.kind.as_str() {
+            k @ ("radial" | "elliptic" | "conic" | "rectangular") => k.into(),
+            _ => "linear".into(),
         },
         stops: g.stops.clone(),
         angle,

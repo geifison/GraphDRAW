@@ -382,10 +382,6 @@ impl Mapper<'_> {
         let center = kurbo::Point::new(bbox.x0 + bbox.width() / 2.0, bbox.y0 + bbox.height() / 2.0);
         match style {
             "radial" | "square" | "ellipsoid" | "rectangular" => {
-                if style != "radial" {
-                    let msg = format!("gradiente '{style}' aproximado como radial");
-                    self.warn("cdr.gradient.approx", &msg);
-                }
                 // ODF: cor inicial na borda, cor final no centro.
                 if stops.is_empty() {
                     stops = vec![stop(0.0, end_color?), stop(1.0 - border, start_color?)];
@@ -399,24 +395,49 @@ impl Mapper<'_> {
                         [bbox.y0, bbox.y1].map(|y| ((x - cx).powi(2) + (y - cy).powi(2)).sqrt())
                     })
                     .fold(0.0, f64::max);
+                // Meias medidas até a borda mais longe, em x e em y.
+                let hx = (cx - bbox.x0).abs().max((bbox.x1 - cx).abs()).max(1.0);
+                let hy = (cy - bbox.y0).abs().max((bbox.y1 - cy).abs()).max(1.0);
+                let turn = s.num("draw:angle").filter(|a| *a != 0.0);
+                let (kind, radius, radius_y, angle) = match style {
+                    // Elipse que passa pelos cantos da caixa.
+                    "ellipsoid" => (
+                        "elliptic",
+                        hx * std::f64::consts::SQRT_2,
+                        Some(hy * std::f64::consts::SQRT_2),
+                        turn,
+                    ),
+                    "rectangular" => ("rectangular", hx, Some(hy), turn),
+                    "square" => ("rectangular", hx.max(hy), Some(hx.max(hy)), turn),
+                    _ => ("radial", r.max(1.0), None, None),
+                };
                 Some(Gradient {
-                    kind: "radial".into(),
+                    kind: kind.into(),
                     stops,
                     start: None,
                     end: None,
                     center: Some([cx, cy]),
-                    radius: Some(r.max(1.0)),
+                    radius: Some(radius),
+                    radius_y,
+                    angle,
                     spread: "pad".into(),
                     extra: Map::new(),
                 })
             }
             other => {
-                if other != "linear" {
+                if !matches!(other, "linear" | "axial") {
                     let msg = format!("gradiente '{other}' aproximado como linear");
                     self.warn("cdr.gradient.approx", &msg);
                 }
                 if stops.is_empty() {
-                    stops = vec![stop(border, start_color?), stop(1.0, end_color?)];
+                    stops = if other == "axial" {
+                        // ODF axial: cor inicial nas duas bordas, final no meio.
+                        let b = border / 2.0;
+                        let (sc, ec) = (start_color?, end_color?);
+                        vec![stop(b, sc.clone()), stop(0.5, ec), stop(1.0 - b, sc)]
+                    } else {
+                        vec![stop(border, start_color?), stop(1.0, end_color?)]
+                    };
                 }
                 // ODF: ângulo 0 = do topo para a base, girando no sentido anti-horário.
                 let a = (s.num("draw:angle").unwrap_or(0.0)).to_radians();
@@ -437,6 +458,8 @@ impl Mapper<'_> {
                     end: Some([p1.x, p1.y]),
                     center: None,
                     radius: None,
+                    radius_y: None,
+                    angle: None,
                     spread: "pad".into(),
                     extra: Map::new(),
                 })
@@ -900,4 +923,73 @@ fn average_color(bytes: &[u8]) -> Option<Color> {
         sum[1] as f64 / n as f64 / 255.0,
         sum[2] as f64 / n as f64 / 255.0,
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::{Fill, ObjectKind};
+
+    fn gradient_of(style: &str) -> (crate::model::Gradient, ImportReport) {
+        let len = |n: f64| format!(r#"["{n}in","in",{n}]"#);
+        let txt = |v: &str| format!(r#"["{v}"]"#);
+        let events = [
+            format!(r#"{{"op":"startPage","p":{{"svg:width":{},"svg:height":{}}}}}"#, len(4.0), len(4.0)),
+            format!(
+                r#"{{"op":"setStyle","p":{{"draw:fill":{},"draw:style":{},"draw:start-color":{},"draw:end-color":{}}}}}"#,
+                txt("gradient"),
+                txt(style),
+                txt("#000000"),
+                txt("#ffffff")
+            ),
+            format!(
+                r#"{{"op":"drawRectangle","p":{{"svg:x":{},"svg:y":{},"svg:width":{},"svg:height":{}}}}}"#,
+                len(1.0),
+                len(1.0),
+                len(2.0),
+                len(1.0)
+            ),
+            r#"{"op":"endPage","p":{}}"#.to_string(),
+        ]
+        .join("
+");
+        let mut report = ImportReport::new("cdr");
+        let doc = map_events(events.as_bytes(), &mut report);
+        let o = doc.data.pages[0].layers[0].objects[0].clone();
+        assert!(matches!(
+            o.kind,
+            ObjectKind::Rectangle(_) | ObjectKind::Path(_)
+        ));
+        match o.fill {
+            Some(Fill::Gradient(g)) => (g, report),
+            f => panic!("sem gradiente: {f:?}"),
+        }
+    }
+
+    /// GD-FIL-03 / doc 14: gradientes elipsoide, quadrado, retangular e
+    /// axial da libcdr chegam como o tipo certo, sem aviso de aproximação.
+    #[test]
+    fn cdr_gradient_styles_map_to_kinds() {
+        for (style, kind) in [
+            ("ellipsoid", "elliptic"),
+            ("square", "rectangular"),
+            ("rectangular", "rectangular"),
+            ("radial", "radial"),
+            ("axial", "linear"),
+        ] {
+            let (g, report) = gradient_of(style);
+            assert_eq!(g.kind, kind, "{style}");
+            assert!(
+                !report.items.iter().any(|i| i.code == "cdr.gradient.approx"),
+                "{style}: {:?}",
+                report.items
+            );
+            if style == "axial" {
+                assert_eq!(g.stops.len(), 3);
+            }
+        }
+        let (r, _) = gradient_of("rectangular");
+        let (hx, hy) = (r.radius.unwrap(), r.radius_y.unwrap());
+        assert!((hx - 2.0 * hy).abs() < 1.0, "caixa 2 × 1 pol: {hx} {hy}");
+    }
 }

@@ -345,6 +345,8 @@ fn gradients() -> Document {
         end: Some([80.0 * MM, 0.0]),
         center: None,
         radius: None,
+        radius_y: None,
+        angle: None,
         spread: "pad".into(),
         extra: Map::new(),
     };
@@ -363,6 +365,8 @@ fn gradients() -> Document {
         end: None,
         center: Some([40.0 * MM, 40.0 * MM]),
         radius: Some(40.0 * MM),
+        radius_y: None,
+        angle: None,
         spread: "pad".into(),
         extra: Map::new(),
     };

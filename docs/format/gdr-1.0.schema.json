@@ -141,12 +141,14 @@
           "then": {
             "required": ["kind", "stops"],
             "properties": {
-              "kind": { "enum": ["linear", "radial"] },
+              "kind": { "enum": ["linear", "radial", "elliptic", "conic", "rectangular"] },
               "stops": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/gradientStop" } },
               "start": { "$ref": "#/$defs/point" },
               "end": { "$ref": "#/$defs/point" },
               "center": { "$ref": "#/$defs/point" },
               "radius": { "type": "number", "exclusiveMinimum": 0 },
+              "radiusY": { "type": "number", "exclusiveMinimum": 0 },
+              "angle": { "type": "number" },
               "spread": { "enum": ["pad", "repeat", "reflect"] }
             },
             "allOf": [
@@ -155,7 +157,7 @@
                 "then": { "required": ["start", "end"] }
               },
               {
-                "if": { "properties": { "kind": { "const": "radial" } } },
+                "if": { "properties": { "kind": { "enum": ["radial", "elliptic", "conic", "rectangular"] } } },
                 "then": { "required": ["center", "radius"] }
               }
             ]

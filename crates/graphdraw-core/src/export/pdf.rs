@@ -1087,7 +1087,7 @@ fn set_color(c: &mut Content, color: &Color, stroke: bool, res: &mut Resources, 
 
 /// Valores das paradas do gradiente: RGB no PDF comum; CMYK (com a opacidade
 /// achatada) no PDF/X-1a.
-fn shading(g: &Gradient, alpha: f64, w: &mut W) -> Ref {
+fn shading(g: &Gradient, alpha: f64, domain: [f32; 4], w: &mut W) -> Ref {
     let mut stops: Vec<(f64, Vec<f32>)> = g
         .stops
         .iter()
@@ -1144,6 +1144,30 @@ fn shading(g: &Gradient, alpha: f64, w: &mut W) -> Ref {
     }
     if stops.len() == 1 {
         stops.push((1.0, stops[0].1.clone()));
+    }
+    // Elíptico, cônico e retangular: sombreamento tipo 1 com função
+    // PostScript (tipo 4) que calcula o parâmetro e as cores ponto a ponto.
+    if !crate::render::gradient::is_native(g) {
+        let n = stops[0].1.len();
+        let code = crate::render::gradient::ps_function(g, &stops);
+        let fid = w.alloc();
+        w.pdf
+            .post_script_function(fid, code.as_bytes())
+            .domain(domain)
+            .range((0..n).flat_map(|_| [0.0f32, 1.0]));
+        let id = w.alloc();
+        let x1a = w.x1a;
+        let mut sh = w.pdf.function_shading(id);
+        sh.shading_type(FunctionShadingType::Function)
+            .domain(domain);
+        if x1a {
+            sh.color_space().device_cmyk();
+        } else {
+            sh.color_space().device_rgb();
+        }
+        sh.function(fid);
+        sh.finish();
+        return id;
     }
     let func_id = if stops.len() == 2 {
         let id = w.alloc();
@@ -1245,7 +1269,16 @@ fn fill(c: &mut Content, s: &ShapeItem, p: &Paint, res: &mut Resources, w: &mut 
             alpha,
         } => {
             let alpha_stop = gradient.stops.iter().map(|s| s.opacity).fold(1.0, f64::min);
-            let id = shading(gradient, *alpha, w);
+            let b = transform
+                .inverse()
+                .transform_rect_bbox(kurbo::Shape::bounding_box(&s.path))
+                .inflate(1.0, 1.0);
+            let id = shading(
+                gradient,
+                *alpha,
+                [b.x0 as f32, b.x1 as f32, b.y0 as f32, b.y1 as f32],
+                w,
+            );
             let name = format!("Sh{}", res.shadings.len());
             res.shadings.push((name.clone(), id));
             c.save_state();

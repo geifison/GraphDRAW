@@ -80,6 +80,8 @@ fn sample() -> Document {
         end: Some([40.0 * MM, 0.0]),
         center: None,
         radius: None,
+        radius_y: None,
+        angle: None,
         spread: "pad".into(),
         extra: Map::new(),
     }));

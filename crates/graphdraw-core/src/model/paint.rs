@@ -20,8 +20,9 @@ pub struct GradientStop {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Gradient {
-    /// `linear` (usa `start`/`end`) ou `radial` (usa `center`/`radius`).
-    /// Outros tipos de GD-FIL-03 (elíptico, cônico, retangular) entram no M3.
+    /// `linear` (usa `start`/`end`), `radial` (usa `center`/`radius`) ou
+    /// `elliptic`, `conic`, `rectangular` (usam `center`, `radius`,
+    /// `radiusY` e `angle`; ver `render::gradient`).
     pub kind: String,
     pub stops: Vec<GradientStop>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -32,6 +33,12 @@ pub struct Gradient {
     pub center: Option<[f64; 2]>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub radius: Option<f64>,
+    /// Raio em y (elíptico, retangular); padrão = `radius`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub radius_y: Option<f64>,
+    /// Giro dos eixos em graus (elíptico, cônico, retangular).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub angle: Option<f64>,
     /// `pad` (padrão), `repeat` ou `reflect`.
     #[serde(default = "pad", skip_serializing_if = "is_pad")]
     pub spread: String,

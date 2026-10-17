@@ -124,6 +124,10 @@ Tipos desconhecidos são preservados e não exibidos.
 - `{"type": "solid", "color": cor, "opacity?": 0–1, "overprint?": bool}`
 - `{"type": "gradient", "kind": "linear", "start": [x,y], "end": [x,y], "stops": [...], "spread?": "pad|repeat|reflect"}`
 - `{"type": "gradient", "kind": "radial", "center": [x,y], "radius": r, "stops": [...]}`
+- `{"type": "gradient", "kind": "elliptic|conic|rectangular", "center": [x,y], "radius": rx, "radiusY?": ry, "angle?": graus, "stops": [...]}` —
+  elíptico: t = distância elíptica (rx, ry); retangular: t = maior entre |u|/rx e |v|/ry; cônico: t = ângulo
+  (0 em `angle`, sentido anti-horário) ÷ 360°. Eixos u, v girados por `angle`. Tipo desconhecido de
+  gradiente é desenhado como linear.
 
 Paradas: `{"offset": 0–1, "color": cor, "opacity?": 0–1}`. Coordenadas do
 gradiente no espaço local do objeto. Tipos desconhecidos são preservados e

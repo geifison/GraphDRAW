@@ -20,7 +20,7 @@ pub enum Handle {
 
 /// Eixo do gradiente: de onde a onde vai o parâmetro 0..1.
 pub fn axis(g: &Gradient) -> Option<(Point, Point)> {
-    if g.kind == "radial" {
+    if g.kind != "linear" {
         let c = g.center?;
         let r = g.radius?;
         Some((Point::new(c[0], c[1]), Point::new(c[0] + r, c[1])))
@@ -61,47 +61,13 @@ pub fn distance_to_axis(g: &Gradient, p: Point) -> Option<f64> {
     Some((p - a.lerp(b, t)).hypot())
 }
 
-fn lerp_color(a: &Color, b: &Color, t: f64) -> Color {
-    let (ca, cb) = (a.to_srgb(), b.to_srgb());
-    let m = |i: usize| ca[i] + (cb[i] - ca[i]) * t;
-    Color::rgb(m(0), m(1), m(2))
-}
-
-/// Cor e opacidade do gradiente no parâmetro `t`.
-pub fn color_at(g: &Gradient, t: f64) -> (Color, f64) {
-    let mut stops: Vec<&GradientStop> = g.stops.iter().collect();
-    stops.sort_by(|a, b| a.offset.total_cmp(&b.offset));
-    let (Some(first), Some(last)) = (stops.first(), stops.last()) else {
-        return (Color::black(), 1.0);
-    };
-    if t <= first.offset {
-        return (first.color.clone(), first.opacity);
-    }
-    if t >= last.offset {
-        return (last.color.clone(), last.opacity);
-    }
-    for w in stops.windows(2) {
-        let (a, b) = (w[0], w[1]);
-        if t >= a.offset && t <= b.offset {
-            let k = if b.offset > a.offset {
-                (t - a.offset) / (b.offset - a.offset)
-            } else {
-                0.0
-            };
-            return (
-                lerp_color(&a.color, &b.color, k),
-                a.opacity + (b.opacity - a.opacity) * k,
-            );
-        }
-    }
-    (last.color.clone(), last.opacity)
-}
+pub use crate::render::gradient::color_at;
 
 /// Move a alça para `p`. Paradas deslizam sobre o eixo; a ordem das
 /// paradas não muda durante o arrasto (a renderização ordena).
 pub fn drag(g: &Gradient, h: Handle, p: Point) -> Gradient {
     let mut g = g.clone();
-    let radial = g.kind == "radial";
+    let radial = g.kind != "linear";
     match h {
         Handle::Start if radial => g.center = Some([p.x, p.y]),
         Handle::Start => g.start = Some([p.x, p.y]),
@@ -190,6 +156,8 @@ pub fn linear_from(a: Point, b: Point, current: Option<&Fill>) -> Gradient {
         end: Some([b.x, b.y]),
         center: None,
         radius: None,
+        radius_y: None,
+        angle: None,
         spread,
         extra: Default::default(),
     }

@@ -263,6 +263,7 @@ Em Linux: `apt install libcdr-dev librevenge-dev pkg-config g++` e o mesmo
 | GD-GEO-05, aceite do doc 03 | `geometry::tests::*`, `convert::tests::gd_geo_acceptance_circle_to_curves` |
 | GD-NOD-01..07 | `nodes::tests::*` (`gd_nod_06_align_nodes`, `gd_nod_07_reduce_nodes`) |
 | GD-PRI-05, GD-PRI-06, GD-FER-32 | `generate::tests::*`, `canvas::tests::polygon_tool_draws_spiral_and_graph_paper` (app) |
+| GD-FIL-03 (elíptico, cônico, retangular) | `gradient::tests::*`, `tests/gradients.rs` (PNG e PDF pelo Poppler), `mapper::tests::cdr_gradient_styles_map_to_kinds` |
 | GD-TXT-09 | `ops::tests::gd_txt_09_text_on_path` |
 | GD-TRA-02 | `tests/blend.rs` |
 | GD-DOC-03 | `rulers::tests::gd_doc_03_drawing_scale_on_rulers` (app) |
@@ -353,12 +354,17 @@ Do M3:
 - Guias: horizontais, verticais e inclinadas, da página ou do documento;
   guias de página mestra e camada especial de guias (GD-CAM-04) não
   existem; a origem das réguas não é salva.
-- Gradientes: linear e radial pela janela (geometria pela caixa do
-  objeto) e pela ferramenta de preenchimento interativo (G; GD-FIL-11:
+- Gradientes: linear, radial, elíptico, cônico e retangular pela janela
+  (geometria pela caixa do objeto; os três últimos têm `radiusY` e
+  `angle`, calculados ponto a ponto: na tela por pixel, no PDF por
+  sombreamento tipo 1 com função PostScript, no SVG o elíptico vira radial
+  esticado e cônico/retangular um ladrilho de imagem) e pela ferramenta de preenchimento interativo (G; GD-FIL-11:
   arrastar cria linear, alças de início/fim ou centro/raio, paradas
   deslizam na linha, duplo clique cria parada com a cor do ponto, Delete
-  tira, clique na paleta pinta a parada escolhida). Sem elíptico, cônico
-  ou retangular; ponto médio das paradas não é editável.
+  tira, clique na paleta pinta a parada escolhida). Ponto médio das paradas
+  não é editável; a ferramenta interativa edita elíptico/cônico/retangular
+  pelo centro e raio. Na importação `.cdr`, elipsoide, quadrado,
+  retangular e axial chegam como o tipo próprio.
 - Paletas: arquivos ASE/GPL/CSV/JSON; .xml/.cpl de terceiros não são lidos.
 
 Do M2:

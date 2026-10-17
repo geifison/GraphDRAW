@@ -718,6 +718,24 @@ enum FillMode {
     Solid,
     Linear,
     Radial,
+    Elliptic,
+    Conic,
+    Rectangular,
+}
+
+impl FillMode {
+    fn gradient(self) -> bool {
+        !matches!(self, FillMode::None | FillMode::Solid)
+    }
+    fn kind(self) -> &'static str {
+        match self {
+            FillMode::Radial => "radial",
+            FillMode::Elliptic => "elliptic",
+            FillMode::Conic => "conic",
+            FillMode::Rectangular => "rectangular",
+            _ => "linear",
+        }
+    }
 }
 
 pub struct FillDialog {
@@ -788,10 +806,12 @@ impl FillDialog {
             }
             Some(Fill::Gradient(g)) => {
                 let spec = ops::gradient_spec(g);
-                d.mode = if spec.kind == "radial" {
-                    FillMode::Radial
-                } else {
-                    FillMode::Linear
+                d.mode = match spec.kind.as_str() {
+                    "radial" => FillMode::Radial,
+                    "elliptic" => FillMode::Elliptic,
+                    "conic" => FillMode::Conic,
+                    "rectangular" => FillMode::Rectangular,
+                    _ => FillMode::Linear,
                 };
                 if spec.stops.len() >= 2 {
                     d.stops = spec.stops;
@@ -809,12 +829,7 @@ impl FillDialog {
         let mut stops = self.stops.clone();
         stops.sort_by(|a, b| a.offset.total_cmp(&b.offset));
         ops::GradientSpec {
-            kind: if self.mode == FillMode::Radial {
-                "radial"
-            } else {
-                "linear"
-            }
-            .into(),
+            kind: self.mode.kind().into(),
             stops,
             angle: self.angle,
             spread: self.spread.clone(),
@@ -834,9 +849,7 @@ impl FillDialog {
                     _ => Map::new(),
                 },
             }),
-            FillMode::Linear | FillMode::Radial => {
-                Some(Fill::Gradient(ops::gradient_for(&self.spec(), b)))
-            }
+            _ => Some(Fill::Gradient(ops::gradient_for(&self.spec(), b))),
         }
     }
 
@@ -876,14 +889,27 @@ impl FillDialog {
                             tr("Gradiente radial", "Radial gradient"),
                             FillMode::Radial,
                         ));
+                        modes.push((
+                            "fill-elliptic",
+                            tr("Gradiente elíptico", "Elliptical gradient"),
+                            FillMode::Elliptic,
+                        ));
+                        modes.push((
+                            "fill-conic",
+                            tr("Gradiente cônico", "Conical gradient"),
+                            FillMode::Conic,
+                        ));
+                        modes.push((
+                            "fill-rectangular",
+                            tr("Gradiente retangular", "Rectangular gradient"),
+                            FillMode::Rectangular,
+                        ));
                     }
                     for (icon, tip, m) in &modes {
                         if icons::button(ui, icon, tip, self.mode == *m, true).clicked()
                             && self.mode != *m
                         {
-                            if matches!(m, FillMode::Linear | FillMode::Radial)
-                                && self.mode == FillMode::Solid
-                            {
+                            if m.gradient() && self.mode == FillMode::Solid {
                                 // Começa do uniforme atual até o branco.
                                 self.stops[0].color = self.color.clone();
                             }
@@ -915,7 +941,7 @@ impl FillDialog {
                                 ui.weak(tr("Sem preenchimento", "No fill"));
                             }
                             FillMode::Solid => self.solid_ui(ui),
-                            FillMode::Linear | FillMode::Radial => self.gradient_ui(ui),
+                            _ => self.gradient_ui(ui),
                         }
                     });
                     self.sample(ui);
@@ -931,7 +957,7 @@ impl FillDialog {
                 if self.changed {
                     let sel = doc.selection.clone();
                     match self.mode {
-                        FillMode::Linear | FillMode::Radial if !self.for_defaults => {
+                        m if m.gradient() && !self.for_defaults => {
                             ops::set_gradient(&mut doc.editor, &sel, &self.spec());
                         }
                         _ => {
@@ -1034,7 +1060,7 @@ impl FillDialog {
             self.changed = true;
         }
         ui.horizontal(|ui| {
-            if self.mode == FillMode::Linear {
+            if self.mode != FillMode::Radial {
                 ui.label(tr("Ângulo", "Angle"));
                 if ui
                     .add(

@@ -165,7 +165,64 @@ impl SvgWriter {
         format!("{prefix}{}", self.next_id)
     }
 
+    /// Cônico e retangular (sem equivalente no SVG): ladrilho de imagem
+    /// grande o bastante em volta do centro; elíptico vira radial esticado.
+    fn computed_gradient(&mut self, g: &Gradient, m: Affine, alpha: f64) -> String {
+        let c = g.center.unwrap_or([0.0, 0.0]);
+        let rx = g.radius.unwrap_or(1.0).abs().max(1e-9);
+        let ry = g.radius_y.unwrap_or(rx).abs().max(1e-9);
+        if g.kind == "elliptic" {
+            let k = Affine::translate((c[0], c[1]))
+                * Affine::rotate(g.angle.unwrap_or(0.0).to_radians())
+                * Affine::scale_non_uniform(1.0, ry / rx)
+                * Affine::translate((-c[0], -c[1]));
+            let mut r = g.clone();
+            r.kind = "radial".into();
+            return self.gradient(&r, m * k, alpha);
+        }
+        let side = 4.0 * rx.max(ry);
+        let n = 256u32;
+        let Some(mut pm) = tiny_skia::Pixmap::new(n, n) else {
+            return "none".into();
+        };
+        let lut = crate::render::gradient::lut(g, alpha);
+        let px = pm.pixels_mut();
+        for y in 0..n {
+            for x in 0..n {
+                // Linha 0 da imagem = topo (y local maior).
+                let q = kurbo::Point::new(
+                    c[0] - side / 2.0 + (x as f64 + 0.5) * side / n as f64,
+                    c[1] + side / 2.0 - (y as f64 + 0.5) * side / n as f64,
+                );
+                let t = crate::render::gradient::param(g, q);
+                let [r, gg, b, a] = lut[(t * 255.0).round().clamp(0.0, 255.0) as usize];
+                px[(y * n + x) as usize] = tiny_skia::ColorU8::from_rgba(r, gg, b, a).premultiply();
+            }
+        }
+        let Ok(png) = raster::encode_png(&pm, None) else {
+            return "none".into();
+        };
+        let data = base64::engine::general_purpose::STANDARD.encode(png);
+        let id = self.id("p");
+        let place = m
+            * Affine::translate((c[0] - side / 2.0, c[1] + side / 2.0))
+            * Affine::scale_non_uniform(1.0, -1.0);
+        let _ = writeln!(
+            self.defs,
+            r#"<pattern id="{id}" patternUnits="userSpaceOnUse" width="{}" height="{}" patternTransform="{}"><image width="{}" height="{}" preserveAspectRatio="none" xlink:href="data:image/png;base64,{data}"/></pattern>"#,
+            num(side),
+            num(side),
+            matrix(place),
+            num(side),
+            num(side)
+        );
+        format!("url(#{id})")
+    }
+
     fn gradient(&mut self, g: &Gradient, m: Affine, alpha: f64) -> String {
+        if !crate::render::gradient::is_native(g) {
+            return self.computed_gradient(g, m, alpha);
+        }
         let id = self.id("g");
         let spread = match g.spread.as_str() {
             "repeat" | "reflect" => format!(r#" spreadMethod="{}""#, g.spread),
