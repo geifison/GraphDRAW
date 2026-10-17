@@ -159,8 +159,13 @@ pub struct App {
 
 impl App {
     pub fn new(cc: &eframe::CreationContext<'_>, initial: Option<PathBuf>) -> App {
-        egui_extras::install_image_loaders(&cc.egui_ctx);
-        crate::theme::apply(&cc.egui_ctx);
+        App::with_ctx(&cc.egui_ctx, initial)
+    }
+
+    /// Monta o app sobre um contexto do egui (também usado nos testes, sem janela).
+    pub(crate) fn with_ctx(egui_ctx: &egui::Context, initial: Option<PathBuf>) -> App {
+        egui_extras::install_image_loaders(egui_ctx);
+        crate::theme::apply(egui_ctx);
         let mut app = App {
             doc: Some(DocState::new_blank()),
             loading: None,
@@ -219,12 +224,12 @@ impl App {
             app.show_right = ws.panels;
             app.right_tab = ws.tab();
             app.tool = ws.tool();
-            theme::set_density(&cc.egui_ctx, theme::Density::from_key(&ws.density));
+            theme::set_density(egui_ctx, theme::Density::from_key(&ws.density));
             app.ws_saved = ws.clone();
             app.ws = ws;
         }
         if let Some(p) = initial {
-            app.start_open(p, &cc.egui_ctx);
+            app.start_open(p, egui_ctx);
         }
         app
     }
@@ -2724,6 +2729,13 @@ pub(crate) fn kind_label(k: &ObjectKind) -> String {
 
 impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        self.frame(ui);
+    }
+}
+
+impl App {
+    /// Um quadro da interface inteira.
+    pub(crate) fn frame(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
         self.poll_loading();
         theme::sync_window_theme(&ctx, &mut self.window_theme);
@@ -2844,5 +2856,94 @@ impl eframe::App for App {
         self.floating_panels(&ctx);
         self.dialogs(&ctx);
         self.save_workspace(&ctx);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn key(k: Key, mods: egui::Modifiers) -> egui::Event {
+        egui::Event::Key {
+            key: k,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: mods,
+        }
+    }
+
+    /// Só trocar de ferramenta, Esc e selecionar tudo não marcam o
+    /// documento como alterado (título sem "•").
+    #[test]
+    fn keys_without_edits_keep_document_unmodified() {
+        let ctx = crate::theme::test_ctx();
+        let mut app = App::with_ctx(&ctx, None);
+        {
+            let d = app.doc.as_mut().unwrap();
+            let o = graphdraw_core::model::Object::new(ObjectKind::Rectangle(
+                graphdraw_core::model::RectData {
+                    width: 10_000.0,
+                    height: 10_000.0,
+                    corners: None,
+                    extra: Default::default(),
+                },
+            ));
+            ops::add_object(&mut d.editor, 0, 0, o, "r");
+            d.editor.mark_saved();
+        }
+        app.tool = Tool::Text;
+        let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::new(1366.0, 768.0));
+        let mut frame = |app: &mut App, mut events: Vec<egui::Event>| {
+            let modifiers = events
+                .iter()
+                .find_map(|e| match e {
+                    egui::Event::Key { modifiers, .. } => Some(*modifiers),
+                    _ => None,
+                })
+                .unwrap_or_default();
+            events.insert(0, egui::Event::ModifiersChanged(modifiers));
+            let mut out = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(screen),
+                    events,
+                    ..Default::default()
+                },
+                |ui| app.frame(ui),
+            );
+            out.textures_delta.clear();
+        };
+        for _ in 0..3 {
+            frame(&mut app, vec![]);
+        }
+        let steps: Vec<(&str, Vec<egui::Event>)> = vec![
+            ("Esc", vec![key(Key::Escape, egui::Modifiers::NONE)]),
+            (
+                "V",
+                vec![
+                    egui::Event::Text("v".into()),
+                    key(Key::V, egui::Modifiers::NONE),
+                ],
+            ),
+            (
+                "Ctrl+A",
+                vec![key(
+                    Key::A,
+                    egui::Modifiers::CTRL | egui::Modifiers::COMMAND,
+                )],
+            ),
+        ];
+        for (name, ev) in steps {
+            frame(&mut app, ev);
+            frame(&mut app, vec![]);
+            let d = app.doc.as_ref().unwrap();
+            assert!(
+                !d.editor.is_modified(),
+                "{name} alterou o documento: {:?}",
+                d.editor.history()
+            );
+        }
+        assert_eq!(app.tool, Tool::Select);
+        assert_eq!(app.doc.as_ref().unwrap().selection.len(), 1);
     }
 }
