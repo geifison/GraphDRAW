@@ -1404,6 +1404,9 @@ impl App {
                         })
                         .collect();
                     let n = self.clipboard.len();
+                    // Texto na área de transferência do sistema: sem ela, o
+                    // Ctrl+V seguinte não chega ao programa (área vazia).
+                    ctx.copy_text(format!("GraphDraw: {n} {}", tr("objeto(s)", "object(s)")));
                     if c == C::Cut {
                         let sel = std::mem::take(&mut d.selection);
                         ops::delete(&mut d.editor, &sel);
@@ -3456,18 +3459,26 @@ impl App {
     /// Janela de atalhos (GD-UI-10): escolher perfil, ver e mudar atalhos,
     /// importar e exportar o mapa em JSON.
     fn keys_window(&mut self, ctx: &egui::Context) {
-        // Captura da nova combinação.
+        // Captura da nova combinação. O evento é consumido: não executa o
+        // comando nem reaciona o botão focado (Enter/Espaço).
         if let Some(cmd) = self.key_capture {
-            let got = ctx.input(|i| {
-                i.events.iter().find_map(|e| match e {
-                    egui::Event::Key {
-                        key,
-                        pressed: true,
-                        modifiers,
-                        ..
-                    } => Some((*key, *modifiers)),
-                    _ => None,
-                })
+            let got = ctx.input_mut(|i| {
+                // Ctrl/Shift/Alt sozinhos: espera a tecla que vem junto.
+                let pos = i.events.iter().position(|e| {
+                    matches!(e, egui::Event::Key { pressed: true, key, .. } if !keymap::is_modifier(*key))
+                        || Keymap::clipboard_chord(e).is_some()
+                })?;
+                match i.events.remove(pos) {
+                    egui::Event::Key { key, modifiers, .. } => {
+                        // Tira também o "soltar" e o texto digitado.
+                        i.events.retain(|e| {
+                            !matches!(e, egui::Event::Key { key: k, .. } if *k == key)
+                                && !matches!(e, egui::Event::Text(_))
+                        });
+                        Some((key, modifiers))
+                    }
+                    e => Keymap::clipboard_chord(&e).map(|c| (c.key, egui::Modifiers::CTRL)),
+                }
             });
             if let Some((key, m)) = got {
                 match key {
@@ -3515,6 +3526,19 @@ impl App {
                     }
                     if ui.button(tr("Exportar…", "Export…")).clicked() {
                         export_json = true;
+                    }
+                    if ui
+                        .button(tr("Restaurar padrão", "Restore defaults"))
+                        .on_hover_text(tr(
+                            "Volta todos os atalhos ao perfil GraphDraw de fábrica (desfaz as personalizações)",
+                            "Resets every shortcut to the factory GraphDraw profile (discards customizations)",
+                        ))
+                        .clicked()
+                    {
+                        new_profile = Some(keymap::Profile::GraphDraw);
+                        self.key_capture = None;
+                        self.status =
+                            tr("Atalhos restaurados ao padrão", "Shortcuts restored to defaults").into();
                     }
                 });
                 ui.weak(tr(

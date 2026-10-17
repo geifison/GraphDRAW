@@ -9,7 +9,7 @@ Identidade **própria**: nome, ícones, cores, layout e textos criados pelo proj
 - **GD-UI-04** Tema claro e escuro; escala de UI para telas de alta densidade (100–300%).
 
 ## Interação
-- **GD-UI-10** Atalhos de teclado configuráveis; esquema padrão próprio documentado; importação de mapa de atalhos genérico (JSON).
+- **GD-UI-10** Atalhos de teclado configuráveis; esquema padrão próprio documentado; importação de mapa de atalhos genérico (JSON); botão "Restaurar padrão" volta ao perfil de fábrica. A tecla gravada na janela não executa o comando nem reaciona a janela; Ctrl+C/X/V funcionam e podem ser remapeados como qualquer outro atalho.
   - Perfis prontos: **GraphDraw** (padrão de fábrica, próprio) e **Alternativo** (lista de teclas de função e letras de alinhamento definida pelo responsável pelo produto em 2026-10-16). O perfil escolhido fica salvo no perfil do usuário e vale sempre. Editar qualquer atalho cria o perfil Personalizado; importar/exportar em JSON.
   - Um mesmo atalho pode ter um comando durante a edição de texto e outro fora dela (ex.: Ctrl+R repetir × alinhar texto à direita).
   - Atalhos de ferramentas ainda inexistentes ficam reservados e avisam na barra de status.

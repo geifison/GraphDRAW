@@ -275,7 +275,25 @@ impl Chord {
         s
     }
 
+    /// Forma estável para o arquivo: nome da tecla independente do idioma e
+    /// do teclado ("Ctrl+Semicolon", não "Ctrl+Ç").
+    pub fn code(self) -> String {
+        let mut s = String::new();
+        if self.ctrl {
+            s.push_str("Ctrl+");
+        }
+        if self.shift {
+            s.push_str("Shift+");
+        }
+        if self.alt {
+            s.push_str("Alt+");
+        }
+        s.push_str(self.key.name());
+        s
+    }
+
     /// Lê "Ctrl+Shift+Q" (sem diferenciar maiúsculas; "Plus" para "+").
+    /// Tecla modificadora sozinha (Ctrl, Shift, Alt, Win) não é atalho.
     pub fn parse(t: &str) -> Option<Chord> {
         let mut c = Chord {
             key: Key::A,
@@ -310,8 +328,24 @@ impl Chord {
                     Key::from_name(&(first + &ch.as_str().to_lowercase()))
                 })?,
         };
-        Some(c)
+        (!is_modifier(c.key)).then_some(c)
     }
+}
+
+/// Ctrl, Shift, Alt e Win chegam também como teclas próprias; sozinhas
+/// não formam atalho.
+pub fn is_modifier(k: Key) -> bool {
+    matches!(
+        k,
+        Key::ShiftLeft
+            | Key::ShiftRight
+            | Key::ControlLeft
+            | Key::ControlRight
+            | Key::AltLeft
+            | Key::AltRight
+            | Key::SuperLeft
+            | Key::SuperRight
+    )
 }
 
 fn key_label(k: Key) -> String {
@@ -321,8 +355,47 @@ fn key_label(k: Key) -> String {
         Key::PageDown => "PgDn".into(),
         Key::Plus => "+".into(),
         Key::Minus => "−".into(),
-        other => other.name().to_string(),
+        other => layout_char(other).unwrap_or_else(|| other.name().to_string()),
     }
+}
+
+/// Caractere que a tecla de pontuação produz no teclado ativo (no ABNT2,
+/// a tecla na posição do ";" americano é o "Ç"). Teclas que o egui não
+/// conhece por letra chegam pela posição física.
+#[cfg(windows)]
+fn layout_char(k: Key) -> Option<String> {
+    #[link(name = "user32")]
+    unsafe extern "system" {
+        fn MapVirtualKeyW(code: u32, map_type: u32) -> u32;
+    }
+    // Código de varredura (conjunto 1) de cada posição física.
+    let scan = match k {
+        Key::Semicolon => 0x27,
+        Key::Quote => 0x28,
+        Key::Backtick => 0x29,
+        Key::Backslash => 0x2B,
+        Key::Comma => 0x33,
+        Key::Period => 0x34,
+        Key::Slash => 0x35,
+        Key::Equals => 0x0D,
+        Key::OpenBracket => 0x1A,
+        Key::CloseBracket => 0x1B,
+        Key::IntlBackslash => 0x56,
+        _ => return None,
+    };
+    // SAFETY: função do Windows sem ponteiros; só converte números.
+    let ch = unsafe {
+        let vk = MapVirtualKeyW(scan, 1); // MAPVK_VSC_TO_VK
+        MapVirtualKeyW(vk, 2) // MAPVK_VK_TO_CHAR
+    } & 0x7FFF; // bit alto = tecla morta (acento)
+    char::from_u32(ch)
+        .filter(|c| !c.is_control() && !c.is_whitespace())
+        .map(|c| c.to_uppercase().collect())
+}
+
+#[cfg(not(windows))]
+fn layout_char(k: Key) -> Option<String> {
+    Some(k.symbol_or_name().to_string()).filter(|s| s.chars().count() == 1)
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -595,13 +668,33 @@ impl Keymap {
                     mac_cmd: i.modifiers.mac_cmd,
                     ..m
                 };
-                exact && i.consume_key(mm, b.chord.key)
+                exact
+                    && (i.consume_key(mm, b.chord.key)
+                        || (!typing && take_clipboard_event(&mut i.events, b.chord)))
             });
             if hit && !out.contains(&b.command) {
                 out.push(b.command);
             }
         }
         out
+    }
+
+    /// Combinação equivalente a um evento de área de transferência: o
+    /// sistema entrega Ctrl+C/X/V (e Ctrl+Insert, Shift+Insert/Delete) como
+    /// Copiar/Recortar/Colar, nunca como tecla.
+    pub fn clipboard_chord(e: &egui::Event) -> Option<Chord> {
+        let key = match e {
+            egui::Event::Copy => Key::C,
+            egui::Event::Cut => Key::X,
+            egui::Event::Paste(_) | egui::Event::PasteImage(_) => Key::V,
+            _ => return None,
+        };
+        Some(Chord {
+            key,
+            ctrl: true,
+            shift: false,
+            alt: false,
+        })
     }
 
     // ---- JSON e arquivo de configuração ---------------------------------------
@@ -614,7 +707,7 @@ impl Keymap {
                 .iter()
                 .map(|b| BindingFile {
                     command: b.command.id().into(),
-                    keys: b.chord.text(),
+                    keys: b.chord.code(),
                 })
                 .collect(),
         };
@@ -675,6 +768,21 @@ impl Keymap {
             std::fs::create_dir_all(d).map_err(|e| e.to_string())?;
         }
         std::fs::write(&p, self.to_json()).map_err(|e| e.to_string())
+    }
+}
+
+/// Tira de `events` o evento de área de transferência que equivale a
+/// `chord` (ver [`Keymap::clipboard_chord`]).
+fn take_clipboard_event(events: &mut Vec<egui::Event>, chord: Chord) -> bool {
+    match events
+        .iter()
+        .position(|e| Keymap::clipboard_chord(e) == Some(chord))
+    {
+        Some(i) => {
+            events.remove(i);
+            true
+        }
+        None => false,
     }
 }
 
@@ -825,22 +933,80 @@ mod tests {
         assert_eq!(skipped, 1);
     }
 
+    /// Todo atalho salvo no arquivo volta igual ao reabrir o programa.
+    #[test]
+    fn every_key_survives_save_and_load() {
+        for &key in Key::ALL {
+            for (ctrl, shift, alt) in [
+                (false, false, false),
+                (true, false, false),
+                (true, true, true),
+            ] {
+                let c = Chord {
+                    key,
+                    ctrl,
+                    shift,
+                    alt,
+                };
+                let want = (!is_modifier(key)).then_some(c);
+                assert_eq!(Chord::parse(&c.code()), want, "{}", c.code());
+            }
+        }
+        // Arquivo com o Ctrl gravado sozinho: ignorado, não vira atalho.
+        let (k, skipped) = Keymap::from_json(
+            r#"{"profile":"custom","bindings":[{"command":"obj.combine","keys":"Ctrl+ControlLeft"}]}"#,
+        )
+        .unwrap();
+        assert_eq!((k.bindings.len(), skipped), (0, 1));
+    }
+
+    /// Ctrl+C/X/V chegam do sistema como eventos de área de transferência,
+    /// não como tecla: precisam disparar os atalhos mesmo assim.
+    #[test]
+    fn clipboard_shortcuts_fire() {
+        let k = Keymap::graphdraw();
+        let ctrl = Modifiers::CTRL;
+        for (ev, cmd) in [
+            (egui::Event::Copy, Command::Copy),
+            (egui::Event::Cut, Command::Cut),
+            (egui::Event::Paste("x".into()), Command::Paste),
+        ] {
+            let got = fire(&k, vec![egui::Event::ModifiersChanged(ctrl), ev], 1);
+            assert_eq!(got, [cmd]);
+        }
+        // Remapeado: Ctrl+C passa a ser outro comando.
+        let mut k2 = k.clone();
+        k2.set(Command::Duplicate, Chord::parse("Ctrl+C"));
+        let got = fire(
+            &k2,
+            vec![egui::Event::ModifiersChanged(ctrl), egui::Event::Copy],
+            1,
+        );
+        assert_eq!(got, [Command::Duplicate]);
+    }
+
     /// Dispara comandos a partir de eventos de teclado de verdade.
     fn press(k: &Keymap, key: Key, m: Modifiers, selected: usize) -> Vec<Command> {
+        let events = vec![
+            egui::Event::ModifiersChanged(m),
+            egui::Event::Key {
+                key,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: m,
+            },
+        ];
+        fire(k, events, selected)
+    }
+
+    fn fire(k: &Keymap, events: Vec<egui::Event>, selected: usize) -> Vec<Command> {
         let ctx = egui::Context::default();
         let mut got = Vec::new();
+        let mut events = Some(events);
         for frame in 0..2 {
             let events = if frame == 1 {
-                vec![
-                    egui::Event::ModifiersChanged(m),
-                    egui::Event::Key {
-                        key,
-                        physical_key: None,
-                        pressed: true,
-                        repeat: false,
-                        modifiers: m,
-                    },
-                ]
+                events.take().unwrap()
             } else {
                 vec![]
             };
