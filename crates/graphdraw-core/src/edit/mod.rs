@@ -5,6 +5,7 @@
 pub mod breakapart;
 pub mod convert;
 pub mod cutting;
+pub mod drawing;
 pub mod eyedrop;
 pub mod fit;
 pub mod generate;

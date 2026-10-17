@@ -205,7 +205,10 @@ commands! {
     ToolRect = "tool.rect", "Ferramenta Retângulo", "Rectangle tool", Tools, NotText, true;
     ToolEllipse = "tool.ellipse", "Ferramenta Elipse", "Ellipse tool", Tools, NotText, true;
     ToolArtboard = "tool.artboard", "Ferramenta Prancheta (tamanho da página)", "Artboard tool (page size)", Tools, NotText, true;
-    ToolFreehand = "tool.freehand", "Ferramenta Mão Livre", "Freehand tool", Tools, NotText, false;
+    ToolFreehand = "tool.freehand", "Ferramenta Mão Livre", "Freehand tool", Tools, NotText, true;
+    ToolPolyline = "tool.polyline", "Ferramenta Polilinha", "Polyline tool", Tools, NotText, true;
+    ToolLine2 = "tool.line2", "Ferramenta Linha 2 pontos", "2-point line tool", Tools, NotText, true;
+    ToolCurve3 = "tool.curve3", "Ferramenta Curva 3 pontos", "3-point curve tool", Tools, NotText, true;
     ToolArtistic = "tool.artistic", "Ferramenta Mídia Artística", "Artistic media tool", Tools, NotText, false;
     ToolPolygon = "tool.polygon", "Ferramenta Polígono", "Polygon tool", Tools, NotText, true;
     ToolText = "tool.text", "Ferramenta Texto", "Text tool", Tools, NotText, true;

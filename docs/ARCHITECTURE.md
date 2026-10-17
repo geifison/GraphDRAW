@@ -273,6 +273,8 @@ Em Linux: `apt install libcdr-dev librevenge-dev pkg-config g++` e o mesmo
 | GD-ALI-04 | `ops::tests::gd_ali_04_align_baseline` |
 | GD-CNV-03 | `ops::tests::gd_cnv_03_convert_to_bitmap`, `app::tests::bitmap_window_fits_small_screen` |
 | GD-PRE-01..10 (verificação prévia, sangria automática) | `preflight::tests::gd_pre_*` (core), `app::tests::gd_pre_preflight_panel_and_extend_command` |
+| GD-FER-20/21/25/26 (mão livre, linha 2 pontos, polilinha, curva 3 pontos) | `drawing::tests::gd_fer_*` (core), `canvas::tests::line_tools_on_canvas` (app) |
+| GD-FER-23 (caneta) | coberta pela Bézier: a prévia do próximo segmento segue o cursor (`canvas.rs`, desenho do rascunho) |
 | GD-FER-16..19 (recortar, faca, borracha, segmento virtual) | `cutting::tests::gd_fer_*` (core), `canvas::tests::cut_tools_on_canvas` (app) |
 | GD-PRE-20 (kerf) | `cut::tests::gd_pre_20_kerf_grows_parts_and_shrinks_holes` |
 | GD-BDR-01/02/20/22/25/70/71 (botão direito) | `canvas::tests::gd_bdr_*` (app) |

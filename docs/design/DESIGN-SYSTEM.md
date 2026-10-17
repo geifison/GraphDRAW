@@ -501,6 +501,10 @@ Aba **Verificação** (ícone `preflight`) no painel direito:
   ferramentas do grupo em linha, ao lado do botão, em `shadow-popover`.
   Escolher na gaveta usa e passa a mostrar aquela; clique fora ou Esc fecha.
 - Grupos:
+  - **Curvas** (no lugar da Bézier): Bézier, mão livre, polilinha,
+    linha 2 pontos, curva 3 pontos. A barra tem suavização (mão
+    livre/polilinha) e Livre | Tangente | Perpendicular (linha). A prévia
+    é um traço de `border-width` em `accent-primary`.
   - **Corte**, logo após Forma e antes do separador: faca, recortar,
     borracha, excluir segmento virtual;
   - **Formas**: polígono, estrela, estrela complexa, espiral, papel

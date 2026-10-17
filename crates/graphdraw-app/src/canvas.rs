@@ -58,6 +58,25 @@ pub enum Tool {
     Eraser,
     /// Excluir segmento virtual (GD-FER-19): clique no trecho.
     VirtualDelete,
+    /// Mão livre (GD-FER-20): arrastar desenha; a suavização sai da barra.
+    Freehand,
+    /// Polilinha (GD-FER-25): cliques = retas; arrastar = trecho livre.
+    Polyline,
+    /// Linha 2 pontos (GD-FER-21): livre, tangente ou perpendicular.
+    Line2,
+    /// Curva 3 pontos (GD-FER-26): início e fim arrastando; clique dá a curvatura.
+    Curve3,
+}
+
+/// Modo da linha 2 pontos (GD-FER-21).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum LineMode {
+    #[default]
+    Free,
+    /// Termina tangente ao objeto sob o cursor.
+    Tangent,
+    /// Sai perpendicular ao objeto onde começa.
+    Perpendicular,
 }
 
 impl Tool {
@@ -167,6 +186,50 @@ impl Tool {
                 ),
                 "",
             ),
+            Tool::Freehand => (
+                "tool-freehand",
+                crate::keymap::hint(
+                    tr(
+                        "Mão livre — arraste para desenhar; volte ao início para fechar",
+                        "Freehand — drag to draw; return to the start to close",
+                    ),
+                    crate::keymap::Command::ToolFreehand,
+                ),
+                "",
+            ),
+            Tool::Polyline => (
+                "tool-polyline",
+                crate::keymap::hint(
+                    tr(
+                        "Polilinha — cliques fazem retas, arrastar faz trecho livre; Enter ou duplo clique termina",
+                        "Polyline — clicks make straight lines, dragging makes a free stretch; Enter or double-click ends",
+                    ),
+                    crate::keymap::Command::ToolPolyline,
+                ),
+                "",
+            ),
+            Tool::Line2 => (
+                "tool-line2",
+                crate::keymap::hint(
+                    tr(
+                        "Linha 2 pontos — arraste de um ponto ao outro (Shift: 15°)",
+                        "2-point line — drag from one point to the other (Shift: 15°)",
+                    ),
+                    crate::keymap::Command::ToolLine2,
+                ),
+                "",
+            ),
+            Tool::Curve3 => (
+                "tool-curve3",
+                crate::keymap::hint(
+                    tr(
+                        "Curva 3 pontos — arraste do início ao fim, depois clique para dar a curvatura",
+                        "3-point curve — drag from start to end, then click to set the curvature",
+                    ),
+                    crate::keymap::Command::ToolCurve3,
+                ),
+                "",
+            ),
             Tool::Knife => (
                 "tool-knife",
                 crate::keymap::hint(
@@ -213,7 +276,7 @@ impl Tool {
             ),
         }
     }
-    pub const ALL: [Tool; 17] = [
+    pub const ALL: [Tool; 21] = [
         Tool::Select,
         Tool::Shape,
         Tool::Zoom,
@@ -231,6 +294,10 @@ impl Tool {
         Tool::Crop,
         Tool::Eraser,
         Tool::VirtualDelete,
+        Tool::Freehand,
+        Tool::Polyline,
+        Tool::Line2,
+        Tool::Curve3,
     ];
 }
 
@@ -343,6 +410,23 @@ enum Drag {
     /// Pincel da borracha.
     Erase {
         pts: Vec<Point>,
+    },
+    /// Traço de mão livre (também o trecho livre da polilinha).
+    Freehand {
+        pts: Vec<Point>,
+        poly: bool,
+    },
+    /// Linha 2 pontos: início (já encaixado) e fim; normal do objeto no
+    /// início, no modo perpendicular.
+    Line2 {
+        start: Point,
+        cur: Point,
+        normal: Option<kurbo::Vec2>,
+    },
+    /// Base da curva 3 pontos sendo puxada.
+    Curve3Base {
+        start: Point,
+        cur: Point,
     },
     /// Arrasto com o botão direito (GD-BDR-20): a seleção não se move até a
     /// escolha no menu; `over` é o alvo sob o cursor.
@@ -509,6 +593,11 @@ pub struct CanvasState {
     pub crop_pending: Option<kurbo::Rect>,
     /// Mensagem para a barra de status no fim do quadro.
     note: Option<String>,
+    /// Suavização da mão livre (0–100) e modo da linha 2 pontos.
+    pub freehand_smooth: f64,
+    pub line_mode: LineMode,
+    /// Base da curva 3 pontos, esperando o clique da curvatura.
+    curve3: Option<(Point, Point)>,
     /// Conta-gotas (doc 27).
     pub eyedrop: crate::eyedrop::Eyedrop,
     /// Último quadro renderizado (RGBA pré-multiplicado), guardado só com o
@@ -599,6 +688,9 @@ impl Default for CanvasState {
             eraser_width: 5_000.0,
             crop_pending: None,
             note: None,
+            freehand_smooth: 50.0,
+            line_mode: LineMode::Free,
+            curve3: None,
             eyedrop: Default::default(),
             pixels: None,
             focus: None,
@@ -1224,6 +1316,9 @@ impl CanvasState {
         if self.pick_reference.take().is_some() {
             return true;
         }
+        if self.curve3.take().is_some() {
+            return true;
+        }
         if self.crop_pending.take().is_some()
             || matches!(
                 self.drag,
@@ -1847,8 +1942,9 @@ impl CanvasState {
         {
             self.double_click(tool, doc, to_page(pos), tol, defaults, &mut ev);
         }
-        if tool == Tool::Bezier
-            && let (Some(_), Some(_)) = (&self.bezier, self.cursor_page)
+        if (matches!(tool, Tool::Bezier | Tool::Polyline) && self.bezier.is_some()
+            || self.curve3.is_some())
+            && self.cursor_page.is_some()
         {
             ui.ctx().request_repaint();
         }
@@ -2325,6 +2421,18 @@ impl CanvasState {
             },
             Tool::SolidFill => Glyph::Cross {
                 badge: "tool-fill-solid",
+            },
+            Tool::Freehand => Glyph::Cross {
+                badge: "tool-freehand",
+            },
+            Tool::Polyline => Glyph::Cross {
+                badge: "tool-polyline",
+            },
+            Tool::Line2 => Glyph::Cross {
+                badge: "tool-line2",
+            },
+            Tool::Curve3 => Glyph::Cross {
+                badge: "tool-curve3",
             },
             Tool::Knife => Glyph::Cross {
                 badge: "tool-knife",
@@ -2977,6 +3085,54 @@ impl CanvasState {
                 self.drag = Drag::CropRect { start: p, cur: p };
             }
             Tool::Eraser => self.drag = Drag::Erase { pts: vec![p] },
+            Tool::Freehand => {
+                self.drag = Drag::Freehand {
+                    pts: vec![p],
+                    poly: false,
+                }
+            }
+            Tool::Polyline => {
+                if self.bezier_press(doc, p, origin, rect, ph) {
+                    self.finish_bezier(doc, _defaults, true);
+                } else {
+                    let start = self
+                        .bezier
+                        .as_ref()
+                        .and_then(|d| d.nodes.last())
+                        .map_or(p, |n| pt(n.p));
+                    self.drag = Drag::Freehand {
+                        pts: vec![start],
+                        poly: true,
+                    };
+                }
+            }
+            Tool::Line2 => {
+                let mut start = snap::snap_guided_on(
+                    &self.guides,
+                    p,
+                    &snap::candidates_doc(doc.doc(), doc.page, &self.snap, &[]),
+                    &self.snap,
+                    snap_radius(&self.view),
+                )
+                .map_or(p, |s| s.point);
+                let mut normal = None;
+                if self.line_mode == LineMode::Perpendicular
+                    && let Some((q, n)) = outline_normal(doc, p, tol)
+                {
+                    start = q;
+                    normal = Some(n);
+                }
+                self.drag = Drag::Line2 {
+                    start,
+                    cur: start,
+                    normal,
+                };
+            }
+            Tool::Curve3 => {
+                if self.curve3.is_none() {
+                    self.drag = Drag::Curve3Base { start: p, cur: p };
+                }
+            }
             Tool::Pan => self.drag = Drag::Pan,
             Tool::Zoom => self.drag = Drag::ZoomRect { start: origin },
             Tool::Text => {
@@ -3329,6 +3485,63 @@ impl CanvasState {
         self.note = Some(msg);
     }
 
+    /// Objeto desenhado (linha aberta ou curva fechada) com os padrões.
+    fn add_drawn(&mut self, doc: &mut DocState, sp: Subpath, defaults: &Defaults, name: &str) {
+        let closed = sp.closed;
+        let mut o = Object::new(ObjectKind::Path(PathData {
+            subpaths: vec![sp],
+            fill_rule: FillRule::Evenodd,
+            extra: Map::new(),
+        }));
+        o.fill = if closed { defaults.fill.clone() } else { None };
+        o.stroke = defaults.stroke.clone();
+        if let Some(layer) = doc.layer_for_new_object() {
+            let id = ops::add_object(&mut doc.editor, doc.page, layer, o, name);
+            doc.selection = vec![id];
+        }
+    }
+
+    /// Mão livre solta (GD-FER-20).
+    fn freehand_end(&mut self, doc: &mut DocState, pts: &[Point], defaults: &Defaults) {
+        let px = 1.0 / self.view.zoom;
+        if let Some(sp) =
+            graphdraw_core::edit::drawing::freehand(pts, px, self.freehand_smooth, 7.0 * px)
+        {
+            self.add_drawn(
+                doc,
+                sp,
+                defaults,
+                tr("Desenhar à mão livre", "Draw freehand"),
+            );
+        }
+    }
+
+    /// Trecho livre da polilinha (GD-FER-25): vira nós ajustados no rascunho.
+    fn polyline_stretch(&mut self, pts: &[Point]) {
+        let px = 1.0 / self.view.zoom;
+        let moved = pts.windows(2).map(|w| (w[1] - w[0]).hypot()).sum::<f64>();
+        if moved < 3.0 * px {
+            return;
+        }
+        let path = graphdraw_core::edit::drawing::fit_stroke(
+            pts,
+            px * (0.5 + self.freehand_smooth / 100.0 * 6.0),
+            70.0,
+        );
+        let Some(sp) = graphdraw_core::edit::convert::bez_to_subpaths(&path)
+            .into_iter()
+            .next()
+        else {
+            return;
+        };
+        let draft = self.bezier.get_or_insert(BezierDraft { nodes: Vec::new() });
+        let mut nodes = sp.nodes.into_iter();
+        if let (Some(first), Some(last)) = (nodes.next(), draft.nodes.last_mut()) {
+            last.handle_out = first.handle_out;
+        }
+        draft.nodes.extend(nodes);
+    }
+
     /// Prévia da faca, do recorte e da borracha.
     fn paint_cut_tools(
         &self,
@@ -3342,6 +3555,24 @@ impl CanvasState {
         let line = |pts: &[Point]| -> Vec<Pos2> {
             pts.iter().map(|p| self.screen(rect, ph, *p)).collect()
         };
+        let thin = EStroke::new(theme::BORDER_WIDTH, accent);
+        match &self.drag {
+            Drag::Freehand { pts, .. } => {
+                painter.add(egui::Shape::line(line(pts), thin));
+            }
+            Drag::Line2 { start, cur, .. } | Drag::Curve3Base { start, cur } => {
+                painter.line_segment(
+                    [self.screen(rect, ph, *start), self.screen(rect, ph, *cur)],
+                    thin,
+                );
+            }
+            _ => {}
+        }
+        if let (Some((a, b)), Some(c)) = (self.curve3, self.cursor_page) {
+            let sp = graphdraw_core::edit::drawing::curve3(a, b, c);
+            let path = graphdraw_core::model::geom::subpaths_to_bez(&[sp]);
+            self.stroke_bez(painter, rect, ph, &path, thin);
+        }
         match &self.drag {
             Drag::Knife { pts, .. } => {
                 painter.add(egui::Shape::line(
@@ -4061,7 +4292,40 @@ impl CanvasState {
 
     fn update_drag(&mut self, doc: &mut DocState, cur: Point, mods: egui::Modifiers, _tol: f64) {
         let px = 2.0 / self.view.zoom;
+        let line_mode = self.line_mode;
+        let zoom = self.view.zoom;
         match &mut self.drag {
+            Drag::Freehand { pts, .. } => {
+                if pts.last().is_none_or(|l| (cur - *l).hypot() > px / 2.0) {
+                    pts.push(cur);
+                }
+                return;
+            }
+            Drag::Line2 {
+                start,
+                cur: c,
+                normal,
+            } => {
+                let mut end = cur;
+                if let Some(n) = normal {
+                    end = *start + *n * (cur - *start).dot(*n);
+                } else if line_mode == LineMode::Tangent
+                    && let Some(q) = outline_tangent(doc, *start, cur, 30.0 / zoom)
+                {
+                    end = q;
+                } else if mods.shift {
+                    let d = cur - *start;
+                    let step = 15f64.to_radians();
+                    let a = (d.y.atan2(d.x) / step).round() * step;
+                    end = *start + kurbo::Vec2::new(a.cos(), a.sin()) * d.hypot();
+                }
+                *c = end;
+                return;
+            }
+            Drag::Curve3Base { cur: c, .. } => {
+                *c = cur;
+                return;
+            }
             Drag::Knife { pts, free: true } | Drag::Erase { pts } => {
                 if pts.last().is_none_or(|l| (cur - *l).hypot() > px) {
                     pts.push(cur);
@@ -4482,6 +4746,30 @@ impl CanvasState {
         self.smart_point = None;
         match drag {
             Drag::Knife { pts, .. } => self.knife_end(doc, &pts),
+            Drag::Freehand { mut pts, poly } => {
+                pts.push(cur);
+                if poly {
+                    self.polyline_stretch(&pts);
+                } else {
+                    self.freehand_end(doc, &pts, defaults);
+                }
+            }
+            Drag::Line2 {
+                start, cur: end, ..
+            } => {
+                if (end - start).hypot() * self.view.zoom > 2.0 {
+                    let sp = Subpath {
+                        nodes: vec![Node::corner(start.x, start.y), Node::corner(end.x, end.y)],
+                        closed: false,
+                        extra: Map::new(),
+                    };
+                    self.add_drawn(doc, sp, defaults, tr("Desenhar linha", "Draw line"));
+                }
+            }
+            Drag::Curve3Base { start, cur: end } => {
+                self.curve3 =
+                    ((end - start).hypot() * self.view.zoom > 3.0).then_some((start, end));
+            }
             Drag::CropRect { start, cur } => {
                 let r = kurbo::Rect::from_points(start, cur);
                 self.crop_pending = (r.width() * self.view.zoom > 4.0
@@ -4745,6 +5033,17 @@ impl CanvasState {
                     ev.status = Some(msg);
                 }
             }
+            Tool::Polyline
+                // Clique simples = nó de canto (reta); no primeiro nó, fecha.
+                if self.bezier_press(doc, p, pos, rect, ph) => {
+                    self.finish_bezier(doc, defaults, true);
+                }
+            Tool::Curve3 => {
+                if let Some((a, b)) = self.curve3.take() {
+                    let sp = graphdraw_core::edit::drawing::curve3(a, b, p);
+                    self.add_drawn(doc, sp, defaults, tr("Desenhar curva", "Draw curve"));
+                }
+            }
             Tool::VirtualDelete => {
                 let page = doc.page;
                 let done = pick(doc, p, tol, false).is_some_and(|id| {
@@ -4935,7 +5234,7 @@ impl CanvasState {
                     }
                 }
             }
-            Tool::Bezier => {
+            Tool::Bezier | Tool::Polyline => {
                 self.finish_bezier(doc, defaults, false);
             }
             _ => {}
@@ -5390,6 +5689,39 @@ fn fit_rect(r: kurbo::Rect, ph: f64, size: Vec2) -> View {
 /// Ajusta a vista para mostrar `r` (zoom para seleção/tudo, GD-FER-04).
 pub fn zoom_to_rect(cs: &mut CanvasState, r: kurbo::Rect) {
     cs.zoom_to = Some(r.inflate(r.width() * 0.05, r.height() * 0.05));
+}
+
+/// Ponto e normal (página) do contorno do objeto sob `p` (GD-FER-21).
+fn outline_normal(doc: &DocState, p: Point, tol: f64) -> Option<(Point, kurbo::Vec2)> {
+    let id = query::hit_test_deep(doc.page(), p, tol)?;
+    let r = doc.editor.find(&id)?;
+    let o = doc.editor.get(&r)?;
+    let pd = outline_pd(o)?;
+    let m = doc.editor.parent_affine(&r) * o.transform.affine();
+    graphdraw_core::edit::drawing::normal_at(&pd, m, p, tol)
+}
+
+/// Ponto de tangência, visto de `from`, no objeto sob `cur` (GD-FER-21).
+fn outline_tangent(doc: &DocState, from: Point, cur: Point, tol: f64) -> Option<Point> {
+    let id = query::hit_test_deep(doc.page(), cur, tol)?;
+    let r = doc.editor.find(&id)?;
+    let o = doc.editor.get(&r)?;
+    let pd = outline_pd(o)?;
+    let m = doc.editor.parent_affine(&r) * o.transform.affine();
+    graphdraw_core::edit::drawing::tangent_point(&pd, m, from, cur)
+        .filter(|q| (*q - cur).hypot() <= tol * 3.0)
+}
+
+fn outline_pd(o: &Object) -> Option<PathData> {
+    match &o.kind {
+        ObjectKind::Path(p) => Some(p.clone()),
+        ObjectKind::Group(_) | ObjectKind::Image(_) | ObjectKind::Text(_) => None,
+        _ => Some(PathData {
+            subpaths: graphdraw_core::edit::convert::bez_to_subpaths(&query::local_outline(o)?),
+            fill_rule: FillRule::Nonzero,
+            extra: Map::new(),
+        }),
+    }
 }
 
 /// Nome da cor na paleta do documento quando é a mesma (GD-CTG-02).
@@ -6087,6 +6419,130 @@ mod tests {
         );
         assert_eq!(doc.selection, vec![id]);
         assert_eq!(ev.command, Some(crate::keymap::Command::UnlockSelection));
+    }
+
+    /// GD-FER-20/21/25/26 na tela: mão livre e linha 2 pontos (com
+    /// perpendicular) criam caminhos; polilinha junta retas e trecho livre;
+    /// curva 3 pontos passa pelo clique.
+    #[test]
+    fn line_tools_on_canvas() {
+        let (ctx, mut cs, mut doc, _id, rect, ph) = bdr_setup();
+        let view = cs.view;
+        let at = |x: f64, y: f64| {
+            let (a, b) = view.page_to_screen(ph, x, y);
+            rect.min + Vec2::new(a as f32, b as f32)
+        };
+        let drag = |cs: &mut CanvasState, doc: &mut DocState, tool: Tool, pts: &[Pos2]| {
+            canvas_frame(&ctx, cs, doc, tool, vec![egui::Event::PointerMoved(pts[0])]);
+            canvas_frame(
+                &ctx,
+                cs,
+                doc,
+                tool,
+                vec![button(pts[0], PointerButton::Primary, true)],
+            );
+            for w in pts.windows(2) {
+                for k in 1..=4 {
+                    let q = w[0] + (w[1] - w[0]) * (k as f32 / 4.0);
+                    canvas_frame(&ctx, cs, doc, tool, vec![egui::Event::PointerMoved(q)]);
+                }
+            }
+            let last = *pts.last().unwrap();
+            canvas_frame(
+                &ctx,
+                cs,
+                doc,
+                tool,
+                vec![button(last, PointerButton::Primary, false)],
+            );
+        };
+        let click = |cs: &mut CanvasState, doc: &mut DocState, tool: Tool, p: Pos2| {
+            canvas_frame(&ctx, cs, doc, tool, vec![egui::Event::PointerMoved(p)]);
+            canvas_frame(
+                &ctx,
+                cs,
+                doc,
+                tool,
+                vec![button(p, PointerButton::Primary, true)],
+            );
+            canvas_frame(
+                &ctx,
+                cs,
+                doc,
+                tool,
+                vec![button(p, PointerButton::Primary, false)],
+            );
+        };
+        let last_path = |doc: &DocState| -> PathData {
+            match &doc.page().layers[0].objects.last().unwrap().kind {
+                ObjectKind::Path(p) => p.clone(),
+                k => panic!("{k:?}"),
+            }
+        };
+        let count = |doc: &DocState| doc.page().layers[0].objects.len();
+        // Mão livre.
+        let n0 = count(&doc);
+        drag(
+            &mut cs,
+            &mut doc,
+            Tool::Freehand,
+            &[
+                at(120_000.0, 50_000.0),
+                at(140_000.0, 60_000.0),
+                at(160_000.0, 50_000.0),
+            ],
+        );
+        assert_eq!(count(&doc), n0 + 1);
+        assert!(!last_path(&doc).subpaths[0].closed);
+        // Linha 2 pontos, perpendicular à base do quadrado (y = 100 mm).
+        cs.line_mode = LineMode::Perpendicular;
+        drag(
+            &mut cs,
+            &mut doc,
+            Tool::Line2,
+            &[at(60_000.0, 100_000.0), at(75_000.0, 80_000.0)],
+        );
+        let l = last_path(&doc);
+        let (a, b) = (l.subpaths[0].nodes[0].p, l.subpaths[0].nodes[1].p);
+        assert!((a[0] - b[0]).abs() < 1.0, "perpendicular: {a:?} {b:?}");
+        assert!(b[1] < 85_000.0);
+        cs.line_mode = LineMode::Free;
+        // Curva 3 pontos.
+        drag(
+            &mut cs,
+            &mut doc,
+            Tool::Curve3,
+            &[at(120_000.0, 150_000.0), at(180_000.0, 150_000.0)],
+        );
+        let n1 = count(&doc);
+        click(&mut cs, &mut doc, Tool::Curve3, at(150_000.0, 170_000.0));
+        assert_eq!(count(&doc), n1 + 1);
+        let c = graphdraw_core::geometry::subpath_segments(&last_path(&doc).subpaths[0])[0];
+        assert!(
+            (kurbo::ParamCurve::eval(&c, 0.5) - Point::new(150_000.0, 170_000.0)).hypot() < 300.0
+        );
+        // Polilinha: dois cliques (reta) e um trecho livre; termina.
+        click(&mut cs, &mut doc, Tool::Polyline, at(120_000.0, 200_000.0));
+        click(&mut cs, &mut doc, Tool::Polyline, at(150_000.0, 200_000.0));
+        drag(
+            &mut cs,
+            &mut doc,
+            Tool::Polyline,
+            &[
+                at(150_000.0, 200_000.0),
+                at(165_000.0, 215_000.0),
+                at(180_000.0, 200_000.0),
+            ],
+        );
+        cs.finish_bezier(&mut doc, &Defaults::default(), false);
+        let pl = last_path(&doc);
+        assert!(
+            pl.subpaths[0].nodes.len() >= 3,
+            "{:?}",
+            pl.subpaths[0].nodes.len()
+        );
+        let end = pl.subpaths[0].nodes.last().unwrap().p;
+        assert!((end[0] - 180_000.0).abs() < 1_000.0, "{end:?}");
     }
 
     /// GD-FER-16/17/18/19 na tela: faca arrastada corta o quadrado em dois;
@@ -7100,7 +7556,11 @@ mod tests {
                 "mira+tool-knife",
                 "mira+tool-crop",
                 "mira+tool-eraser",
-                "mira+tool-virtual-delete"
+                "mira+tool-virtual-delete",
+                "mira+tool-freehand",
+                "mira+tool-polyline",
+                "mira+tool-line2",
+                "mira+tool-curve3"
             ]
         );
         assert_eq!(

@@ -75,7 +75,16 @@ pub fn slots() -> Vec<Slot> {
         ),
         Slot::One(Tool::Zoom),
         Slot::One(Tool::Pan),
-        Slot::One(Tool::Bezier),
+        Slot::Group(
+            "curvas",
+            vec![
+                Variant::of(Tool::Bezier),
+                Variant::of(Tool::Freehand),
+                Variant::of(Tool::Polyline),
+                Variant::of(Tool::Line2),
+                Variant::of(Tool::Curve3),
+            ],
+        ),
         Slot::One(Tool::Rect),
         Slot::One(Tool::Ellipse),
         Slot::Group(

@@ -29,11 +29,11 @@ Prioridade:
 - [x] Borracha (GD-FER-18).
 - [x] Excluir segmento virtual: apaga o trecho entre interseções
   (GD-FER-19).
-- [ ] Mão livre com suavização (GD-FER-20).
-- [ ] Polilinha (GD-FER-25).
-- [ ] Linha 2 pontos (GD-FER-21).
-- [ ] Curva 3 pontos (GD-FER-26).
-- [ ] Caneta com prévia do próximo segmento (GD-FER-23).
+- [x] Mão livre com suavização (GD-FER-20).
+- [x] Polilinha (GD-FER-25).
+- [x] Linha 2 pontos (GD-FER-21).
+- [x] Curva 3 pontos (GD-FER-26).
+- [x] Caneta com prévia do próximo segmento (GD-FER-23): a Bézier já faz isso.
 - [ ] Transformação livre: girar, refletir, escalar e inclinar em torno
   de um ponto (GD-FER-03).
 - [ ] Cotas: horizontal, vertical, paralela e angular, ligadas aos nós,

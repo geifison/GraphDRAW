@@ -1221,11 +1221,12 @@ impl App {
         }
         let mods = ctx.input(|i| i.modifiers);
         let pressed = |k| ctx.input(|i| i.key_pressed(k));
-        if pressed(Key::Delete) || pressed(Key::Backspace) && self.tool != Tool::Bezier {
+        let drafting = matches!(self.tool, Tool::Bezier | Tool::Polyline);
+        if pressed(Key::Delete) || pressed(Key::Backspace) && !drafting {
             self.delete();
         }
         if pressed(Key::Enter)
-            && self.tool == Tool::Bezier
+            && drafting
             && let Some(d) = &mut self.doc
         {
             self.canvas.finish_bezier(d, &self.defaults, false);
@@ -1746,6 +1747,10 @@ impl App {
             C::ToolSolidFill => self.set_tool(Tool::SolidFill),
             C::ToolEyedropper => self.set_tool(Tool::Eyedropper),
             C::ToolKnife => self.set_tool(Tool::Knife),
+            C::ToolFreehand => self.set_tool(Tool::Freehand),
+            C::ToolPolyline => self.set_tool(Tool::Polyline),
+            C::ToolLine2 => self.set_tool(Tool::Line2),
+            C::ToolCurve3 => self.set_tool(Tool::Curve3),
             C::ToolCrop => self.set_tool(Tool::Crop),
             C::ToolEraser => self.set_tool(Tool::Eraser),
             C::ToolVirtualDelete => self.set_tool(Tool::VirtualDelete),

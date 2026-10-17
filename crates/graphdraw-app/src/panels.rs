@@ -84,6 +84,79 @@ impl App {
                     "Click an object to choose its solid fill color",
                 ),
             ),
+            Tool::Freehand | Tool::Polyline => {
+                widgets::single_line_bar(ui, "barra-mao-livre", |ui| {
+                    ui.label(tr("Suavização", "Smoothing"));
+                    ui.add(
+                        egui::Slider::new(&mut self.canvas.freehand_smooth, 0.0..=100.0)
+                            .show_value(true),
+                    );
+                    ui.separator();
+                    widgets::hint_line(
+                        ui,
+                        if self.tool == Tool::Polyline {
+                            tr(
+                                "Cliques fazem retas, arrastar faz trecho livre · Enter ou duplo clique termina · clique no primeiro nó fecha",
+                                "Clicks make lines, dragging a free stretch · Enter or double-click ends · click the first node to close",
+                            )
+                        } else {
+                            tr(
+                                "Arraste para desenhar; volte ao início para fechar",
+                                "Drag to draw; return to the start to close",
+                            )
+                        },
+                    );
+                })
+            }
+            Tool::Line2 => widgets::single_line_bar(ui, "barra-linha2", |ui| {
+                use crate::canvas::LineMode;
+                for (m, label, tip) in [
+                    (
+                        LineMode::Free,
+                        tr("Livre", "Free"),
+                        tr("Shift prende a 15°", "Shift locks to 15°"),
+                    ),
+                    (
+                        LineMode::Tangent,
+                        tr("Tangente", "Tangent"),
+                        tr(
+                            "O fim encosta tangente no objeto sob o cursor",
+                            "The end touches the object under the cursor tangentially",
+                        ),
+                    ),
+                    (
+                        LineMode::Perpendicular,
+                        tr("Perpendicular", "Perpendicular"),
+                        tr(
+                            "Começando num contorno, sai perpendicular a ele",
+                            "Starting on an outline, leaves perpendicular to it",
+                        ),
+                    ),
+                ] {
+                    if ui
+                        .selectable_label(self.canvas.line_mode == m, label)
+                        .on_hover_text(tip)
+                        .clicked()
+                    {
+                        self.canvas.line_mode = m;
+                    }
+                }
+                ui.separator();
+                widgets::hint_line(
+                    ui,
+                    tr(
+                        "Arraste de um ponto ao outro",
+                        "Drag from one point to the other",
+                    ),
+                );
+            }),
+            Tool::Curve3 => hint(
+                ui,
+                tr(
+                    "Arraste do início ao fim; depois clique onde a curva deve passar (Esc cancela)",
+                    "Drag from start to end; then click where the curve should pass (Esc cancels)",
+                ),
+            ),
             Tool::Knife => widgets::single_line_bar(ui, "barra-faca", |ui| {
                 ui.label(tr("Lacuna", "Gap"));
                 if let Some(v) =
