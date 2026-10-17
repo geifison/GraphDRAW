@@ -40,6 +40,17 @@ permitida). A lista completa de crates transitivos fica em `Cargo.lock`.
 | Inter (Regular, Medium, SemiBold) | 4.1 | SIL Open Font License 1.1 (texto em `crates/graphdraw-app/assets/fonts/Inter-LICENSE.txt`) | Fonte da interface (DESIGN-SYSTEM 2.3) |
 | Hack | a que vem no egui 0.37.0 | MIT (fonte embutida pelo egui) | Fonte monoespaçada dos campos numéricos (`type-numeric`) |
 
+## Perfis ICC embutidos (GD-CMS-01)
+
+Arquivos sem alteração em `crates/graphdraw-core/assets/icc/`; textos completos das licenças e SHA-256 em `crates/graphdraw-core/assets/icc/LICENSES.md`.
+
+| Nome | Origem | Licença | Uso |
+|---|---|---|---|
+| FOGRA39L_coated.icc | pacote `colorprofiles` do CTAN (20181105), OpenICC | zlib/libpng ("free of known copyright restrictions") | Perfil CMYK padrão: offset couché ISO 12647-2 (FOGRA39) |
+| GRACoL2013_CRPC6.icc | registro de perfis do ICC (IDEAlliance, com permissão da X-Rite) | Uso, incorporação e compartilhamento sem restrição; proibido alterar ou vender sem permissão escrita da IDEAlliance | Perfil CMYK GRACoL 2013 (CGATS 21-2 CRPC6) |
+
+Não incluídos por licença: perfis da ECI (ISO Coated v2, PSO Coated v3 — distribuição só com permissão escrita da ECI) e os perfis da Adobe. O usuário pode escolher esses arquivos na janela de gerenciamento de cor.
+
 ## Distribuídas com o GraphDraw — ponte `gd-cdr-bridge` (DLLs ao lado do executável no Windows)
 
 | Nome | Versão | Licença | Uso |

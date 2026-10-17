@@ -1379,7 +1379,17 @@ impl App {
                 self.save(true);
             }
             C::Import => self.import(),
-            C::Export => self.export_choice = self.doc.is_some(),
+            C::Export => {
+                self.export_choice = self.doc.is_some();
+                // PDF/X: a condição de impressão acompanha o perfil embutido.
+                if let Some(b) = self.doc.as_ref().and_then(|d| {
+                    graphdraw_core::cms::builtin(
+                        d.doc().data.settings.color.cmyk_profile.as_deref()?,
+                    )
+                }) {
+                    self.print_condition = b.condition;
+                }
+            }
             C::Close if !self.tabs.is_empty() => {
                 let i = self.active;
                 self.request(Pending::Close(i), ctx);
@@ -4020,6 +4030,124 @@ mod tests {
             "{size:?}"
         );
         assert!(app.bitmap_dlg.is_some());
+    }
+
+    /// GD-PAL-05/07 de ponta a ponta: com um objeto selecionado, clicar numa
+    /// amostra da barra pinta o objeto; segurar abre o mosaico e clicar num
+    /// tom pinta com ele.
+    #[test]
+    fn palette_bar_click_and_mosaic_paint_selection() {
+        use crate::paletteui::SWATCH_RECTS;
+        let ctx = crate::theme::test_ctx();
+        let mut app = App::with_ctx(&ctx, None);
+        let id = {
+            let d = app.doc.as_mut().unwrap();
+            let o = graphdraw_core::model::Object::new(ObjectKind::Rectangle(
+                graphdraw_core::model::RectData {
+                    width: 10_000.0,
+                    height: 10_000.0,
+                    corners: None,
+                    extra: Default::default(),
+                },
+            ));
+            let id = ops::add_object(&mut d.editor, 0, 0, o, "r");
+            d.selection = vec![id.clone()];
+            id
+        };
+        let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::new(1366.0, 768.0));
+        let mut t = 0.0;
+        let mut frame = |app: &mut App, events: Vec<egui::Event>, dt: f64| {
+            t += dt;
+            SWATCH_RECTS.with(|v| v.borrow_mut().clear());
+            let mut out = ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(screen),
+                    time: Some(t),
+                    events,
+                    ..Default::default()
+                },
+                |ui| app.frame(ui),
+            );
+            out.textures_delta.clear();
+            SWATCH_RECTS.with(|v| v.borrow().clone())
+        };
+        let btn = |pos, pressed| egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        let fill = |app: &App| {
+            let d = app.doc.as_ref().unwrap();
+            d.editor
+                .get(&d.editor.find(&id).unwrap())
+                .unwrap()
+                .fill
+                .clone()
+        };
+        let mut rects = Vec::new();
+        for _ in 0..3 {
+            rects = frame(&mut app, vec![], 0.05);
+        }
+        assert!(rects.len() > 3, "amostras da barra: {}", rects.len());
+        // Clique simples na 3ª amostra da barra.
+        let p = rects[2].center();
+        frame(&mut app, vec![egui::Event::PointerMoved(p)], 0.05);
+        frame(&mut app, vec![btn(p, true)], 0.05);
+        frame(&mut app, vec![btn(p, false)], 0.05);
+        let first = fill(&app);
+        assert!(first.is_some(), "clique na amostra pinta o objeto");
+        assert_eq!(app.doc.as_ref().unwrap().selection, vec![id.clone()]);
+        // Segurar a 5ª amostra abre o mosaico; clicar num tom pinta.
+        let p = rects[4].center();
+        frame(&mut app, vec![egui::Event::PointerMoved(p)], 0.05);
+        frame(&mut app, vec![btn(p, true)], 0.05);
+        // Segura bem mais que o tempo de clique, com o mouse tremendo.
+        for k in 0..15 {
+            let j = egui::vec2((k % 3) as f32 - 1.0, 0.0);
+            frame(&mut app, vec![egui::Event::PointerMoved(p + j)], 0.1);
+        }
+        frame(&mut app, vec![btn(p, false)], 0.05);
+        assert_eq!(fill(&app), first, "soltar não aplica");
+        let area = ctx
+            .memory(|mem| mem.area_rect(egui::Id::unique("mosaico-tons-area")))
+            .expect("mosaico aberto");
+        let q = area.left_top() + egui::Vec2::splat(crate::theme::SWATCH);
+        // Passa o mouse até a célula e espera a dica aparecer.
+        for k in 0..10 {
+            let m = p + (q - p) * (k as f32 / 9.0);
+            frame(&mut app, vec![egui::Event::PointerMoved(m)], 0.15);
+        }
+        frame(&mut app, vec![btn(q, true)], 0.08);
+        frame(&mut app, vec![btn(q, false)], 0.08);
+        let after = fill(&app);
+        assert!(
+            after.is_some() && after != first,
+            "tom do mosaico pinta: {after:?}"
+        );
+        assert_eq!(app.doc.as_ref().unwrap().selection, vec![id.clone()]);
+        // Segurar e deslizar até o tom, soltando em cima dele, também pinta.
+        let p = rects[6].center();
+        frame(&mut app, vec![egui::Event::PointerMoved(p)], 0.05);
+        frame(&mut app, vec![btn(p, true)], 0.05);
+        for _ in 0..8 {
+            frame(&mut app, vec![], 0.1);
+        }
+        let area = ctx
+            .memory(|mem| mem.area_rect(egui::Id::unique("mosaico-tons-area")))
+            .expect("mosaico aberto de novo");
+        assert!(!area.contains(p), "o mosaico não cobre a amostra");
+        let q = area.right_bottom() - egui::Vec2::splat(crate::theme::SWATCH);
+        for k in 1..=8 {
+            let m = p + (q - p) * (k as f32 / 8.0);
+            frame(&mut app, vec![egui::Event::PointerMoved(m)], 0.05);
+        }
+        frame(&mut app, vec![btn(q, false)], 0.05);
+        let slid = fill(&app);
+        assert!(
+            slid.is_some() && slid != after,
+            "deslizar e soltar pinta: {slid:?}"
+        );
     }
 
     /// GD-BDR-10/11: cor sem seleção pergunta antes de virar padrão; o X com

@@ -38,6 +38,56 @@ impl Default for ColorManagement {
     }
 }
 
+/// Perfil ICC que vem com o GraphDraw (GD-CMS-01). Fica no documento como
+/// `builtin:<nome>`, que abre igual em qualquer computador. Licenças em
+/// `assets/icc/LICENSES.md`.
+pub struct Builtin {
+    pub id: &'static str,
+    pub name: &'static str,
+    /// Para que serve (mostrado na escolha do perfil).
+    pub detail: &'static str,
+    /// Condição de impressão registrada correspondente (PDF/X).
+    pub condition: crate::export::PrintCondition,
+    pub data: &'static [u8],
+}
+
+/// Offset couché ISO 12647-2 (FOGRA39): padrão dos documentos novos.
+pub const FOGRA39: &str = "builtin:fogra39";
+/// GRACoL 2013 (CGATS 21-2 CRPC6).
+pub const GRACOL2013: &str = "builtin:gracol2013";
+
+pub static BUILTIN_CMYK: [Builtin; 2] = [
+    Builtin {
+        id: FOGRA39,
+        name: "FOGRA39 — offset couché (ISO 12647-2)",
+        detail: "Padrão mais aceito pelas gráficas para papel couché; TAC 300–330%",
+        condition: crate::export::PrintCondition::Fogra39,
+        data: include_bytes!("../assets/icc/FOGRA39L_coated.icc"),
+    },
+    Builtin {
+        id: GRACOL2013,
+        name: "GRACoL 2013 — offset couché (CGATS 21-2 CRPC6)",
+        detail: "Padrão G7 (EUA/Américas) para couché; TAC 320%",
+        condition: crate::export::PrintCondition::Gracol2013,
+        data: include_bytes!("../assets/icc/GRACoL2013_CRPC6.icc"),
+    },
+];
+
+/// Perfil embutido pelo identificador (`builtin:…`).
+pub fn builtin(id: &str) -> Option<&'static Builtin> {
+    BUILTIN_CMYK.iter().find(|b| b.id == id)
+}
+
+/// Nome para mostrar de um perfil escolhido (embutido ou arquivo).
+pub fn profile_label(id: &str) -> String {
+    match builtin(id) {
+        Some(b) => b.name.to_string(),
+        None => std::path::Path::new(id)
+            .file_name()
+            .map_or_else(|| id.to_string(), |n| n.to_string_lossy().into_owned()),
+    }
+}
+
 pub const INTENTS: [(&str, &str); 4] = [
     ("perceptual", "Perceptual"),
     ("relative", "Colorimétrica relativa"),
@@ -78,7 +128,11 @@ fn load(
     what: &str,
     warnings: &mut Vec<String>,
 ) -> Option<(Profile, Vec<u8>)> {
-    let data = match std::fs::read(path) {
+    let read = match builtin(path) {
+        Some(b) => Ok(b.data.to_vec()),
+        None => std::fs::read(path),
+    };
+    let data = match read {
         Ok(d) => d,
         Err(e) => {
             warnings.push(format!(
@@ -221,6 +275,65 @@ impl Cms {
     }
 }
 
+/// sRGB (0–1) → CIELAB D65 (para medir diferença de cor, ΔE).
+pub fn srgb_to_lab(c: [f64; 3]) -> [f64; 3] {
+    let lin = |v: f64| {
+        if v <= 0.04045 {
+            v / 12.92
+        } else {
+            ((v + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    let [r, g, b] = c.map(lin);
+    let x = (0.4124564 * r + 0.3575761 * g + 0.1804375 * b) / 0.95047;
+    let y = 0.2126729 * r + 0.7151522 * g + 0.0721750 * b;
+    let z = (0.0193339 * r + 0.1191920 * g + 0.9503041 * b) / 1.08883;
+    let f = |t: f64| {
+        if t > 216.0 / 24389.0 {
+            t.cbrt()
+        } else {
+            (24389.0 / 27.0 * t + 16.0) / 116.0
+        }
+    };
+    let (fx, fy, fz) = (f(x), f(y), f(z));
+    [116.0 * fy - 16.0, 500.0 * (fx - fy), 200.0 * (fy - fz)]
+}
+
+/// Diferença de cor CIEDE2000 entre duas cores sRGB (1 ≈ limite do que se
+/// percebe; até 2–3 é o aceito em prova de cor).
+pub fn delta_e(a: [f64; 3], b: [f64; 3]) -> f64 {
+    crate::fidelity::delta_e2000(srgb_to_lab(a), srgb_to_lab(b))
+}
+
+impl Cms {
+    /// Como o RGB sai impresso neste perfil CMYK, de volta em sRGB
+    /// (RGB → CMYK → tela). `None` sem perfil CMYK.
+    pub fn printed(&self, rgb: [f64; 3]) -> Option<[f64; 3]> {
+        self.cmyk_to_srgb(self.rgb_to_cmyk(rgb)?)
+    }
+
+    /// O RGB cabe na gama de impressão (ΔE2000 da ida e volta até `tol`)?
+    pub fn in_print_gamut(&self, rgb: [f64; 3], tol: f64) -> Option<bool> {
+        Some(delta_e(self.rgb_to_srgb(rgb), self.printed(rgb)?) <= tol)
+    }
+
+    /// Cor RGB equivalente à impressa, já dentro da gama: repete a ida e
+    /// volta até estabilizar (o mapeamento de gama não é idempotente nas
+    /// cores muito saturadas).
+    pub fn to_print_gamut(&self, rgb: [f64; 3]) -> Option<[f64; 3]> {
+        let mut p = self.printed(rgb)?;
+        for _ in 0..8 {
+            let q = self.printed(p)?;
+            let d = delta_e(p, q);
+            p = q;
+            if d < 0.2 {
+                break;
+            }
+        }
+        Some(p)
+    }
+}
+
 static CURRENT: RwLock<Option<Arc<Cms>>> = RwLock::new(None);
 
 /// Ativa a configuração do documento em uso (exibição e exportação).
@@ -254,6 +367,41 @@ pub(crate) mod tests {
         }
         let win = r"C:\Windows\System32\spool\drivers\color\RSWOP.icm";
         std::path::Path::new(win).exists().then(|| win.to_string())
+    }
+
+    /// GD-CMS-01: perfis embutidos abrem sem arquivo, são CMYK e convertem.
+    #[test]
+    fn gd_cms_01_builtin_profiles() {
+        for b in &BUILTIN_CMYK {
+            let c = Cms::new(&ColorManagement {
+                cmyk_profile: Some(b.id.into()),
+                ..Default::default()
+            });
+            assert!(c.warnings.is_empty(), "{}: {:?}", b.id, c.warnings);
+            assert!(c.has_cmyk_profile(), "{}", b.id);
+            assert!(c.cmyk_icc().is_some_and(|d| d.len() == b.data.len()));
+            // Ciano 100% fica azul-esverdeado na tela; branco do papel ~ branco.
+            let cyan = c.cmyk_to_srgb([1.0, 0.0, 0.0, 0.0]).unwrap();
+            assert!(cyan[0] < 0.3 && cyan[2] > 0.7, "{}: {cyan:?}", b.id);
+            let paper = c.cmyk_to_srgb([0.0; 4]).unwrap();
+            assert!(paper.iter().all(|v| *v > 0.9), "{}: {paper:?}", b.id);
+            // RGB puro sai da gama do offset; cinza médio cabe.
+            assert_eq!(c.in_print_gamut([0.0, 0.0, 1.0], 3.0), Some(false));
+            assert_eq!(c.in_print_gamut([0.5, 0.5, 0.5], 3.0), Some(true));
+        }
+        assert_eq!(profile_label(FOGRA39), BUILTIN_CMYK[0].name);
+        assert_eq!(profile_label("C:/x/Meu.icc"), "Meu.icc");
+    }
+
+    #[test]
+    fn delta_e_basics() {
+        assert!(delta_e([1.0; 3], [1.0; 3]) < 1e-9);
+        let l = srgb_to_lab([1.0; 3]);
+        assert!(
+            (l[0] - 100.0).abs() < 0.1 && l[1].abs() < 0.1 && l[2].abs() < 0.1,
+            "{l:?}"
+        );
+        assert!(delta_e([0.0; 3], [1.0; 3]) > 90.0);
     }
 
     #[test]

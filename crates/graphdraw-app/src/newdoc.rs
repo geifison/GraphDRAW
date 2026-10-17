@@ -162,6 +162,8 @@ impl NewDocDialog {
         page.name = Some(tr("Página 1", "Page 1").into());
         doc.data.pages.push(page);
         doc.data.settings.bleed = self.bleed;
+        // Perfil CMYK padrão de produção (GD-CMS-01): offset couché FOGRA39.
+        doc.data.settings.color.cmyk_profile = Some(graphdraw_core::cms::FOGRA39.into());
         doc.data.settings.resolution = self.dpi;
         // Modelo de cor do documento (GD-DIM-14); o perfil ICC vem com o GD-CMS.
         doc.data

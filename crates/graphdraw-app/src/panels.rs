@@ -530,6 +530,9 @@ impl App {
                     act = Some(a);
                 }
             }
+            if let Some(a) = crate::paletteui::show_mosaic(ui.ctx()) {
+                act = Some(a);
+            }
             if let Some(a) = act {
                 self.apply_pal(a);
             }
