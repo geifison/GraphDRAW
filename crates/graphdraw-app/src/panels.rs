@@ -63,6 +63,7 @@ impl App {
     /// Barra de propriedades: muda conforme a ferramenta e a seleção.
     pub fn property_bar(&mut self, ui: &mut egui::Ui) {
         let text_targets = self.text_targets();
+        let text_at = self.text_style_index();
         let picker = &mut self.font_picker;
         let defaults = &mut self.defaults;
         let Some(doc) = self.doc.as_mut() else {
@@ -166,7 +167,7 @@ impl App {
             }
             Tool::Text => {
                 widgets::single_line_bar(ui, "barra-texto", |ui| {
-                    if let Some(st) = text_bar(ui, doc, &text_targets, picker) {
+                    if let Some(st) = text_bar(ui, doc, &text_targets, text_at, picker) {
                         pending_style = Some(st);
                     }
                 });
@@ -196,7 +197,7 @@ impl App {
                     // Só textos selecionados: os controles de texto vêm junto.
                     if !texts.is_empty() && texts.len() == doc.selection.len() {
                         ui.separator();
-                        if let Some(st) = text_bar(ui, doc, texts, picker) {
+                        if let Some(st) = text_bar(ui, doc, texts, None, picker) {
                             pending_style = Some(st);
                         }
                     }
@@ -405,6 +406,26 @@ impl App {
     /// Ação de amostra (clique, botão direito, Ctrl + clique).
     pub(crate) fn apply_pal(&mut self, a: crate::paletteui::PalAction) {
         use crate::paletteui::PalAction;
+        // Texto em edição com trecho selecionado: a cor vai só para ele.
+        if let PalAction::Fill(c) = &a
+            && let Some((id, x, y)) = self.text_range()
+            && let Some(d) = &mut self.doc
+        {
+            let fill = c.clone().map(Fill::solid);
+            ops::modify(
+                &mut d.editor,
+                &[id],
+                tr("Cor do trecho", "Range color"),
+                |o| match &mut o.kind {
+                    ObjectKind::Text(t) => {
+                        graphdraw_core::edit::text::fill_range(t, x, y, fill.clone());
+                        true
+                    }
+                    _ => false,
+                },
+            );
+            return;
+        }
         // Preenchimento interativo: a cor vai para a parada escolhida.
         if let PalAction::Fill(Some(c)) = &a
             && self.tool == Tool::Gradient
@@ -674,12 +695,14 @@ fn page_bar_props(ui: &mut egui::Ui, doc: &mut DocState) -> bool {
 }
 
 /// Barra de texto (doc 06): família, corpo em pontos, negrito, itálico e
-/// alinhamento. Sem alvo, os valores são os do texto novo. Devolve o
-/// estilo a aplicar.
+/// alinhamento. Sem alvo, os valores são os do texto novo. Com `at` (na
+/// edição), mostra o estilo daquele ponto do texto. Devolve o estilo a
+/// aplicar.
 fn text_bar(
     ui: &mut egui::Ui,
     doc: &DocState,
     targets: &[String],
+    at: Option<usize>,
     picker: &mut crate::fontpicker::FontPicker,
 ) -> Option<graphdraw_core::edit::text::TextStyle> {
     use graphdraw_core::edit::text::{self as tedit, TextStyle};
@@ -688,7 +711,10 @@ fn text_bar(
         .and_then(|id| doc.editor.find(id))
         .and_then(|r| doc.editor.get(&r))
         .and_then(|o| match &o.kind {
-            ObjectKind::Text(t) => Some(tedit::current_style(t)),
+            ObjectKind::Text(t) => Some(match at {
+                Some(i) => tedit::style_at(t, i),
+                None => tedit::current_style(t),
+            }),
             _ => None,
         });
     let Some((family, size, bold, italic, align)) = current else {
@@ -708,7 +734,10 @@ fn text_bar(
         .and_then(|id| doc.editor.find(id))
         .and_then(|r| doc.editor.get(&r))
         .and_then(|o| match &o.kind {
-            ObjectKind::Text(t) => Some(tedit::current_weight(t)),
+            ObjectKind::Text(t) => Some(match at {
+                Some(i) => tedit::weight_at(t, i),
+                None => tedit::current_weight(t),
+            }),
             _ => None,
         })
         .unwrap_or(400);

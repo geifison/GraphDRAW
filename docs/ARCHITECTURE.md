@@ -305,9 +305,10 @@ Do M0, ainda valem:
 - Gradientes: só linear e radial; repetir/espelhar não existe no PDF (sai como "estender").
 - Transparência de grupo é aproximada multiplicando a opacidade dos filhos.
 - Diagramação de texto: quebra no quadro, alinhamentos e justificado,
-  aviso de texto excedente; sem bidi, hifenização, quadros encadeados nem
-  formatação por trecho na edição (os estilos da barra valem para o objeto
-  inteiro).
+  aviso de texto excedente. Formatação por trecho: com texto selecionado
+  na edição, fonte, estilo, corpo e a cor da paleta valem só para ele (o
+  alinhamento para os parágrafos tocados); sem seleção, para o objeto
+  inteiro. Sem bidi, hifenização nem quadros encadeados.
 - Carregamento sob demanda de páginas (GD-GDR-11) não implementado: páginas
   separadas são lidas na abertura.
 

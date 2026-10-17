@@ -226,6 +226,159 @@ pub fn apply_style(t: &mut TextData, st: &TextStyle) {
     }
 }
 
+/// Garante um limite de trecho no índice `idx` do texto corrido.
+fn cut_at(t: &mut TextData, idx: usize) {
+    let (p, k) = locate_para(t, idx);
+    let Some(para) = t.paragraphs.get_mut(p) else {
+        return;
+    };
+    let mut start = 0;
+    for i in 0..para.spans.len() {
+        let n = para.spans[i].text.chars().count();
+        if k > start && k < start + n {
+            let b = byte_at(&para.spans[i].text, k - start);
+            let mut tail = para.spans[i].clone();
+            tail.text = para.spans[i].text.split_off(b);
+            para.spans.insert(i + 1, tail);
+            return;
+        }
+        start += n;
+    }
+}
+
+/// Junta trechos vizinhos de mesmo estilo e tira os vazios que sobram.
+fn merge_spans(t: &mut TextData) {
+    for p in &mut t.paragraphs {
+        let mut out: Vec<TextSpan> = Vec::with_capacity(p.spans.len());
+        for s in p.spans.drain(..) {
+            match out.last_mut() {
+                Some(l) if l.font == s.font && l.fill == s.fill && l.extra == s.extra => {
+                    l.text.push_str(&s.text)
+                }
+                Some(_) if s.text.is_empty() => {}
+                Some(l) if l.text.is_empty() => *l = s,
+                _ => out.push(s),
+            }
+        }
+        if out.is_empty() {
+            out.push(span("", "Arial", DEFAULT_SIZE));
+        }
+        p.spans = out;
+    }
+}
+
+/// Aplica `f` a cada trecho dentro de `[a, b)` (cortando os trechos nas
+/// pontas) e a `g` a cada parágrafo tocado.
+fn for_range(
+    t: &mut TextData,
+    a: usize,
+    b: usize,
+    mut f: impl FnMut(&mut TextSpan),
+    mut g: impl FnMut(&mut Paragraph),
+) {
+    let (a, b) = (a.min(b), a.max(b).min(len(t)));
+    if a == b {
+        return;
+    }
+    cut_at(t, a);
+    cut_at(t, b);
+    let mut start = 0;
+    for p in &mut t.paragraphs {
+        let n = para_len(p);
+        let (p0, p1) = (start, start + n);
+        if p1 >= a && p0 < b {
+            g(p);
+        }
+        let mut s0 = p0;
+        for s in &mut p.spans {
+            let s1 = s0 + s.text.chars().count();
+            if s0 >= a && s1 <= b && s1 > s0 {
+                f(s);
+            }
+            s0 = s1;
+        }
+        start = p1 + 1;
+    }
+    merge_spans(t);
+}
+
+fn style_span(s: &mut TextSpan, st: &TextStyle) {
+    if let Some(f) = &st.family {
+        s.font.family = f.clone();
+    }
+    if let Some(z) = st.size {
+        s.font.size = z;
+    }
+    if let Some(b) = st.bold {
+        s.font.weight = if b { 700 } else { 400 };
+    }
+    if let Some(w) = st.weight {
+        s.font.weight = w;
+    }
+    if let Some(i) = st.italic {
+        s.font.italic = i;
+    }
+}
+
+/// Estilo só nos caracteres `[a, b)` (formatação por trecho, doc 06); o
+/// alinhamento vale para os parágrafos tocados. Intervalo vazio = nada.
+pub fn apply_style_range(t: &mut TextData, a: usize, b: usize, st: &TextStyle) {
+    for_range(
+        t,
+        a,
+        b,
+        |s| style_span(s, st),
+        |p| {
+            if let Some(al) = &st.align {
+                p.align = al.clone();
+            }
+        },
+    );
+}
+
+/// Preenchimento por caractere em `[a, b)`; `None` volta ao do objeto.
+pub fn fill_range(t: &mut TextData, a: usize, b: usize, fill: Option<crate::model::Fill>) {
+    for_range(t, a, b, |s| s.fill = fill.clone(), |_| {});
+}
+
+/// Trecho do caractere logo antes de `idx` (o estilo que a digitação
+/// continua), e o parágrafo dele.
+fn span_at(t: &TextData, idx: usize) -> Option<(&Paragraph, &TextSpan)> {
+    let (p, k) = locate_para(t, idx);
+    let para = t.paragraphs.get(p)?;
+    let (s, _) = locate_span(para, k);
+    // No começo do parágrafo vale o primeiro trecho com texto.
+    let s = if k == 0 {
+        para.spans
+            .iter()
+            .position(|s| !s.text.is_empty())
+            .unwrap_or(s)
+    } else {
+        s
+    };
+    Some((para, para.spans.get(s)?))
+}
+
+/// Estilo no índice (para a barra durante a edição); mesmo formato de
+/// [`current_style`].
+pub fn style_at(t: &TextData, idx: usize) -> (String, f64, bool, bool, String) {
+    match span_at(t, idx) {
+        Some((p, s)) => (
+            s.font.family.clone(),
+            s.font.size,
+            s.font.weight >= 600,
+            s.font.italic,
+            p.align.clone(),
+        ),
+        None => current_style(t),
+    }
+}
+
+/// Peso no índice.
+pub fn weight_at(t: &TextData, idx: usize) -> u16 {
+    span_at(t, idx).map_or_else(|| current_weight(t), |(_, s)| s.font.weight)
+}
+
 /// Peso do primeiro trecho.
 pub fn current_weight(t: &TextData) -> u16 {
     t.paragraphs
@@ -308,5 +461,65 @@ mod tests {
         );
         assert!(t.paragraphs[0].spans.iter().all(|s| s.font.size == 2_000.0));
         assert_eq!(current_style(t).4, "center");
+    }
+    /// Doc 06 (atributos de caractere): estilo e preenchimento só no trecho
+    /// escolhido; trechos iguais voltam a se juntar.
+    #[test]
+    fn style_and_fill_by_range() {
+        let mut o = new_text(0.0, 0.0, None, "Arial", 10.0);
+        let t = data(&mut o);
+        insert(t, 0, "abcdef\nghi");
+        apply_style_range(
+            t,
+            2,
+            4,
+            &TextStyle {
+                bold: Some(true),
+                ..Default::default()
+            },
+        );
+        let spans: Vec<(&str, u16)> = t.paragraphs[0]
+            .spans
+            .iter()
+            .map(|s| (s.text.as_str(), s.font.weight))
+            .collect();
+        assert_eq!(spans, vec![("ab", 400), ("cd", 700), ("ef", 400)]);
+        assert_eq!(plain_text(t), "abcdef\nghi");
+        assert!(style_at(t, 3).2 && !style_at(t, 2).2, "antes do cursor");
+        assert!(style_at(t, 4).2);
+        // Atravessa o parágrafo: alinhamento nos dois, corpo só no trecho.
+        apply_style_range(
+            t,
+            5,
+            8,
+            &TextStyle {
+                size: Some(20.0),
+                align: Some("center".into()),
+                ..Default::default()
+            },
+        );
+        assert_eq!(t.paragraphs[0].spans.last().unwrap().text, "f");
+        assert_eq!(t.paragraphs[0].spans.last().unwrap().font.size, 20.0);
+        assert_eq!(t.paragraphs[1].spans[0].text, "g");
+        assert_eq!(t.paragraphs[1].spans[1].font.size, 10.0);
+        assert!(t.paragraphs.iter().all(|p| p.align == "center"));
+        // Desfazer o negrito junta de novo.
+        apply_style_range(
+            t,
+            0,
+            6,
+            &TextStyle {
+                bold: Some(false),
+                size: Some(10.0),
+                ..Default::default()
+            },
+        );
+        assert_eq!(t.paragraphs[0].spans.len(), 1);
+        // Preenchimento por caractere.
+        let red = crate::model::Fill::solid(crate::model::Color::from_hex("#ff0000").unwrap());
+        fill_range(t, 7, 8, Some(red.clone()));
+        assert_eq!(t.paragraphs[1].spans[0].fill, Some(red));
+        assert_eq!(t.paragraphs[1].spans[1].fill, None);
+        assert_eq!(plain_text(t), "abcdef\nghi");
     }
 }

@@ -727,9 +727,44 @@ impl App {
         }
     }
 
+    /// Trecho selecionado no texto em edição: objeto e `[início, fim)`.
+    pub(crate) fn text_range(&self) -> Option<(String, usize, usize)> {
+        let t = self.canvas.text.as_ref()?;
+        (t.caret != t.anchor).then(|| (t.id.clone(), t.caret.min(t.anchor), t.caret.max(t.anchor)))
+    }
+
+    /// Onde a barra lê o estilo durante a edição: o primeiro caractere da
+    /// seleção, ou o que está antes do cursor.
+    pub(crate) fn text_style_index(&self) -> Option<usize> {
+        let t = self.canvas.text.as_ref()?;
+        Some(if t.caret != t.anchor {
+            t.caret.min(t.anchor) + 1
+        } else {
+            t.caret
+        })
+    }
+
     /// Aplica fonte/corpo/estilo/alinhamento aos textos alvo (um passo, ou
-    /// dentro da sessão de edição).
+    /// dentro da sessão de edição). Com trecho selecionado na edição, só
+    /// nele (formatação por trecho, doc 06).
     pub(crate) fn text_style(&mut self, st: graphdraw_core::edit::text::TextStyle) {
+        if let Some((id, a, b)) = self.text_range()
+            && let Some(d) = &mut self.doc
+        {
+            ops::modify(
+                &mut d.editor,
+                &[id],
+                tr("Estilo do trecho", "Range style"),
+                |o| match &mut o.kind {
+                    ObjectKind::Text(t) => {
+                        graphdraw_core::edit::text::apply_style_range(t, a, b, &st);
+                        true
+                    }
+                    _ => false,
+                },
+            );
+            return;
+        }
         let ids = self.text_targets();
         if let Some(d) = &mut self.doc
             && !ids.is_empty()
@@ -2939,6 +2974,59 @@ mod tests {
             repeat: false,
             modifiers: mods,
         }
+    }
+
+    /// Doc 06: com um trecho selecionado na edição, estilo e cor da paleta
+    /// valem só para ele; a barra mostra o estilo do ponto do cursor.
+    #[test]
+    fn text_range_style_and_palette_color() {
+        use graphdraw_core::edit::text::{TextStyle, insert, new_text};
+        let ctx = crate::theme::test_ctx();
+        let mut app = App::with_ctx(&ctx, None);
+        let id = {
+            let d = app.doc.as_mut().unwrap();
+            let mut o = new_text(10_000.0, 10_000.0, None, "Arial", 5_000.0);
+            if let ObjectKind::Text(t) = &mut o.kind {
+                insert(t, 0, "abcdef");
+            }
+            ops::add_object(&mut d.editor, 0, 0, o, "t")
+        };
+        let d = app.doc.as_mut().unwrap();
+        app.canvas.edit_text(d, id.clone(), None);
+        let te = app.canvas.text.as_mut().unwrap();
+        (te.anchor, te.caret) = (2, 4);
+        app.tool = Tool::Text;
+        app.text_style(TextStyle {
+            bold: Some(true),
+            ..Default::default()
+        });
+        let red = graphdraw_core::model::Color::from_hex("#ff0000").unwrap();
+        app.apply_pal(crate::paletteui::PalAction::Fill(Some(red.clone())));
+        let spans = |app: &App| {
+            let d = app.doc.as_ref().unwrap();
+            match &d.editor.get(&d.editor.find(&id).unwrap()).unwrap().kind {
+                ObjectKind::Text(t) => t.paragraphs[0].spans.clone(),
+                _ => unreachable!(),
+            }
+        };
+        let s = spans(&app);
+        let got: Vec<(&str, u16, bool)> = s
+            .iter()
+            .map(|s| (s.text.as_str(), s.font.weight, s.fill.is_some()))
+            .collect();
+        assert_eq!(
+            got,
+            vec![("ab", 400, false), ("cd", 700, true), ("ef", 400, false)]
+        );
+        assert_eq!(app.text_style_index(), Some(3));
+        // Sem seleção, volta a valer para o objeto todo.
+        let te = app.canvas.text.as_mut().unwrap();
+        te.anchor = te.caret;
+        app.text_style(TextStyle {
+            italic: Some(true),
+            ..Default::default()
+        });
+        assert!(spans(&app).iter().all(|s| s.font.italic));
     }
 
     /// Só trocar de ferramenta, Esc e selecionar tudo não marcam o
