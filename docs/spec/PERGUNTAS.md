@@ -55,3 +55,39 @@ imprimível do dispositivo".
 **Decisão provisória:** PDF grava largura 0 (semântica nativa do PDF); tela
 e PNG usam 1 pixel; SVG usa 0,1 mm.
 **Pergunta:** confirmar o valor para SVG.
+
+## P-07 — Referência de "Alinhar nós" (GD-NOD-06)
+**Contexto:** o requisito pede alinhar nós na horizontal/vertical, sem dizer
+em relação a quê.
+**Decisão provisória:** o meio da caixa dos nós escolhidos; as alças
+acompanham cada nó.
+**Pergunta:** confirmar ou escolher outra referência (primeiro/último nó
+escolhido).
+
+## P-08 — "Qualquer objeto pode virar guia" (GD-GUI-03) e camadas especiais (GD-CAM-04)
+**Contexto:** as guias de hoje são retas (horizontais, verticais e
+inclinadas). GD-GUI-03 fala em converter qualquer objeto para a camada de
+guias, o que pede guias curvas e a camada especial de GD-CAM-04.
+**Decisão provisória:** nada implementado ainda.
+**Pergunta:** guias de objeto devem ser curvas de verdade (encaixe em
+qualquer ponto do contorno) ou basta transformar retas e bordas de
+retângulos em guias retas? A camada de guias é por página, do documento,
+ou as duas?
+
+## P-09 — Medida de geometria na fidelidade (GD-FID-11)
+**Contexto:** o doc 25 pede desvio por "objeto identificável" em mm. Sem
+abrir o software de origem (GD-FID-42), a ferramenta só vê os PDFs.
+**Decisão provisória:** `graphdraw fidelity` mede o tamanho da página e a
+caixa da tinta pela imagem (resolução de 1 pixel, 0,17 mm a 150 ppp) e
+inclui o deslocamento; caixas por objeto ficam para depois.
+**Pergunta:** essa medida serve para o MVP ou a referência deve trazer
+algo a mais (por exemplo um PDF de corte por cor especial) para medir
+objeto a objeto?
+
+## P-10 — Pontas de seta e caneta caligráfica no formato (GD-OUT-05/06)
+**Contexto:** o doc 13 não define esses campos.
+**Decisão provisória:** `stroke.startArrow`/`endArrow` (`shape`, `scale`,
+`offset`, `rotation`, `mirror`) e `stroke.nibStretch`/`nibAngle`, descritos
+em `docs/format/gdr-1.0.md` e no schema; biblioteca de pontas própria
+(triângulo, aberta, farpada, círculo, quadrado, barra).
+**Pergunta:** confirmar os nomes e a biblioteca inicial.
