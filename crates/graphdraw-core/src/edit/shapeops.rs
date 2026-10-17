@@ -270,6 +270,228 @@ pub fn boolean(
     Some(vec![new_id])
 }
 
+/// Booleanas que dependem da ordem de empilhamento (GD-BOO-04..08).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ShapeOp {
+    /// Simplificar: cada objeto perde a área coberta pelos que estão na
+    /// frente (só a área visível fica).
+    Simplify,
+    /// Frente menos trás: o da frente perde a área dos demais.
+    FrontMinusBack,
+    /// Trás menos frente: o de trás perde a área dos demais.
+    BackMinusFront,
+    /// Excluir (XOR): só as áreas cobertas por um número ímpar de objetos.
+    Exclude,
+    /// Dividir: cada região de sobreposição vira um objeto separado.
+    Divide,
+    /// Limite: novo objeto, sem preenchimento, no contorno externo da
+    /// seleção; os originais ficam.
+    Boundary,
+}
+
+impl ShapeOp {
+    pub fn label(self) -> &'static str {
+        match self {
+            ShapeOp::Simplify => "Simplificar",
+            ShapeOp::FrontMinusBack => "Frente menos trás",
+            ShapeOp::BackMinusFront => "Trás menos frente",
+            ShapeOp::Exclude => "Excluir",
+            ShapeOp::Divide => "Dividir",
+            ShapeOp::Boundary => "Limite",
+        }
+    }
+}
+
+/// Caminho no espaço do pai de `r` (para substituir no lugar), com a
+/// identidade de `like`.
+fn local_path_object(ed: &Editor, r: &ObjRef, shapes: &Shapes, like: &Object) -> Object {
+    let mut path = shapes_to_path(shapes);
+    path.apply_affine(ed.parent_affine(r).inverse());
+    let mut o = path_object(&path, like, FillRule::Nonzero);
+    o.id = like.id.clone();
+    o.name = like.name.clone();
+    o.locked = like.locked;
+    o
+}
+
+/// Remove `remove` e insere `objs` (de trás para a frente) logo acima de
+/// `at` (ou no lugar dele, se ele saiu).
+fn put_results(ed: &mut Editor, name: &str, remove: &[String], at: &ObjRef, objs: Vec<Object>) {
+    let at = top_loc(at);
+    ed.transaction(name, |ed| {
+        let anchor = ed.object(at).map(|o| o.id.clone());
+        for id in remove {
+            if let Some(r) = ed.find(id) {
+                ed.remove_at(&r);
+            }
+        }
+        let base = match anchor.and_then(|t| ed.find(&t)) {
+            Some(r) => r.loc.index + 1,
+            None => at.index.min(ed.objects(at.page, at.layer).len()),
+        };
+        for (k, o) in objs.into_iter().enumerate() {
+            ed.insert_object(
+                ObjLoc {
+                    index: base + k,
+                    ..at
+                },
+                o,
+            );
+        }
+    });
+}
+
+/// Booleana pela ordem de empilhamento (GD-BOO-04..08); devolve a nova
+/// seleção, ou `None` se não houver o que fazer.
+pub fn shape_op(ed: &mut Editor, sel: &[String], op: ShapeOp) -> Option<Vec<String>> {
+    let mut refs: Vec<ObjRef> = sel.iter().filter_map(|id| ed.find(id)).collect();
+    let min = if op == ShapeOp::Boundary { 1 } else { 2 };
+    if refs.len() < min {
+        return None;
+    }
+    // De trás para a frente.
+    refs.sort();
+    let objs: Vec<Object> = refs.iter().map(|r| ed.get(r).unwrap().clone()).collect();
+    let regions: Vec<Shapes> = refs
+        .iter()
+        .zip(&objs)
+        .map(|(r, o)| region(o, ed.parent_affine(r)))
+        .collect();
+    let ids: Vec<String> = objs.iter().map(|o| o.id.clone()).collect();
+    let front = refs.last()?.clone();
+    let last = refs.len() - 1;
+    match op {
+        ShapeOp::Simplify => {
+            let mut changed = Vec::new();
+            for i in 0..refs.len() {
+                let above = union_all(regions[i + 1..].iter().cloned());
+                let hit = overlay(&regions[i], &above, OverlayRule::Intersect);
+                if area(&hit) <= 0.0 {
+                    continue;
+                }
+                changed.push((i, overlay(&regions[i], &above, OverlayRule::Difference)));
+            }
+            if changed.is_empty() {
+                return None;
+            }
+            ed.transaction(op.label(), |ed| {
+                for (i, left) in changed {
+                    let Some(r) = ed.find(&ids[i]) else {
+                        continue;
+                    };
+                    if area(&left) <= 0.0 {
+                        ed.remove_at(&r);
+                    } else {
+                        let o = local_path_object(ed, &r, &left, &objs[i]);
+                        ed.replace_at(&r, o);
+                    }
+                }
+            });
+            Some(ids.into_iter().filter(|id| ed.find(id).is_some()).collect())
+        }
+        ShapeOp::FrontMinusBack | ShapeOp::BackMinusFront => {
+            let k = if op == ShapeOp::FrontMinusBack {
+                last
+            } else {
+                0
+            };
+            let others = union_all(
+                regions
+                    .iter()
+                    .enumerate()
+                    .filter(|(i, _)| *i != k)
+                    .map(|(_, r)| r.clone()),
+            );
+            let left = overlay(&regions[k], &others, OverlayRule::Difference);
+            if area(&left) <= 0.0 {
+                return None;
+            }
+            let mut o = path_object(&shapes_to_path(&left), &objs[k], FillRule::Nonzero);
+            o.id = objs[k].id.clone();
+            o.name = objs[k].name.clone();
+            let id = o.id.clone();
+            put_results(ed, op.label(), &ids, &front, vec![o]);
+            Some(vec![id])
+        }
+        ShapeOp::Exclude => {
+            let x = regions[1..].iter().fold(regions[0].clone(), |acc, r| {
+                overlay(&acc, r, OverlayRule::Xor)
+            });
+            if area(&x) <= 0.0 {
+                return None;
+            }
+            let o = path_object(&shapes_to_path(&x), &objs[last], FillRule::Nonzero);
+            let id = o.id.clone();
+            put_results(ed, op.label(), &ids, &front, vec![o]);
+            Some(vec![id])
+        }
+        ShapeOp::Divide => {
+            // Cada peça leva os atributos do objeto mais à frente que a cobre.
+            let mut parts: Vec<(Shapes, usize)> = Vec::new();
+            for (i, r) in regions.iter().enumerate() {
+                let mut next = Vec::new();
+                for (p, owner) in parts {
+                    let inside = overlay(&p, r, OverlayRule::Intersect);
+                    let outside = overlay(&p, r, OverlayRule::Difference);
+                    if area(&inside) > 0.0 {
+                        next.push((inside, i));
+                    }
+                    if area(&outside) > 0.0 {
+                        next.push((outside, owner));
+                    }
+                }
+                let covered = union_all(next.iter().map(|(p, _)| p.clone()));
+                let fresh = overlay(r, &covered, OverlayRule::Difference);
+                if area(&fresh) > 0.0 {
+                    next.push((fresh, i));
+                }
+                parts = next;
+            }
+            // Peças desconexas viram objetos separados, de trás para a
+            // frente pelo dono.
+            let mut out: Vec<(usize, Object)> = Vec::new();
+            for (p, owner) in &parts {
+                for shape in p {
+                    let piece: Shapes = vec![shape.clone()];
+                    if area(&piece) > 0.0 {
+                        let path = shapes_to_path(&piece);
+                        out.push((*owner, path_object(&path, &objs[*owner], FillRule::Nonzero)));
+                    }
+                }
+            }
+            if out.len() < 2 {
+                return None;
+            }
+            out.sort_by_key(|(owner, _)| *owner);
+            let new: Vec<String> = out.iter().map(|(_, o)| o.id.clone()).collect();
+            let objs = out.into_iter().map(|(_, o)| o).collect();
+            put_results(ed, op.label(), &ids, &front, objs);
+            Some(new)
+        }
+        ShapeOp::Boundary => {
+            let all = union_all(regions.iter().cloned());
+            // Só o contorno externo de cada forma (sem furos).
+            let outer: Shapes = all
+                .iter()
+                .filter_map(|s| s.first().cloned())
+                .map(|c| vec![c])
+                .collect();
+            if area(&outer) <= 0.0 {
+                return None;
+            }
+            let mut o = path_object(&shapes_to_path(&outer), &objs[last], FillRule::Nonzero);
+            o.fill = None;
+            o.stroke = Some(Stroke::new(250.0, crate::model::Color::black()));
+            o.opacity = None;
+            o.printable = None;
+            o.name = Some("Limite".into());
+            let id = o.id.clone();
+            put_results(ed, op.label(), &[], &front, vec![o]);
+            Some(vec![id])
+        }
+    }
+}
+
 /// Caminho de um objeto em coordenadas da página (primitivas e texto viram
 /// curvas; grupos juntam os filhos).
 fn page_path(o: &Object, parent: Affine) -> BezPath {
@@ -841,5 +1063,111 @@ mod tests {
             assert!(clear, "{b:?}");
         }
         assert!(ed.layers(0).iter().any(|l| l.name == REGISTRATION_LAYER));
+    }
+    fn ids_in_order(ed: &Editor) -> Vec<String> {
+        ed.objects(0, 0).iter().map(|o| o.id.clone()).collect()
+    }
+
+    /// GD-BOO-04: simplificar deixa em cada objeto só a área visível.
+    #[test]
+    fn gd_boo_04_simplify() {
+        let mut ed = editor();
+        let back = rect(&mut ed, 0.0, 0.0, 20_000.0, 20_000.0);
+        let front = rect(&mut ed, 10_000.0, 0.0, 20_000.0, 20_000.0);
+        let far = rect(&mut ed, 100_000.0, 0.0, 10_000.0, 10_000.0);
+        let sel = shape_op(
+            &mut ed,
+            &[front.clone(), far.clone(), back.clone()],
+            ShapeOp::Simplify,
+        )
+        .unwrap();
+        assert_eq!(sel.len(), 3);
+        assert!(
+            (obj_area(&ed, &back) - 200_000_000.0).abs() < 1e5,
+            "trás perde a metade"
+        );
+        assert!((obj_area(&ed, &front) - 400_000_000.0).abs() < 1e5);
+        // O que não estava coberto continua primitiva.
+        let r = ed.find(&far).unwrap();
+        assert!(matches!(ed.get(&r).unwrap().kind, ObjectKind::Rectangle(_)));
+        assert!(ed.undo().is_some());
+        let r = ed.find(&back).unwrap();
+        assert!(
+            matches!(ed.get(&r).unwrap().kind, ObjectKind::Rectangle(_)),
+            "um passo de desfazer"
+        );
+    }
+
+    /// GD-BOO-05: frente menos trás e trás menos frente seguem a ordem z,
+    /// não a ordem de seleção.
+    #[test]
+    fn gd_boo_05_front_and_back_minus() {
+        for (op, want) in [
+            (ShapeOp::FrontMinusBack, 1usize),
+            (ShapeOp::BackMinusFront, 0),
+        ] {
+            let mut ed = editor();
+            let a = rect(&mut ed, 0.0, 0.0, 20_000.0, 20_000.0);
+            let b = rect(&mut ed, 10_000.0, 0.0, 20_000.0, 20_000.0);
+            let keep = [a.clone(), b.clone()][want].clone();
+            let sel = shape_op(&mut ed, &[b, a], op).unwrap();
+            assert_eq!(sel, vec![keep.clone()]);
+            assert_eq!(ids_in_order(&ed), vec![keep.clone()]);
+            assert!((obj_area(&ed, &keep) - 200_000_000.0).abs() < 1e5);
+        }
+    }
+
+    /// GD-BOO-06: excluir deixa só a área sem sobreposição.
+    #[test]
+    fn gd_boo_06_exclude() {
+        let mut ed = editor();
+        let a = rect(&mut ed, 0.0, 0.0, 20_000.0, 20_000.0);
+        let b = rect(&mut ed, 10_000.0, 0.0, 20_000.0, 20_000.0);
+        let sel = shape_op(&mut ed, &[a, b], ShapeOp::Exclude).unwrap();
+        assert_eq!(ids_in_order(&ed), sel);
+        assert!((obj_area(&ed, &sel[0]) - 400_000_000.0).abs() < 1e5);
+    }
+
+    /// GD-BOO-07: dividir: duas caixas sobrepostas viram três peças; o meio
+    /// leva os atributos da frente.
+    #[test]
+    fn gd_boo_07_divide() {
+        let mut ed = editor();
+        let a = rect(&mut ed, 0.0, 0.0, 20_000.0, 20_000.0);
+        let b = rect(&mut ed, 10_000.0, 0.0, 20_000.0, 20_000.0);
+        let red = Some(Fill::solid(Color::from_hex("#ff0000").unwrap()));
+        let r = ed.find(&b).unwrap();
+        let mut o = ed.get(&r).unwrap().clone();
+        o.fill = red.clone();
+        ed.replace_at(&r, o);
+        let sel = shape_op(&mut ed, &[a, b], ShapeOp::Divide).unwrap();
+        assert_eq!(sel.len(), 3);
+        let areas: Vec<f64> = sel.iter().map(|id| obj_area(&ed, id)).collect();
+        assert!(
+            areas.iter().all(|a| (a - 200_000_000.0).abs() < 1e5),
+            "{areas:?}"
+        );
+        let reds = sel
+            .iter()
+            .filter(|id| ed.get(&ed.find(id).unwrap()).unwrap().fill == red)
+            .count();
+        assert_eq!(reds, 2, "meio e direita são da frente");
+        assert_eq!(ids_in_order(&ed), sel);
+    }
+
+    /// GD-BOO-08: limite: novo objeto sem preenchimento no contorno externo;
+    /// os originais ficam.
+    #[test]
+    fn gd_boo_08_boundary() {
+        let mut ed = editor();
+        let a = rect(&mut ed, 0.0, 0.0, 20_000.0, 20_000.0);
+        let b = rect(&mut ed, 10_000.0, 0.0, 20_000.0, 20_000.0);
+        let sel = shape_op(&mut ed, &[a.clone(), b.clone()], ShapeOp::Boundary).unwrap();
+        assert_eq!(ids_in_order(&ed), vec![a, b, sel[0].clone()]);
+        let o = ed.get(&ed.find(&sel[0]).unwrap()).unwrap().clone();
+        assert!(o.fill.is_none() && o.stroke.is_some());
+        let mut filled = o;
+        filled.fill = Some(Fill::solid(Color::black()));
+        assert!((area(&region(&filled, Affine::IDENTITY)) - 600_000_000.0).abs() < 1e5);
     }
 }

@@ -1030,57 +1030,123 @@ fn select_bar(
     };
     // Booleanas com dois ou mais objetos (doc 09): alvo = último selecionado.
     if sel.len() >= 2 {
-        use graphdraw_core::edit::shapeops::{self, BoolOp};
-        let mut ops_buttons = Vec::new();
-        for (icon, tip, op) in [
+        use crate::keymap::{Command as K, hint};
+        use graphdraw_core::edit::shapeops::{self, BoolOp, ShapeOp};
+        #[derive(Clone, Copy)]
+        enum B {
+            Bool(BoolOp),
+            Shape(ShapeOp),
+        }
+        let buttons = [
             (
                 "bool-weld",
-                crate::keymap::hint(tr("Soldar", "Weld"), crate::keymap::Command::Weld),
-                BoolOp::Weld,
+                hint(tr("Soldar", "Weld"), K::Weld),
+                B::Bool(BoolOp::Weld),
             ),
             (
                 "bool-trim",
-                crate::keymap::hint(
+                hint(
                     tr(
                         "Aparar: o último selecionado perde a área dos outros",
                         "Trim: the last selected loses the others' area",
                     ),
-                    crate::keymap::Command::Trim,
+                    K::Trim,
                 ),
-                BoolOp::Trim,
+                B::Bool(BoolOp::Trim),
             ),
             (
                 "bool-intersect",
-                crate::keymap::hint(
+                hint(
                     tr(
                         "Interseção: novo objeto com a área comum",
                         "Intersect: new object with the common area",
                     ),
-                    crate::keymap::Command::Intersect,
+                    K::Intersect,
                 ),
-                BoolOp::Intersect,
+                B::Bool(BoolOp::Intersect),
             ),
-        ] {
-            ops_buttons.push((icon, tip, op));
-        }
+            (
+                "bool-simplify",
+                hint(
+                    tr(
+                        "Simplificar: cada objeto fica só com a área visível",
+                        "Simplify: each object keeps only its visible area",
+                    ),
+                    K::Simplify,
+                ),
+                B::Shape(ShapeOp::Simplify),
+            ),
+            (
+                "bool-exclude",
+                hint(
+                    tr(
+                        "Excluir: só a área sem sobreposição",
+                        "Exclude: only the non-overlapping area",
+                    ),
+                    K::Exclude,
+                ),
+                B::Shape(ShapeOp::Exclude),
+            ),
+            (
+                "bool-front-minus",
+                hint(
+                    tr(
+                        "Frente menos trás: o da frente perde a área dos demais",
+                        "Front minus back: the front object loses the others' area",
+                    ),
+                    K::FrontMinusBack,
+                ),
+                B::Shape(ShapeOp::FrontMinusBack),
+            ),
+            (
+                "bool-back-minus",
+                hint(
+                    tr(
+                        "Trás menos frente: o de trás perde a área dos demais",
+                        "Back minus front: the back object loses the others' area",
+                    ),
+                    K::BackMinusFront,
+                ),
+                B::Shape(ShapeOp::BackMinusFront),
+            ),
+            (
+                "bool-divide",
+                hint(
+                    tr(
+                        "Dividir: cada região de sobreposição vira um objeto",
+                        "Divide: each overlap region becomes an object",
+                    ),
+                    K::Divide,
+                ),
+                B::Shape(ShapeOp::Divide),
+            ),
+            (
+                "bool-boundary",
+                hint(
+                    tr(
+                        "Limite: novo contorno em volta da seleção",
+                        "Boundary: new outline around the selection",
+                    ),
+                    K::Boundary,
+                ),
+                B::Shape(ShapeOp::Boundary),
+            ),
+        ];
         let mut picked = None;
         widgets::stack(ui, |ui, row| {
-            if row == 0 {
-                for (icon, tip, op) in &ops_buttons[..2] {
-                    if icons::button(ui, icon, tip, false, true).clicked() {
-                        picked = Some(*op);
-                    }
-                }
-            } else {
-                let (icon, tip, op) = &ops_buttons[2];
+            let range = if row == 0 { 0..5 } else { 5..buttons.len() };
+            for (icon, tip, op) in &buttons[range] {
                 if icons::button(ui, icon, tip, false, true).clicked() {
                     picked = Some(*op);
-                };
+                }
             }
         });
-        if let Some(op) = picked
-            && let Some(n) = shapeops::boolean(&mut doc.editor, &sel, op, op.default_options())
-        {
+        let result = match picked {
+            Some(B::Bool(op)) => shapeops::boolean(&mut doc.editor, &sel, op, op.default_options()),
+            Some(B::Shape(op)) => shapeops::shape_op(&mut doc.editor, &sel, op),
+            None => None,
+        };
+        if let Some(n) = result {
             doc.selection = n;
             return false;
         }

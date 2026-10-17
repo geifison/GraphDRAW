@@ -142,6 +142,12 @@ commands! {
     Weld = "obj.weld", "Soldar", "Weld", Object, Multi, true;
     Trim = "obj.trim", "Aparar", "Trim", Object, Multi, true;
     Intersect = "obj.intersect", "Interseção", "Intersect", Object, Multi, true;
+    Simplify = "obj.simplify", "Simplificar", "Simplify", Object, Multi, true;
+    FrontMinusBack = "obj.front_minus_back", "Frente menos trás", "Front minus back", Object, Multi, true;
+    BackMinusFront = "obj.back_minus_front", "Trás menos frente", "Back minus front", Object, Multi, true;
+    Exclude = "obj.exclude", "Excluir sobreposição", "Exclude overlap", Object, Multi, true;
+    Divide = "obj.divide", "Dividir", "Divide", Object, Multi, true;
+    Boundary = "obj.boundary", "Limite", "Boundary", Object, Selection, true;
     Combine = "obj.combine", "Combinar", "Combine", Object, Multi, true;
     BreakApart = "obj.break_apart", "Separar", "Break apart", Object, Selection, true;
     Offset = "obj.offset", "Contorno de deslocamento", "Offset path", Object, Selection, true;

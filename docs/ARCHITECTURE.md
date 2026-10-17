@@ -330,8 +330,11 @@ Do M2:
 - Booleanas (soldar, aparar, interseção), combinar/separar e contorno de
   deslocamento operam sobre polígonos com tolerância de 1 µm
   (`i_overlay`) e o resultado volta a Bézier por ajuste próprio com erro
-  de 2 µm (`edit/fit.rs`); simplificar, XOR, dividir e limite
-  (GD-BOO-04..08) ainda não existem.
+  de 2 µm (`edit/fit.rs`). Simplificar, frente/trás menos, excluir (XOR),
+  dividir e limite (GD-BOO-04..08, `shapeops::shape_op`) seguem a ordem de
+  empilhamento, não a de seleção; dividir dá às peças os atributos do
+  objeto mais à frente que as cobre; limite cria um contorno sem
+  preenchimento (sem furos) e mantém os originais.
 - Corte (doc 17): marcação por cor especial ou camada "CutContour",
   gerar linha de corte (união + deslocamento), marcas de registro, ordem
   (furos primeiro, vizinho mais próximo, sentido), sobreposição,

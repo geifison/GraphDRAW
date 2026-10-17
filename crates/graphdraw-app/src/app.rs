@@ -966,6 +966,12 @@ impl App {
                 | C::Weld
                 | C::Trim
                 | C::Intersect
+                | C::Simplify
+                | C::FrontMinusBack
+                | C::BackMinusFront
+                | C::Exclude
+                | C::Divide
+                | C::Boundary
                 | C::Combine
                 | C::BreakApart
                 | C::AlignTop
@@ -1064,6 +1070,42 @@ impl App {
                         "Nada a fazer: selecione dois ou mais objetos com área em comum",
                         "Nothing to do: select two or more objects that overlap",
                     )
+                    .into();
+                }
+            }
+            C::Simplify
+            | C::FrontMinusBack
+            | C::BackMinusFront
+            | C::Exclude
+            | C::Divide
+            | C::Boundary => {
+                use graphdraw_core::edit::shapeops::{self, ShapeOp};
+                let op = match c {
+                    C::Simplify => ShapeOp::Simplify,
+                    C::FrontMinusBack => ShapeOp::FrontMinusBack,
+                    C::BackMinusFront => ShapeOp::BackMinusFront,
+                    C::Exclude => ShapeOp::Exclude,
+                    C::Divide => ShapeOp::Divide,
+                    _ => ShapeOp::Boundary,
+                };
+                let mut done = false;
+                self.with_selection(|ed, s| {
+                    let r = shapeops::shape_op(ed, s, op);
+                    done = r.is_some();
+                    r
+                });
+                if !done {
+                    self.status = if op == ShapeOp::Boundary {
+                        tr(
+                            "Nada a fazer: a seleção não tem área",
+                            "Nothing to do: the selection has no area",
+                        )
+                    } else {
+                        tr(
+                            "Nada a fazer: selecione dois ou mais objetos que se sobrepõem",
+                            "Nothing to do: select two or more objects that overlap",
+                        )
+                    }
                     .into();
                 }
             }
@@ -1539,6 +1581,24 @@ impl App {
                     (tr("Soldar", "Weld"), Command::Weld, multi),
                     (tr("Aparar", "Trim"), Command::Trim, multi),
                     (tr("Interseção", "Intersect"), Command::Intersect, multi),
+                    (tr("Simplificar", "Simplify"), Command::Simplify, multi),
+                    (
+                        tr("Frente menos trás", "Front minus back"),
+                        Command::FrontMinusBack,
+                        multi,
+                    ),
+                    (
+                        tr("Trás menos frente", "Back minus front"),
+                        Command::BackMinusFront,
+                        multi,
+                    ),
+                    (
+                        tr("Excluir sobreposição", "Exclude overlap"),
+                        Command::Exclude,
+                        multi,
+                    ),
+                    (tr("Dividir", "Divide"), Command::Divide, multi),
+                    (tr("Limite", "Boundary"), Command::Boundary, has_sel),
                     (tr("Combinar", "Combine"), Command::Combine, multi),
                     (tr("Separar", "Break apart"), Command::BreakApart, has_sel),
                     (
