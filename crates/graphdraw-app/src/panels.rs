@@ -160,7 +160,13 @@ impl App {
             Tool::Select => {
                 let texts = &text_targets;
                 widgets::single_line_bar(ui, "barra-selecao", |ui| {
-                    refit = select_bar(ui, doc, &mut self.anchor, &mut self.lock_ratio);
+                    refit = select_bar(
+                        ui,
+                        doc,
+                        &mut self.anchor,
+                        &mut self.lock_ratio,
+                        &mut self.corners_sel,
+                    );
                     // Só textos selecionados: os controles de texto vêm junto.
                     if !texts.is_empty() && texts.len() == doc.selection.len() {
                         ui.separator();
@@ -782,7 +788,106 @@ fn selection_angle(doc: &DocState, sel: &[String]) -> f64 {
     if a <= -180.0 { a + 360.0 } else { a }
 }
 
-fn select_bar(ui: &mut egui::Ui, doc: &mut DocState, anchor: &mut Anchor, lock: &mut bool) -> bool {
+/// Seletor dos cantos do retângulo (2 × 2, como na tela): cada célula
+/// mostra o canto arredondado e alterna se aquele canto entra na
+/// alteração. Índices do modelo: 0 inf.-esq., 1 inf.-dir., 2 sup.-dir.,
+/// 3 sup.-esq.
+pub fn corner_picker(ui: &mut egui::Ui, sel: &mut [bool; 4]) {
+    let (cell, gap) = (theme::CORNER_CELL, theme::CORNER_GAP);
+    let side = 2.0 * cell + gap;
+    let (rect, resp) = ui.allocate_exact_size(Vec2::splat(side), egui::Sense::click());
+    // Posição na tela (linha, coluna) → índice do modelo.
+    let at = |row: usize, col: usize| match (row, col) {
+        (0, 0) => 3,
+        (0, _) => 2,
+        (_, 0) => 0,
+        _ => 1,
+    };
+    let cell_at = |p: egui::Pos2| {
+        let d = p - rect.min;
+        rect.contains(p).then(|| {
+            at(
+                (d.y > cell + gap / 2.0) as usize,
+                (d.x > cell + gap / 2.0) as usize,
+            )
+        })
+    };
+    let hovered = resp.hover_pos().and_then(cell_at);
+    let pal = theme::palette(ui);
+    for row in 0..2 {
+        for col in 0..2 {
+            let i = at(row, col);
+            let min = rect.min + Vec2::new(col as f32 * (cell + gap), row as f32 * (cell + gap));
+            let r = egui::Rect::from_min_size(min, Vec2::splat(cell));
+            let c = if sel[i] {
+                theme::ACCENT_PRIMARY
+            } else if hovered == Some(i) {
+                pal.fg_muted
+            } else {
+                pal.border_default
+            };
+            // Só o canto de fora fica arredondado: mostra qual canto é.
+            let big = (cell * 0.8) as u8;
+            let radius = egui::CornerRadius {
+                nw: if (row, col) == (0, 0) { big } else { 0 },
+                ne: if (row, col) == (0, 1) { big } else { 0 },
+                sw: if (row, col) == (1, 0) { big } else { 0 },
+                se: if (row, col) == (1, 1) { big } else { 0 },
+            };
+            ui.painter().rect_filled(r, radius, c);
+        }
+    }
+    let resp = resp.on_hover_text(tr(
+        "Cantos alterados (clique para marcar ou desmarcar cada um)",
+        "Corners to change (click to toggle each one)",
+    ));
+    if resp.clicked()
+        && let Some(i) = resp.interact_pointer_pos().and_then(cell_at)
+    {
+        sel[i] = !sel[i];
+        // Nenhum marcado não faria nada: volta a marcar só este.
+        if !sel.iter().any(|v| *v) {
+            sel[i] = true;
+        }
+    }
+}
+
+/// Aplica tipo e raio só aos cantos marcados (os outros ficam como estão).
+pub fn set_corners(corners: &mut Option<Vec<Corner>>, sel: &[bool; 4], kind: &str, radius: f64) {
+    let mut cs = corners.clone().unwrap_or_else(|| {
+        vec![
+            Corner {
+                kind: "round".into(),
+                radius: 0.0,
+            };
+            4
+        ]
+    });
+    cs.resize(
+        4,
+        Corner {
+            kind: "round".into(),
+            radius: 0.0,
+        },
+    );
+    for (i, c) in cs.iter_mut().enumerate() {
+        if sel[i] {
+            *c = Corner {
+                kind: kind.to_string(),
+                radius,
+            };
+        }
+    }
+    *corners = Some(cs);
+}
+
+fn select_bar(
+    ui: &mut egui::Ui,
+    doc: &mut DocState,
+    anchor: &mut Anchor,
+    lock: &mut bool,
+    corners_sel: &mut [bool; 4],
+) -> bool {
     let sel = doc.selection.clone();
     let Some(b) = ops::selection_bounds(&doc.editor, &sel, false) else {
         return page_bar_props(ui, doc);
@@ -1071,42 +1176,61 @@ fn select_bar(ui: &mut egui::Ui, doc: &mut DocState, anchor: &mut Anchor, lock: 
         match &o.kind {
             ObjectKind::Rectangle(r) => {
                 ui.separator();
+                // Valores mostrados: os do primeiro canto marcado.
+                let first = (0..4).find(|i| corners_sel[*i]).unwrap_or(0);
                 let corner = r
                     .corners
                     .as_ref()
-                    .and_then(|c| c.first())
+                    .and_then(|c| c.get(first))
                     .cloned()
                     .unwrap_or(Corner {
                         kind: "round".into(),
                         radius: 0.0,
                     });
+                corner_picker(ui, corners_sel);
                 let mut kind = corner.kind.clone();
-                egui::ComboBox::from_id_salt("canto")
-                    .selected_text(corner_label(&kind))
-                    .width(90.0)
-                    .show_ui(ui, |ui| {
-                        for k in ["round", "chamfer", "scallop"] {
-                            ui.selectable_value(&mut kind, k.to_string(), corner_label(k));
-                        }
-                    });
-                ui.label(tr("Raio", "Radius"));
-                let new_radius =
-                    length_field(ui, "raio", corner.radius, Some(r.width.min(r.height) / 2.0));
+                let mut new_radius = None;
+                let mut all = false;
+                widgets::stack(ui, |ui, row| {
+                    if row == 0 {
+                        egui::ComboBox::from_id_salt("canto")
+                            .selected_text(corner_label(&kind))
+                            .width(theme::CORNER_KIND_WIDTH)
+                            .show_ui(ui, |ui| {
+                                for k in ["round", "chamfer", "scallop"] {
+                                    ui.selectable_value(&mut kind, k.to_string(), corner_label(k));
+                                }
+                            });
+                        all = ui
+                            .add_enabled(
+                                corners_sel.iter().any(|v| !*v),
+                                egui::Button::new(tr("Todos", "All")).small(),
+                            )
+                            .on_hover_text(tr("Marcar os 4 cantos", "Select all 4 corners"))
+                            .clicked();
+                    } else {
+                        ui.label(tr("Raio", "Radius"));
+                        new_radius = length_field(
+                            ui,
+                            "raio",
+                            corner.radius,
+                            Some(r.width.min(r.height) / 2.0),
+                        );
+                    }
+                });
+                if all {
+                    *corners_sel = [true; 4];
+                }
                 if kind != corner.kind || new_radius.is_some() {
                     let radius = new_radius.unwrap_or(corner.radius).max(0.0);
+                    let which = *corners_sel;
                     ops::modify(
                         &mut doc.editor,
                         &sel,
                         tr("Alterar cantos", "Change corners"),
                         |o| {
                             if let ObjectKind::Rectangle(r) = &mut o.kind {
-                                r.corners = Some(vec![
-                                    Corner {
-                                        kind: kind.clone(),
-                                        radius
-                                    };
-                                    4
-                                ]);
+                                set_corners(&mut r.corners, &which, &kind, radius);
                                 return true;
                             }
                             false
@@ -2225,6 +2349,21 @@ mod tests {
         (panel, content)
     }
 
+    /// Cantos: alterar com só alguns marcados mexe só neles; "Todos" = os 4.
+    #[test]
+    fn corners_change_only_selected_ones() {
+        let mut cs = None;
+        set_corners(&mut cs, &[true; 4], "round", 2_000.0);
+        assert!(cs.as_ref().unwrap().iter().all(|c| c.radius == 2_000.0));
+        // Só o superior direito (índice 2) vira chanfro de 5 mm.
+        set_corners(&mut cs, &[false, false, true, false], "chamfer", 5_000.0);
+        let c = cs.unwrap();
+        assert_eq!((c[2].kind.as_str(), c[2].radius), ("chamfer", 5_000.0));
+        for i in [0, 1, 3] {
+            assert_eq!((c[i].kind.as_str(), c[i].radius), ("round", 2_000.0));
+        }
+    }
+
     /// Só mostrar a barra de seleção não altera o documento.
     #[test]
     fn showing_select_bar_does_not_modify() {
@@ -2249,7 +2388,7 @@ mod tests {
         let rev = doc.editor.revision();
         let select = |ui: &mut egui::Ui, d: &mut DocState| {
             let (mut a, mut l) = (Anchor::Center, true);
-            select_bar(ui, d, &mut a, &mut l);
+            select_bar(ui, d, &mut a, &mut l, &mut [true; 4]);
         };
         let _ = bar(&mut doc, select);
         assert_eq!(doc.editor.revision(), rev, "nada mudou");
@@ -2314,7 +2453,7 @@ mod tests {
         doc.selection = vec![id.clone()];
         let select = |ui: &mut egui::Ui, d: &mut DocState| {
             let (mut a, mut l) = (Anchor::Center, true);
-            select_bar(ui, d, &mut a, &mut l);
+            select_bar(ui, d, &mut a, &mut l, &mut [true; 4]);
         };
         fits(bar(&mut doc, select), "seleção");
         ops::convert_to_curves(&mut doc.editor, &[id]);

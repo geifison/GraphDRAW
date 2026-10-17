@@ -106,6 +106,9 @@ pub struct App {
     pub(crate) align: AlignUi,
     pub(crate) anchor: Anchor,
     pub(crate) lock_ratio: bool,
+    /// Cantos do retângulo que a barra altera (ordem do modelo: inf.-esq.,
+    /// inf.-dir., sup.-dir., sup.-esq.).
+    pub(crate) corners_sel: [bool; 4],
     message: Option<(String, String)>,
     confirm: Option<Pending>,
     allow_close: bool,
@@ -174,6 +177,7 @@ impl App {
             align: AlignUi::default(),
             anchor: Anchor::Center,
             lock_ratio: true,
+            corners_sel: [true; 4],
             message: None,
             confirm: None,
             allow_close: false,

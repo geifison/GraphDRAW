@@ -275,6 +275,11 @@ pub const CUT_PREVIEW: [f32; 2] = [420.0, 240.0];
 pub const CUT_PREVIEW_SECONDS: f32 = 4.0;
 /// Campo hexadecimal do editor de cor.
 pub const HEX_FIELD_WIDTH: f32 = 72.0;
+/// Seletor de cantos do retângulo (2 × 2): lado de cada célula e vão.
+pub const CORNER_CELL: f32 = 10.0;
+pub const CORNER_GAP: f32 = 4.0;
+/// Tipo de canto (Redondo/Chanfro/Recorte).
+pub const CORNER_KIND_WIDTH: f32 = 96.0;
 /// Escolha de família de fonte na barra de propriedades (doc 06).
 pub const FONT_COMBO_WIDTH: f32 = 180.0;
 /// Estilo da fonte (Regular, Bold…) na barra de texto.
