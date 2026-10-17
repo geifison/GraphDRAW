@@ -212,6 +212,25 @@ de estado.
   `crates/graphdraw-app/assets/icons/make-icons.mjs`, que também produz a
   folha de prova `icons-sheet.svg`; conferir a folha a cada ícone novo.
 
+### 3.1.1 Marca e ícone do programa
+
+A marca é a logo do projeto (`assets/brand/logo-original.jpg`): o G e o D
+em faixa colorida que termina numa pena.
+`scripts/brand-icons` gera os ícones a partir dela:
+- `mark.png`: a marca sem fundo. Ela é separada do fundo pela saturação,
+  sem emenda.
+- `app-<n>.png` e `app.ico`: a marca ocupando 82% de largura num quadrado
+  com o escuro do fundo da logo e cantos de 20%.
+- `gdr-<n>.png` e `gdr.ico`: folha clara com dobra e o quadrado da marca
+  (ícone do arquivo `.gdr`).
+- Tamanhos: 16, 20, 24, 32, 40, 48, 64, 128, 256 e 1024 px.
+
+No Windows, o `.exe` leva os dois ícones (`build.rs` com `windres`):
+`app` no índice 0 e `gdr` no índice 1, para o instalador associar o
+`.gdr`. A janela usa `app-256.png`. Os ícones de interface (3.1) seguem
+monocromáticos; a marca colorida só aparece como ícone do programa e do
+arquivo, e na janela Sobre.
+
 ### 3.2 Cursores
 
 Sobre o canvas, o cursor mostra a ferramenta ativa (desenho próprio, grade

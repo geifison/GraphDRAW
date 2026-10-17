@@ -39,7 +39,11 @@ fn main() -> eframe::Result {
             .with_title("GraphDraw")
             .with_inner_size([1360.0, 860.0])
             .with_min_inner_size([720.0, 480.0])
-            .with_drag_and_drop(true),
+            .with_drag_and_drop(true)
+            .with_icon(std::sync::Arc::new(
+                eframe::icon_data::from_png_bytes(include_bytes!("../assets/brand/app-256.png"))
+                    .unwrap_or_default(),
+            )),
         ..Default::default()
     };
     eframe::run_native(
