@@ -3,12 +3,15 @@
 //! o GraphDraw gera do mesmo original. Os dois passam pelo **mesmo**
 //! rasterizador (`pdftoppm`, do Poppler) e são comparados pixel a pixel.
 //!
-//! Métricas por página: diferença visual (% de pixels com ΔE2000 > 5,
-//! GD-FID-10), SSIM, contagem de páginas (GD-FID-14), texto extraído
-//! (GD-FID-13, com `pdftotext`) e robustez/tempo de abertura (GD-FID-15).
-//! Geometria por objeto (GD-FID-11) e valores CMYK (GD-FID-12) ainda não
-//! são medidos.
+//! Métricas por página: diferença visual (% de pixels com ΔE2000 > 5 depois
+//! de alinhar, GD-FID-10), SSIM, geometria (tamanho da página e caixa da
+//! tinta, em mm; GD-FID-11), contagem de páginas (GD-FID-14), texto
+//! extraído e fontes (GD-FID-13, com `pdftotext`/`pdffonts`) e
+//! robustez/tempo de abertura (GD-FID-15). A geometria vem da imagem: a
+//! resolução é a do pixel (0,17 mm a 150 ppp). Caixas por objeto e valores
+//! CMYK (GD-FID-12) ainda não são medidos.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Instant;
@@ -28,10 +31,11 @@ pub enum Level {
 }
 
 impl Level {
-    pub fn of(diff_pct: f64, ssim: f64) -> Level {
-        if diff_pct <= 1.0 && ssim >= 0.98 {
+    /// Pela diferença visual, SSIM e desvio de geometria (mm).
+    pub fn of(diff_pct: f64, ssim: f64, geometry_mm: f64) -> Level {
+        if diff_pct <= 1.0 && ssim >= 0.98 && geometry_mm <= 0.1 {
             Level::Fiel
-        } else if diff_pct <= 5.0 && ssim >= 0.95 {
+        } else if diff_pct <= 5.0 && ssim >= 0.95 && geometry_mm <= 0.5 {
             Level::Aceitavel
         } else {
             Level::Falha
@@ -145,6 +149,15 @@ impl Raster {
         [self.rgb[i], self.rgb[i + 1], self.rgb[i + 2]]
     }
 
+    /// Pixel deslocado; fora da imagem é papel branco.
+    fn px_at(&self, x: i64, y: i64) -> [u8; 3] {
+        if x < 0 || y < 0 || x >= self.width as i64 || y >= self.height as i64 {
+            [255, 255, 255]
+        } else {
+            self.px(x as u32, y as u32)
+        }
+    }
+
     /// Reamostra (vizinho mais próximo) para o tamanho dado.
     fn resized(&self, w: u32, h: u32) -> Raster {
         let mut rgb = Vec::with_capacity((w * h * 3) as usize);
@@ -161,29 +174,136 @@ impl Raster {
             rgb,
         }
     }
+
+    /// Imagem deslocada de `(dx, dy)` pixels.
+    fn shifted(&self, dx: i32, dy: i32) -> Raster {
+        if (dx, dy) == (0, 0) {
+            return self.clone();
+        }
+        let mut rgb = Vec::with_capacity(self.rgb.len());
+        for y in 0..self.height as i64 {
+            for x in 0..self.width as i64 {
+                rgb.extend(self.px_at(x - dx as i64, y - dy as i64));
+            }
+        }
+        Raster {
+            width: self.width,
+            height: self.height,
+            rgb,
+        }
+    }
+
+    /// Caixa da tinta (pixels que não são papel): `[x0, y0, x1, y1]` em
+    /// pixels, `x1`/`y1` exclusivos.
+    fn ink_box(&self) -> Option<[u32; 4]> {
+        let mut b: Option<[u32; 4]> = None;
+        for y in 0..self.height {
+            for x in 0..self.width {
+                if self.px(x, y).iter().any(|c| *c < INK_LEVEL) {
+                    let e = b.get_or_insert([x, y, x + 1, y + 1]);
+                    e[0] = e[0].min(x);
+                    e[1] = e[1].min(y);
+                    e[2] = e[2].max(x + 1);
+                    e[3] = e[3].max(y + 1);
+                }
+            }
+        }
+        b
+    }
 }
+
+/// Abaixo disto (em qualquer canal) o pixel tem tinta.
+const INK_LEVEL: u8 = 245;
+/// Deslocamento máximo procurado no alinhamento, em pixels.
+const MAX_SHIFT: i32 = 3;
 
 /// Resultado da comparação de duas páginas.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PageScore {
     pub page: usize,
-    /// % de pixels com ΔE2000 > 5.
+    /// % de pixels com ΔE2000 > 5, depois do alinhamento.
     pub diff_pct: f64,
     pub ssim: f64,
     /// Tamanhos diferentes (o candidato foi reamostrado).
     pub size_mismatch: bool,
+    /// Deslocamento (pixels) que melhor alinha o candidato à referência.
+    #[serde(default)]
+    pub shift: [i32; 2],
+    /// Maior desvio de geometria em mm: tamanho da página e bordas da
+    /// caixa da tinta (inclui o deslocamento).
+    #[serde(default)]
+    pub geometry_mm: f64,
     pub level: Level,
 }
 
-/// Compara referência e candidato; devolve a nota e o mapa de diferença
-/// (pixels diferentes em vermelho sobre a referência clareada).
-pub fn compare(reference: &Raster, candidate: &Raster, page: usize) -> (PageScore, Raster) {
+/// Deslocamento (até [`MAX_SHIFT`] px) com menos pixels diferentes,
+/// medido numa grade espaçada para ser rápido.
+fn best_shift(a: &Raster, b: &Raster) -> (i32, i32) {
+    let step = ((a.width.max(a.height) / 300).max(1)) as usize;
+    let far = |p: [u8; 3], q: [u8; 3]| {
+        p.iter()
+            .zip(q)
+            .map(|(x, y)| x.abs_diff(y) as u32)
+            .sum::<u32>()
+            > 24
+    };
+    let mut best: ((i32, i32), usize) = ((0, 0), usize::MAX);
+    for dy in -MAX_SHIFT..=MAX_SHIFT {
+        for dx in -MAX_SHIFT..=MAX_SHIFT {
+            let mut n = 0;
+            // Moldura ampliada: empurrar tinta para fora da página não
+            // conta como acerto.
+            let m = MAX_SHIFT as i64;
+            for y in (-m..a.height as i64 + m).step_by(step) {
+                for x in (-m..a.width as i64 + m).step_by(step) {
+                    if far(a.px_at(x, y), b.px_at(x - dx as i64, y - dy as i64)) {
+                        n += 1;
+                    }
+                }
+            }
+            // Empate: o menor deslocamento.
+            let better = n < best.1
+                || (n == best.1 && dx.abs() + dy.abs() < best.0.0.abs() + best.0.1.abs());
+            if better {
+                best = ((dx, dy), n);
+            }
+        }
+    }
+    best.0
+}
+
+/// Compara referência e candidato rasterizados a `dpi`; devolve a nota e o
+/// mapa de diferença (pixels diferentes em vermelho sobre a referência
+/// clareada).
+pub fn compare(
+    reference: &Raster,
+    candidate: &Raster,
+    page: usize,
+    dpi: u32,
+) -> (PageScore, Raster) {
+    let mm = 25.4 / dpi.max(1) as f64;
     let size_mismatch = reference.width != candidate.width || reference.height != candidate.height;
+    // Geometria: tamanho da página e caixa da tinta, antes de alinhar.
+    let mut geometry_px: f64 = (reference.width as f64 - candidate.width as f64)
+        .abs()
+        .max((reference.height as f64 - candidate.height as f64).abs());
     let cand = if size_mismatch {
         candidate.resized(reference.width, reference.height)
     } else {
         candidate.clone()
     };
+    match (reference.ink_box(), candidate.ink_box()) {
+        (Some(a), Some(b)) => {
+            for i in 0..4 {
+                geometry_px = geometry_px.max((a[i] as f64 - b[i] as f64).abs());
+            }
+        }
+        (None, None) => {}
+        // Só um dos dois tem tinta: a página inteira está errada.
+        _ => geometry_px = geometry_px.max(reference.width.max(reference.height) as f64),
+    }
+    let (dx, dy) = best_shift(reference, &cand);
+    let cand = cand.shifted(dx, dy);
     let (w, h) = (reference.width, reference.height);
     let mut diff = 0usize;
     let mut map = Vec::with_capacity((w * h * 3) as usize);
@@ -207,13 +327,16 @@ pub fn compare(reference: &Raster, candidate: &Raster, page: usize) -> (PageScor
     let total = (w as usize * h as usize).max(1);
     let diff_pct = diff as f64 * 100.0 / total as f64;
     let ssim = ssim(reference, &cand);
-    let level = Level::of(diff_pct, ssim);
+    let geometry_mm = geometry_px * mm;
+    let level = Level::of(diff_pct, ssim, geometry_mm);
     (
         PageScore {
             page,
             diff_pct,
             ssim,
             size_mismatch,
+            shift: [dx, dy],
+            geometry_mm,
             level,
         },
         Raster {
@@ -362,6 +485,43 @@ pub fn pdf_text(pdf: &Path) -> Option<String> {
     })
 }
 
+/// Fontes de um PDF (`pdffonts`), sem o prefixo de subconjunto
+/// (`ABCDEF+`), em ordem e sem repetição.
+pub fn pdf_fonts(pdf: &Path) -> Option<Vec<String>> {
+    let tool = poppler_tool("pdffonts")?;
+    let out = Command::new(tool).arg(pdf).output().ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let text = String::from_utf8_lossy(&out.stdout);
+    let mut names: Vec<String> = text
+        .lines()
+        .skip(2)
+        .filter_map(|l| l.split_whitespace().next())
+        .map(strip_subset)
+        .collect();
+    names.sort();
+    names.dedup();
+    Some(names)
+}
+
+fn strip_subset(name: &str) -> String {
+    match name.split_once('+') {
+        Some((tag, rest)) if tag.len() == 6 && tag.chars().all(|c| c.is_ascii_uppercase()) => {
+            rest.to_string()
+        }
+        _ => name.to_string(),
+    }
+}
+
+/// Nome de fonte para comparar: só letras e números, minúsculas.
+fn font_key(name: &str) -> String {
+    name.chars()
+        .filter(|c| c.is_alphanumeric())
+        .flat_map(|c| c.to_lowercase())
+        .collect()
+}
+
 fn write_png(r: &Raster, path: &Path) -> Result<(), String> {
     image::RgbImage::from_raw(r.width, r.height, r.rgb.clone())
         .ok_or("imagem inválida")?
@@ -397,7 +557,17 @@ pub struct CaseResult {
     pub pages: Vec<PageScore>,
     /// Texto igual ao de `ref-texto.pdf` (`None` = sem referência).
     pub text_equal: Option<bool>,
+    /// Fontes que o relatório de importação deu como ausentes.
     pub missing_fonts: Vec<String>,
+    /// Fontes de `ref-texto.pdf` e do candidato com texto vivo
+    /// (`pdffonts`), e as da referência que o candidato não usa
+    /// (substituídas, GD-FID-13).
+    #[serde(default)]
+    pub ref_fonts: Vec<String>,
+    #[serde(default)]
+    pub cand_fonts: Vec<String>,
+    #[serde(default)]
+    pub substituted_fonts: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -421,6 +591,31 @@ pub struct Summary {
     pub fiel_ou_aceitavel_pct: f64,
     /// Variação de "Fiel" (pontos percentuais) desde a execução anterior.
     pub trend_fiel_pp: Option<f64>,
+    /// Páginas por categoria e por versão do formato (GD-FID-30).
+    #[serde(default)]
+    pub by_category: BTreeMap<String, Counts>,
+    #[serde(default)]
+    pub by_version: BTreeMap<String, Counts>,
+}
+
+/// Páginas por nível.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct Counts {
+    pub pages: usize,
+    pub fiel: usize,
+    pub aceitavel: usize,
+    pub falha: usize,
+}
+
+impl Counts {
+    fn add(&mut self, l: Level) {
+        self.pages += 1;
+        match l {
+            Level::Fiel => self.fiel += 1,
+            Level::Aceitavel => self.aceitavel += 1,
+            Level::Falha => self.falha += 1,
+        }
+    }
 }
 
 impl Summary {
@@ -433,17 +628,40 @@ impl Summary {
             if !c.opened {
                 s.crashes += 1;
             }
-            for p in &c.pages {
+            let label = |v: &str| {
+                if v.is_empty() {
+                    "—".to_string()
+                } else {
+                    v.to_string()
+                }
+            };
+            // Páginas que faltam no candidato (ou caso que não abriu)
+            // contam como falha.
+            let missing = c
+                .ref_pages
+                .max(usize::from(!c.opened))
+                .saturating_sub(c.pages.len());
+            let levels = c
+                .pages
+                .iter()
+                .map(|p| p.level)
+                .chain(std::iter::repeat_n(Level::Falha, missing));
+            for l in levels {
                 s.pages += 1;
-                match p.level {
+                match l {
                     Level::Fiel => s.fiel += 1,
                     Level::Aceitavel => s.aceitavel += 1,
                     Level::Falha => s.falha += 1,
                 }
+                s.by_category
+                    .entry(label(&c.meta.categoria))
+                    .or_default()
+                    .add(l);
+                s.by_version
+                    .entry(label(&c.meta.versao_cdr))
+                    .or_default()
+                    .add(l);
             }
-            // Páginas que faltam no candidato contam como falha.
-            s.falha += c.ref_pages.saturating_sub(c.pages.len());
-            s.pages += c.ref_pages.saturating_sub(c.pages.len());
         }
         if s.pages > 0 {
             s.fiel_pct = s.fiel as f64 * 100.0 / s.pages as f64;
@@ -482,6 +700,9 @@ pub fn run_case(dir: &Path, dpi: u32, diffs: &Path) -> CaseResult {
         pages: Vec::new(),
         text_equal: None,
         missing_fonts: Vec::new(),
+        ref_fonts: Vec::new(),
+        cand_fonts: Vec::new(),
+        substituted_fonts: Vec::new(),
     };
     let Some(original) = find_original(dir) else {
         r.error = Some("sem original.cdr/.cmx/.gdr".into());
@@ -541,7 +762,7 @@ pub fn run_case(dir: &Path, dpi: u32, diffs: &Path) -> CaseResult {
     r.ref_pages = refs.len();
     r.cand_pages = cands.len();
     for (i, (a, b)) in refs.iter().zip(&cands).enumerate() {
-        let (score, map) = compare(a, b, i + 1);
+        let (score, map) = compare(a, b, i + 1, dpi);
         let stem = diffs.join(format!("{case}-p{}", i + 1));
         let _ = write_png(a, &stem.with_extension("ref.png"));
         let _ = write_png(b, &stem.with_extension("cand.png"));
@@ -559,6 +780,15 @@ pub fn run_case(dir: &Path, dpi: u32, diffs: &Path) -> CaseResult {
                 (Some(a), Some(b)) => Some(a == b),
                 _ => None,
             };
+            r.ref_fonts = pdf_fonts(&ref_text).unwrap_or_default();
+            r.cand_fonts = pdf_fonts(&live).unwrap_or_default();
+            let have: Vec<String> = r.cand_fonts.iter().map(|f| font_key(f)).collect();
+            r.substituted_fonts = r
+                .ref_fonts
+                .iter()
+                .filter(|f| !have.contains(&font_key(f)))
+                .cloned()
+                .collect();
         }
     }
     let _ = std::fs::remove_dir_all(&work);
@@ -617,6 +847,37 @@ fn previous_summary(results: &Path, current: &str) -> Option<Summary> {
     Some(r.summary)
 }
 
+/// Tabelas por categoria e por versão.
+fn groups(s: &Summary) -> String {
+    let table = |title: &str, m: &BTreeMap<String, Counts>| {
+        if m.is_empty() {
+            return String::new();
+        }
+        let rows: String = m
+            .iter()
+            .map(|(k, c)| {
+                let pct = |n: usize| n as f64 * 100.0 / c.pages.max(1) as f64;
+                format!(
+                    "<tr><td>{}</td><td>{}</td><td class=fiel>{:.0}%</td><td class=aceitavel>{:.0}%</td><td class=falha>{:.0}%</td></tr>",
+                    esc(k),
+                    c.pages,
+                    pct(c.fiel),
+                    pct(c.aceitavel),
+                    pct(c.falha)
+                )
+            })
+            .collect();
+        format!(
+            "<h2>Por {title}</h2><table><tr><th>{title}</th><th>Páginas</th><th>Fiel</th><th>Aceitável</th><th>Falha</th></tr>{rows}</table>"
+        )
+    };
+    format!(
+        "{}{}<h2>Casos</h2>",
+        table("categoria", &s.by_category),
+        table("versão", &s.by_version)
+    )
+}
+
 fn esc(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
@@ -634,7 +895,7 @@ pub fn html(r: &Report) -> String {
 .fiel{{color:#15803d}}.aceitavel{{color:#b45309}}.falha{{color:#b91c1c;font-weight:600}}img{{max-width:32%;border:1px solid #ccc;margin:2px}}</style>\
 <h1>Fidelidade de importação .cdr</h1><p>{} · {} ppp · <b>privado</b>: contém imagens dos trabalhos.</p>\
 <p>Casos: {} · páginas: {} · <span class=fiel>Fiel {:.1}%</span> · Fiel ou aceitável {:.1}% · travamentos: {}{}</p>\
-<p>Metas MVP (GD-FID-20): ≥ 80% Fiel, ≥ 95% Fiel ou aceitável, 0 travamentos.</p>\
+<p>Metas MVP (GD-FID-20): ≥ 80% Fiel, ≥ 95% Fiel ou aceitável, 0 travamentos.</p>{}\
 <table><tr><th>Caso</th><th>Categoria</th><th>Versão</th><th>Abriu</th><th>ms</th><th>Páginas (ref/cand)</th><th>Texto</th><th>Páginas</th></tr>",
         esc(&r.date),
         esc(&r.date),
@@ -646,7 +907,8 @@ pub fn html(r: &Report) -> String {
         s.crashes,
         s.trend_fiel_pp
             .map(|t| format!(" · tendência {t:+.1} pp"))
-            .unwrap_or_default()
+            .unwrap_or_default(),
+        groups(s)
     );
     for c in &r.cases {
         let pages: Vec<String> = c
@@ -659,11 +921,14 @@ pub fn html(r: &Report) -> String {
                     Level::Falha => "falha",
                 };
                 format!(
-                    "<span class={class}>p{} {} ({:.2}%, SSIM {:.3}{})</span>",
+                    "<span class={class}>p{} {} ({:.2}%, SSIM {:.3}, geometria {:.2} mm, desvio {}×{} px{})</span>",
                     p.page,
                     p.level.label(),
                     p.diff_pct,
                     p.ssim,
+                    p.geometry_mm,
+                    p.shift[0],
+                    p.shift[1],
                     if p.size_mismatch {
                         ", tamanho diferente"
                     } else {
@@ -681,10 +946,18 @@ pub fn html(r: &Report) -> String {
             c.open_ms,
             c.ref_pages,
             c.cand_pages,
-            match c.text_equal {
-                Some(true) => "igual",
-                Some(false) => "<span class=falha>diferente</span>",
-                None => "—",
+            {
+                let t = match c.text_equal {
+                    Some(true) => "igual".to_string(),
+                    Some(false) => "<span class=falha>diferente</span>".to_string(),
+                    None => "—".to_string(),
+                };
+                let subs = c.substituted_fonts.iter().chain(&c.missing_fonts).map(|f| esc(f)).collect::<Vec<_>>();
+                if subs.is_empty() {
+                    t
+                } else {
+                    format!("{t}<br><span class=falha>fontes: {}</span>", subs.join(", "))
+                }
             },
             pages.join("<br>")
         ));
@@ -740,7 +1013,7 @@ mod tests {
     #[test]
     fn compare_levels() {
         let white = flat(40, 40, [255, 255, 255]);
-        let (s, _) = compare(&white, &white.clone(), 1);
+        let (s, _) = compare(&white, &white.clone(), 1, 150);
         assert_eq!((s.diff_pct, s.level), (0.0, Level::Fiel));
         assert!((s.ssim - 1.0).abs() < 1e-9);
         // Um quarto da página trocado de cor: falha.
@@ -751,12 +1024,37 @@ mod tests {
                 half.rgb[i..i + 3].copy_from_slice(&[0, 0, 200]);
             }
         }
-        let (s, map) = compare(&white, &half, 1);
+        let (s, map) = compare(&white, &half, 1, 150);
         assert!((s.diff_pct - 25.0).abs() < 1e-9);
         assert_eq!(s.level, Level::Falha);
         assert_eq!(map.px(0, 0), [220, 30, 30]);
-        // Tamanhos diferentes: reamostra e avisa.
-        let (s, _) = compare(&white, &flat(20, 20, [255, 255, 255]), 1);
-        assert!(s.size_mismatch && s.level == Level::Fiel);
+        assert_eq!(s.shift, [0, 0], "empurrar a tinta para fora não vale");
+        // Tamanhos diferentes: reamostra, avisa e conta como geometria.
+        let (s, _) = compare(&white, &flat(20, 20, [255, 255, 255]), 1, 254);
+        assert!(s.size_mismatch && s.level == Level::Falha);
+        assert!((s.geometry_mm - 2.0).abs() < 1e-9, "{}", s.geometry_mm);
+    }
+
+    /// GD-FID-10/11: o candidato 2 px deslocado alinha (sem diferença
+    /// visual), mas o deslocamento conta na geometria.
+    #[test]
+    fn alignment_and_geometry() {
+        let mut a = flat(60, 60, [255, 255, 255]);
+        let mut b = a.clone();
+        let paint = |r: &mut Raster, x0: u32, y0: u32| {
+            for y in y0..y0 + 10 {
+                for x in x0..x0 + 10 {
+                    let i = ((y * 60 + x) * 3) as usize;
+                    r.rgb[i..i + 3].copy_from_slice(&[0, 0, 0]);
+                }
+            }
+        };
+        paint(&mut a, 20, 20);
+        paint(&mut b, 22, 21);
+        let (s, _) = compare(&a, &b, 1, 254);
+        assert_eq!(s.shift, [-2, -1]);
+        assert_eq!(s.diff_pct, 0.0);
+        assert!((s.geometry_mm - 0.2).abs() < 1e-9, "{}", s.geometry_mm);
+        assert_eq!(s.level, Level::Aceitavel);
     }
 }

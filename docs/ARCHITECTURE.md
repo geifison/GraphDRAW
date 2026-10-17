@@ -156,14 +156,20 @@ relatório de importação.
 abre cada `casos/NNNN/original.cdr` (ou `.cmx`/`.gdr`), exporta o PDF em
 curvas e compara com `ref-curvas.pdf`: os dois passam pelo mesmo
 rasterizador (`pdftoppm` do Poppler, achado no PATH, em `GRAPHDRAW_POPPLER`
-ou no MSYS2) e cada página recebe % de pixels com ΔE2000 > 5 e SSIM →
-Fiel / Aceitável / Falha. Também mede páginas, travamentos e tempo de
-abertura (GD-FID-14/15) e texto contra `ref-texto.pdf` (`pdftotext`,
-GD-FID-13). Grava em `<corpus>/resultados/<execução>/` o relatório privado
-(HTML com referência | candidato | diferença, e JSON), `resumo-publico.json`
-(só números, GD-FID-31) e a tendência contra a execução anterior. Sai com
-código 1 se houver falha ou travamento. Geometria por objeto (GD-FID-11) e
-CMYK (GD-FID-12) ainda não são medidos. Código em `graphdraw-core::fidelity`.
+ou no MSYS2). O candidato é alinhado à referência (até 3 px, numa moldura
+ampliada para que empurrar tinta para fora não conte como acerto) e cada
+página recebe % de pixels com ΔE2000 > 5, SSIM e desvio de geometria em mm
+(tamanho da página e bordas da caixa da tinta, deslocamento incluído;
+resolução de 1 pixel, 0,17 mm a 150 ppp) → Fiel / Aceitável / Falha pelos
+limiares do doc 25. Também mede páginas, travamentos e tempo de abertura
+(GD-FID-14/15), e com `ref-texto.pdf` o texto (`pdftotext`) e as fontes
+da referência que o candidato não usa (`pdffonts`, GD-FID-13). Grava em
+`<corpus>/resultados/<execução>/` o relatório privado (HTML com resumo por
+categoria e versão e referência | candidato | diferença, e JSON),
+`resumo-publico.json` (só números, GD-FID-31) e a tendência contra a
+execução anterior. Sai com código 1 se houver falha ou travamento. Caixas
+por objeto (GD-FID-11), contagem de objetos (GD-FID-14) e CMYK (GD-FID-12)
+ainda não são medidos. Código em `graphdraw-core::fidelity`.
 
 ### 2.6 Núcleo de edição (`graphdraw-core::edit`)
 

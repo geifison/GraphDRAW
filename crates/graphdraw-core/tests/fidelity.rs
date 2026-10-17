@@ -81,3 +81,49 @@ fn gd_fid_30_synthetic_corpus() {
     let (r2, _) = fidelity::run(tmp.path(), 72, "2026-01-02-0000").unwrap();
     assert_eq!(r2.summary.trend_fiel_pp, Some(0.0));
 }
+
+fn text_doc(family: &str) -> Document {
+    use graphdraw_core::edit::text::{insert, new_text};
+    let mut d = Document::new();
+    let mut p = Page::new(100_000.0, 60_000.0);
+    let mut o = new_text(10_000.0, 40_000.0, None, family, 8_000.0);
+    if let ObjectKind::Text(t) = &mut o.kind {
+        insert(t, 0, "Fidelidade");
+    }
+    p.layers[0].objects.push(o);
+    d.data.pages.push(p);
+    d
+}
+
+/// GD-FID-13: com `ref-texto.pdf`, o texto extraído é comparado e as
+/// fontes da referência que o candidato não usa são listadas.
+#[test]
+fn gd_fid_13_text_and_substituted_fonts() {
+    use graphdraw_core::render::text::resolve_family;
+    if fidelity::poppler_tool("pdffonts").is_none()
+        || resolve_family("Arial", 400, false).is_none()
+        || resolve_family("Times New Roman", 400, false).is_none()
+    {
+        eprintln!("Poppler ou fontes ausentes: teste ignorado");
+        return;
+    }
+    let tmp = tempfile::tempdir().unwrap();
+    let ours = text_doc("Arial");
+    case(tmp.path(), "0001", &ours, &ours);
+    let dir = tmp.path().join("casos").join("0001");
+    // A referência "com texto" usou outra fonte.
+    let live =
+        export::pdf_document(&text_doc("Times New Roman"), &ExportOptions::default()).unwrap();
+    std::fs::write(dir.join("ref-texto.pdf"), live).unwrap();
+    let (r, _) = fidelity::run(tmp.path(), 72, "2026-01-01-0000").unwrap();
+    let c = &r.cases[0];
+    assert_eq!(c.text_equal, Some(true));
+    assert!(
+        c.substituted_fonts.iter().any(|f| f.contains("Times")),
+        "{:?} / {:?}",
+        c.ref_fonts,
+        c.cand_fonts
+    );
+    assert!(c.cand_fonts.iter().any(|f| f.contains("Arial")));
+    assert_eq!(r.summary.by_category["sintético"].pages, 1);
+}
