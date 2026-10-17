@@ -153,6 +153,7 @@ pub fn get(name: &str) -> ImageSource<'static> {
         "dist-space-h" => icon!("dist-space-h"),
         "dist-space-v" => icon!("dist-space-v"),
         "node-reduce" => icon!("node-reduce"),
+        "align-baseline" => icon!("align-baseline"),
         "node-align-h" => icon!("node-align-h"),
         "node-align-v" => icon!("node-align-v"),
         "node-extract" => icon!("node-extract"),

@@ -152,6 +152,7 @@ const icons = {
   "node-align-v": `<path d="M12 3.5 V20.5" stroke-dasharray="2 2"/>${node(12, 6, 2)}${node(12, 12, 2)}${node(12, 18, 2)}<path d="M4 12 H8 M6.5 10.5 L8 12 L6.5 13.5 M20 12 H16 M17.5 10.5 L16 12 L17.5 13.5"/>`,
   "node-extract": `<rect x="3.5" y="8.5" width="11" height="11" rx="1"/><rect x="10" y="4" width="7" height="7" rx="1" fill="#fff"/><path d="M17 7.5 L20.5 4"/>`,
   "clear-transform": `<rect x="6" y="6" width="12" height="12" rx="1"/><path d="M4 9 L9 3.5 L20 9 L15 20.5 Z" stroke-dasharray="2 2"/>`,
+  "align-baseline": `<path d="M3.5 16.5 H20.5"/><path d="M5 16.5 L8 7 L11 16.5 M6 13.5 H10"/><path d="M14 16.5 V11 a2.5 2.5 0 0 1 5 0 V16.5"/>`,
   combine: `<path d="M4 4 H20 V20 H4 Z M9 9 V15 H15 V9 Z" fill="#fff" fill-rule="evenodd"/>`,
   "break-apart": `<rect x="3.5" y="3.5" width="8" height="8" rx="1"/><rect x="12.5" y="12.5" width="8" height="8" rx="1"/><path d="M14 6 H18 V10 M10 18 H6 V14"/>`,
   offset: `<rect x="7.5" y="7.5" width="9" height="9" rx="1"/><rect x="3.5" y="3.5" width="17" height="17" rx="4" stroke-dasharray="2 2"/>`,

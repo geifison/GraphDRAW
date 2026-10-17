@@ -2299,6 +2299,21 @@ fn align_panel(ui: &mut egui::Ui, doc: &mut DocState, al: &mut AlignUi) {
                 ops::align(&mut doc.editor, &sel, how, to, al.visual);
             }
         }
+        // GD-ALI-04: textos pela primeira linha de base.
+        if icons::button(
+            ui,
+            "align-baseline",
+            tr(
+                "Alinhar pela linha de base (textos; outros objetos pela base)",
+                "Align by baseline (texts; other objects by their bottom)",
+            ),
+            false,
+            enabled,
+        )
+        .clicked()
+        {
+            ops::align_baseline(&mut doc.editor, &sel, to, al.visual);
+        }
     });
     if !enabled {
         ui.weak(if min == 2 {

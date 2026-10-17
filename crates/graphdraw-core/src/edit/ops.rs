@@ -342,6 +342,57 @@ pub fn align(ed: &mut Editor, sel: &[String], how: Align, to: AlignTo, visual: b
     });
 }
 
+/// Altura (y da página) da primeira linha de base de um texto.
+pub fn text_baseline(ed: &Editor, r: &ObjRef) -> Option<f64> {
+    let o = ed.get(r)?;
+    let ObjectKind::Text(t) = &o.kind else {
+        return None;
+    };
+    let layout = crate::render::text::layout_text(t);
+    let line = layout.lines.first()?;
+    let m = ed.parent_affine(r) * o.transform.affine();
+    Some((m * Point::new(0.0, line.baseline)).y)
+}
+
+/// Alinhar pela linha de base (GD-ALI-04): textos pela primeira linha de
+/// base, os outros objetos pela base da caixa; o alvo segue `to` (com
+/// página ou seleção, vale a base delas).
+pub fn align_baseline(ed: &mut Editor, sel: &[String], to: AlignTo, visual: bool) {
+    let line = |ed: &Editor, id: &str| -> Option<f64> {
+        let r = ed.find(id)?;
+        text_baseline(ed, &r).or_else(|| object_bounds(ed, &r, visual).map(|b| b.y0))
+    };
+    let objs: Vec<(String, f64)> = sel
+        .iter()
+        .filter_map(|id| Some((id.clone(), line(ed, id)?)))
+        .collect();
+    if objs.is_empty() {
+        return;
+    }
+    let target = match to {
+        AlignTo::LastSelected => objs.last().unwrap().1,
+        AlignTo::FirstSelected => objs[0].1,
+        AlignTo::Page(r) => r.y0,
+        AlignTo::Selection => objs.iter().map(|o| o.1).fold(f64::INFINITY, f64::min),
+    };
+    let movers: Vec<&(String, f64)> = match to {
+        AlignTo::LastSelected => objs[..objs.len() - 1].iter().collect(),
+        AlignTo::FirstSelected => objs[1..].iter().collect(),
+        _ => objs.iter().collect(),
+    };
+    ed.transaction("Alinhar pela linha de base", |ed| {
+        for (id, y) in movers {
+            let d = Vec2::new(0.0, target - y);
+            if d.y.abs() > 0.0 {
+                let r = ed.find(id).unwrap();
+                let mut o = ed.get(&r).unwrap().clone();
+                o.transform = page_transform(ed, &r, &o, Affine::translate(d));
+                ed.replace_at(&r, o);
+            }
+        }
+    });
+}
+
 // ---- ordem (GD-ORD-01) ------------------------------------------------------
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2015,5 +2066,36 @@ mod tests {
         assert_eq!(px.get_pixel(50, 50).0, [255, 0, 0, 255]);
         ed.undo();
         assert!(matches!(ed.objects(0, 0)[0].kind, ObjectKind::Rectangle(_)));
+    }
+
+    /// GD-ALI-04: textos de corpos diferentes ficam com a mesma linha de base.
+    #[test]
+    fn gd_ali_04_align_baseline() {
+        use crate::edit::text::{insert, new_text};
+        use crate::model::{Document, Page};
+        if crate::render::text::resolve_family("Arial", 400, false).is_none() {
+            return;
+        }
+        let mut d = Document::new();
+        d.data.pages.push(Page::new(200_000.0, 200_000.0));
+        let mut ed = Editor::new(d);
+        let mk = |ed: &mut Editor, x: f64, y: f64, size: f64| {
+            let mut o = new_text(x, y, None, "Arial", size);
+            if let ObjectKind::Text(t) = &mut o.kind {
+                insert(t, 0, "Base");
+            }
+            add_object(ed, 0, 0, o, "t")
+        };
+        let a = mk(&mut ed, 10_000.0, 100_000.0, 5_000.0);
+        let b = mk(&mut ed, 60_000.0, 130_000.0, 15_000.0);
+        align_baseline(
+            &mut ed,
+            &[a.clone(), b.clone()],
+            AlignTo::LastSelected,
+            false,
+        );
+        let ya = text_baseline(&ed, &ed.find(&a).unwrap()).unwrap();
+        let yb = text_baseline(&ed, &ed.find(&b).unwrap()).unwrap();
+        assert!((ya - yb).abs() < 1e-6, "{ya} {yb}");
     }
 }
