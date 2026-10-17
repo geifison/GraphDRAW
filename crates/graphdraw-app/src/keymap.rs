@@ -154,6 +154,7 @@ commands! {
     CutLine = "cut.line", "Gerar linha de corte", "Create cut line", Object, Selection, true;
     RegistrationMarks = "cut.registration_marks", "Marcas de registro", "Registration marks", Object, NotText, true;
     Ungroup = "obj.ungroup", "Desagrupar", "Ungroup", Object, Selection, true;
+    ConvertTextKind = "text.convert_kind", "Converter texto artístico/parágrafo", "Convert artistic/paragraph text", Object, Selection, true;
     ConvertToBitmap = "obj.convert_to_bitmap", "Converter em bitmap", "Convert to bitmap", Object, Selection, true;
     ClearTransformations = "obj.clear_transformations", "Limpar transformações", "Clear transformations", Object, Selection, true;
     TransformPosition = "panel.transform_position", "Transformar: posição", "Transform: position", Object, Always, true;

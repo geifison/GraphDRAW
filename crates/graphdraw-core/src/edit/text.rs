@@ -405,6 +405,58 @@ pub fn is_empty(t: &TextData) -> bool {
     len(t) == 0
 }
 
+/// Texto artístico → parágrafo (GD-TXT-03): o quadro fica do tamanho do
+/// texto, então as linhas continuam as mesmas; trechos e estilos ficam.
+pub fn to_paragraph(t: &mut TextData) -> bool {
+    if t.text_kind == "paragraph" {
+        return false;
+    }
+    let layout = crate::render::text::layout_text(t);
+    let width = layout
+        .lines
+        .iter()
+        .flat_map(|l| l.carets.iter().map(|c| c.1))
+        .fold(0.0, f64::max);
+    let height = layout
+        .lines
+        .last()
+        .map_or(DEFAULT_SIZE, |l| -l.baseline + l.size * 0.3);
+    // Folga para a quebra não mudar por arredondamento.
+    t.frame = Some([width * 1.001 + 1.0, height.max(1.0)]);
+    t.text_kind = "paragraph".into();
+    true
+}
+
+/// Texto de parágrafo → artístico (GD-TXT-03): cada quebra automática vira
+/// quebra de linha de verdade, para o texto ficar com as mesmas linhas.
+pub fn to_artistic(t: &mut TextData) -> bool {
+    if t.text_kind != "paragraph" {
+        return false;
+    }
+    let layout = crate::render::text::layout_text(t);
+    let chars: Vec<char> = crate::render::text::plain_text(t).chars().collect();
+    let soft: Vec<usize> = layout
+        .lines
+        .iter()
+        .map(|l| l.end)
+        .filter(|&e| e < chars.len() && chars[e] != '\n')
+        .collect();
+    for &e in soft.iter().rev() {
+        // O espaço onde a linha quebrou some.
+        if chars.get(e) == Some(&' ') {
+            delete(t, e, e + 1);
+        } else if e > 0 && chars.get(e - 1) == Some(&' ') {
+            delete(t, e - 1, e);
+            insert(t, e - 1, "\n");
+            continue;
+        }
+        insert(t, e, "\n");
+    }
+    t.text_kind = "artistic".into();
+    t.frame = None;
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -521,5 +573,27 @@ mod tests {
         assert_eq!(t.paragraphs[1].spans[0].fill, Some(red));
         assert_eq!(t.paragraphs[1].spans[1].fill, None);
         assert_eq!(plain_text(t), "abcdef\nghi");
+    }
+
+    /// GD-TXT-03: parágrafo → artístico mantém as linhas (quebras viram
+    /// quebras de verdade) e volta a parágrafo sem quebrar diferente.
+    #[test]
+    fn gd_txt_03_convert_artistic_paragraph() {
+        if crate::render::text::resolve_family("Arial", 400, false).is_none() {
+            return;
+        }
+        let mut o = new_text(0.0, 0.0, Some([30_000.0, 100_000.0]), "Arial", 5_000.0);
+        let t = data(&mut o);
+        insert(t, 0, "uma frase comprida que quebra em linhas");
+        let lines = crate::render::text::layout_text(t).lines.len();
+        assert!(lines > 1);
+        assert!(to_artistic(t));
+        assert_eq!(t.text_kind, "artistic");
+        assert_eq!(t.paragraphs.len(), lines, "{:?}", plain_text(t));
+        assert_eq!(crate::render::text::layout_text(t).lines.len(), lines);
+        assert!(to_paragraph(t));
+        let l = crate::render::text::layout_text(t);
+        assert_eq!((l.lines.len(), l.overflow), (lines, false));
+        assert!(!to_paragraph(t), "já é parágrafo");
     }
 }

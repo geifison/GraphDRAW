@@ -1105,6 +1105,27 @@ impl App {
                 ops::convert_to_curves(ed, s);
                 None
             }),
+            C::ConvertTextKind => {
+                // GD-TXT-03: cada texto troca de tipo mantendo as linhas.
+                if let Some(d) = &mut self.doc {
+                    self.canvas.end_text(d);
+                }
+                let ids = self.text_targets();
+                if let Some(d) = &mut self.doc {
+                    ops::modify(
+                        &mut d.editor,
+                        &ids,
+                        tr("Converter tipo de texto", "Convert text kind"),
+                        |o| match &mut o.kind {
+                            ObjectKind::Text(t) => {
+                                graphdraw_core::edit::text::to_artistic(t)
+                                    || graphdraw_core::edit::text::to_paragraph(t)
+                            }
+                            _ => false,
+                        },
+                    );
+                }
+            }
             C::OutlineToObject => self.with_selection(|ed, s| {
                 let n = ops::outline_to_object(ed, s);
                 (!n.is_empty()).then_some(n)
@@ -1642,6 +1663,22 @@ impl App {
                     .clicked()
                 {
                     self.run_command(Command::OutlineToObject, &ctx);
+                }
+                let has_text = !self.text_targets().is_empty();
+                if ui
+                    .add_enabled(
+                        has_text,
+                        egui::Button::new(keymap::menu(
+                            tr(
+                                "Converter texto artístico ↔ parágrafo",
+                                "Convert artistic ↔ paragraph text",
+                            ),
+                            Command::ConvertTextKind,
+                        )),
+                    )
+                    .clicked()
+                {
+                    self.run_command(Command::ConvertTextKind, &ctx);
                 }
                 ui.separator();
                 let multi = self.doc.as_ref().is_some_and(|d| d.selection.len() >= 2);
