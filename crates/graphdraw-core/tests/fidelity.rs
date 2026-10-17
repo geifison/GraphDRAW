@@ -127,3 +127,38 @@ fn gd_fid_13_text_and_substituted_fonts() {
     assert!(c.cand_fonts.iter().any(|f| f.contains("Arial")));
     assert_eq!(r.summary.by_category["sintético"].pages, 1);
 }
+
+/// GD-FID-12: com `ref-cmyk.pdf`, os valores CMYK das cores sólidas são
+/// comparados com o PDF/X-1a do candidato.
+#[test]
+fn gd_fid_12_cmyk_values() {
+    use graphdraw_core::export::PdfStandard;
+    if fidelity::poppler_tool("pdftoppm").is_none() {
+        return;
+    }
+    let tmp = tempfile::tempdir().unwrap();
+    let red = doc(Color::cmyk(0.0, 1.0, 1.0, 0.0));
+    let x1a = ExportOptions {
+        text_to_curves: true,
+        pdf: PdfStandard::X1a(Default::default()),
+        ..Default::default()
+    };
+    for (name, reference) in [
+        ("0001", &red),
+        ("0002", &doc(Color::cmyk(0.0, 0.9, 1.0, 0.0))),
+    ] {
+        case(tmp.path(), name, &red, &red);
+        let dir = tmp.path().join("casos").join(name);
+        std::fs::write(
+            dir.join("ref-cmyk.pdf"),
+            export::pdf_document(reference, &x1a).unwrap(),
+        )
+        .unwrap();
+    }
+    let (r, _) = fidelity::run(tmp.path(), 72, "2026-01-01-0000").unwrap();
+    let pp = |i: usize| r.cases[i].pages[0].cmyk_pp.unwrap();
+    assert!(pp(0) < 1e-6, "{}", pp(0));
+    assert!((pp(1) - 10.0).abs() < 0.5, "{}", pp(1));
+    assert_eq!(r.cases[0].pages[0].level, Level::Fiel);
+    assert_eq!(r.cases[1].pages[0].level, Level::Falha);
+}

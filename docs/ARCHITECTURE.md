@@ -167,9 +167,11 @@ da referência que o candidato não usa (`pdffonts`, GD-FID-13). Grava em
 `<corpus>/resultados/<execução>/` o relatório privado (HTML com resumo por
 categoria e versão e referência | candidato | diferença, e JSON),
 `resumo-publico.json` (só números, GD-FID-31) e a tendência contra a
-execução anterior. Sai com código 1 se houver falha ou travamento. Caixas
-por objeto (GD-FID-11), contagem de objetos (GD-FID-14) e CMYK (GD-FID-12)
-ainda não são medidos. Código em `graphdraw-core::fidelity`.
+execução anterior. Sai com código 1 se houver falha ou travamento. Com
+`ref-cmyk.pdf`, compara as cores CMYK sólidas (`k`/`sc` de quatro valores,
+lidas com `lopdf`) com o PDF/X-1a do candidato: maior desvio em pp pela cor
+mais próxima, até 1 pp Fiel e 3 pp Aceitável (GD-FID-12). Caixas por
+objeto (GD-FID-11) e contagem de objetos (GD-FID-14) ainda não são medidas. Código em `graphdraw-core::fidelity`.
 
 ### 2.6 Núcleo de edição (`graphdraw-core::edit`)
 
@@ -276,7 +278,7 @@ Em Linux: `apt install libcdr-dev librevenge-dev pkg-config g++` e o mesmo
 | GD-FIL-11 / GD-FER-50 | `gradtool::tests::*`, `canvas::tests::interactive_gradient_tool` (app) |
 | GD-PRI-03 (edição) | `canvas::tests::polygon_vertex_edit_is_symmetric` (app) |
 | Doc 06, formatação por trecho | `text::tests::style_and_fill_by_range`, `app::tests::text_range_style_and_palette_color` |
-| GD-FID-10/13/14/15/30/31 | `fidelity::tests::*`, `tests/fidelity.rs` (corpus sintético; pulado sem Poppler) |
+| GD-FID-10..15/30/31 | `fidelity::tests::*`, `tests/fidelity.rs` (corpus sintético; pulado sem Poppler) |
 
 Fixtures `.gdr` são geradas por
 `cargo run -p graphdraw-core --example make_fixtures` (IDs fixos). Amostras

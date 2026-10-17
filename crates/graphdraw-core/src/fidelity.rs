@@ -41,6 +41,21 @@ impl Level {
             Level::Falha
         }
     }
+    /// Rebaixa pelo desvio CMYK (pp): até 1 Fiel, até 3 Aceitável.
+    pub fn with_cmyk(self, pp: Option<f64>) -> Level {
+        let by = match pp {
+            Some(v) if v > 3.0 => Level::Falha,
+            Some(v) if v > 1.0 => Level::Aceitavel,
+            _ => Level::Fiel,
+        };
+        let rank = |l: Level| match l {
+            Level::Fiel => 0,
+            Level::Aceitavel => 1,
+            Level::Falha => 2,
+        };
+        if rank(by) > rank(self) { by } else { self }
+    }
+
     pub fn label(self) -> &'static str {
         match self {
             Level::Fiel => "Fiel",
@@ -233,6 +248,10 @@ pub struct PageScore {
     /// caixa da tinta (inclui o deslocamento).
     #[serde(default)]
     pub geometry_mm: f64,
+    /// Desvio CMYK em pontos percentuais contra `ref-cmyk.pdf`
+    /// (GD-FID-12); `None` sem referência CMYK.
+    #[serde(default)]
+    pub cmyk_pp: Option<f64>,
     pub level: Level,
 }
 
@@ -337,6 +356,7 @@ pub fn compare(
             size_mismatch,
             shift: [dx, dy],
             geometry_mm,
+            cmyk_pp: None,
             level,
         },
         Raster {
@@ -520,6 +540,103 @@ fn font_key(name: &str) -> String {
         .filter(|c| c.is_alphanumeric())
         .flat_map(|c| c.to_lowercase())
         .collect()
+}
+
+// ---- cor CMYK (GD-FID-12) -----------------------------------------------------
+
+/// Cores CMYK (0–1) usadas em cada página do PDF: operadores `k`/`K` e
+/// `sc`/`scn` com quatro números, no conteúdo da página e nos formulários
+/// (XObject) que ela usa.
+pub fn pdf_cmyk_colors(pdf: &Path) -> Option<Vec<Vec<[f64; 4]>>> {
+    let doc = lopdf::Document::load(pdf).ok()?;
+    let mut pages = Vec::new();
+    for (_, id) in doc.get_pages() {
+        let mut colors = Vec::new();
+        if let Ok(c) = doc.get_and_decode_page_content(id) {
+            collect_cmyk(&c.operations, &mut colors);
+        }
+        if let Ok((res, _)) = doc.get_page_resources(id)
+            && let Some(res) = res
+        {
+            forms_cmyk(&doc, res, &mut colors, 0);
+        }
+        colors.sort_by(|a: &[f64; 4], b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        colors.dedup();
+        pages.push(colors);
+    }
+    Some(pages)
+}
+
+fn collect_cmyk(ops: &[lopdf::content::Operation], out: &mut Vec<[f64; 4]>) {
+    for op in ops {
+        let cmyk = matches!(op.operator.as_str(), "k" | "K")
+            || (matches!(op.operator.as_str(), "sc" | "scn" | "SC" | "SCN")
+                && op.operands.len() == 4);
+        if !cmyk || op.operands.len() != 4 {
+            continue;
+        }
+        let v: Vec<f64> = op
+            .operands
+            .iter()
+            .filter_map(|o| o.as_float().ok().map(f64::from))
+            .collect();
+        if let [c, m, y, k] = v[..] {
+            out.push([c, m, y, k].map(|x| x.clamp(0.0, 1.0)));
+        }
+    }
+}
+
+fn forms_cmyk(
+    doc: &lopdf::Document,
+    res: &lopdf::Dictionary,
+    out: &mut Vec<[f64; 4]>,
+    depth: usize,
+) {
+    if depth > 4 {
+        return;
+    }
+    let Ok(xobjects) = res
+        .get(b"XObject")
+        .and_then(|o| doc.dereference(o))
+        .and_then(|(_, o)| o.as_dict())
+    else {
+        return;
+    };
+    for (_, x) in xobjects.iter() {
+        let Ok((_, lopdf::Object::Stream(s))) = doc.dereference(x) else {
+            continue;
+        };
+        if s.dict.get(b"Subtype").and_then(|t| t.as_name()).ok() != Some(b"Form".as_slice()) {
+            continue;
+        }
+        let data = s
+            .decompressed_content()
+            .unwrap_or_else(|_| s.content.clone());
+        if let Ok(c) = lopdf::content::Content::decode(&data) {
+            collect_cmyk(&c.operations, out);
+        }
+        if let Ok((_, lopdf::Object::Dictionary(r))) =
+            s.dict.get(b"Resources").and_then(|o| doc.dereference(o))
+        {
+            forms_cmyk(doc, r, out, depth + 1);
+        }
+    }
+}
+
+/// Maior desvio (pontos percentuais) entre cada cor da referência e a cor
+/// mais próxima do candidato; `None` sem cores na referência.
+pub fn cmyk_deviation(reference: &[[f64; 4]], candidate: &[[f64; 4]]) -> Option<f64> {
+    if reference.is_empty() {
+        return None;
+    }
+    let dist = |a: &[f64; 4], b: &[f64; 4]| (0..4).map(|i| (a[i] - b[i]).abs()).fold(0.0, f64::max);
+    Some(
+        reference
+            .iter()
+            .map(|r| candidate.iter().map(|c| dist(r, c)).fold(1.0, f64::min))
+            .fold(0.0, f64::max)
+            * 100.0,
+    )
 }
 
 fn write_png(r: &Raster, path: &Path) -> Result<(), String> {
@@ -769,6 +886,26 @@ pub fn run_case(dir: &Path, dpi: u32, diffs: &Path) -> CaseResult {
         let _ = write_png(&map, &stem.with_extension("diff.png"));
         r.pages.push(score);
     }
+    // Cor (GD-FID-12): candidato PDF/X-1a contra ref-cmyk.pdf.
+    let ref_cmyk = dir.join("ref-cmyk.pdf");
+    if ref_cmyk.is_file() {
+        let cmyk = work.join("candidato-cmyk.pdf");
+        let opts = crate::export::ExportOptions {
+            text_to_curves: true,
+            pdf: crate::export::PdfStandard::X1a(Default::default()),
+            ..Default::default()
+        };
+        if let Ok(b) = crate::export::pdf_document(&doc, &opts)
+            && std::fs::write(&cmyk, b).is_ok()
+            && let (Some(a), Some(b)) = (pdf_cmyk_colors(&ref_cmyk), pdf_cmyk_colors(&cmyk))
+        {
+            for (i, p) in r.pages.iter_mut().enumerate() {
+                let empty = Vec::new();
+                p.cmyk_pp = cmyk_deviation(a.get(i).unwrap_or(&empty), b.get(i).unwrap_or(&empty));
+                p.level = p.level.with_cmyk(p.cmyk_pp);
+            }
+        }
+    }
     // Texto (GD-FID-13): candidato com texto vivo contra ref-texto.pdf.
     let ref_text = dir.join("ref-texto.pdf");
     if ref_text.is_file() {
@@ -921,7 +1058,7 @@ pub fn html(r: &Report) -> String {
                     Level::Falha => "falha",
                 };
                 format!(
-                    "<span class={class}>p{} {} ({:.2}%, SSIM {:.3}, geometria {:.2} mm, desvio {}×{} px{})</span>",
+                    "<span class={class}>p{} {} ({:.2}%, SSIM {:.3}, geometria {:.2} mm, desvio {}×{} px{}{})</span>",
                     p.page,
                     p.level.label(),
                     p.diff_pct,
@@ -929,6 +1066,7 @@ pub fn html(r: &Report) -> String {
                     p.geometry_mm,
                     p.shift[0],
                     p.shift[1],
+                    p.cmyk_pp.map(|v| format!(", CMYK {v:.1} pp")).unwrap_or_default(),
                     if p.size_mismatch {
                         ", tamanho diferente"
                     } else {
@@ -1056,5 +1194,19 @@ mod tests {
         assert_eq!(s.diff_pct, 0.0);
         assert!((s.geometry_mm - 0.2).abs() < 1e-9, "{}", s.geometry_mm);
         assert_eq!(s.level, Level::Aceitavel);
+    }
+
+    /// GD-FID-12: desvio CMYK pela cor mais próxima, em pontos percentuais;
+    /// rebaixa o nível acima de 1 e de 3 pp.
+    #[test]
+    fn cmyk_deviation_and_level() {
+        let r = [[0.0, 1.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]];
+        let c = [[0.0, 0.98, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]];
+        assert!((cmyk_deviation(&r, &c).unwrap() - 2.0).abs() < 1e-9);
+        assert_eq!(cmyk_deviation(&[], &c), None);
+        assert_eq!(cmyk_deviation(&r, &[]), Some(100.0));
+        assert_eq!(Level::Fiel.with_cmyk(Some(2.0)), Level::Aceitavel);
+        assert_eq!(Level::Falha.with_cmyk(Some(0.5)), Level::Falha);
+        assert_eq!(Level::Fiel.with_cmyk(Some(5.0)), Level::Falha);
     }
 }

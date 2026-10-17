@@ -22,6 +22,7 @@ permitida). A lista completa de crates transitivos fica em `Cargo.lock`.
 | png | 0.18.1 | MIT OR Apache-2.0 | Codificação PNG |
 | image | 0.25.10 | MIT OR Apache-2.0 | Decodificação de imagens (PNG, JPEG, BMP, TIFF, WebP, GIF) |
 | pdf-writer | 0.15.0 | MIT OR Apache-2.0 | Exportação PDF |
+| lopdf | 0.45.0 | MIT | Ler cores CMYK dos PDFs na medição de fidelidade (GD-FID-12) e conferir o PDF/X-1a nos testes |
 | miniz_oxide | 0.9.1 | MIT OR Zlib OR Apache-2.0 | Compressão Flate no PDF |
 | base64 | 0.23.1 | MIT OR Apache-2.0 | Imagens embutidas (SVG, ponte libcdr) |
 | fontdb | 0.24.0 | MIT | Localização de fontes do sistema |
@@ -62,9 +63,8 @@ Binários da libcdr/librevenge e dependências vêm dos pacotes do MSYS2
 | jsonschema | 0.58.6 | MIT | Validação das fixtures contra o schema (GD-GDR-08) |
 | roxmltree | 0.21.1 | MIT OR Apache-2.0 | Verificar SVG bem formado nos testes |
 | tempfile | 3.27.0 | MIT OR Apache-2.0 | Diretórios temporários nos testes |
-| lopdf | 0.45.0 | MIT | Ler o PDF/X-1a exportado e conferir os requisitos (GD-EXP-07) nos testes |
 | MSYS2 (gcc, pkgconf, binutils, make) | — | várias (GPL, ferramentas de build) | Compilar a ponte; `dlltool` para o alvo GNU do Rust |
-| poppler (pdftoppm/pdfinfo) | — | GPL-2.0 | Conferência manual dos PDFs (ferramenta externa, não vinculada) |
+| poppler (pdftoppm/pdftotext/pdffonts/pdfinfo) | — | GPL-2.0 | Conferência dos PDFs e rasterização do `graphdraw fidelity` (programa externo chamado por processo, não vinculado nem distribuído) |
 
 ## Arquivos de teste de terceiros
 
