@@ -316,6 +316,8 @@ pub struct CanvasState {
     pub smart_guides: bool,
     smart: Option<(kurbo::Rect, graphdraw_core::edit::smart::Targets)>,
     smart_lines: Vec<graphdraw_core::edit::smart::SmartLine>,
+    /// Ponto do desenho já encaixado pelas guias inteligentes.
+    smart_point: Option<Point>,
     /// Réguas e guias (GD-REG-01, GD-GUI-01).
     pub show_rulers: bool,
     pub show_guides: bool,
@@ -363,6 +365,7 @@ impl Default for CanvasState {
             smart_guides: true,
             smart: None,
             smart_lines: Vec::new(),
+            smart_point: None,
             show_rulers: true,
             show_guides: true,
             guides_locked: false,
@@ -908,6 +911,27 @@ impl CanvasState {
                 for p in [sa, sb] {
                     painter.line_segment([p - n, p + n], st);
                 }
+                // Distância ao vivo (DS 5.2), ao lado do meio do vão.
+                let mm = (l.to - l.from).abs() / 1000.0;
+                let mid = sa + (sb - sa) / 2.0;
+                let (off, align) = if l.vertical {
+                    (
+                        Vec2::new(theme::SPACING_TICK * 1.5, 0.0),
+                        egui::Align2::LEFT_CENTER,
+                    )
+                } else {
+                    (
+                        Vec2::new(0.0, -theme::SPACING_TICK * 1.5),
+                        egui::Align2::CENTER_BOTTOM,
+                    )
+                };
+                painter.text(
+                    mid + off,
+                    align,
+                    format!("{} mm", crate::widgets::fmt_num(mm, 1)),
+                    theme::font_micro(),
+                    c,
+                );
             }
         }
         self.paint_overlays(ui, &painter, doc, rect, tool);
@@ -1466,7 +1490,7 @@ impl CanvasState {
             Drag::DrawRect { start, .. } if self.three_point => {
                 if let Some(cur) = self.cursor_page {
                     let mods = ui.input(|i| i.modifiers);
-                    let b = base_end(*start, self.snap_hit.map_or(cur, |s| s.point), mods);
+                    let b = base_end(*start, self.draw_end(cur), mods);
                     painter.line_segment(
                         [self.screen(rect, ph, *start), self.screen(rect, ph, b)],
                         thin,
@@ -1476,7 +1500,7 @@ impl CanvasState {
             Drag::DrawRect { start, prim, .. } => {
                 if let Some(cur) = self.cursor_page {
                     let mods = ui.input(|i| i.modifiers);
-                    let r = draw_rect(*start, self.snap_hit.map_or(cur, |s| s.point), mods);
+                    let r = draw_rect(*start, self.draw_end(cur), mods);
                     let sr = self.screen_rect(rect, ph, r);
                     match prim {
                         Prim::Ellipse => {
@@ -1548,7 +1572,7 @@ impl CanvasState {
             }
         }
         if let (Some(t), Some(cur)) = (&self.three, self.cursor_page) {
-            let c = self.snap_hit.map_or(cur, |s| s.point);
+            let c = self.draw_end(cur);
             if let Some((w, h, m)) = three_point_frame(t.a, t.b, c) {
                 let mut path = shape_outline_with(t.prim, w, h, _defaults_view(&self.poly_preview));
                 path.apply_affine(m);
@@ -1580,7 +1604,7 @@ impl CanvasState {
             if let (Some(cur), Some(last)) = (self.cursor_page, d.nodes.last())
                 && !matches!(self.drag, Drag::BezierHandle)
             {
-                let cur = self.snap_hit.map_or(cur, |s| s.point);
+                let cur = self.draw_end(cur);
                 path.curve_to(pt(last.handle_out.unwrap_or(last.p)), cur, cur);
             }
             self.stroke_bez(painter, rect, ph, &path, thin);
@@ -1738,6 +1762,12 @@ impl CanvasState {
                     self.finish_three(doc, t, start, _defaults);
                     return;
                 }
+                self.smart = Some((
+                    kurbo::Rect::from_points(start, start),
+                    graphdraw_core::edit::smart::targets(doc.page(), &[]),
+                ));
+                self.smart_lines.clear();
+                self.smart_point = None;
                 self.drag = Drag::DrawRect {
                     start,
                     prim: Prim::of(tool),
@@ -1854,6 +1884,11 @@ impl CanvasState {
                             tr("Redimensionar", "Resize"),
                             count(originals.len())
                         ));
+                        self.smart = Some((
+                            b,
+                            graphdraw_core::edit::smart::targets(doc.page(), &doc.selection),
+                        ));
+                        self.smart_lines.clear();
                         self.drag = Drag::Scale {
                             handle: a,
                             bounds: b,
@@ -2024,6 +2059,15 @@ impl CanvasState {
         self.drag = Drag::NodeRubber { start: origin };
     }
 
+    /// Fim do traço de desenho: o encaixe normal, senão o das guias
+    /// inteligentes, senão o cursor.
+    fn draw_end(&self, cur: Point) -> Point {
+        self.snap_hit
+            .map(|s| s.point)
+            .or(self.smart_point)
+            .unwrap_or(cur)
+    }
+
     fn update_drag(&mut self, doc: &mut DocState, cur: Point, mods: egui::Modifiers, _tol: f64) {
         if let Drag::Rubber {
             lasso: Some(pts), ..
@@ -2113,6 +2157,48 @@ impl CanvasState {
                     let s = if sx.abs() > sy.abs() { sx } else { sy };
                     sx = s.abs() * sx.signum();
                     sy = s.abs() * sy.signum();
+                }
+                // Guias inteligentes: a alça encaixa nas bordas e centros dos
+                // outros objetos e da página.
+                self.smart_lines.clear();
+                if self.smart_guides
+                    && self.snap.enabled
+                    && let Some((_, t)) = &self.smart
+                {
+                    let np = Point::new(
+                        fixed.x + (hp.x - fixed.x) * sx,
+                        fixed.y + (hp.y - fixed.y) * sy,
+                    );
+                    let ext = kurbo::Rect::from_points(fixed, np);
+                    let (adj, mut lines) = graphdraw_core::edit::smart::align_point(
+                        np,
+                        ext,
+                        t,
+                        radius,
+                        fx != 0.5 && (hp.x - fixed.x).abs() > 1e-9,
+                        fy != 0.5 && (hp.y - fixed.y).abs() > 1e-9,
+                    );
+                    let fit_x = adj.x != 0.0 || lines.iter().any(|l| l.vertical);
+                    let fit_y = adj.y != 0.0 || lines.iter().any(|l| !l.vertical);
+                    if corner && !mods.shift {
+                        // Proporcional: o eixo que encaixou manda.
+                        if fit_x {
+                            sx = (np.x + adj.x - fixed.x) / (hp.x - fixed.x);
+                            sy = sx.abs() * sy.signum();
+                            lines.retain(|l| l.vertical);
+                        } else if fit_y {
+                            sy = (np.y + adj.y - fixed.y) / (hp.y - fixed.y);
+                            sx = sy.abs() * sx.signum();
+                        }
+                    } else {
+                        if fit_x {
+                            sx = (np.x + adj.x - fixed.x) / (hp.x - fixed.x);
+                        }
+                        if fit_y {
+                            sy = (np.y + adj.y - fixed.y) / (hp.y - fixed.y);
+                        }
+                    }
+                    self.smart_lines = lines;
                 }
                 let clamp = |v: f64| {
                     if v.abs() < 1e-3 {
@@ -2265,8 +2351,23 @@ impl CanvasState {
                     snapped,
                 };
             }
-            Drag::DrawRect { cands, .. } => {
+            Drag::DrawRect { start, cands, .. } => {
                 self.snap_hit = snap::snap_guided_on(&self.guides, cur, cands, &self.snap, radius);
+                self.smart_lines.clear();
+                self.smart_point = None;
+                if self.smart_guides
+                    && self.snap.enabled
+                    && self.snap_hit.is_none()
+                    && let Some((_, t)) = &self.smart
+                {
+                    let ext = kurbo::Rect::from_points(*start, cur);
+                    let (adj, lines) =
+                        graphdraw_core::edit::smart::align_point(cur, ext, t, radius, true, true);
+                    if !lines.is_empty() {
+                        self.smart_point = Some(cur + adj);
+                        self.smart_lines = lines;
+                    }
+                }
             }
             Drag::PolyVertex { inner, r, original } => {
                 if let ObjectKind::Polygon(p0) = &original.kind {
@@ -2325,8 +2426,13 @@ impl CanvasState {
         defaults: &Defaults,
     ) {
         let drag = std::mem::replace(&mut self.drag, Drag::None);
+        let cur = match drag {
+            Drag::DrawRect { .. } => self.draw_end(cur),
+            _ => cur,
+        };
         self.smart = None;
         self.smart_lines.clear();
+        self.smart_point = None;
         match drag {
             Drag::Rubber { start, lasso } => {
                 let hits = match lasso {
@@ -2380,7 +2486,7 @@ impl CanvasState {
             }
             Drag::DrawRect { start, prim, .. } if self.three_point => {
                 // 3 pontos: o arrasto define a base; a altura vem a seguir.
-                let endp = base_end(start, self.snap_hit.map_or(cur, |s| s.point), mods);
+                let endp = base_end(start, self.draw_end(cur), mods);
                 if (endp - start).hypot() * self.view.zoom >= 2.0 {
                     self.three = Some(ThreeDraft {
                         a: start,
@@ -2390,7 +2496,7 @@ impl CanvasState {
                 }
             }
             Drag::DrawRect { start, prim, .. } => {
-                let endp = self.snap_hit.map_or(cur, |s| s.point);
+                let endp = self.draw_end(cur);
                 let r = draw_rect(start, endp, mods);
                 if r.width() * self.view.zoom >= 2.0 && r.height() * self.view.zoom >= 2.0 {
                     let m = Affine::translate((r.x0, r.y0));
@@ -2409,7 +2515,7 @@ impl CanvasState {
             }
             Drag::GuideNew { horizontal } => {
                 let (rtop, rleft, _) = crate::rulers::areas(rect);
-                let p = self.snap_hit.map_or(cur, |s| s.point);
+                let p = self.draw_end(cur);
                 if rect.contains(end) && !rtop.contains(end) && !rleft.contains(end) {
                     let g = if horizontal {
                         graphdraw_core::model::Guide::horizontal(p.y)
@@ -2443,7 +2549,7 @@ impl CanvasState {
             }
             Drag::RulerOrigin => {
                 if rect.contains(end) {
-                    self.ruler_origin = self.snap_hit.map_or(cur, |s| s.point);
+                    self.ruler_origin = self.draw_end(cur);
                 }
             }
             Drag::TextFrame { start } => {
@@ -3266,6 +3372,111 @@ mod tests {
         let b = ops::object_bounds(&doc.editor, &r, false).unwrap();
         assert!((b.x0 - 30_000.0).abs() < 1e-6, "encaixou: {}", b.x0);
         assert!(cs.smart_lines.is_empty(), "linhas somem ao soltar");
+    }
+
+    /// GD-ALI-05: ao redimensionar, a alça encaixa na borda de outro
+    /// objeto; ao desenhar, o canto também.
+    #[test]
+    fn smart_guides_on_resize_and_draw() {
+        let ctx = crate::theme::test_ctx();
+        let mut cs = CanvasState::default();
+        cs.snap.grid = None;
+        cs.snap.objects = false;
+        cs.snap.page = false;
+        cs.snap.guides = false;
+        let mut doc = DocState::new_blank();
+        let sq = |x: f64, y: f64| {
+            let mut o = Object::new(ObjectKind::Rectangle(RectData {
+                width: 20_000.0,
+                height: 20_000.0,
+                corners: None,
+                extra: Map::new(),
+            }));
+            o.transform = graphdraw_core::model::Transform::translate(x, y);
+            o.fill = Some(Fill::solid(graphdraw_core::model::Color::black()));
+            o
+        };
+        let (a, b) = (sq(30_000.0, 150_000.0), sq(100_000.0, 100_000.0));
+        let bid = b.id.clone();
+        for (i, o) in [a, b].into_iter().enumerate() {
+            doc.editor.insert_object(
+                graphdraw_core::edit::ObjLoc {
+                    page: 0,
+                    layer: 0,
+                    index: i,
+                },
+                o,
+            );
+        }
+        doc.selection = vec![bid.clone()];
+        for _ in 0..2 {
+            canvas_frame(&ctx, &mut cs, &mut doc, Tool::Select, vec![]);
+        }
+        let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(1366.0, 768.0));
+        let (_, ph) = doc.page_size();
+        let btn = |pos, pressed| egui::Event::PointerButton {
+            pos,
+            button: PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        let drag = |cs: &mut CanvasState, doc: &mut DocState, tool: Tool, a: Point, b: Point| {
+            let (sa, sb) = (cs.screen(rect, ph, a), cs.screen(rect, ph, b));
+            canvas_frame(&ctx, cs, doc, tool, vec![egui::Event::PointerMoved(sa)]);
+            canvas_frame(&ctx, cs, doc, tool, vec![btn(sa, true)]);
+            let mut saw = false;
+            for k in 1..=6 {
+                let pos = sa + (sb - sa) * (k as f32 / 6.0);
+                canvas_frame(&ctx, cs, doc, tool, vec![egui::Event::PointerMoved(pos)]);
+                saw |= !cs.smart_lines.is_empty();
+            }
+            canvas_frame(&ctx, cs, doc, tool, vec![btn(sb, false)]);
+            saw
+        };
+        // Alça do meio à direita do B (120, 110) até x = 130,3: nada perto,
+        // a largura segue o cursor.
+        drag(
+            &mut cs,
+            &mut doc,
+            Tool::Select,
+            Point::new(120_000.0, 110_000.0),
+            Point::new(130_300.0, 110_000.0),
+        );
+        let r = doc.editor.find(&bid).unwrap();
+        let bb = ops::object_bounds(&doc.editor, &r, false).unwrap();
+        assert!((bb.x1 - 130_300.0).abs() < 50.0, "{}", bb.x1);
+        // Agora até 0,3 mm do centro da página em x (105 mm).
+        doc.editor.undo();
+        let saw = drag(
+            &mut cs,
+            &mut doc,
+            Tool::Select,
+            Point::new(120_000.0, 110_000.0),
+            Point::new(105_300.0, 110_000.0),
+        );
+        let r = doc.editor.find(&bid).unwrap();
+        let bb = ops::object_bounds(&doc.editor, &r, false).unwrap();
+        assert!(saw, "linha ao redimensionar");
+        assert!((bb.x1 - 105_000.0).abs() < 1e-6, "alça encaixou: {}", bb.x1);
+        assert!(
+            (bb.y1 - bb.y0 - 20_000.0).abs() < 1e-6,
+            "lado não muda a altura"
+        );
+        // Desenho: canto final a 0,3 mm da borda esquerda de A (x = 30).
+        doc.selection.clear();
+        let saw = drag(
+            &mut cs,
+            &mut doc,
+            Tool::Rect,
+            Point::new(10_000.0, 40_000.0),
+            Point::new(29_700.0, 60_000.0),
+        );
+        assert!(saw, "linha ao desenhar");
+        let layer = &doc.page().layers[0].objects;
+        let o = layer.last().unwrap();
+        let r = doc.editor.find(&o.id).unwrap();
+        let nb = ops::object_bounds(&doc.editor, &r, false).unwrap();
+        assert!((nb.x1 - 30_000.0).abs() < 1e-6, "canto encaixou: {}", nb.x1);
     }
 
     /// GD-GUI-01: arrastar da régua cria guia; arrastar a guia de volta

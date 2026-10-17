@@ -2,7 +2,7 @@
 //! nas bordas e centros dos outros objetos e da página, e as linhas de
 //! alinhamento aparecem de borda a borda.
 
-use kurbo::{Affine, Rect, Vec2};
+use kurbo::{Affine, Point, Rect, Vec2};
 
 use super::query::bounds;
 use crate::model::Page;
@@ -126,6 +126,57 @@ pub fn align(moving: Rect, t: &Targets, radius: f64) -> (Vec2, Vec<SmartLine>) {
     (Vec2::new(dx, dy), lines)
 }
 
+/// Encaixe de um ponto só (alça de redimensionar, canto do desenho) nas
+/// bordas e centros dos alvos, nos eixos pedidos. `extent` é a caixa que
+/// o ponto define (para o comprimento das linhas).
+pub fn align_point(
+    p: Point,
+    extent: Rect,
+    t: &Targets,
+    radius: f64,
+    x_axis: bool,
+    y_axis: bool,
+) -> (Vec2, Vec<SmartLine>) {
+    let best = |v: f64, keys: fn(&Rect) -> [f64; 3]| -> Option<(f64, Rect, bool)> {
+        let mut best: Option<(f64, Rect, bool)> = None;
+        for (b, page) in &t.boxes {
+            for tk in keys(b) {
+                let d = tk - v;
+                if d.abs() <= radius && best.is_none_or(|(v, ..)| d.abs() < v.abs()) {
+                    best = Some((d, *b, *page));
+                }
+            }
+        }
+        best
+    };
+    let mut adj = Vec2::ZERO;
+    let mut lines = Vec::new();
+    let e = extent.union_pt(p);
+    if x_axis && let Some((d, b, page)) = best(p.x, keys_x) {
+        adj.x = d;
+        lines.push(SmartLine {
+            vertical: true,
+            at: p.x + d,
+            from: e.y0.min(b.y0),
+            to: e.y1.max(b.y1),
+            page,
+            spacing: false,
+        });
+    }
+    if y_axis && let Some((d, b, page)) = best(p.y, keys_y) {
+        adj.y = d;
+        lines.push(SmartLine {
+            vertical: false,
+            at: p.y + d,
+            from: e.x0.min(b.x0),
+            to: e.x1.max(b.x1),
+            page,
+            spacing: false,
+        });
+    }
+    (adj, lines)
+}
+
 type Marks = Box<dyn Fn(Rect) -> Vec<SmartLine>>;
 
 /// Posição (x0 ou y0) que deixa vãos iguais até o vizinho anterior e o
@@ -245,5 +296,26 @@ mod tests {
         assert_eq!(marks.len(), 2);
         assert!((marks[0].to - marks[0].from - 30.0).abs() < 1e-9);
         assert!((marks[1].to - marks[1].from - 30.0).abs() < 1e-9);
+    }
+
+    /// Alça ou canto de desenho: o ponto encaixa na borda e no centro dos
+    /// outros objetos, só nos eixos pedidos.
+    #[test]
+    fn gd_ali_05_point_aligns() {
+        let mut p = Page::new(300.0, 100.0);
+        p.layers[0].objects.push(rect(100.0, 20.0, 40.0, 40.0));
+        let t = targets(&p, &[]);
+        let ext = Rect::new(10.0, 10.0, 99.0, 41.0);
+        let (adj, lines) = align_point(Point::new(99.0, 41.0), ext, &t, 2.5, true, true);
+        assert!(
+            (adj.x - 1.0).abs() < 1e-9 && (adj.y + 1.0).abs() < 1e-9,
+            "{adj:?}"
+        );
+        assert_eq!(lines.len(), 2);
+        assert!(lines[0].vertical && (lines[0].at - 100.0).abs() < 1e-9);
+        assert!((lines[1].at - 40.0).abs() < 1e-9, "centro do outro objeto");
+        // Só no eixo x: y fica como está.
+        let (adj, lines) = align_point(Point::new(99.0, 41.0), ext, &t, 2.5, true, false);
+        assert_eq!((adj.y, lines.len()), (0.0, 1));
     }
 }

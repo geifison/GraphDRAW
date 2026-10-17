@@ -404,6 +404,8 @@ Nós não selecionados têm fundo `#FFFFFF`; selecionados, fundo
   `guide-page`.
 - Espaçamento igual: marcadores em barra com a distância ao vivo (ex.:
   `12 mm`).
+- Valem ao mover, ao redimensionar (a alça encaixa; no canto proporcional
+  manda o eixo que encaixou) e ao desenhar (o canto final encaixa).
 - **Raio de atração: 6 px de tela.**
 
 ### 5.3 Página
@@ -482,7 +484,6 @@ Itens abertos, em ordem de impacto:
 
 | Item | Hoje | Alvo |
 |---|---|---|
-| Guias inteligentes | linhas de 1 px de borda a borda e marcadores de espaçamento igual ao mover | guias também ao redimensionar e ao desenhar (5.2) |
 | Entrada animada de menus | padrão do egui (só opacidade) | deslocamento de 4 px + opacidade em `motion-fast` |
 | Botão Split (▾ com variantes) | não existe | quando houver ferramenta com variantes (4.1) |
 
