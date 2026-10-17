@@ -141,6 +141,15 @@ const icons = {
   combine: `<path d="M4 4 H20 V20 H4 Z M9 9 V15 H15 V9 Z" fill="#fff" fill-rule="evenodd"/>`,
   "break-apart": `<rect x="3.5" y="3.5" width="8" height="8" rx="1"/><rect x="12.5" y="12.5" width="8" height="8" rx="1"/><path d="M14 6 H18 V10 M10 18 H6 V14"/>`,
   offset: `<rect x="7.5" y="7.5" width="9" height="9" rx="1"/><rect x="3.5" y="3.5" width="17" height="17" rx="4" stroke-dasharray="2 2"/>`,
+  // ---- distribuir (GD-ALI-03) ----
+  "dist-left": `<path d="M4 3.5V20.5 M11 3.5V20.5 M18 3.5V20.5" stroke-dasharray="1.6 1.8"/><rect x="4" y="6" width="4" height="5" rx="0.8" fill="#fff"/><rect x="11" y="10" width="5" height="5" rx="0.8" fill="#fff"/><rect x="18" y="14" width="3" height="5" rx="0.8" fill="#fff"/>`,
+  "dist-bottom": `<g transform="rotate(-90 12 12)"><path d="M4 3.5V20.5 M11 3.5V20.5 M18 3.5V20.5" stroke-dasharray="1.6 1.8"/><rect x="4" y="6" width="4" height="5" rx="0.8" fill="#fff"/><rect x="11" y="10" width="5" height="5" rx="0.8" fill="#fff"/><rect x="18" y="14" width="3" height="5" rx="0.8" fill="#fff"/></g>`,
+  "dist-center-h": `<path d="M5.5 3.5V20.5 M12 3.5V20.5 M18.5 3.5V20.5" stroke-dasharray="1.6 1.8"/><rect x="3.5" y="6" width="4" height="5" rx="0.8" fill="#fff"/><rect x="9.5" y="10" width="5" height="5" rx="0.8" fill="#fff"/><rect x="17" y="14" width="3" height="5" rx="0.8" fill="#fff"/>`,
+  "dist-center-v": `<g transform="rotate(-90 12 12)"><path d="M5.5 3.5V20.5 M12 3.5V20.5 M18.5 3.5V20.5" stroke-dasharray="1.6 1.8"/><rect x="3.5" y="6" width="4" height="5" rx="0.8" fill="#fff"/><rect x="9.5" y="10" width="5" height="5" rx="0.8" fill="#fff"/><rect x="17" y="14" width="3" height="5" rx="0.8" fill="#fff"/></g>`,
+  "dist-right": `<path d="M7 3.5V20.5 M14 3.5V20.5 M20.5 3.5V20.5" stroke-dasharray="1.6 1.8"/><rect x="3" y="6" width="4" height="5" rx="0.8" fill="#fff"/><rect x="9" y="10" width="5" height="5" rx="0.8" fill="#fff"/><rect x="17.5" y="14" width="3" height="5" rx="0.8" fill="#fff"/>`,
+  "dist-top": `<g transform="rotate(-90 12 12)"><path d="M7 3.5V20.5 M14 3.5V20.5 M20.5 3.5V20.5" stroke-dasharray="1.6 1.8"/><rect x="3" y="6" width="4" height="5" rx="0.8" fill="#fff"/><rect x="9" y="10" width="5" height="5" rx="0.8" fill="#fff"/><rect x="17.5" y="14" width="3" height="5" rx="0.8" fill="#fff"/></g>`,
+  "dist-space-h": `<rect x="3" y="7" width="4" height="10" rx="0.8" fill="#fff"/><rect x="10" y="7" width="4" height="10" rx="0.8" fill="#fff"/><rect x="17" y="7" width="4" height="10" rx="0.8" fill="#fff"/><path d="M7.5 20 H9.5 M14.5 20 H16.5"/>`,
+  "dist-space-v": `<g transform="rotate(-90 12 12)"><rect x="3" y="7" width="4" height="10" rx="0.8" fill="#fff"/><rect x="10" y="7" width="4" height="10" rx="0.8" fill="#fff"/><rect x="17" y="7" width="4" height="10" rx="0.8" fill="#fff"/><path d="M7.5 20 H9.5 M14.5 20 H16.5"/></g>`,
   // ---- painéis (área de trabalho, GD-UI-03) ----
   "panel-collapse": `<rect x="3.5" y="4.5" width="17" height="15" rx="1.5"/><path d="M14.5 4.5 V19.5"/><path d="M7.5 9 L10.5 12 L7.5 15"/>`,
   "panel-expand": `<rect x="3.5" y="4.5" width="17" height="15" rx="1.5"/><path d="M14.5 4.5 V19.5"/><path d="M10.5 9 L7.5 12 L10.5 15"/>`,

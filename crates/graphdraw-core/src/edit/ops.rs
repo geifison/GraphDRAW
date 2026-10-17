@@ -632,6 +632,151 @@ pub fn move_to_layer(ed: &mut Editor, sel: &[String], page: usize, layer: usize)
     );
 }
 
+/// Distribuir (GD-ALI-03): por qual referência os objetos ficam com
+/// espaçamento igual.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Distribute {
+    Left,
+    CenterH,
+    Right,
+    /// Vãos iguais entre as caixas, na horizontal.
+    SpaceH,
+    Top,
+    CenterV,
+    Bottom,
+    /// Vãos iguais entre as caixas, na vertical.
+    SpaceV,
+}
+
+impl Distribute {
+    fn horizontal(self) -> bool {
+        matches!(
+            self,
+            Distribute::Left | Distribute::CenterH | Distribute::Right | Distribute::SpaceH
+        )
+    }
+}
+
+/// Distribui a seleção (GD-ALI-03). `within`: `None` = na extensão da
+/// própria seleção (os extremos ficam onde estão); `Some(r)` = na
+/// extensão de `r` (ex.: a página). `gap`: espaçamento fixo (µm) entre
+/// as referências (ou entre as caixas, nos modos de vão), começando pelo
+/// primeiro objeto. Um passo no histórico.
+pub fn distribute(
+    ed: &mut Editor,
+    sel: &[String],
+    how: Distribute,
+    within: Option<Rect>,
+    gap: Option<f64>,
+    visual: bool,
+) {
+    let mut objs: Vec<(String, Rect)> = sel
+        .iter()
+        .filter_map(|id| Some((id.clone(), object_bounds(ed, &ed.find(id)?, visual)?)))
+        .collect();
+    let min = if within.is_some() || gap.is_some() {
+        2
+    } else {
+        3
+    };
+    if objs.len() < min {
+        return;
+    }
+    let h = how.horizontal();
+    // Referência de cada caixa no eixo e o tamanho dela.
+    let key = |b: &Rect| -> f64 {
+        match how {
+            Distribute::Left => b.x0,
+            Distribute::CenterH => b.center().x,
+            Distribute::Right => b.x1,
+            Distribute::SpaceH => b.x0,
+            Distribute::Bottom => b.y0,
+            Distribute::CenterV => b.center().y,
+            Distribute::Top => b.y1,
+            Distribute::SpaceV => b.y0,
+        }
+    };
+    let size = |b: &Rect| if h { b.width() } else { b.height() };
+    objs.sort_by(|a, b| key(&a.1).total_cmp(&key(&b.1)));
+    let n = objs.len();
+    let space = matches!(how, Distribute::SpaceH | Distribute::SpaceV);
+    // Posições-alvo da referência de cada caixa.
+    let targets: Vec<f64> = if space {
+        let total: f64 = objs.iter().map(|o| size(&o.1)).sum();
+        let (start, end) = match within {
+            Some(r) => {
+                if h {
+                    (r.x0, r.x1)
+                } else {
+                    (r.y0, r.y1)
+                }
+            }
+            None => {
+                let first = &objs[0].1;
+                let last = &objs[n - 1].1;
+                if h {
+                    (first.x0, last.x1)
+                } else {
+                    (first.y0, last.y1)
+                }
+            }
+        };
+        let g = gap.unwrap_or((end - start - total) / (n as f64 - 1.0));
+        let mut at = start;
+        objs.iter()
+            .map(|o| {
+                let t = at;
+                at += size(&o.1) + g;
+                t
+            })
+            .collect()
+    } else {
+        let (start, end) = match within {
+            Some(r) => {
+                // Na página: as referências vão das bordas (descontado o
+                // tamanho dos extremos) às bordas.
+                let (lo, hi) = if h { (r.x0, r.x1) } else { (r.y0, r.y1) };
+                let first = size(&objs[0].1);
+                let last = size(&objs[n - 1].1);
+                match how {
+                    Distribute::Left | Distribute::Bottom => (lo, hi - last),
+                    Distribute::Right | Distribute::Top => (lo + first, hi),
+                    _ => (lo + first / 2.0, hi - last / 2.0),
+                }
+            }
+            None => (key(&objs[0].1), key(&objs[n - 1].1)),
+        };
+        let step = gap.unwrap_or((end - start) / (n as f64 - 1.0));
+        (0..n).map(|i| start + step * i as f64).collect()
+    };
+    let name = if h {
+        "Distribuir na horizontal"
+    } else {
+        "Distribuir na vertical"
+    };
+    ed.transaction(name, |ed| {
+        for ((id, b), t) in objs.iter().zip(targets) {
+            let now = if space {
+                if h { b.x0 } else { b.y0 }
+            } else {
+                key(b)
+            };
+            let d = t - now;
+            if d.abs() > 1e-9 {
+                let v = if h {
+                    Vec2::new(d, 0.0)
+                } else {
+                    Vec2::new(0.0, d)
+                };
+                let r = ed.find(id).unwrap();
+                let mut o = ed.get(&r).unwrap().clone();
+                o.transform = page_transform(ed, &r, &o, Affine::translate(v));
+                ed.replace_at(&r, o);
+            }
+        }
+    });
+}
+
 /// Destino de um objeto arrastado no painel de camadas.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DropAt {
@@ -1310,5 +1455,39 @@ mod tests {
         assert!(!move_to(&mut ed, &g, &DropAt::Above(ids[0].clone())));
         ed.undo();
         assert_eq!(order(&ed, 1), vec![1]);
+    }
+
+    /// GD-ALI-03: distribuir por bordas, centros, vãos iguais e espaçamento
+    /// fixo, na extensão da seleção ou da página.
+    #[test]
+    fn gd_ali_03_distribute() {
+        // setup(): x = 10 (w 10), 50 (w 20), 100 (w 30).
+        let (mut ed, ids) = setup();
+        let lefts = |ed: &Editor| ids.iter().map(|i| b(ed, i).x0).collect::<Vec<_>>();
+        distribute(&mut ed, &ids, Distribute::Left, None, None, false);
+        assert_eq!(lefts(&ed), vec![10.0, 55.0, 100.0]);
+        ed.undo();
+        // Vãos iguais: caixas somam 60 entre 10 e 130 → vãos de 30.
+        distribute(&mut ed, &ids, Distribute::SpaceH, None, None, false);
+        assert_eq!(lefts(&ed), vec![10.0, 50.0, 100.0], "já estavam com vão 30");
+        // Espaçamento fixo de 5 entre as caixas, a partir do primeiro.
+        distribute(&mut ed, &ids, Distribute::SpaceH, None, Some(5.0), false);
+        assert_eq!(lefts(&ed), vec![10.0, 25.0, 50.0]);
+        // Centros na largura da página (200): extremos encostam nas bordas.
+        distribute(
+            &mut ed,
+            &ids,
+            Distribute::CenterH,
+            Some(Rect::new(0.0, 0.0, 200.0, 100.0)),
+            None,
+            false,
+        );
+        let c: Vec<f64> = ids.iter().map(|i| b(&ed, i).center().x).collect();
+        assert!((c[0] - 5.0).abs() < 1e-9 && (c[2] - 185.0).abs() < 1e-9);
+        assert!((c[1] - 95.0).abs() < 1e-9);
+        // Com menos de 3 na seleção não há o que distribuir.
+        let before = lefts(&ed);
+        distribute(&mut ed, &ids[..2], Distribute::Left, None, None, false);
+        assert_eq!(lefts(&ed), before);
     }
 }

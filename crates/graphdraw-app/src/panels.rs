@@ -1896,6 +1896,11 @@ fn transform_panel(ui: &mut egui::Ui, doc: &mut DocState, xf: &mut TransformUi) 
 pub struct AlignUi {
     pub to: usize,
     pub visual: bool,
+    /// Distribuir na extensão da página (senão, da seleção).
+    pub dist_page: bool,
+    /// Espaçamento fixo (µm) ao distribuir, se ligado.
+    pub dist_fixed: bool,
+    pub dist_gap: f64,
 }
 
 /// Painel Alinhar (GD-ALI-01/02).
@@ -1975,6 +1980,87 @@ fn align_panel(ui: &mut egui::Ui, doc: &mut DocState, al: &mut AlignUi) {
             tr("Selecione ao menos 2 objetos", "Select at least 2 objects")
         } else {
             tr("Selecione objetos", "Select objects")
+        });
+    }
+    // Distribuir (GD-ALI-03).
+    ui.separator();
+    ui.label(egui::RichText::new(tr("Distribuir", "Distribute")).strong());
+    ui.horizontal(|ui| {
+        ui.radio_value(&mut al.dist_page, false, tr("Na seleção", "In selection"));
+        ui.radio_value(&mut al.dist_page, true, tr("Na página", "On page"));
+    });
+    ui.horizontal(|ui| {
+        ui.checkbox(&mut al.dist_fixed, tr("Espaçamento fixo", "Fixed spacing"));
+        if al.dist_fixed
+            && let Some(v) = length_field(ui, "dist-gap", al.dist_gap, None)
+        {
+            al.dist_gap = v.max(0.0);
+        }
+    });
+    let within = al.dist_page.then(|| kurbo::Rect::new(0.0, 0.0, pw, ph));
+    let gap = al.dist_fixed.then_some(al.dist_gap);
+    let need = if within.is_some() || gap.is_some() {
+        2
+    } else {
+        3
+    };
+    let can = sel.len() >= need;
+    use ops::Distribute as D;
+    for row in [
+        [
+            (
+                "dist-left",
+                tr("Pelas bordas esquerdas", "By left edges"),
+                D::Left,
+            ),
+            (
+                "dist-center-h",
+                tr("Pelos centros (horizontal)", "By centers (horizontal)"),
+                D::CenterH,
+            ),
+            (
+                "dist-right",
+                tr("Pelas bordas direitas", "By right edges"),
+                D::Right,
+            ),
+            (
+                "dist-space-h",
+                tr("Vãos iguais na horizontal", "Equal gaps horizontally"),
+                D::SpaceH,
+            ),
+        ],
+        [
+            ("dist-top", tr("Pelos topos", "By top edges"), D::Top),
+            (
+                "dist-center-v",
+                tr("Pelos centros (vertical)", "By centers (vertical)"),
+                D::CenterV,
+            ),
+            (
+                "dist-bottom",
+                tr("Pelas bases", "By bottom edges"),
+                D::Bottom,
+            ),
+            (
+                "dist-space-v",
+                tr("Vãos iguais na vertical", "Equal gaps vertically"),
+                D::SpaceV,
+            ),
+        ],
+    ] {
+        ui.horizontal(|ui| {
+            for (icon, tip, how) in row {
+                if icons::button(ui, icon, tip, false, can).clicked() {
+                    ops::distribute(&mut doc.editor, &sel, how, within, gap, al.visual);
+                }
+            }
+        });
+    }
+    if !can {
+        ui.weak(if need == 3 {
+            tr("Selecione ao menos 3 objetos", "Select at least 3 objects")
+        } else {
+            tr("Selecione ao menos 2 objetos", "Select at least 2 objects")
         });
     }
 }

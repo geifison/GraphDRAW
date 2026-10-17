@@ -319,7 +319,7 @@ Do M1:
   arrastar), tudo, inverter e semelhantes (mesmo tipo, preenchimento ou cor
   de contorno). Os semelhantes comparam só objetos de primeiro nível.
 - Retângulo e elipse têm o modo 3 pontos (GD-FER-30/31) na barra de
-  propriedades; distribuir (painel Alinhar) é do M3.
+  propriedades; o painel Alinhar também distribui (GD-ALI-03).
 - Painéis (GD-UI-03): coluna à direita com abas, recolhível numa faixa de
   ícones, painéis soltos em janelas e área de trabalho salva no perfil do
   usuário; ainda não há vários perfis de área nem encaixe em outros lados. Atalhos têm
