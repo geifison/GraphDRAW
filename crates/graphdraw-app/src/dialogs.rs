@@ -130,7 +130,7 @@ fn icon_choice(
 
 /// Padrões de traço em múltiplos da espessura (mínimo 0,25 mm, para que
 /// fio de cabelo também tenha tracejado visível).
-const DASHES: &[(&str, &str, &[f64])] = &[
+pub(crate) const DASHES: &[(&str, &str, &[f64])] = &[
     ("Sólido", "Solid", &[]),
     ("Tracejado", "Dashed", &[4.0, 2.0]),
     ("Traço longo", "Long dash", &[8.0, 3.0]),
@@ -143,12 +143,12 @@ fn dash_unit(width: f64) -> f64 {
     width.max(250.0)
 }
 
-fn dash_for(preset: usize, width: f64) -> Option<Vec<f64>> {
+pub(crate) fn dash_for(preset: usize, width: f64) -> Option<Vec<f64>> {
     let p = DASHES.get(preset)?.2;
     (!p.is_empty()).then(|| p.iter().map(|k| k * dash_unit(width)).collect())
 }
 
-fn detect_dash(s: &Stroke) -> usize {
+pub(crate) fn detect_dash(s: &Stroke) -> usize {
     match &s.dash {
         None => 0,
         Some(d) => DASHES
@@ -529,7 +529,7 @@ fn merge_changes(s: &mut Stroke, old: &Stroke, new: &Stroke) {
 }
 
 /// Nome da forma de ponta na interface.
-fn arrow_label(shape: &str) -> &'static str {
+pub(crate) fn arrow_label(shape: &str) -> &'static str {
     match shape {
         "open" => tr("Aberta", "Open"),
         "barbed" => tr("Farpada", "Barbed"),

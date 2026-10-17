@@ -1157,130 +1157,6 @@ fn select_bar(
     let Some(b) = ops::selection_bounds(&doc.editor, &sel, false) else {
         return page_bar_props(ui, doc);
     };
-    // Booleanas com dois ou mais objetos (doc 09): alvo = último selecionado.
-    if sel.len() >= 2 {
-        use crate::keymap::{Command as K, hint};
-        use graphdraw_core::edit::shapeops::{self, BoolOp, ShapeOp};
-        #[derive(Clone, Copy)]
-        enum B {
-            Bool(BoolOp),
-            Shape(ShapeOp),
-        }
-        let buttons = [
-            (
-                "bool-weld",
-                hint(tr("Soldar", "Weld"), K::Weld),
-                B::Bool(BoolOp::Weld),
-            ),
-            (
-                "bool-trim",
-                hint(
-                    tr(
-                        "Aparar: o último selecionado perde a área dos outros",
-                        "Trim: the last selected loses the others' area",
-                    ),
-                    K::Trim,
-                ),
-                B::Bool(BoolOp::Trim),
-            ),
-            (
-                "bool-intersect",
-                hint(
-                    tr(
-                        "Interseção: novo objeto com a área comum",
-                        "Intersect: new object with the common area",
-                    ),
-                    K::Intersect,
-                ),
-                B::Bool(BoolOp::Intersect),
-            ),
-            (
-                "bool-simplify",
-                hint(
-                    tr(
-                        "Simplificar: cada objeto fica só com a área visível",
-                        "Simplify: each object keeps only its visible area",
-                    ),
-                    K::Simplify,
-                ),
-                B::Shape(ShapeOp::Simplify),
-            ),
-            (
-                "bool-exclude",
-                hint(
-                    tr(
-                        "Excluir: só a área sem sobreposição",
-                        "Exclude: only the non-overlapping area",
-                    ),
-                    K::Exclude,
-                ),
-                B::Shape(ShapeOp::Exclude),
-            ),
-            (
-                "bool-front-minus",
-                hint(
-                    tr(
-                        "Frente menos trás: o da frente perde a área dos demais",
-                        "Front minus back: the front object loses the others' area",
-                    ),
-                    K::FrontMinusBack,
-                ),
-                B::Shape(ShapeOp::FrontMinusBack),
-            ),
-            (
-                "bool-back-minus",
-                hint(
-                    tr(
-                        "Trás menos frente: o de trás perde a área dos demais",
-                        "Back minus front: the back object loses the others' area",
-                    ),
-                    K::BackMinusFront,
-                ),
-                B::Shape(ShapeOp::BackMinusFront),
-            ),
-            (
-                "bool-divide",
-                hint(
-                    tr(
-                        "Dividir: cada região de sobreposição vira um objeto",
-                        "Divide: each overlap region becomes an object",
-                    ),
-                    K::Divide,
-                ),
-                B::Shape(ShapeOp::Divide),
-            ),
-            (
-                "bool-boundary",
-                hint(
-                    tr(
-                        "Limite: novo contorno em volta da seleção",
-                        "Boundary: new outline around the selection",
-                    ),
-                    K::Boundary,
-                ),
-                B::Shape(ShapeOp::Boundary),
-            ),
-        ];
-        let mut picked = None;
-        widgets::stack(ui, |ui, row| {
-            let range = if row == 0 { 0..5 } else { 5..buttons.len() };
-            for (icon, tip, op) in &buttons[range] {
-                if icons::button(ui, icon, tip, false, true).clicked() {
-                    picked = Some(*op);
-                }
-            }
-        });
-        let result = match picked {
-            Some(B::Bool(op)) => shapeops::boolean(&mut doc.editor, &sel, op, op.default_options()),
-            Some(B::Shape(op)) => shapeops::shape_op(&mut doc.editor, &sel, op),
-            None => None,
-        };
-        if let Some(n) = result {
-            doc.selection = n;
-            return false;
-        }
-        ui.separator();
-    }
     anchor_picker(ui, anchor);
     let p = anchor.point(b);
     let (mut nx, mut ny) = (None, None);
@@ -1393,95 +1269,8 @@ fn select_bar(
             tr("Espelhar", "Mirror"),
         );
     }
-    ui.separator();
-    let mut order_buttons = Vec::new();
-    for (icon, tip, order) in [
-        (
-            "order-front",
-            crate::keymap::hint(
-                tr("Trazer para frente", "Bring to front"),
-                crate::keymap::Command::ToFront,
-            ),
-            Order::ToFront,
-        ),
-        (
-            "order-forward",
-            crate::keymap::hint(
-                tr("Um passo à frente", "Bring forward"),
-                crate::keymap::Command::Forward,
-            ),
-            Order::Forward,
-        ),
-        (
-            "order-backward",
-            crate::keymap::hint(
-                tr("Um passo atrás", "Send backward"),
-                crate::keymap::Command::Backward,
-            ),
-            Order::Backward,
-        ),
-        (
-            "order-back",
-            crate::keymap::hint(
-                tr("Enviar para trás", "Send to back"),
-                crate::keymap::Command::ToBack,
-            ),
-            Order::ToBack,
-        ),
-    ] {
-        order_buttons.push((icon, tip, order));
-    }
-    let mut reorder = None;
-    let mut buttons = |ui: &mut egui::Ui, items: &[(&str, &str, Order)]| {
-        for (icon, tip, order) in items {
-            if icons::button(ui, icon, tip, false, true).clicked() {
-                reorder = Some(*order);
-            }
-        }
-    };
-    widgets::stack(ui, |ui, row| {
-        if row == 0 {
-            buttons(ui, &order_buttons[..2]);
-        } else {
-            buttons(ui, &order_buttons[2..]);
-        }
-    });
-    if let Some(o) = reorder {
-        ops::reorder(&mut doc.editor, &sel, o);
-    }
-    ui.separator();
-    let any_group = doc
-        .selected_objects()
-        .iter()
-        .any(|o| matches!(o.kind, ObjectKind::Group(_)));
-    let (mut do_group, mut do_ungroup) = (false, false);
-    widgets::stack(ui, |ui, row| {
-        if row == 0 {
-            do_group = icons::button(
-                ui,
-                "group",
-                crate::keymap::hint(tr("Agrupar", "Group"), crate::keymap::Command::Group_),
-                false,
-                sel.len() > 1,
-            )
-            .clicked();
-        } else {
-            do_ungroup = icons::button(
-                ui,
-                "ungroup",
-                crate::keymap::hint(tr("Desagrupar", "Ungroup"), crate::keymap::Command::Ungroup),
-                false,
-                any_group,
-            )
-            .clicked();
-        }
-    });
-    if do_group && let Some(id) = ops::group(&mut doc.editor, &sel) {
-        doc.selection = vec![id];
-    }
-    if do_ungroup {
-        doc.selection = ops::ungroup(&mut doc.editor, &sel);
-    }
+    // ---- depois do ângulo: grupos do contexto (DESIGN-SYSTEM 4.6) ----
+    // 1. Parâmetros do objeto (primitivas).
     // Primitivas (GD-PRI-01/02): parâmetros editáveis até converter em curvas.
     let objs = doc.selected_objects();
     let has_primitive = objs.iter().any(|o| {
@@ -1631,6 +1420,396 @@ fn select_bar(
             }
             _ => {}
         }
+    } // 2. Contorno (edição rápida).
+    if stroke_bar(ui, doc, &sel) {
+        return false;
+    }
+    // 3. Combinar: booleanas (2 ou mais objetos).
+    // Booleanas com dois ou mais objetos (doc 09): alvo = último selecionado.
+    if sel.len() >= 2 {
+        ui.separator();
+        use crate::keymap::{Command as K, hint};
+        use graphdraw_core::edit::shapeops::{self, BoolOp, ShapeOp};
+        #[derive(Clone, Copy)]
+        enum B {
+            Bool(BoolOp),
+            Shape(ShapeOp),
+        }
+        let buttons = [
+            (
+                "bool-weld",
+                hint(tr("Soldar", "Weld"), K::Weld),
+                B::Bool(BoolOp::Weld),
+            ),
+            (
+                "bool-trim",
+                hint(
+                    tr(
+                        "Aparar: o último selecionado perde a área dos outros",
+                        "Trim: the last selected loses the others' area",
+                    ),
+                    K::Trim,
+                ),
+                B::Bool(BoolOp::Trim),
+            ),
+            (
+                "bool-intersect",
+                hint(
+                    tr(
+                        "Interseção: novo objeto com a área comum",
+                        "Intersect: new object with the common area",
+                    ),
+                    K::Intersect,
+                ),
+                B::Bool(BoolOp::Intersect),
+            ),
+            (
+                "bool-simplify",
+                hint(
+                    tr(
+                        "Simplificar: cada objeto fica só com a área visível",
+                        "Simplify: each object keeps only its visible area",
+                    ),
+                    K::Simplify,
+                ),
+                B::Shape(ShapeOp::Simplify),
+            ),
+            (
+                "bool-exclude",
+                hint(
+                    tr(
+                        "Excluir: só a área sem sobreposição",
+                        "Exclude: only the non-overlapping area",
+                    ),
+                    K::Exclude,
+                ),
+                B::Shape(ShapeOp::Exclude),
+            ),
+            (
+                "bool-front-minus",
+                hint(
+                    tr(
+                        "Frente menos trás: o da frente perde a área dos demais",
+                        "Front minus back: the front object loses the others' area",
+                    ),
+                    K::FrontMinusBack,
+                ),
+                B::Shape(ShapeOp::FrontMinusBack),
+            ),
+            (
+                "bool-back-minus",
+                hint(
+                    tr(
+                        "Trás menos frente: o de trás perde a área dos demais",
+                        "Back minus front: the back object loses the others' area",
+                    ),
+                    K::BackMinusFront,
+                ),
+                B::Shape(ShapeOp::BackMinusFront),
+            ),
+            (
+                "bool-divide",
+                hint(
+                    tr(
+                        "Dividir: cada região de sobreposição vira um objeto",
+                        "Divide: each overlap region becomes an object",
+                    ),
+                    K::Divide,
+                ),
+                B::Shape(ShapeOp::Divide),
+            ),
+            (
+                "bool-boundary",
+                hint(
+                    tr(
+                        "Limite: novo contorno em volta da seleção",
+                        "Boundary: new outline around the selection",
+                    ),
+                    K::Boundary,
+                ),
+                B::Shape(ShapeOp::Boundary),
+            ),
+        ];
+        let mut picked = None;
+        widgets::stack(ui, |ui, row| {
+            let range = if row == 0 { 0..5 } else { 5..buttons.len() };
+            for (icon, tip, op) in &buttons[range] {
+                if icons::button(ui, icon, tip, false, true).clicked() {
+                    picked = Some(*op);
+                }
+            }
+        });
+        let result = match picked {
+            Some(B::Bool(op)) => shapeops::boolean(&mut doc.editor, &sel, op, op.default_options()),
+            Some(B::Shape(op)) => shapeops::shape_op(&mut doc.editor, &sel, op),
+            None => None,
+        };
+        if let Some(n) = result {
+            doc.selection = n;
+            return false;
+        }
+    }
+    // 4. Ordem e agrupar.
+    ui.separator();
+    let mut order_buttons = Vec::new();
+    for (icon, tip, order) in [
+        (
+            "order-front",
+            crate::keymap::hint(
+                tr("Trazer para frente", "Bring to front"),
+                crate::keymap::Command::ToFront,
+            ),
+            Order::ToFront,
+        ),
+        (
+            "order-forward",
+            crate::keymap::hint(
+                tr("Um passo à frente", "Bring forward"),
+                crate::keymap::Command::Forward,
+            ),
+            Order::Forward,
+        ),
+        (
+            "order-backward",
+            crate::keymap::hint(
+                tr("Um passo atrás", "Send backward"),
+                crate::keymap::Command::Backward,
+            ),
+            Order::Backward,
+        ),
+        (
+            "order-back",
+            crate::keymap::hint(
+                tr("Enviar para trás", "Send to back"),
+                crate::keymap::Command::ToBack,
+            ),
+            Order::ToBack,
+        ),
+    ] {
+        order_buttons.push((icon, tip, order));
+    }
+    let mut reorder = None;
+    let mut buttons = |ui: &mut egui::Ui, items: &[(&str, &str, Order)]| {
+        for (icon, tip, order) in items {
+            if icons::button(ui, icon, tip, false, true).clicked() {
+                reorder = Some(*order);
+            }
+        }
+    };
+    widgets::stack(ui, |ui, row| {
+        if row == 0 {
+            buttons(ui, &order_buttons[..2]);
+        } else {
+            buttons(ui, &order_buttons[2..]);
+        }
+    });
+    if let Some(o) = reorder {
+        ops::reorder(&mut doc.editor, &sel, o);
+    }
+    ui.separator();
+    let any_group = doc
+        .selected_objects()
+        .iter()
+        .any(|o| matches!(o.kind, ObjectKind::Group(_)));
+    let (mut do_group, mut do_ungroup) = (false, false);
+    widgets::stack(ui, |ui, row| {
+        if row == 0 {
+            do_group = icons::button(
+                ui,
+                "group",
+                crate::keymap::hint(tr("Agrupar", "Group"), crate::keymap::Command::Group_),
+                false,
+                sel.len() > 1,
+            )
+            .clicked();
+        } else {
+            do_ungroup = icons::button(
+                ui,
+                "ungroup",
+                crate::keymap::hint(tr("Desagrupar", "Ungroup"), crate::keymap::Command::Ungroup),
+                false,
+                any_group,
+            )
+            .clicked();
+        }
+    });
+    if do_group && let Some(id) = ops::group(&mut doc.editor, &sel) {
+        doc.selection = vec![id];
+    }
+    if do_ungroup {
+        doc.selection = ops::ungroup(&mut doc.editor, &sel);
+    }
+
+    false
+}
+
+/// Contorno na barra de propriedades (edição rápida; a janela de contorno
+/// fica para o ajuste fino): espessura, estilo de linha e, quando cabe,
+/// pontas de seta (curvas abertas) e caneta caligráfica. Devolve `true` se
+/// a seleção mudou.
+fn stroke_bar(ui: &mut egui::Ui, doc: &mut DocState, sel: &[String]) -> bool {
+    use crate::dialogs::{DASHES, arrow_label, dash_for, detect_dash};
+    use graphdraw_core::model::{Arrow, Stroke};
+    let objs = doc.selected_objects();
+    let eligible: Vec<_> = objs
+        .iter()
+        .filter(|o| !matches!(o.kind, ObjectKind::Image(_)))
+        .collect();
+    if eligible.is_empty() {
+        return false;
+    }
+    let current: Option<Stroke> = eligible.iter().find_map(|o| o.stroke.clone());
+    let open_path = eligible.iter().any(|o| match &o.kind {
+        ObjectKind::Path(p) => p.subpaths.iter().any(|s| !s.closed),
+        _ => false,
+    });
+    drop(objs);
+    type Edit = Box<dyn Fn(&mut Stroke)>;
+    let mut edit: Option<(&str, Edit)> = None;
+    let mut remove = false;
+    let width = current.as_ref().map_or(0.0, |s| s.width);
+    ui.separator();
+    widgets::stack(ui, |ui, row| {
+        if row == 0 {
+            if let Some(v) = widgets::labeled_length(
+                ui,
+                tr("Contorno", "Outline"),
+                "contorno-espessura",
+                width,
+                None,
+            ) {
+                let v = v.max(0.0);
+                edit = Some((
+                    tr("Espessura do contorno", "Outline width"),
+                    Box::new(move |s| s.width = v),
+                ));
+            }
+        } else {
+            let preset = current.as_ref().map_or(0, detect_dash);
+            let text = if current.is_none() {
+                tr("Sem contorno", "No outline")
+            } else {
+                DASHES
+                    .get(preset)
+                    .map_or(tr("Personalizado", "Custom"), |d| tr(d.0, d.1))
+            };
+            egui::ComboBox::from_id_salt("contorno-estilo")
+                .selected_text(text)
+                .width(theme::ARROW_COMBO_WIDTH)
+                .show_ui(ui, |ui| {
+                    if ui
+                        .selectable_label(current.is_none(), tr("Sem contorno", "No outline"))
+                        .clicked()
+                    {
+                        remove = true;
+                    }
+                    for (i, d) in DASHES.iter().enumerate() {
+                        if ui
+                            .selectable_label(current.is_some() && preset == i, tr(d.0, d.1))
+                            .clicked()
+                        {
+                            edit = Some((
+                                tr("Estilo do contorno", "Outline style"),
+                                Box::new(move |s| s.dash = dash_for(i, s.width)),
+                            ));
+                        }
+                    }
+                });
+        }
+    });
+    // Pontas de seta: só com curva aberta.
+    if open_path {
+        let (start, end) = current.as_ref().map_or((None, None), |s| {
+            (s.start_arrow.clone(), s.end_arrow.clone())
+        });
+        widgets::stack(ui, |ui, row| {
+            let (label, id, cur, is_start) = if row == 0 {
+                (tr("Início", "Start"), "barra-seta-inicio", &start, true)
+            } else {
+                (tr("Fim", "End"), "barra-seta-fim", &end, false)
+            };
+            ui.label(label);
+            let text = cur
+                .as_ref()
+                .map_or(tr("Nenhuma", "None"), |a| arrow_label(&a.shape));
+            egui::ComboBox::from_id_salt(id)
+                .selected_text(text)
+                .width(theme::ARROW_COMBO_WIDTH)
+                .show_ui(ui, |ui| {
+                    let mut pick = |shape: Option<&'static str>| {
+                        let f: Edit = Box::new(move |s| {
+                            let a = shape.map(Arrow::new);
+                            if is_start {
+                                s.start_arrow = a;
+                            } else {
+                                s.end_arrow = a;
+                            }
+                        });
+                        edit = Some((tr("Ponta de seta", "Arrowhead"), f));
+                    };
+                    if ui
+                        .selectable_label(cur.is_none(), tr("Nenhuma", "None"))
+                        .clicked()
+                    {
+                        pick(None);
+                    }
+                    for shape in graphdraw_core::render::arrows::SHAPES {
+                        let on = cur.as_ref().is_some_and(|a| a.shape == shape);
+                        if ui.selectable_label(on, arrow_label(shape)).clicked() {
+                            pick(Some(shape));
+                        }
+                    }
+                });
+        });
+    }
+    // Caneta caligráfica: com contorno.
+    if let Some(s) = &current {
+        let mut pct = (s.nib_stretch * 100.0).round();
+        let mut angle = s.nib_angle;
+        widgets::stack(ui, |ui, row| {
+            if row == 0 {
+                ui.label(tr("Bico", "Nib"));
+                if ui
+                    .add(
+                        egui::DragValue::new(&mut pct)
+                            .range(1.0..=100.0)
+                            .suffix("%"),
+                    )
+                    .on_hover_text(tr(
+                        "Caneta caligráfica: largura do bico (100% = redondo)",
+                        "Calligraphic pen: nib width (100% = round)",
+                    ))
+                    .changed()
+                {
+                    let v = pct / 100.0;
+                    edit = Some((
+                        tr("Caneta caligráfica", "Calligraphic pen"),
+                        Box::new(move |s| s.nib_stretch = v),
+                    ));
+                }
+            } else {
+                ui.label(tr("Âng.", "Ang."));
+                if ui
+                    .add_enabled(
+                        s.nib_stretch < 0.999,
+                        egui::DragValue::new(&mut angle)
+                            .range(-360.0..=360.0)
+                            .suffix("°"),
+                    )
+                    .changed()
+                {
+                    edit = Some((
+                        tr("Caneta caligráfica", "Calligraphic pen"),
+                        Box::new(move |s| s.nib_angle = angle),
+                    ));
+                }
+            }
+        });
+    }
+    if remove {
+        ops::set_stroke(&mut doc.editor, sel, None);
+    } else if let Some((_, f)) = edit {
+        ops::edit_stroke(&mut doc.editor, sel, f);
     }
     false
 }
@@ -3312,7 +3491,35 @@ mod tests {
             select_bar(ui, d, &mut a, &mut l, &mut [true; 4]);
         };
         fits(bar(&mut doc, select), "seleção");
-        ops::convert_to_curves(&mut doc.editor, &[id]);
+        // Todos os grupos de uma vez: dois caminhos abertos com contorno
+        // (booleanas, contorno, setas e caneta).
+        let line = |x: f64| {
+            let mut o = Object::new(ObjectKind::Path(graphdraw_core::model::PathData {
+                subpaths: vec![graphdraw_core::model::Subpath {
+                    closed: false,
+                    nodes: vec![
+                        graphdraw_core::model::Node::corner(x, 0.0),
+                        graphdraw_core::model::Node::corner(x + 10_000.0, 5_000.0),
+                    ],
+                    extra: Default::default(),
+                }],
+                fill_rule: Default::default(),
+                extra: Default::default(),
+            }));
+            o.stroke = Some(graphdraw_core::model::Stroke::new(
+                500.0,
+                graphdraw_core::model::Color::black(),
+            ));
+            o
+        };
+        let a = ops::add_object(&mut doc.editor, 0, 0, line(0.0), "a");
+        let b = ops::add_object(&mut doc.editor, 0, 0, line(20_000.0), "b");
+        doc.selection = vec![a, b];
+        let rev = doc.editor.revision();
+        fits(bar(&mut doc, select), "dois caminhos abertos");
+        assert_eq!(doc.editor.revision(), rev, "mostrar a barra não edita");
+        ops::convert_to_curves(&mut doc.editor, &[id.clone()]);
+        doc.selection = vec![id];
         fits(bar(&mut doc, shape_bar), "nós");
     }
 }

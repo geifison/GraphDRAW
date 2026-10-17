@@ -361,6 +361,47 @@ de texto.
 - Todo contexto novo da barra tem teste de layout que confirma a altura de
   72 px em 1366 × 768.
 
+**Ordem fixa (regra).** Com seleção, a barra sempre começa pelo bloco de
+posição e nada entra antes dele nem no meio dele:
+
+1. **Bloco fixo:** ponto de referência (3 × 3) · X/Y · L/A · travar
+   proporção · ângulo de rotação.
+2. Depois do ângulo, os grupos do contexto, nesta ordem, cada um separado
+   por divisor e só quando se aplica:
+   1. espelhar H/V;
+   2. **parâmetros do objeto** (converter em curvas; cantos do retângulo;
+      polígono/estrela; elipse/arco/fatia; texto: fonte, estilo, corpo,
+      negrito/itálico, alinhamento e texto em caminho);
+   3. **contorno**: espessura e estilo de linha (ou "Sem contorno"); pontas
+      de seta início/fim quando há curva aberta; caneta caligráfica (bico
+      % e ângulo) quando há contorno;
+   4. **combinar** (2 ou mais objetos): as 9 booleanas;
+   5. **ordem** e **agrupar/desagrupar**.
+
+Recurso novo na barra entra em um desses grupos (ou num grupo novo depois
+deles), nunca antes do ângulo.
+
+**Barra × janela (regra).** A barra serve para edição rápida, sem abrir
+janela: só valores que se mudam com um clique ou um arrasto e que valem
+para a maior parte dos objetos. A janela fica para o ajuste fino e para as
+opções raras. Todo recurso novo decide, na especificação, o que vai à
+barra (no máximo os 2–4 controles mais usados) e o que fica só na janela.
+
+| Recurso | Na barra | Só na janela |
+|---|---|---|
+| Posição e tamanho | ponto de referência, X/Y, L/A, travar, ângulo | Transformação (posição relativa, cópias, escala %) |
+| Contorno | espessura, estilo de linha, "Sem contorno" | cor, junção, terminação, limite de canto, posição, atrás do preenchimento, escalar com objeto, traço personalizado |
+| Pontas de seta | forma no início e no fim | tamanho, afastamento, giro, espelho |
+| Caneta caligráfica | bico % e ângulo | — |
+| Preenchimento | — (cor pela paleta; gradiente pela ferramenta G) | tipo, paradas, opacidade, sobreimpressão, ângulo, repetir |
+| Retângulo | cantos escolhidos, tipo e raio | — |
+| Polígono/estrela | modo, lados/pontas, nitidez | — |
+| Elipse | elipse/arco/fatia, ângulos | — |
+| Texto | fonte, estilo, corpo, negrito, itálico, alinhamento; texto em caminho: início, distância, lado, orientação, espelho | (menu Texto) |
+| Booleanas | as 9 (2 ou mais objetos) | — |
+| Aparência | — | painel Camadas: opacidade, mesclagem, dados do objeto |
+| Gradiente (ferramenta G) | linear/radial na barra da ferramenta | paradas: cor e opacidade no balão da parada |
+
 ### 4.7 Painel de camadas e objetos
 
 - Cada camada é um recolhível (aberto por padrão) com olho, impressão,
