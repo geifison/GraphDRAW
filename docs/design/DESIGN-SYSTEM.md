@@ -472,7 +472,7 @@ Botão `fill-pattern` depois dos gradientes. O conteúdo:
 Exibir → "Preencher caminhos abertos" (GD-FIL-12) é uma opção do
 documento.
 
-### 4.6.3 Perfis de cor ao abrir (GD-CMS-04)
+### 4.6.2 Perfis de cor ao abrir (GD-CMS-04)
 
 - A janela Gerenciamento de cor ganha "Usar também como perfis de trabalho"
   e a escolha "Arquivo com outros perfis:", com as opções Perguntar,
@@ -480,7 +480,7 @@ documento.
 - A pergunta é um modal com o nome do arquivo, "Lembrar a escolha" e três
   botões secundários.
 
-### 4.6.2 Painel Verificação (doc 28)
+### 4.6.3 Painel Verificação (doc 28)
 
 Aba **Verificação** (ícone `preflight`) no painel direito:
 - **Limites do documento**, recolhível: papel (Revestido 300% / Não
