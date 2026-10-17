@@ -1997,17 +1997,23 @@ impl App {
                     let mut n = world / paper.max(1e-9);
                     ui.horizontal(|ui| {
                         ui.label(tr("Escala de desenho  1 :", "Drawing scale  1 :"));
-                        if ui
+                        let r = ui
                             .add(egui::DragValue::new(&mut n).range(0.001..=1_000_000.0).speed(1.0))
                             .on_hover_text(tr(
                                 "As réguas mostram medidas do mundo (ex.: 1 : 100); o desenho não muda",
                                 "Rulers show real-world sizes (e.g. 1 : 100); the drawing does not change",
-                            ))
-                            .changed()
-                        {
+                            ));
+                        // Arrastar o valor é um passo só de desfazer.
+                        if r.drag_started() {
+                            d.editor.begin(tr("Escala de desenho", "Drawing scale"));
+                        }
+                        if r.changed() {
                             d.editor.transaction(tr("Escala de desenho", "Drawing scale"), |ed| {
                                 ed.edit_settings(|s| s.drawing_scale = [1.0, n])
                             });
+                        }
+                        if r.drag_stopped() {
+                            d.editor.commit();
                         }
                     });
                 }

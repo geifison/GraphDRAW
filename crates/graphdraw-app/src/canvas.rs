@@ -362,6 +362,8 @@ pub struct CanvasState {
     spread_tex: Vec<(String, u64, u32, egui::TextureHandle)>,
     /// Área de cada vizinha na tela no último quadro.
     spread_rects: Vec<(usize, Rect)>,
+    /// Documento das miniaturas (endereço do estado): outra aba, outro cache.
+    spread_doc: usize,
     pub canvas_size: Vec2,
     /// Segurar Espaço vira a mão (quando o perfil de atalhos não usa o Espaço).
     pub space_pans: bool,
@@ -377,7 +379,12 @@ pub struct CanvasState {
     /// Ponto do desenho já encaixado pelas guias inteligentes.
     smart_point: Option<Point>,
     /// Parada de gradiente escolhida (ferramenta de preenchimento interativo).
-    pub grad_stop: Option<usize>,
+    /// (objeto, índice): vale só enquanto aquele objeto está selecionado e
+    /// o índice existe.
+    pub grad_stop: Option<(String, usize)>,
+    /// Revisão do documento quando a parada foi escolhida: mudou por fora
+    /// (desfazer, outra ferramenta), a escolha deixa de valer.
+    grad_rev: u64,
     /// Réguas e guias (GD-REG-01, GD-GUI-01).
     pub show_rulers: bool,
     pub show_guides: bool,
@@ -422,6 +429,7 @@ impl Default for CanvasState {
             spread: false,
             spread_tex: Vec::new(),
             spread_rects: Vec::new(),
+            spread_doc: 0,
             canvas_size: Vec2::new(800.0, 600.0),
             space_pans: true,
             artboard_pending: None,
@@ -432,6 +440,7 @@ impl Default for CanvasState {
             smart_lines: Vec::new(),
             smart_point: None,
             grad_stop: None,
+            grad_rev: 0,
             show_rulers: true,
             show_guides: true,
             guides_locked: false,
@@ -846,10 +855,29 @@ impl CanvasState {
                 .unwrap_or(rect.center());
             self.end_drag(doc, to_page(end), end, mods, rect, ph, defaults);
         }
-        if response.clicked() && blocked {
+        // Clique numa página vizinha (lado a lado): vai para ela, e o clique
+        // não chega à ferramenta (nada é criado na página que fica).
+        let spread_hit =
+            (self.spread && !panning_tool && (response.clicked() || response.double_clicked()))
+                .then(|| response.interact_pointer_pos())
+                .flatten()
+                .and_then(|pos| {
+                    self.spread_rects
+                        .iter()
+                        .find(|(_, r)| r.contains(pos))
+                        .map(|(i, _)| *i)
+                });
+        if let Some(i) = spread_hit {
+            self.end_text(doc);
+            self.cancel(doc);
+            doc.set_page(i);
+            self.fit_pending = true;
+        }
+        if response.clicked() && blocked && spread_hit.is_none() {
             ev.status = Some(locked_msg());
         }
         if response.clicked()
+            && spread_hit.is_none()
             && !panning_tool
             && !blocked
             && let Some(pos) = response.interact_pointer_pos()
@@ -925,22 +953,6 @@ impl CanvasState {
                 crate::layertree::apply(doc, a);
             }
         }
-        // Clique numa página vizinha (lado a lado): vai para ela.
-        if self.spread
-            && response.clicked()
-            && !panning_tool
-            && let Some(pos) = response.interact_pointer_pos()
-            && let Some((i, _)) = self
-                .spread_rects
-                .iter()
-                .find(|(_, r)| r.contains(pos))
-                .copied()
-        {
-            self.drag = Drag::None;
-            doc.selection.clear();
-            doc.set_page(i);
-            self.fit_pending = true;
-        }
         if response.secondary_clicked()
             && tool == Tool::Zoom
             && let Some(pos) = response.interact_pointer_pos()
@@ -956,6 +968,7 @@ impl CanvasState {
         {
             self.ruler_origin = Point::ORIGIN;
         } else if response.double_clicked()
+            && spread_hit.is_none()
             && !panning_tool
             && !blocked
             && let Some(pos) = response.interact_pointer_pos()
@@ -1085,6 +1098,14 @@ impl CanvasState {
         if !self.spread {
             return;
         }
+        let doc_key = doc as *const DocState as usize;
+        if doc_key != self.spread_doc {
+            self.spread_tex.clear();
+            self.spread_doc = doc_key;
+        }
+        // Editando a página ativa, as vizinhas não mudam: não refaz durante
+        // o arrasto (a revisão sobe a cada quadro).
+        let busy = self.is_dragging() || doc.editor.in_transaction();
         let pages = &doc.doc().data.pages;
         let (pw, ph) = doc.page_size();
         let gap = theme::SPREAD_GAP as f64 / self.view.zoom.max(1e-9);
@@ -1113,8 +1134,9 @@ impl CanvasState {
             let id = pages[i].id.clone();
             let rev = doc.editor.revision();
             let pos = self.spread_tex.iter().position(|t| t.0 == id);
-            let fresh =
-                pos.is_some_and(|k| self.spread_tex[k].1 == rev && self.spread_tex[k].2 == side);
+            let fresh = pos.is_some_and(|k| {
+                (self.spread_tex[k].1 == rev || busy) && self.spread_tex[k].2 == side
+            });
             if !fresh {
                 let img = doc.thumbnail(i, side as f64);
                 let tex = ui.ctx().load_texture(
@@ -1837,7 +1859,7 @@ impl CanvasState {
     /// Linha do gradiente, alças de início/fim e paradas com a cor de cada uma.
     fn paint_gradient(&self, painter: &egui::Painter, doc: &DocState, rect: Rect, ph: f64) {
         use graphdraw_core::edit::gradtool::{self, Handle};
-        let Some((_, _, g, m)) = single_gradient(doc) else {
+        let Some((_, obj, g, m)) = single_gradient(doc) else {
             return;
         };
         let Some((a, b)) = gradtool::axis(&g) else {
@@ -1862,7 +1884,7 @@ impl CanvasState {
                     let s = &g.stops[i];
                     let fill = crate::widgets::to_color32(&s.color);
                     painter.circle(c, theme::GRADIENT_MARK / 2.0, fill, hs);
-                    if self.grad_stop == Some(i) {
+                    if self.stop_of(doc, &obj.id, g.stops.len()) == Some(i) {
                         painter.circle_stroke(
                             c,
                             theme::GRADIENT_MARK / 2.0 + theme::SPACE_050 + 1.0,
@@ -2084,10 +2106,9 @@ impl CanvasState {
                 (self.screen(rect, ph, m * *q) - origin).length() <= theme::HANDLE_HIT
             });
             if let Some((handle, _)) = hit {
-                self.grad_stop = match handle {
-                    gradtool::Handle::Stop(i) => Some(i),
-                    _ => self.grad_stop,
-                };
+                if let gradtool::Handle::Stop(i) = handle {
+                    self.grad_stop = Some((o.id.clone(), i));
+                }
                 doc.editor.begin(tr("Editar gradiente", "Edit gradient"));
                 self.drag = Drag::GradHandle {
                     handle,
@@ -2136,7 +2157,10 @@ impl CanvasState {
         doc: &mut DocState,
         color: graphdraw_core::model::Color,
     ) -> bool {
-        let (Some(i), Some((r, mut o, mut g, _))) = (self.grad_stop, single_gradient(doc)) else {
+        let Some((r, mut o, mut g, _)) = single_gradient(doc) else {
+            return false;
+        };
+        let Some(i) = self.stop_of(doc, &o.id, g.stops.len()) else {
             return false;
         };
         let Some(s) = g.stops.get_mut(i) else {
@@ -2146,12 +2170,47 @@ impl CanvasState {
         o.fill = Some(Fill::Gradient(g));
         doc.editor
             .transaction(tr("Cor da parada", "Stop color"), |ed| ed.replace_at(&r, o));
+        self.grad_rev = doc.editor.revision();
         true
+    }
+
+    /// Índice da parada escolhida se ela é do objeto `id` e ainda existe.
+    fn stop_of(&self, doc: &DocState, id: &str, len: usize) -> Option<usize> {
+        if doc.editor.revision() != self.grad_rev {
+            return None;
+        }
+        self.grad_stop
+            .as_ref()
+            .filter(|(o, i)| o == id && *i < len)
+            .map(|(_, i)| *i)
+    }
+
+    /// Clique sem arrasto na ferramenta de gradiente: escolhe a parada sob
+    /// o cursor, senão seleciona o objeto clicado.
+    fn gradient_click(&mut self, doc: &mut DocState, p: Point, pos: Pos2, tol: f64, rect: Rect) {
+        use graphdraw_core::edit::gradtool;
+        let ph = doc.page_size().1;
+        if let Some((_, o, g, m)) = single_gradient(doc)
+            && let Some((h, _)) = gradtool::handles(&g)
+                .into_iter()
+                .find(|(_, q)| (self.screen(rect, ph, m * *q) - pos).length() <= theme::HANDLE_HIT)
+        {
+            if let gradtool::Handle::Stop(i) = h {
+                self.grad_stop = Some((o.id.clone(), i));
+                self.grad_rev = doc.editor.revision();
+            }
+            return;
+        }
+        self.grad_stop = None;
+        doc.selection = pick(doc, p, tol, true).into_iter().collect();
     }
 
     /// Tira a parada escolhida do gradiente (Delete); `false` se não havia.
     pub fn delete_grad_stop(&mut self, doc: &mut DocState) -> bool {
-        let (Some(i), Some((r, mut o, g, _))) = (self.grad_stop, single_gradient(doc)) else {
+        let Some((r, mut o, g, _)) = single_gradient(doc) else {
+            return false;
+        };
+        let Some(i) = self.stop_of(doc, &o.id, g.stops.len()) else {
             return false;
         };
         self.grad_stop = None;
@@ -2926,12 +2985,19 @@ impl CanvasState {
                     && let Some(Fill::Gradient(g)) = &mut o.fill
                 {
                     let mut g = g.clone();
-                    let keep = graphdraw_core::edit::gradtool::sort_stops(&mut g, self.grad_stop);
-                    self.grad_stop = keep.or(self.grad_stop);
+                    // Durante o arrasto a revisão muda: compara só objeto e índice.
+                    let cur = self
+                        .grad_stop
+                        .as_ref()
+                        .filter(|(id, i)| *id == o.id && *i < g.stops.len())
+                        .map(|(_, i)| *i);
+                    let keep = graphdraw_core::edit::gradtool::sort_stops(&mut g, cur);
+                    self.grad_stop = keep.map(|k| (o.id.clone(), k));
                     o.fill = Some(Fill::Gradient(g));
                     doc.editor.replace_at(&r, o);
                 }
                 doc.editor.commit();
+                self.grad_rev = doc.editor.revision();
             }
             Drag::GradNew { start, .. } => {
                 if (cur - start).hypot() * self.view.zoom >= 3.0 {
@@ -3061,6 +3127,7 @@ impl CanvasState {
     ) {
         let ph = doc.page_size().1;
         match tool {
+            Tool::Gradient => self.gradient_click(doc, p, pos, tol, rect),
             Tool::Select => match pick(doc, p, tol, mods.ctrl) {
                 Some(id) => {
                     if mods.shift {
@@ -3180,11 +3247,13 @@ impl CanvasState {
                         && let Some((ng, i)) = gradtool::add_stop(&g, q)
                     {
                         o.fill = Some(Fill::Gradient(ng));
+                        let id = o.id.clone();
                         doc.editor
                             .transaction(tr("Adicionar parada", "Add stop"), |ed| {
                                 ed.replace_at(&r, o)
                             });
-                        self.grad_stop = Some(i);
+                        self.grad_stop = Some((id, i));
+                        self.grad_rev = doc.editor.revision();
                     }
                 }
             }
@@ -4111,7 +4180,7 @@ mod tests {
         }
         let g = grad(&doc);
         assert_eq!(g.stops.len(), 3);
-        assert_eq!(cs.grad_stop, Some(1));
+        assert_eq!(cs.grad_stop.as_ref().map(|s| s.1), Some(1));
         assert!(
             (g.stops[1].offset - 0.5).abs() < 0.02,
             "{}",
@@ -4120,12 +4189,16 @@ mod tests {
         let blue = graphdraw_core::model::Color::from_hex("#0000ff").unwrap();
         assert!(cs.set_grad_stop_color(&mut doc, blue.clone()));
         assert_eq!(grad(&doc).stops[1].color, blue);
-        doc.editor.undo();
         assert!(cs.delete_grad_stop(&mut doc));
         assert_eq!(grad(&doc).stops.len(), 2);
-        // Desfazer volta passo a passo: exclusão, parada, alça, criação.
+        // Desfazer volta passo a passo: exclusão, cor, parada, alça, criação.
         doc.editor.undo();
         assert_eq!(grad(&doc).stops.len(), 3);
+        // Depois de desfazer, a parada escolhida não vale mais (Delete e a
+        // paleta não agem numa parada que pode ser outra).
+        assert!(!cs.delete_grad_stop(&mut doc));
+        doc.editor.undo();
+        assert_ne!(grad(&doc).stops[1].color, blue);
         doc.editor.undo();
         assert_eq!(grad(&doc).stops.len(), 2);
         assert!((grad(&doc).end.unwrap()[0] - 35_000.0).abs() < tol);

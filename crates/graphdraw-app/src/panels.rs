@@ -3007,8 +3007,16 @@ fn look_section(ui: &mut egui::Ui, doc: &mut DocState) {
                         .range(0.0..=100.0)
                         .suffix("%"),
                 );
+                // Arrastar o valor é um passo só de desfazer.
+                if r.drag_started() {
+                    doc.editor
+                        .begin(tr("Opacidade do objeto", "Object opacity"));
+                }
                 if r.changed() {
                     ops::set_opacity(&mut doc.editor, &sel, pct / 100.0);
+                }
+                if r.drag_stopped() {
+                    doc.editor.commit();
                 }
             });
             ui.horizontal(|ui| {
