@@ -2,6 +2,7 @@
 //! (desfazer/refazer), transformações, alinhamento, encaixe e consultas de
 //! seleção.
 
+pub mod breakapart;
 pub mod convert;
 pub mod eyedrop;
 pub mod fit;

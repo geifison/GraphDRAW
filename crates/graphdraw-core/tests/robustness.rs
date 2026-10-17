@@ -201,6 +201,8 @@ fn gdr_round_trip_with_new_fields() {
             side: "below".into(),
             orientation: "skew-v".into(),
             mirror: true,
+            guide: None,
+            detached: false,
             extra: Default::default(),
         });
     }

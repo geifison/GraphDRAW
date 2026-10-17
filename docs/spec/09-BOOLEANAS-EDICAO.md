@@ -18,7 +18,17 @@
 
 ## Combinar / separar
 - **GD-CMB-01** Combinar: vários caminhos em um objeto com subcaminhos (furos conforme regra de preenchimento).
-- **GD-CMB-02** Separar (quebrar à parte): cada subcaminho vira objeto; opção de manter furos dentro do objeto pai ("separar em objetos com furos").
+- **GD-CMB-02** Separar (quebrar à parte, Ctrl+K): cada subcaminho que não está ligado a outro por um nó vira um objeto de curva próprio, com os atributos do original. Os furos deixam de existir: as curvas internas viram objetos preenchidos independentes, empilhados por cima. Opção à parte de manter furos dentro do objeto pai ("separar em objetos com furos").
+- **GD-CMB-03** Separar texto (Ctrl+K), um nível por vez, na ordem:
+  1. Texto em caminho: o texto se desvincula do caminho guia; o caminho fica com a forma original e o texto mantém a curvatura; viram dois objetos independentes (se o caminho de origem não existe mais, ele é recriado com contorno fino).
+  2. Texto de parágrafo com vários parágrafos: um bloco de texto de parágrafo independente por parágrafo (mesma largura de quadro, mesmo alinhamento).
+  3. Texto com várias linhas (artístico ou parágrafo, inclusive linhas da quebra automática): uma linha de texto artístico por objeto.
+  4. Uma linha com várias palavras: uma palavra por objeto.
+  5. Uma palavra: um caractere (grafema) por objeto.
+  Cada pedaço fica exatamente onde estava na página e conserva fonte, corpo, cor e demais atributos; espaços não viram objetos. Num texto em caminho já desvinculado, os pedaços seguem na mesma curva.
+- **GD-CMB-04** Separar efeitos dinâmicos (Ctrl+K): congela o resultado visual e separa o objeto de controle do objeto gerado, que passa a ser vetor (ou bitmap, no caso de sombra) comum e editável. Comportamento por efeito em doc 10 (§ Separar efeitos).
+- **GD-CMB-05** Separar cópia vinculada (Ctrl+K): quebra o vínculo; a cópia vira objeto comum e deixa de acompanhar as alterações do original.
+- **GD-CMB-06** Ctrl+K vale para cada objeto da seleção, em uma só transação de desfazer; a seleção passa a ser os pedaços (e os objetos que não tinham o que separar). Sem nada a separar, nenhuma entrada vai para o histórico e a barra de status avisa. Princípio geral: tudo o que foi gerado a partir de outra coisa perde a dependência e vira pedaços independentes.
 
 ## Contorno de deslocamento (offset)
 - **GD-OFS-01** Criar caminho paralelo interno/externo com distância d, cantos: agudo/arredondado/chanfrado; usado por efeito Contorno (doc 10) e por "corte com sangria" (doc 17).

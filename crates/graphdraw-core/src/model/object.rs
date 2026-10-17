@@ -242,7 +242,9 @@ pub struct TextData {
 /// `distance` afasta do caminho; `side` = `above` ou `below`;
 /// `orientation` = `rotate` (gira cada letra), `skew-v`/`skew-h`
 /// (inclina mantendo as verticais/horizontais) ou `upright` (de pé);
-/// `mirror` percorre o caminho ao contrário.
+/// `mirror` percorre o caminho ao contrário. `guide` = ID do objeto de
+/// onde a forma veio; `detached` = já separado dele (GD-CMB-03): o texto
+/// mantém a curva, independente.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TextPath {
@@ -257,6 +259,10 @@ pub struct TextPath {
     pub orientation: String,
     #[serde(default)]
     pub mirror: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub guide: Option<String>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub detached: bool,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }

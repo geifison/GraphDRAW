@@ -1613,15 +1613,22 @@ impl App {
             C::Combine => self.with_selection(|ed, s| {
                 graphdraw_core::edit::shapeops::combine(ed, s).map(|id| vec![id])
             }),
-            C::BreakApart => self.with_selection(|ed, s| {
-                let mut out = Vec::new();
-                for id in s {
-                    out.extend(
-                        graphdraw_core::edit::shapeops::separate(ed, id, true).unwrap_or_default(),
-                    );
+            C::BreakApart => {
+                let any = self.doc.as_ref().is_some_and(|d| !d.selection.is_empty());
+                let mut done = false;
+                self.with_selection(|ed, s| {
+                    let r = graphdraw_core::edit::breakapart::break_apart(ed, s);
+                    done = r.is_some();
+                    r
+                });
+                if any && !done {
+                    self.status = tr(
+                        "Nada a separar: a seleção já está no nível mais simples",
+                        "Nothing to break apart: the selection is already at its simplest",
+                    )
+                    .into();
                 }
-                (!out.is_empty()).then_some(out)
-            }),
+            }
             C::CutLine => {
                 if self.doc.as_ref().is_some_and(|d| !d.selection.is_empty()) {
                     self.cut_line_dlg = Some(Default::default());

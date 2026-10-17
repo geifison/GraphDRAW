@@ -1312,6 +1312,8 @@ pub fn fit_text_to_path(ed: &mut Editor, text_id: &str, path_id: &str) -> bool {
             side: "above".into(),
             orientation: "rotate".into(),
             mirror: false,
+            guide: Some(path_id.to_string()),
+            detached: false,
             extra: Default::default(),
         });
         true

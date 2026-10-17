@@ -342,7 +342,9 @@
                   "distance": { "type": "number" },
                   "side": { "enum": ["above", "below"] },
                   "orientation": { "enum": ["rotate", "skew-v", "skew-h", "upright"] },
-                  "mirror": { "type": "boolean" }
+                  "mirror": { "type": "boolean" },
+                  "guide": { "type": "string", "description": "ID do objeto de onde veio a forma do caminho." },
+                  "detached": { "type": "boolean", "description": "Já separado do caminho guia (GD-CMB-03): mantém a curva, independente." }
                 }
               }
             }
