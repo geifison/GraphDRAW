@@ -141,6 +141,7 @@ const icons = {
   combine: `<path d="M4 4 H20 V20 H4 Z M9 9 V15 H15 V9 Z" fill="#fff" fill-rule="evenodd"/>`,
   "break-apart": `<rect x="3.5" y="3.5" width="8" height="8" rx="1"/><rect x="12.5" y="12.5" width="8" height="8" rx="1"/><path d="M14 6 H18 V10 M10 18 H6 V14"/>`,
   offset: `<rect x="7.5" y="7.5" width="9" height="9" rx="1"/><rect x="3.5" y="3.5" width="17" height="17" rx="4" stroke-dasharray="2 2"/>`,
+  palette: `<path d="M12 3.5 A8.5 8.5 0 1 0 12 20.5 C13.6 20.5 14 19.4 13.4 18.4 C12.8 17.4 13.4 15.9 14.8 15.9 H16.8 A3.7 3.7 0 0 0 20.5 12.2 C20.5 7.4 16.7 3.5 12 3.5 Z"/>${dot(8, 10)}${dot(11.5, 7.5)}${dot(15.5, 8.5)}${dot(7.8, 14)}`,
   "fill-linear": `<rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M8 4V20 M12 4V20 M16 4V20" stroke-dasharray="1.5 1.5"/>`,
   "fill-radial": `<rect x="4" y="4" width="16" height="16" rx="1.5"/><circle cx="12" cy="12" r="2.5"/><circle cx="12" cy="12" r="5.5" stroke-dasharray="1.5 1.5"/>`,
   // ---- distribuir (GD-ALI-03) ----

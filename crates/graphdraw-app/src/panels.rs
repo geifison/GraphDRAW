@@ -376,6 +376,7 @@ impl App {
 
     /// Conteúdo de uma aba (na coluna ou numa janela solta).
     fn tab_content(&mut self, ui: &mut egui::Ui, tab: RightTab) {
+        let mut pal_act = None;
         let Some(doc) = self.doc.as_mut() else { return };
         match tab {
             RightTab::Transform => transform_panel(ui, doc, &mut self.xf),
@@ -388,12 +389,51 @@ impl App {
                 }
             }
             RightTab::Report => report_panel(ui, doc),
+            RightTab::Palettes => pal_act = self.palettes.panel(ui, doc),
+        }
+        if let Some(s) = self.palettes.status.take() {
+            self.status = s;
+        }
+        if let Some(a) = pal_act {
+            self.apply_pal(a);
+        }
+    }
+
+    /// Ação de amostra (clique, botão direito, Ctrl + clique).
+    pub(crate) fn apply_pal(&mut self, a: crate::paletteui::PalAction) {
+        use crate::paletteui::PalAction;
+        match a {
+            PalAction::Fill(c) => self.apply_fill(c.map(Fill::solid)),
+            PalAction::Stroke(c) => self.apply_stroke_color(c),
+            PalAction::Tint(c) => {
+                let current = self
+                    .doc
+                    .as_ref()
+                    .and_then(|d| d.selected_objects().first().and_then(|o| o.fill.clone()))
+                    .or_else(|| self.defaults.fill.clone());
+                let base = match current {
+                    Some(Fill::Solid { color, .. }) => color,
+                    _ => graphdraw_core::model::Color::cmyk(0.0, 0.0, 0.0, 0.0),
+                };
+                self.apply_fill(Some(Fill::solid(crate::paletteui::tint(&base, &c, 0.1))));
+            }
         }
     }
 
     /// Barra de paleta (GD-PAL-05): clique = preenchimento, botão direito = contorno.
     pub fn palette_bar(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
+            // Qual paleta a barra mostra (GD-PAL-05).
+            let sources = self.palettes.sources();
+            let cur = sources.get(self.palettes.bar_source).cloned().unwrap_or_default();
+            egui::ComboBox::from_id_salt("paleta-barra")
+                .selected_text(cur)
+                .width(theme::PALETTE_SOURCE_WIDTH)
+                .show_ui(ui, |ui| {
+                    for (k, s) in sources.iter().enumerate() {
+                        ui.selectable_value(&mut self.palettes.bar_source, k, s);
+                    }
+                });
             ui.spacing_mut().item_spacing.x = theme::SPACE_050;
             let none = swatch(ui, None, theme::SWATCH).on_hover_text(tr(
                 "Sem cor (clique: sem preenchimento · direito: sem contorno)",
@@ -405,17 +445,24 @@ impl App {
             if none.secondary_clicked() {
                 self.apply_stroke_color(None);
             }
-            for c in widgets::palette() {
-                let r = swatch(ui, Some(&c), theme::SWATCH).on_hover_text(tr(
-                    "Clique: preenchimento · botão direito: contorno",
-                    "Click: fill · right-click: outline",
-                ));
-                if r.clicked() {
-                    self.apply_fill(Some(Fill::solid(c.clone())));
+            let mut act = None;
+            for (name, c) in self.palettes.bar_colors(self.doc.as_ref()) {
+                let tip = if name.is_empty() {
+                    tr(
+                        "Clique: preenchimento · botão direito: contorno · Ctrl + clique: mistura · arraste até um objeto",
+                        "Click: fill · right-click: outline · Ctrl + click: mix · drag onto an object",
+                    )
+                    .to_string()
+                } else {
+                    name
+                };
+                let r = crate::paletteui::swatch_drag(ui, &c, theme::SWATCH).on_hover_text(tip);
+                if let Some(a) = crate::paletteui::swatch_action(ui, &r, c) {
+                    act = Some(a);
                 }
-                if r.secondary_clicked() {
-                    self.apply_stroke_color(Some(c));
-                }
+            }
+            if let Some(a) = act {
+                self.apply_pal(a);
             }
         });
     }

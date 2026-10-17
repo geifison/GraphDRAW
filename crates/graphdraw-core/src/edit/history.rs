@@ -74,6 +74,11 @@ enum Change {
     PageProps(usize, Page, Page),
     /// Configurações do documento (cor, unidade, resolução…).
     Settings(Box<crate::model::Settings>, Box<crate::model::Settings>),
+    /// Cores nomeadas do documento (paleta, GD-PAL-01).
+    Colors(
+        Box<crate::model::ColorsResource>,
+        Box<crate::model::ColorsResource>,
+    ),
 }
 
 /// A página sem as camadas (o que `PageProps` guarda).
@@ -266,7 +271,7 @@ impl Editor {
             Change::InsertLayer(p, _, _)
             | Change::RemoveLayer(p, _, _)
             | Change::LayerProps(p, _, _, _) => self.page_key(*p),
-            Change::Settings(..) => None,
+            Change::Settings(..) | Change::Colors(..) => None,
         };
         let auto = self.open.is_none();
         if auto {
@@ -408,6 +413,18 @@ impl Editor {
         self.record(Change::PageProps(index, old, new));
     }
 
+    /// Altera as cores nomeadas do documento.
+    pub fn edit_colors(&mut self, f: impl FnOnce(&mut crate::model::ColorsResource)) {
+        let old = self.doc.colors.clone();
+        let mut new = old.clone();
+        f(&mut new);
+        if new == old {
+            return;
+        }
+        self.doc.colors = new.clone();
+        self.record(Change::Colors(Box::new(old), Box::new(new)));
+    }
+
     /// Altera as configurações do documento (um passo no histórico).
     pub fn edit_settings(&mut self, f: impl FnOnce(&mut crate::model::Settings)) {
         let old = self.doc.data.settings.clone();
@@ -496,6 +513,7 @@ impl Editor {
             Change::LayerProps(p, i, old, _) => copy_layer_props(&mut layers_mut(doc, *p)[*i], old),
             Change::PageProps(i, old, _) => copy_page_props(&mut doc.data.pages[*i], old),
             Change::Settings(old, _) => doc.data.settings = (**old).clone(),
+            Change::Colors(old, _) => doc.colors = (**old).clone(),
         }
     }
 
@@ -524,6 +542,7 @@ impl Editor {
             Change::LayerProps(p, i, _, new) => copy_layer_props(&mut layers_mut(doc, *p)[*i], new),
             Change::PageProps(i, _, new) => copy_page_props(&mut doc.data.pages[*i], new),
             Change::Settings(_, new) => doc.data.settings = (**new).clone(),
+            Change::Colors(_, new) => doc.colors = (**new).clone(),
         }
     }
 

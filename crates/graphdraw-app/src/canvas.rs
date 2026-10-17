@@ -769,6 +769,14 @@ impl CanvasState {
                 &mut ev,
             );
         }
+        // Amostra da paleta solta sobre um objeto: preenchimento (GD-PAL-05).
+        if let Some(drop) = response.dnd_release_payload::<crate::paletteui::SwatchDrop>()
+            && !blocked
+            && let Some(pos) = hover
+            && let Some(id) = pick(doc, to_page(pos), tol, false)
+        {
+            ops::set_fill(&mut doc.editor, &[id], Some(Fill::solid(drop.0.clone())));
+        }
         // Botão direito numa guia (fora de objetos): menu da guia.
         if response.secondary_clicked()
             && self.show_guides

@@ -308,6 +308,8 @@ pub const FONT_POPUP_WIDTH: f32 = 300.0;
 pub const FONT_LIST_HEIGHT: f32 = 360.0;
 pub const FONT_PREVIEW_HEIGHT: f32 = 22.0;
 pub const FONT_PREVIEW_MAX_WIDTH: f32 = 270.0;
+/// Escolha da paleta na barra de paleta.
+pub const PALETTE_SOURCE_WIDTH: f32 = 110.0;
 /// Amostras de cor (paleta e indicadores).
 pub const SWATCH: f32 = 18.0;
 

@@ -33,6 +33,7 @@ pub enum RightTab {
     Transform,
     Align,
     Layers,
+    Palettes,
     History,
     Pages,
     Report,
@@ -91,6 +92,8 @@ pub struct App {
     pub(crate) layer_tree: crate::layertree::LayerTree,
     /// Seletor de fonte com prévia e busca.
     pub(crate) font_picker: crate::fontpicker::FontPicker,
+    /// Paletas do documento e do usuário (GD-PAL-01..05).
+    pub(crate) palettes: crate::paletteui::Palettes,
     /// Área de trabalho (GD-UI-03): recolhida, largura e painéis soltos;
     /// `ws_saved` é a última versão gravada no arquivo.
     pub(crate) ws: crate::workspace::Workspace,
@@ -114,7 +117,7 @@ pub struct App {
     allow_close: bool,
     show_about: bool,
     show_keys: bool,
-    status: String,
+    pub(crate) status: String,
     /// Deslocamento das setas (GD-FER-01): normal e com Shift.
     nudge: (f64, f64),
     /// Janela de contorno ou preenchimento aberta.
@@ -171,6 +174,7 @@ impl App {
             right_tab: RightTab::Transform,
             layer_tree: Default::default(),
             font_picker: Default::default(),
+            palettes: crate::paletteui::Palettes::load(),
             ws: Default::default(),
             ws_saved: Default::default(),
             show_right: true,

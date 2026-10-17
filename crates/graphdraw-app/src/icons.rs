@@ -139,6 +139,7 @@ pub fn get(name: &str) -> ImageSource<'static> {
         "doc" => icon!("doc"),
         "panel-collapse" => icon!("panel-collapse"),
         "fill-linear" => icon!("fill-linear"),
+        "palette" => icon!("palette"),
         "fill-radial" => icon!("fill-radial"),
         "dist-left" => icon!("dist-left"),
         "dist-bottom" => icon!("dist-bottom"),

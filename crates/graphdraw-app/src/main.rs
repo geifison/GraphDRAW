@@ -20,6 +20,7 @@ mod keymap;
 mod layertree;
 mod newdoc;
 mod pagebar;
+mod paletteui;
 mod panels;
 mod rulers;
 mod textedit;

@@ -10,6 +10,7 @@ pub mod nodes;
 pub mod ops;
 pub mod pages;
 pub mod pagesize;
+pub mod palette;
 pub mod query;
 pub mod shapeops;
 pub mod snap;
