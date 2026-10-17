@@ -38,8 +38,8 @@ Cada ferramenta: cursor próprio, barra de propriedades contextual, atalho de te
 | GD-FER-27 | Desenho inteligente | traço livre reconhecido como retângulo/elipse/triângulo/seta; nível de reconhecimento ajustável |
 | GD-FER-28 | Mídia artística | pincel vetorial predefinido, pulverizador (spray de objetos ao longo do caminho), caligráfico, pressão (tablet) |
 | GD-FER-29 | Esboço contínuo | traços sucessivos fundidos em curva única por tempo/distância |
-| GD-FER-30 | Retângulo / Retângulo 3 pontos | doc 03 GD-PRI-01 |
-| GD-FER-31 | Elipse / Elipse 3 pontos | doc 03 GD-PRI-02 |
+| GD-FER-30 | Retângulo / Retângulo 3 pontos | doc 03 GD-PRI-01; 2 e 3 pontos são escolhas do mesmo grupo na caixa de ferramentas; duplo clique no botão do Retângulo cria um retângulo do tamanho exato da página (atributos padrão, selecionado, um passo de desfazer) |
+| GD-FER-31 | Elipse / Elipse 3 pontos | doc 03 GD-PRI-02; 2 e 3 pontos são escolhas do mesmo grupo na caixa de ferramentas; o modo de cada ferramenta é independente |
 | GD-FER-32 | Polígono, Estrela, Espiral, Papel gráfico, Formas básicas | doc 03 |
 | GD-FER-33 | Simetria | desenhar com espelhamento ao vivo (N eixos, radial) |
 

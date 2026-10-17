@@ -1351,9 +1351,15 @@ impl App {
         if repeatable {
             self.last_action = Some(LastAction::Command(c));
         }
+        // Um objeto só: alinha pela página (GD-ALI-06).
+        let page = self.doc.as_ref().map_or(kurbo::Rect::ZERO, |d| {
+            let (w, h) = d.page_size();
+            kurbo::Rect::new(0.0, 0.0, w, h)
+        });
         let align = |how| {
             move |ed: &mut graphdraw_core::edit::Editor, s: &[String]| {
-                ops::align(ed, s, how, AlignTo::LastSelected, false);
+                let to = ops::align_target(AlignTo::LastSelected, s.len(), page);
+                ops::align(ed, s, how, to, false);
                 None
             }
         };
@@ -2754,6 +2760,7 @@ impl App {
         use crate::toolbox::{Slot, drawer_mark, hits_mark, separator_after, slots};
         let mut open: Option<(&'static str, Vec<crate::toolbox::Variant>, egui::Pos2)> = None;
         let mut chosen = None;
+        let mut page_rect = false;
         ui.vertical_centered(|ui| {
             for slot in slots() {
                 match slot {
@@ -2773,12 +2780,20 @@ impl App {
                         let k = on.unwrap_or_else(|| *self.tool_group_last.get(name).unwrap_or(&0));
                         let v = vars[k.min(vars.len() - 1)];
                         let tip = format!(
-                            "{} — {}",
+                            "{} — {}{}",
                             v.tip,
                             tr(
                                 "triângulo ou botão direito: mais ferramentas",
                                 "triangle or right click: more tools"
-                            )
+                            ),
+                            if v.tool == Tool::Rect {
+                                tr(
+                                    " · duplo clique: retângulo do tamanho da página",
+                                    " · double click: page-size rectangle",
+                                )
+                            } else {
+                                ""
+                            }
                         );
                         let r = icons::button(
                             ui,
@@ -2794,12 +2809,19 @@ impl App {
                         } else if r.clicked() {
                             chosen = Some((name, k, v));
                         }
+                        // Duplo clique no Retângulo: um do tamanho da página.
+                        if r.double_clicked() && !at_mark && v.tool == Tool::Rect {
+                            page_rect = true;
+                        }
                     }
                 }
             }
         });
         if let Some((name, k, v)) = chosen {
             self.choose_variant(name, k, v);
+        }
+        if page_rect && let Some(d) = &mut self.doc {
+            crate::canvas::add_page_rect(d, &self.defaults);
         }
         if let Some((name, vars, at)) = open {
             self.tool_drawer = Some((name, vars, at, ui.ctx().cumulative_frame_nr()));
@@ -3856,6 +3878,7 @@ impl App {
             if let Some(doc) = &mut self.doc {
                 // Backspace na ferramenta Bézier remove o último nó do traçado.
                 self.canvas.can_paste = !self.clipboard.is_empty();
+                self.canvas.three_point = self.defaults.three_point(self.tool);
                 let ev = self.canvas.show(ui, doc, self.tool, &self.defaults);
                 if let Some(t) = ev.switch_tool {
                     self.tool = t;

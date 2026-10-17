@@ -197,6 +197,28 @@ pub struct Defaults {
     /// Papel gráfico (GD-PRI-06): colunas e linhas.
     pub grid_cols: u32,
     pub grid_rows: u32,
+    /// Retângulo e elipse no modo 3 pontos (GD-FER-30/31), cada um o seu.
+    pub rect_three: bool,
+    pub ellipse_three: bool,
+}
+
+impl Defaults {
+    /// A ferramenta desenha por 3 pontos (base em qualquer ângulo + altura)?
+    pub fn three_point(&self, tool: Tool) -> bool {
+        match tool {
+            Tool::Rect => self.rect_three,
+            Tool::Ellipse => self.ellipse_three,
+            _ => false,
+        }
+    }
+
+    pub fn set_three_point(&mut self, tool: Tool, on: bool) {
+        match tool {
+            Tool::Rect => self.rect_three = on,
+            Tool::Ellipse => self.ellipse_three = on,
+            _ => {}
+        }
+    }
 }
 
 impl Default for Defaults {
@@ -213,6 +235,8 @@ impl Default for Defaults {
             spiral_expansion: 1.5,
             grid_cols: 4,
             grid_rows: 3,
+            rect_three: false,
+            ellipse_three: false,
         }
     }
 }
@@ -4883,6 +4907,13 @@ fn add_shape(doc: &mut DocState, prim: Prim, w: f64, h: f64, m: Affine, defaults
     }
 }
 
+/// Retângulo do tamanho exato da página atual (duplo clique na ferramenta
+/// Retângulo, GD-FER-30), com os atributos padrão; fica selecionado.
+pub fn add_page_rect(doc: &mut DocState, defaults: &Defaults) {
+    let (w, h) = doc.page_size();
+    add_shape(doc, Prim::Rect, w, h, Affine::IDENTITY, defaults);
+}
+
 /// Espiral (caminho aberto, só contorno) ou papel gráfico (grupo de
 /// retângulos) no quadro levado à página por `m`.
 fn add_generated(doc: &mut DocState, prim: Prim, w: f64, h: f64, m: Affine, defaults: &Defaults) {
@@ -6404,6 +6435,29 @@ mod tests {
         assert!((bb.x0 - 10.0).abs() < 1e-9 && (bb.x1 - 25.0).abs() < 1e-9);
         assert!(m2.determinant() > 0.0);
         assert!(three_point_frame(a, a, b).is_none());
+    }
+
+    /// GD-FER-30: duplo clique na ferramenta cria um retângulo que cobre a
+    /// página exatamente, selecionado, num passo do histórico.
+    #[test]
+    fn page_size_rectangle() {
+        let mut doc = DocState::new_blank();
+        let (w, h) = doc.page_size();
+        let undo = doc.editor.undo_len();
+        add_page_rect(&mut doc, &Defaults::default());
+        assert_eq!(doc.editor.undo_len(), undo + 1);
+        let [id] = doc.selection.as_slice() else {
+            panic!("selecionado")
+        };
+        let r = doc.editor.find(id).unwrap();
+        let b = ops::object_bounds(&doc.editor, &r, false).unwrap();
+        assert!(
+            b.x0.abs() < 1e-6
+                && b.y0.abs() < 1e-6
+                && (b.x1 - w).abs() < 1e-6
+                && (b.y1 - h).abs() < 1e-6,
+            "{b:?}"
+        );
     }
 
     /// GD-FER-30: no modo 3 pontos, arrastar a base e clicar na altura cria

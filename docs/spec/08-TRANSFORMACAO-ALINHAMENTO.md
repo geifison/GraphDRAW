@@ -11,6 +11,7 @@
 - **GD-ALI-02** Usar caixa geométrica ou visual (com contorno) — opção.
 - **GD-ALI-03** Distribuir: espaçamento igual entre centros/bordas ou espaçamento fixo (valor), na extensão da seleção ou da página.
 - **GD-ALI-04** Alinhamento por nós de texto (linha base).
+- **GD-ALI-06** Com um só objeto selecionado, alinhar (atalhos, menu e painel, qualquer referência escolhida) usa a página como referência; com dois ou mais, vale a referência escolhida. "Centralizar na página" tem a tecla P no perfil padrão.
 - **GD-ALI-05** Guias dinâmicas/inteligentes durante arrasto: linhas temporárias mostrando alinhamento com bordas/centros de outros objetos e espaçamento igual.
 
 ## Encaixe (snap)

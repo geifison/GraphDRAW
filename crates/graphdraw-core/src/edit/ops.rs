@@ -295,6 +295,16 @@ pub enum AlignTo {
     Selection,
 }
 
+/// Referência efetiva do alinhamento (GD-ALI-06): com um só objeto não há
+/// outro para servir de base, então ele se alinha pela página.
+pub fn align_target(to: AlignTo, count: usize, page: Rect) -> AlignTo {
+    match to {
+        AlignTo::Page(_) => to,
+        _ if count == 1 => AlignTo::Page(page),
+        _ => to,
+    }
+}
+
 pub fn align(ed: &mut Editor, sel: &[String], how: Align, to: AlignTo, visual: bool) {
     let objs: Vec<(String, Rect)> = sel
         .iter()
@@ -1869,6 +1879,24 @@ mod tests {
         assert!(ids.iter().all(|id| (b(&ed, id).y1 - 100.0).abs() < 1e-9));
         ed.undo();
         assert!((b(&ed, &ids[0]).y0 - 5.0).abs() < 1e-9);
+    }
+
+    /// GD-ALI-06: um objeto só se alinha pela página; dois ou mais, entre si.
+    #[test]
+    fn gd_ali_06_single_object_aligns_to_page() {
+        let (mut ed, ids) = setup();
+        let page = Rect::new(0.0, 0.0, 200.0, 100.0);
+        let one = &ids[..1];
+        let to = align_target(AlignTo::LastSelected, one.len(), page);
+        assert_eq!(to, AlignTo::Page(page));
+        align(&mut ed, one, Align::Right, to, false);
+        assert!((b(&ed, &ids[0]).x1 - 200.0).abs() < 1e-9);
+        align(&mut ed, one, Align::Top, to, false);
+        assert!((b(&ed, &ids[0]).y1 - 100.0).abs() < 1e-9);
+        assert_eq!(
+            align_target(AlignTo::LastSelected, 2, page),
+            AlignTo::LastSelected
+        );
     }
 
     #[test]
