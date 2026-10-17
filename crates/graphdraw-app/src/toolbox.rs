@@ -84,6 +84,7 @@ pub fn slots() -> Vec<Slot> {
                 Variant::of(Tool::Bezier),
                 Variant::of(Tool::Freehand),
                 Variant::of(Tool::Polyline),
+                Variant::of(Tool::BSpline),
                 Variant::of(Tool::Line2),
                 Variant::of(Tool::Curve3),
             ],

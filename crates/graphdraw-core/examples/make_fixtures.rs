@@ -811,6 +811,54 @@ fn patterns() -> Document {
     d
 }
 
+/// GD-BSP-01: B-spline aberta com um ponto fixado e uma fechada só de
+/// flutuantes.
+fn bspline() -> Document {
+    let mut ids = Ids::new(14);
+    let mut p = page(&mut ids, 200.0 * MM, 100.0 * MM);
+    let mut d = doc_with(vec![], "B-spline");
+    let pt = |x: f64, y: f64, fixed: bool| BSplinePoint {
+        p: [x * MM, y * MM],
+        fixed,
+    };
+    for (points, closed) in [
+        (
+            vec![
+                pt(10.0, 10.0, false),
+                pt(30.0, 90.0, false),
+                pt(60.0, 20.0, true),
+                pt(90.0, 90.0, false),
+            ],
+            false,
+        ),
+        (
+            vec![
+                pt(120.0, 20.0, false),
+                pt(190.0, 20.0, false),
+                pt(190.0, 80.0, false),
+                pt(120.0, 80.0, false),
+            ],
+            true,
+        ),
+    ] {
+        let mut o = obj(
+            &mut ids,
+            ObjectKind::BSpline(BSplineData {
+                points,
+                closed,
+                extra: Map::new(),
+            }),
+        );
+        o.stroke = Some(Stroke::new(1.0 * PT, Color::cmyk(0.0, 0.0, 0.0, 1.0)));
+        if closed {
+            o.fill = Some(Fill::solid(Color::cmyk(0.6, 0.0, 0.0, 0.0)));
+        }
+        p.layers[0].objects.push(o);
+    }
+    d.data.pages.push(p);
+    d
+}
+
 /// GD-CON-01: três caixas ligadas por conector reto, em ângulo reto
 /// (cantos arredondados) e curvo, com seta no fim.
 fn connectors() -> Document {
@@ -958,6 +1006,7 @@ fn main() {
         ("prepress", prepress()),
         ("patterns", patterns()),
         ("connectors", connectors()),
+        ("bspline", bspline()),
     ];
     for (name, doc) in &docs {
         let path = dir.join(format!("{name}.gdr"));

@@ -132,7 +132,7 @@ Para depois da 1.0, cada um com o motivo:
 - [x] Preenchimento inteligente: área entre objetos vira objeto
   (GD-FER-52).
 - [ ] Simetria ao vivo (GD-FER-33).
-- [ ] B-spline (GD-BSP-01, GD-FER-24).
+- [x] B-spline (GD-BSP-01, GD-FER-24).
 - [ ] Largura variável (GD-VAR-01, GD-OUT-08).
 - [ ] Esboço contínuo (GD-FER-29).
 - [x] Objeto vira guia (GD-GUI-03).

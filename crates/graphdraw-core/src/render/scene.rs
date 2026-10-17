@@ -409,6 +409,7 @@ impl Builder<'_> {
             ObjectKind::Ellipse(e) => Some((ellipse_path(e), FillRule::Nonzero)),
             ObjectKind::Polygon(p) => Some((polygon_path(p), polygon_fill_rule(p))),
             ObjectKind::Basic(b) => Some((super::basic::path(b), FillRule::Nonzero)),
+            ObjectKind::BSpline(b) => Some((super::bspline::path(b), FillRule::Nonzero)),
             ObjectKind::Group(g) => {
                 for c in &g.children {
                     self.object(c, m, alpha);

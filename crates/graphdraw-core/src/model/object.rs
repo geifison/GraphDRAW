@@ -95,6 +95,8 @@ pub enum ObjectKind {
     Basic(BasicShapeData),
     /// Conector entre objetos (GD-FER-41, GD-CON-01).
     Connector(ConnectorData),
+    /// B-spline cúbica uniforme (GD-BSP-01).
+    BSpline(BSplineData),
     /// Tipo desconhecido ou objeto inválido: JSON original preservado.
     Unknown {
         raw: Value,
@@ -320,6 +322,27 @@ pub struct BasicShapeData {
     pub extra: Map<String, Value>,
 }
 
+/// B-spline (GD-BSP-01): pontos de controle; os fixados a curva atravessa,
+/// os flutuantes a puxam. Aberta, a curva começa e termina nas pontas.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BSplineData {
+    pub points: Vec<BSplinePoint>,
+    #[serde(default)]
+    pub closed: bool,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+/// Ponto de controle da B-spline (espaço local).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BSplinePoint {
+    pub p: [f64; 2],
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub fixed: bool,
+}
+
 /// Conector (GD-CON-01): `style` = `straight`, `elbow` (ângulo reto, com
 /// `radius` nos cantos) ou `curved`; pontas na página.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -467,6 +490,7 @@ impl Object {
             ObjectKind::Dimension(_) => "dimension",
             ObjectKind::Basic(_) => "basic",
             ObjectKind::Connector(_) => "connector",
+            ObjectKind::BSpline(_) => "bspline",
             ObjectKind::Unknown { raw, .. } => {
                 raw.get("type").and_then(Value::as_str).unwrap_or("?")
             }
@@ -562,6 +586,7 @@ impl Object {
             "dimension" => ObjectKind::Dimension(parse(rest, ty)?),
             "basic" => ObjectKind::Basic(parse(rest, ty)?),
             "connector" => ObjectKind::Connector(parse(rest, ty)?),
+            "bspline" => ObjectKind::BSpline(parse(rest, ty)?),
             _ => ObjectKind::Unknown {
                 raw: v.clone(),
                 error: None,
@@ -631,6 +656,7 @@ impl Object {
             ObjectKind::Dimension(d) => serde_json::to_value(d),
             ObjectKind::Basic(d) => serde_json::to_value(d),
             ObjectKind::Connector(d) => serde_json::to_value(d),
+            ObjectKind::BSpline(d) => serde_json::to_value(d),
             ObjectKind::Unknown { .. } => unreachable!(),
         };
         if let Ok(Value::Object(k)) = kind {

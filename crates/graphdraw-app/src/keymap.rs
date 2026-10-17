@@ -208,6 +208,7 @@ commands! {
     ToolArtboard = "tool.artboard", "Ferramenta Prancheta (tamanho da página)", "Artboard tool (page size)", Tools, NotText, true;
     ToolFreehand = "tool.freehand", "Ferramenta Mão Livre", "Freehand tool", Tools, NotText, true;
     ToolPolyline = "tool.polyline", "Ferramenta Polilinha", "Polyline tool", Tools, NotText, true;
+    ToolBSpline = "tool.bspline", "Ferramenta B-spline", "B-spline tool", Tools, NotText, true;
     ToolLine2 = "tool.line2", "Ferramenta Linha 2 pontos", "2-point line tool", Tools, NotText, true;
     ToolCurve3 = "tool.curve3", "Ferramenta Curva 3 pontos", "3-point curve tool", Tools, NotText, true;
     ToolArtistic = "tool.artistic", "Ferramenta Mídia Artística", "Artistic media tool", Tools, NotText, false;

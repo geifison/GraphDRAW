@@ -76,6 +76,8 @@ pub enum Tool {
     SmartFill,
     /// Conector (GD-FER-41): arrastar de um objeto a outro.
     Connector,
+    /// B-spline (GD-FER-24, GD-BSP-01): cliques põem pontos de controle.
+    BSpline,
 }
 
 /// Cota sendo feita: tipo, pontos (página), ligações e segmento medido.
@@ -270,6 +272,17 @@ impl Tool {
                 ),
                 "",
             ),
+            Tool::BSpline => (
+                "tool-bspline",
+                crate::keymap::hint(
+                    tr(
+                        "B-spline — cliques põem pontos de controle (Ctrl = fixado, a curva passa por ele); Enter ou duplo clique termina, clique no primeiro fecha",
+                        "B-spline — clicks place control points (Ctrl = fixed, the curve goes through it); Enter or double-click ends, click the first to close",
+                    ),
+                    crate::keymap::Command::ToolBSpline,
+                ),
+                "",
+            ),
             Tool::Line2 => (
                 "tool-line2",
                 crate::keymap::hint(
@@ -338,7 +351,7 @@ impl Tool {
             ),
         }
     }
-    pub const ALL: [Tool; 25] = [
+    pub const ALL: [Tool; 26] = [
         Tool::Select,
         Tool::Shape,
         Tool::Zoom,
@@ -364,6 +377,7 @@ impl Tool {
         Tool::Dimension,
         Tool::SmartFill,
         Tool::Connector,
+        Tool::BSpline,
     ];
 }
 
@@ -603,6 +617,12 @@ enum Drag {
         r: ObjRef,
         original: Object,
     },
+    /// Ponto de controle da B-spline (GD-BSP-01).
+    BSplinePoint {
+        index: usize,
+        r: ObjRef,
+        original: Object,
+    },
     /// Alça de ajuste da forma básica (GD-PRI-07).
     BasicHandle {
         index: usize,
@@ -698,6 +718,8 @@ pub struct CanvasState {
     pub line_mode: LineMode,
     /// Base da curva 3 pontos, esperando o clique da curvatura.
     curve3: Option<(Point, Point)>,
+    /// B-spline sendo desenhada: pontos de controle (página) e se fixados.
+    bspline: Option<Vec<(Point, bool)>>,
     /// Modo da transformação livre.
     pub free_mode: graphdraw_core::edit::freexf::Mode,
     /// Cota: tipo, formato das próximas e a que está sendo feita.
@@ -802,6 +824,7 @@ impl Default for CanvasState {
             freehand_smooth: 50.0,
             line_mode: LineMode::Free,
             curve3: None,
+            bspline: None,
             free_mode: Default::default(),
             dim_kind: "horizontal".into(),
             dim_format: Default::default(),
@@ -896,7 +919,7 @@ impl CanvasState {
     }
 
     pub fn has_draft(&self) -> bool {
-        self.bezier.is_some() || self.three.is_some()
+        self.bezier.is_some() || self.three.is_some() || self.bspline.is_some()
     }
 
     /// Guia sob o ponto (até `handle-hit` px), com a referência dela.
@@ -1050,6 +1073,10 @@ impl CanvasState {
 
     /// Encerra o traçado Bézier em andamento (cria o objeto se tiver 2+ nós).
     pub fn finish_bezier(&mut self, doc: &mut DocState, defaults: &Defaults, close: bool) {
+        if self.bspline.is_some() {
+            self.finish_bspline(doc, defaults, close);
+            return;
+        }
         let Some(mut draft) = self.bezier.take() else {
             return;
         };
@@ -1817,6 +1844,7 @@ impl CanvasState {
         self.drag = Drag::None;
         self.bezier = None;
         self.three = None;
+        self.bspline = None;
     }
 
     pub fn show(
@@ -2060,6 +2088,7 @@ impl CanvasState {
         }
         if (matches!(tool, Tool::Bezier | Tool::Polyline) && self.bezier.is_some()
             || self.curve3.is_some()
+            || self.bspline.is_some()
             || self.dim_draft.is_some())
             && self.cursor_page.is_some()
         {
@@ -2575,6 +2604,9 @@ impl CanvasState {
             },
             Tool::Polyline => Glyph::Cross {
                 badge: "tool-polyline",
+            },
+            Tool::BSpline => Glyph::Cross {
+                badge: "tool-bspline",
             },
             Tool::Line2 => Glyph::Cross {
                 badge: "tool-line2",
@@ -3162,6 +3194,45 @@ impl CanvasState {
     }
 
     fn paint_nodes(&self, painter: &egui::Painter, doc: &DocState, rect: Rect, ph: f64) {
+        // Pontos de controle da B-spline: polígono tracejado e quadrados
+        // (cheios = fixados).
+        if let Some((_, _, b, m)) = single_bspline(doc) {
+            let mut poly: Vec<Pos2> = b
+                .points
+                .iter()
+                .map(|c| self.screen(rect, ph, m * Point::new(c.p[0], c.p[1])))
+                .collect();
+            if b.closed
+                && let Some(f) = poly.first().copied()
+            {
+                poly.push(f);
+            }
+            painter.add(egui::Shape::dashed_line(
+                &poly,
+                EStroke::new(
+                    theme::BORDER_WIDTH,
+                    theme::ACCENT_PRIMARY.gamma_multiply(0.6),
+                ),
+                4.0,
+                3.0,
+            ));
+            for (c, s) in b.points.iter().zip(&poly) {
+                let r = Rect::from_center_size(*s, Vec2::splat(theme::HANDLE_SIZE));
+                let fill = if c.fixed {
+                    theme::ACCENT_PRIMARY
+                } else {
+                    theme::HANDLE_FILL
+                };
+                painter.rect_filled(r, theme::RADIUS_XS, fill);
+                painter.rect_stroke(
+                    r,
+                    theme::RADIUS_XS,
+                    handle_stroke(),
+                    egui::StrokeKind::Middle,
+                );
+            }
+            return;
+        }
         // Alças de ajuste da forma básica: losangos (GD-PRI-07).
         if let Some((_, _, b, m)) = single_basic(doc) {
             for q in graphdraw_core::render::basic::handles(&b) {
@@ -3385,7 +3456,8 @@ impl CanvasState {
             | Tool::Eyedropper
             | Tool::VirtualDelete
             | Tool::Dimension
-            | Tool::SmartFill => {}
+            | Tool::SmartFill
+            | Tool::BSpline => {}
             Tool::Select => self.start_select_drag(doc, p, origin, mods, tol, rect, ph),
             Tool::Shape => self.start_shape_drag(doc, p, origin, mods, tol, rect, ph),
             Tool::Artboard => {
@@ -3823,6 +3895,42 @@ impl CanvasState {
         }
     }
 
+    /// Termina a B-spline em desenho (GD-BSP-01); `close` fecha a curva.
+    pub fn finish_bspline(&mut self, doc: &mut DocState, defaults: &Defaults, close: bool) {
+        let Some(mut pts) = self.bspline.take() else {
+            return;
+        };
+        // O duplo clique repete o último ponto.
+        pts.dedup_by(|b, a| (a.0 - b.0).hypot() < 1e-6);
+        let closed = close && pts.len() >= 3;
+        if pts.len() < 2 {
+            return;
+        }
+        let mut o = Object::new(ObjectKind::BSpline(graphdraw_core::model::BSplineData {
+            points: pts
+                .iter()
+                .map(|(p, fixed)| graphdraw_core::model::BSplinePoint {
+                    p: [p.x, p.y],
+                    fixed: *fixed,
+                })
+                .collect(),
+            closed,
+            extra: Map::new(),
+        }));
+        o.fill = if closed { defaults.fill.clone() } else { None };
+        o.stroke = defaults.stroke.clone();
+        if let Some(layer) = doc.layer_for_new_object() {
+            let id = ops::add_object(
+                &mut doc.editor,
+                doc.page,
+                layer,
+                o,
+                tr("Desenhar B-spline", "Draw B-spline"),
+            );
+            doc.selection = vec![id];
+        }
+    }
+
     /// Mão livre solta (GD-FER-20).
     fn freehand_end(&mut self, doc: &mut DocState, pts: &[Point], defaults: &Defaults) {
         let px = 1.0 / self.view.zoom;
@@ -3920,6 +4028,51 @@ impl CanvasState {
                     graphdraw_core::edit::dimension::label(&d, value),
                     theme::font_micro(),
                     accent,
+                );
+            }
+        }
+        if let Some(pts) = &self.bspline {
+            let mut all: Vec<(Point, bool)> = pts.clone();
+            if let Some(c) = self.cursor_page {
+                all.push((c, false));
+            }
+            let poly: Vec<Pos2> = all.iter().map(|(q, _)| self.screen(rect, ph, *q)).collect();
+            painter.add(egui::Shape::dashed_line(
+                &poly,
+                EStroke::new(theme::BORDER_WIDTH, accent.gamma_multiply(0.6)),
+                4.0,
+                3.0,
+            ));
+            let data = graphdraw_core::model::BSplineData {
+                points: all
+                    .iter()
+                    .map(|(q, f)| graphdraw_core::model::BSplinePoint {
+                        p: [q.x, q.y],
+                        fixed: *f,
+                    })
+                    .collect(),
+                closed: false,
+                extra: Map::new(),
+            };
+            self.stroke_bez(
+                painter,
+                rect,
+                ph,
+                &graphdraw_core::render::bspline::path(&data),
+                thin,
+            );
+            for (q, fixed) in pts {
+                let r = Rect::from_center_size(
+                    self.screen(rect, ph, *q),
+                    Vec2::splat(theme::HANDLE_SIZE),
+                );
+                let fill = if *fixed { accent } else { theme::HANDLE_FILL };
+                painter.rect_filled(r, theme::RADIUS_XS, fill);
+                painter.rect_stroke(
+                    r,
+                    theme::RADIUS_XS,
+                    handle_stroke(),
+                    egui::StrokeKind::Middle,
                 );
             }
         }
@@ -4544,6 +4697,27 @@ impl CanvasState {
         rect: Rect,
         ph: f64,
     ) {
+        // B-spline: arrastar um ponto de controle (GD-BSP-01).
+        if let Some((r, o, b, m)) = single_bspline(doc) {
+            if let Some(index) = b.points.iter().position(|c| {
+                (self.screen(rect, ph, m * Point::new(c.p[0], c.p[1])) - origin).length()
+                    <= theme::HANDLE_HIT
+            }) {
+                doc.editor
+                    .begin(tr("Mover ponto de controle", "Move control point"));
+                self.drag = Drag::BSplinePoint {
+                    index,
+                    r,
+                    original: o,
+                };
+                return;
+            }
+            self.drag = Drag::Rubber {
+                start: origin,
+                lasso: None,
+            };
+            return;
+        }
         // Forma básica: as alças de ajuste (GD-PRI-07).
         if let Some((r, o, bd, m)) = single_basic(doc) {
             if let Some(index) = graphdraw_core::render::basic::handles(&bd)
@@ -5074,6 +5248,15 @@ impl CanvasState {
                 }
                 doc.editor.replace_at(r, o);
             }
+            Drag::BSplinePoint { index, r, original } => {
+                let m = doc.editor.parent_affine(r) * original.transform.affine();
+                let mut o = original.clone();
+                if let ObjectKind::BSpline(b) = &mut o.kind {
+                    let q = m.inverse() * cur;
+                    b.points[*index].p = [q.x, q.y];
+                }
+                doc.editor.replace_at(r, o);
+            }
             Drag::BasicHandle { index, r, original } => {
                 let m = doc.editor.parent_affine(r) * original.transform.affine();
                 let mut o = original.clone();
@@ -5298,7 +5481,8 @@ impl CanvasState {
             | Drag::NodeHandle { .. }
             | Drag::Segment { .. }
             | Drag::PolyVertex { .. }
-            | Drag::BasicHandle { .. } => {
+            | Drag::BasicHandle { .. }
+            | Drag::BSplinePoint { .. } => {
                 doc.editor.commit();
             }
             Drag::GradHandle { r, .. } => {
@@ -5471,6 +5655,14 @@ impl CanvasState {
             Tool::Eyedropper => {
                 if let Some(msg) = self.eyedrop_click(doc, p, pos, mods, tol, rect, false) {
                     ev.status = Some(msg);
+                }
+            }
+            Tool::BSpline => {
+                let first = self.bspline.as_ref().and_then(|v| (v.len() >= 3).then(|| v[0].0));
+                if first.is_some_and(|f| (self.screen(rect, ph, f) - pos).length() <= theme::HANDLE_HIT) {
+                    self.finish_bspline(doc, defaults, true);
+                } else {
+                    self.bspline.get_or_insert_with(Vec::new).push((p, mods.command));
                 }
             }
             Tool::Polyline
@@ -5666,6 +5858,25 @@ impl CanvasState {
                 }
             }
             Tool::Shape => {
+                // Duplo clique num ponto da B-spline: fixa / solta.
+                if let Some((_, mut o, b, m)) = single_bspline(doc)
+                    && let Some(i) = b
+                        .points
+                        .iter()
+                        .position(|c| (m * Point::new(c.p[0], c.p[1]) - p).hypot() <= tol)
+                    && let ObjectKind::BSpline(nb) = &mut o.kind
+                {
+                    nb.points[i].fixed = !nb.points[i].fixed;
+                    ops::modify(
+                        &mut doc.editor,
+                        std::slice::from_ref(&o.id),
+                        tr("Fixar ponto", "Toggle fixed point"),
+                        |x| {
+                            x.kind = o.kind.clone();
+                            true
+                        },
+                    );
+                }
                 // Duplo clique no segmento adiciona nó (GD-NOD-03).
                 if let Some((loc, o, path, m)) =
                     single_path(doc).map(|s| (s.r, s.obj.clone(), s.path.clone(), s.m))
@@ -5687,7 +5898,7 @@ impl CanvasState {
                     }
                 }
             }
-            Tool::Bezier | Tool::Polyline => {
+            Tool::Bezier | Tool::Polyline | Tool::BSpline => {
                 self.finish_bezier(doc, defaults, false);
             }
             _ => {}
@@ -6014,6 +6225,22 @@ fn moved_guide(
 
 /// Polígono selecionado sozinho: referência, objeto, dados e matriz local →
 /// página.
+/// B-spline selecionada sozinha (referência, objeto, dados, matriz).
+fn single_bspline(
+    doc: &DocState,
+) -> Option<(ObjRef, Object, graphdraw_core::model::BSplineData, Affine)> {
+    let [id] = doc.selection.as_slice() else {
+        return None;
+    };
+    let r = doc.editor.find(id)?;
+    let o = doc.editor.get(&r)?.clone();
+    let ObjectKind::BSpline(b) = &o.kind else {
+        return None;
+    };
+    let m = doc.editor.parent_affine(&r) * o.transform.affine();
+    Some((r, o.clone(), b.clone(), m))
+}
+
 /// Forma básica selecionada sozinha (referência, objeto, dados, matriz).
 fn single_basic(
     doc: &DocState,
@@ -7086,6 +7313,130 @@ mod tests {
         assert_eq!(doc.page().layers[0].objects.len(), n + 1);
         click(&mut cs, &mut doc, outside);
         assert_eq!(doc.page().layers[0].objects.len(), n + 1, "fora: nada");
+    }
+
+    /// GD-FER-24/GD-BSP-01 na tela: cliques põem pontos (Ctrl = fixado),
+    /// Enter termina; clique no primeiro fecha; na ferramenta Formato,
+    /// arrastar um ponto o move e o duplo clique fixa/solta.
+    #[test]
+    fn bspline_tool_on_canvas() {
+        let (ctx, mut cs, mut doc, _id, rect, ph) = bdr_setup();
+        let t = Tool::BSpline;
+        let click =
+            |cs: &mut CanvasState, doc: &mut DocState, tool: Tool, p: Pos2, m: egui::Modifiers| {
+                let btn = |pressed| egui::Event::PointerButton {
+                    pos: p,
+                    button: PointerButton::Primary,
+                    pressed,
+                    modifiers: m,
+                };
+                for e in [egui::Event::PointerMoved(p), btn(true), btn(false)] {
+                    canvas_frame(
+                        &ctx,
+                        cs,
+                        doc,
+                        tool,
+                        vec![egui::Event::ModifiersChanged(m), e],
+                    );
+                }
+            };
+        let at = |cs: &CanvasState, x: f64, y: f64| cs.screen(rect, ph, Point::new(x, y));
+        let none = egui::Modifiers::NONE;
+        let pts = [
+            (100_000.0, 150_000.0),
+            (130_000.0, 200_000.0),
+            (160_000.0, 150_000.0),
+        ];
+        for (i, (x, y)) in pts.iter().enumerate() {
+            let m = if i == 1 {
+                egui::Modifiers::COMMAND
+            } else {
+                none
+            };
+            let p = at(&cs, *x, *y);
+            click(&mut cs, &mut doc, t, p, m);
+        }
+        assert!(cs.has_draft());
+        cs.finish_bezier(&mut doc, &Defaults::default(), false);
+        let o = doc.page().layers[0].objects.last().unwrap().clone();
+        let ObjectKind::BSpline(b) = &o.kind else {
+            panic!("{:?}", o.kind)
+        };
+        assert_eq!(
+            b.points.iter().map(|c| c.fixed).collect::<Vec<_>>(),
+            [false, true, false]
+        );
+        assert!(!b.closed);
+        // Fechada: três pontos e clique no primeiro.
+        for (x, y) in [
+            (20_000.0, 20_000.0),
+            (60_000.0, 20_000.0),
+            (40_000.0, 60_000.0),
+            (20_000.0, 20_000.0),
+        ] {
+            let p = at(&cs, x, y);
+            click(&mut cs, &mut doc, t, p, none);
+        }
+        let o = doc.page().layers[0].objects.last().unwrap().clone();
+        let ObjectKind::BSpline(b) = &o.kind else {
+            panic!()
+        };
+        assert!(b.closed && b.points.len() == 3);
+        // Formato: arrasta o segundo ponto.
+        doc.selection = vec![o.id.clone()];
+        let s = Tool::Shape;
+        let (a, z) = (at(&cs, 60_000.0, 20_000.0), at(&cs, 80_000.0, 30_000.0));
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            s,
+            vec![egui::Event::PointerMoved(a)],
+        );
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            s,
+            vec![button(a, PointerButton::Primary, true)],
+        );
+        for k in 1..=4 {
+            canvas_frame(
+                &ctx,
+                &mut cs,
+                &mut doc,
+                s,
+                vec![egui::Event::PointerMoved(a + (z - a) * (k as f32 / 4.0))],
+            );
+        }
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            s,
+            vec![button(z, PointerButton::Primary, false)],
+        );
+        let get = |doc: &DocState| match &doc.page().layers[0].objects.last().unwrap().kind {
+            ObjectKind::BSpline(b) => b.clone(),
+            _ => unreachable!(),
+        };
+        let p1 = get(&doc).points[1].p;
+        assert!(
+            (p1[0] - 80_000.0).abs() < 300.0 && (p1[1] - 30_000.0).abs() < 300.0,
+            "{p1:?}"
+        );
+        let tol = theme::HANDLE_HIT as f64 / cs.view.zoom;
+        let defaults = Defaults::default();
+        let mut ev = CanvasEvents::default();
+        cs.double_click(
+            s,
+            &mut doc,
+            Point::new(p1[0], p1[1]),
+            tol,
+            &defaults,
+            &mut ev,
+        );
+        assert!(get(&doc).points[1].fixed);
     }
 
     /// GD-CON-01 na tela: arrastar do meio do lado direito do quadrado até
@@ -8456,7 +8807,8 @@ mod tests {
                 "mira+tool-free-transform",
                 "mira+tool-dimension",
                 "mira+tool-smart-fill",
-                "mira+tool-connector"
+                "mira+tool-connector",
+                "mira+tool-bspline"
             ]
         );
         assert_eq!(

@@ -108,6 +108,15 @@ impl App {
                     );
                 })
             }
+            Tool::BSpline => widgets::single_line_bar(ui, "barra-bspline", |ui| {
+                widgets::hint_line(
+                    ui,
+                    tr(
+                        "Cliques põem pontos de controle · Ctrl+clique = fixado (a curva passa por ele) · Enter ou duplo clique termina · clique no primeiro fecha · na ferramenta Formato, arraste os pontos e duplo clique fixa/solta",
+                        "Clicks place control points · Ctrl+click = fixed (the curve goes through it) · Enter or double-click ends · click the first to close · with the Shape tool, drag the points and double-click to fix/release",
+                    ),
+                );
+            }),
             Tool::Connector => widgets::single_line_bar(ui, "barra-conector", |ui| {
                 connector_bar(ui, doc, &mut self.canvas)
             }),

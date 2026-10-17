@@ -412,6 +412,26 @@
           }
         },
         {
+          "if": { "properties": { "type": { "const": "bspline" } } },
+          "then": {
+            "required": ["points"],
+            "properties": {
+              "points": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["p"],
+                  "properties": {
+                    "p": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
+                    "fixed": { "type": "boolean" }
+                  }
+                }
+              },
+              "closed": { "type": "boolean" }
+            }
+          }
+        },
+        {
           "if": { "properties": { "type": { "const": "connector" } } },
           "then": {
             "required": ["style", "from", "to"],

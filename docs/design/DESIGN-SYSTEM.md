@@ -532,6 +532,15 @@ Aba **Verificação** (ícone `preflight`) no painel direito:
   ferramentas do grupo em linha, ao lado do botão, em `shadow-popover`.
   Escolher na gaveta usa e passa a mostrar aquela; clique fora ou Esc fecha.
 - Grupos:
+  - **Curvas**: B-spline (ícone `tool-bspline`):
+    - cliques põem pontos de controle; Ctrl+clique põe ponto fixado (a
+      curva passa por ele); Enter ou duplo clique termina, clique no
+      primeiro ponto fecha;
+    - a prévia é o polígono de controle tracejado em `border-width`, a
+      curva em `border-width` e os pontos como alças (`handle-fill`;
+      fixados cheios de `accent-primary`);
+    - na ferramenta Formato, os pontos da B-spline selecionada são alças:
+      arrastar move, duplo clique fixa/solta.
   - **Medidas** (depois de Texto): Cota e Conector.
   - **Cota**:
     - a barra tem o tipo (Horizontal, Vertical, Paralela, Angular, Raio,

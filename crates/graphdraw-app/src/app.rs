@@ -1391,7 +1391,7 @@ impl App {
         }
         let mods = ctx.input(|i| i.modifiers);
         let pressed = |k| ctx.input(|i| i.key_pressed(k));
-        let drafting = matches!(self.tool, Tool::Bezier | Tool::Polyline);
+        let drafting = matches!(self.tool, Tool::Bezier | Tool::Polyline | Tool::BSpline);
         if pressed(Key::Delete) || pressed(Key::Backspace) && !drafting {
             self.delete();
         }
@@ -1937,6 +1937,7 @@ impl App {
             C::ToolFreeTransform => self.set_tool(Tool::FreeTransform),
             C::ToolFreehand => self.set_tool(Tool::Freehand),
             C::ToolPolyline => self.set_tool(Tool::Polyline),
+            C::ToolBSpline => self.set_tool(Tool::BSpline),
             C::ToolLine2 => self.set_tool(Tool::Line2),
             C::ToolCurve3 => self.set_tool(Tool::Curve3),
             C::ToolCrop => self.set_tool(Tool::Crop),
@@ -4066,6 +4067,7 @@ pub(crate) fn kind_label(k: &ObjectKind) -> String {
         ObjectKind::Dimension(_) => tr("cota", "dimension"),
         ObjectKind::Basic(_) => tr("forma básica", "basic shape"),
         ObjectKind::Connector(_) => tr("conector", "connector"),
+        ObjectKind::BSpline(_) => tr("B-spline", "B-spline"),
         ObjectKind::Unknown { .. } => tr("objeto desconhecido", "unknown object"),
     }
     .into()

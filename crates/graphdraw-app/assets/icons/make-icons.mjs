@@ -41,6 +41,7 @@ const icons = {
   "tool-fill-solid": `<path d="M5 11 L11 5 L19 13 L13 19 Z" fill="#fff"/><path d="M11 5 L9 3"/><path d="M19.5 15.5 C 19.5 15.5 21 17.5 21 18.5 a1.5 1.5 0 0 1 -3 0 C 18 17.5 19.5 15.5 19.5 15.5 Z" fill="#fff"/>`,
   "tool-eyedropper": `<path d="M14.5 4.5 a2.5 2.5 0 0 1 3.5 3.5 L16 10 L14 8 Z" fill="#fff"/><path d="M15 9 L7 17 L5 19.5 L4.5 19 L7 17"/><path d="M13 7 L17 11"/>`,
   "tool-freehand": `<path d="M3.5 17 C 6 10, 8 18, 11 12 S 15 5, 17 10 S 19.5 15, 20.5 9"/>`,
+  "tool-bspline": `<path d="M3.5 18 L8 5.5 L16 5.5 L20.5 18" stroke-dasharray="1.6 1.6" stroke-width="1"/><path d="M3.5 18 C 6 10, 9 7.5, 12 7.5 C 15 7.5, 18 10, 20.5 18"/>${node(3.5, 18, 1.8)}${hnode(8, 5.5, 1.6)}${hnode(16, 5.5, 1.6)}${node(20.5, 18, 1.8)}`,
   "tool-polyline": `<path d="M3.5 18 L8.5 8 L13 15 C 15 18, 18 9, 20.5 6"/>${node(3.5, 18, 1.8)}${node(8.5, 8, 1.8)}${node(13, 15, 1.8)}`,
   "tool-line2": `<path d="M5 19 L19 5"/>${node(5, 19, 2)}${node(19, 5, 2)}`,
   "tool-curve3": `<path d="M3.5 18 C 6 6, 18 6, 20.5 18"/>${node(3.5, 18, 1.8)}${node(20.5, 18, 1.8)}${dot(12, 9, 1.8)}`,

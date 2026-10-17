@@ -32,6 +32,9 @@ entre parênteses são os requisitos de `docs/spec/`.
   - horizontal, vertical, paralela, angular, raio, diâmetro e segmento;
   - ligadas aos nós medidos, com a escala de desenho (GD-FER-40,
     GD-COT-01..03).
+- B-spline: pontos de controle fixados ou flutuantes, aberta ou fechada;
+  editar arrastando os pontos na ferramenta Formato (GD-FER-24,
+  GD-BSP-01).
 - Conectores reto, em ângulo reto (cantos arredondados) e curvo, presos
   aos encaixes dos objetos e refeitos no mesmo passo ao movê-los
   (GD-FER-41, GD-CON-01).
