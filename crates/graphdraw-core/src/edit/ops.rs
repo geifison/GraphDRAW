@@ -1298,6 +1298,99 @@ pub fn clear_transformations(ed: &mut Editor, sel: &[String]) {
     });
 }
 
+/// Converter em bitmap (GD-CNV-03): a seleção vira uma imagem PNG a `dpi`,
+/// com ou sem anti-serrilhado, fundo transparente (`background = None`)
+/// ou de cor, no lugar do objeto mais à frente. Devolve o ID da imagem.
+pub fn convert_to_bitmap(
+    ed: &mut Editor,
+    sel: &[String],
+    dpi: f64,
+    antialias: bool,
+    background: Option<[u8; 4]>,
+) -> Option<String> {
+    use crate::render::{ImageCache, SceneOptions, build_scene, raster};
+    let mut refs = refs(ed, sel);
+    if refs.is_empty() {
+        return None;
+    }
+    refs.sort();
+    let page_index = refs[0].loc.page;
+    let bbox = selection_bounds(ed, sel, true)?;
+    // Documento só com a seleção (sem a página mestra).
+    let mut d = ed.doc.clone();
+    d.data.master_page.layers.clear();
+    let mut page = d.data.pages.get(page_index)?.clone();
+    for l in &mut page.layers {
+        l.objects.clear();
+    }
+    for r in refs.iter().filter(|r| r.loc.page == page_index) {
+        let mut o = ed.get(r)?.clone();
+        o.transform = Transform::from_affine(ed.parent_affine(r) * o.transform.affine());
+        o.visible = true;
+        page.layers.get_mut(r.loc.layer)?.objects.push(o);
+    }
+    page.background = None;
+    for l in &mut page.layers {
+        l.visible = true;
+        l.wireframe = false;
+    }
+    let dpi = dpi.clamp(10.0, 2400.0);
+    let s = dpi / crate::units::UM_PER_INCH;
+    let view = raster::page_view(page.height, dpi);
+    let db = view.transform_rect_bbox(bbox);
+    let (x0, y0, x1, y1) = (db.x0.floor(), db.y0.floor(), db.x1.ceil(), db.y1.ceil());
+    let (w, h) = ((x1 - x0).max(1.0), (y1 - y0).max(1.0));
+    if w * h > 200e6 {
+        return None;
+    }
+    let scene = build_scene(
+        &d,
+        &page,
+        SceneOptions { print: false },
+        &ImageCache::default(),
+    );
+    let pm = raster::render(
+        &scene,
+        Affine::translate((-x0, -y0)) * view,
+        w as u32,
+        h as u32,
+        &raster::RasterOptions {
+            antialias,
+            background,
+        },
+    )?;
+    let png = raster::encode_png(&pm, Some(dpi)).ok()?;
+    let src = ed.doc.add_image(png, "png");
+    let mut img = Object::new(ObjectKind::Image(crate::model::ImageData {
+        width: w / s,
+        height: h / s,
+        src,
+        extra: Default::default(),
+    }));
+    img.transform = Transform::translate(x0 / s, page.height - y1 / s);
+    img.name = Some("Bitmap".into());
+    let id = img.id.clone();
+    let front = refs.last()?.loc;
+    let remove: Vec<String> = refs
+        .iter()
+        .filter_map(|r| ed.get(r).map(|o| o.id.clone()))
+        .collect();
+    ed.transaction("Converter em bitmap", |ed| {
+        let anchor = ed.object(front).map(|o| o.id.clone());
+        for rid in &remove {
+            if let Some(r) = ed.find(rid) {
+                ed.remove_at(&r);
+            }
+        }
+        let index = match anchor.and_then(|a| ed.find(&a)) {
+            Some(r) => r.loc.index + 1,
+            None => front.index.min(ed.objects(front.page, front.layer).len()),
+        };
+        ed.insert_object(ObjLoc { index, ..front }, img);
+    });
+    Some(id)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1884,5 +1977,43 @@ mod tests {
         assert_eq!(get(&ed), None);
         ed.undo();
         assert!(get(&ed).is_some());
+    }
+
+    /// GD-CNV-03: a seleção vira uma imagem no mesmo lugar, na resolução
+    /// pedida, com fundo transparente.
+    #[test]
+    fn gd_cnv_03_convert_to_bitmap() {
+        use crate::model::{Color, Document, Page, RectData};
+        let mut d = Document::new();
+        d.data.pages.push(Page::new(100_000.0, 100_000.0));
+        let mut ed = Editor::new(d);
+        let mut o = Object::new(ObjectKind::Rectangle(RectData {
+            width: 10_000.0,
+            height: 10_000.0,
+            corners: None,
+            extra: Default::default(),
+        }));
+        o.transform = Transform::translate(20_000.0, 30_000.0);
+        o.fill = Some(Fill::solid(Color::from_hex("#ff0000").unwrap()));
+        let id = add_object(&mut ed, 0, 0, o, "r");
+        let img = convert_to_bitmap(&mut ed, &[id], 254.0, true, None).unwrap();
+        let objs = ed.objects(0, 0);
+        assert_eq!(objs.len(), 1);
+        let ObjectKind::Image(im) = &objs[0].kind else {
+            panic!("imagem")
+        };
+        assert_eq!(objs[0].id, img);
+        assert!((im.width - 10_000.0).abs() <= 100.0 && (im.height - 10_000.0).abs() <= 100.0);
+        let t = objs[0].transform.affine().as_coeffs();
+        assert!(
+            (t[4] - 20_000.0).abs() <= 100.0 && (t[5] - 30_000.0).abs() <= 100.0,
+            "{t:?}"
+        );
+        let png = ed.doc.images.get(&im.src).unwrap();
+        let px = image::load_from_memory(png).unwrap().to_rgba8();
+        assert_eq!((px.width(), px.height()), (100, 100));
+        assert_eq!(px.get_pixel(50, 50).0, [255, 0, 0, 255]);
+        ed.undo();
+        assert!(matches!(ed.objects(0, 0)[0].kind, ObjectKind::Rectangle(_)));
     }
 }

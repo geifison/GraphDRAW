@@ -294,6 +294,9 @@ de texto.
   confirma que cabe numa tela de 1366 × 768.
 - Botões no rodapé, à direita: Cancelar (secondary) e a ação (primary).
   `Esc` cancela.
+- **Converter em bitmap** (GD-CNV-03): resolução em ppp (10–2400, padrão
+  300), Suavizar bordas e Fundo transparente (senão branco); Converter /
+  Cancelar.
 - **Janela de contorno, seção Caneta caligráfica** (GD-OUT-06): largura do
   bico (%, 100% = redondo) e ângulo (habilitado abaixo de 100%).
 - **Janela de contorno, seção Pontas de seta** (GD-OUT-05): uma linha para

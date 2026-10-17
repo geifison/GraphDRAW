@@ -47,6 +47,24 @@ pub(crate) struct OffsetDialog {
     join: graphdraw_core::edit::shapeops::Join,
 }
 
+/// Opções de "Converter em bitmap" (GD-CNV-03).
+#[derive(Clone, Copy)]
+pub(crate) struct BitmapDialog {
+    dpi: f64,
+    antialias: bool,
+    transparent: bool,
+}
+
+impl Default for BitmapDialog {
+    fn default() -> Self {
+        BitmapDialog {
+            dpi: 300.0,
+            antialias: true,
+            transparent: true,
+        }
+    }
+}
+
 impl Default for OffsetDialog {
     fn default() -> Self {
         OffsetDialog {
@@ -136,6 +154,7 @@ pub struct App {
     export_choice: bool,
     /// Janela do contorno de deslocamento (GD-OFS-01) aberta.
     offset_dlg: Option<OffsetDialog>,
+    bitmap_dlg: Option<BitmapDialog>,
     /// Exportar para corte (PLT/DXF) e gerar linha de corte (doc 17).
     cut_export: Option<crate::cutui::CutExport>,
     cut_line_dlg: Option<crate::cutui::CutLineDialog>,
@@ -208,6 +227,7 @@ impl App {
             last_action: None,
             export_choice: false,
             offset_dlg: None,
+            bitmap_dlg: None,
             cut_export: None,
             cut_line_dlg: None,
             color_dlg: None,
@@ -1192,6 +1212,11 @@ impl App {
                 }
             }
             C::Ungroup => self.with_selection(|ed, s| Some(ops::ungroup(ed, s))),
+            C::ConvertToBitmap => {
+                if self.doc.as_ref().is_some_and(|d| !d.selection.is_empty()) {
+                    self.bitmap_dlg = Some(BitmapDialog::default());
+                }
+            }
             C::ClearTransformations => self.with_selection(|ed, s| {
                 ops::clear_transformations(ed, s);
                 Some(s.to_vec())
@@ -1764,6 +1789,18 @@ impl App {
                     .clicked()
                 {
                     self.run_command(Command::ClearTransformations, &ctx);
+                }
+                if ui
+                    .add_enabled(
+                        has_sel,
+                        egui::Button::new(crate::keymap::menu(
+                            tr("Converter em bitmap…", "Convert to bitmap…"),
+                            crate::keymap::Command::ConvertToBitmap,
+                        )),
+                    )
+                    .clicked()
+                {
+                    self.run_command(Command::ConvertToBitmap, &ctx);
                 }
                 ui.separator();
                 for (label, order) in [
@@ -2396,6 +2433,7 @@ impl App {
             self.keys_window(ctx);
         }
         self.offset_window(ctx);
+        self.bitmap_window(ctx);
         self.cut_windows(ctx);
         if let Some(dlg) = &mut self.preset_dlg
             && let Some(ok) = dlg.show(ctx)
@@ -2507,6 +2545,76 @@ impl App {
             ),
             Err(e) => format!("{} {e}", tr("Falha ao exportar:", "Export failed:")),
         };
+    }
+
+    /// Janela "Converter em bitmap" (GD-CNV-03): resolução, anti-serrilhado
+    /// e fundo transparente ou branco.
+    fn bitmap_window(&mut self, ctx: &egui::Context) {
+        let Some(dlg) = &mut self.bitmap_dlg else {
+            return;
+        };
+        let (mut apply, mut close) = (false, false);
+        crate::widgets::modal(ctx, egui::Id::unique("converter-bitmap")).show(ctx, |ui| {
+            ui.heading(tr("Converter em bitmap", "Convert to bitmap"));
+            ui.add_space(theme::SPACE_300);
+            ui.horizontal(|ui| {
+                ui.label(tr("Resolução", "Resolution"));
+                ui.add(
+                    egui::DragValue::new(&mut dlg.dpi)
+                        .range(10.0..=2400.0)
+                        .speed(1.0)
+                        .suffix(tr(" ppp", " dpi")),
+                );
+            });
+            ui.checkbox(
+                &mut dlg.antialias,
+                tr(
+                    "Suavizar bordas (anti-serrilhado)",
+                    "Smooth edges (anti-aliasing)",
+                ),
+            );
+            ui.checkbox(
+                &mut dlg.transparent,
+                tr("Fundo transparente", "Transparent background"),
+            );
+            ui.add_space(theme::SPACE_300);
+            crate::widgets::footer(ui, |ui| {
+                if ui
+                    .add(crate::widgets::primary_button(tr("Converter", "Convert")))
+                    .clicked()
+                    || ui.input(|i| i.key_pressed(Key::Enter))
+                {
+                    apply = true;
+                }
+                if ui
+                    .add(crate::widgets::secondary_button(tr("Cancelar", "Cancel")))
+                    .clicked()
+                    || ui.input(|i| i.key_pressed(Key::Escape))
+                {
+                    close = true;
+                }
+            });
+        });
+        if apply {
+            let d = *dlg;
+            self.bitmap_dlg = None;
+            let mut made = false;
+            self.with_selection(|ed, s| {
+                let bg = (!d.transparent).then_some([255, 255, 255, 255]);
+                let id = ops::convert_to_bitmap(ed, s, d.dpi, d.antialias, bg);
+                made = id.is_some();
+                id.map(|i| vec![i])
+            });
+            if !made {
+                self.status = tr(
+                    "Não deu para converter (seleção vazia ou imagem grande demais)",
+                    "Could not convert (empty selection or image too large)",
+                )
+                .into();
+            }
+        } else if close {
+            self.bitmap_dlg = None;
+        }
     }
 
     /// Janela do contorno de deslocamento (GD-OFS-01).
@@ -2990,6 +3098,35 @@ mod tests {
             repeat: false,
             modifiers: mods,
         }
+    }
+
+    /// GD-CNV-03 / DS 4.4: a janela "Converter em bitmap" cabe em 1366 × 768.
+    #[test]
+    fn bitmap_window_fits_small_screen() {
+        let ctx = crate::theme::test_ctx();
+        let mut app = App::with_ctx(&ctx, None);
+        app.bitmap_dlg = Some(BitmapDialog::default());
+        let mut size = egui::Vec2::ZERO;
+        for _ in 0..3 {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::Vec2::new(1366.0, 768.0),
+                )),
+                ..Default::default()
+            };
+            let mut out = ctx.run_ui(input, |ui| app.bitmap_window(ui.ctx()));
+            out.textures_delta.clear();
+            size = ctx.memory(|m| {
+                m.area_rect(egui::Id::unique("converter-bitmap"))
+                    .map_or(egui::Vec2::ZERO, |r| r.size())
+            });
+        }
+        assert!(
+            size.y > 0.0 && size.y <= 768.0 && size.x <= 1366.0,
+            "{size:?}"
+        );
+        assert!(app.bitmap_dlg.is_some());
     }
 
     /// Doc 06: com um trecho selecionado na edição, estilo e cor da paleta
