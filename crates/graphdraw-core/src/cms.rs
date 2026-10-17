@@ -57,6 +57,102 @@ fn intent(s: &str) -> Intent {
 type T3to4 = Transform<[f64; 3], [f64; 4], lcms2::GlobalContext, lcms2::DisallowCache>;
 type T4to3 = Transform<[f64; 4], [f64; 3], lcms2::GlobalContext, lcms2::DisallowCache>;
 type T3to3 = Transform<[f64; 3], [f64; 3], lcms2::GlobalContext, lcms2::DisallowCache>;
+type T4to4 = Transform<[f64; 4], [f64; 4], lcms2::GlobalContext, lcms2::DisallowCache>;
+
+/// Os dois documentos usam perfis diferentes (GD-CMS-04)?
+pub fn profiles_differ(a: &ColorManagement, b: &ColorManagement) -> bool {
+    a.rgb_profile != b.rgb_profile || a.cmyk_profile != b.cmyk_profile
+}
+
+/// Conversão de valores entre dois conjuntos de perfis (GD-CMS-04): CMYK →
+/// CMYK e RGB → RGB, pela intenção do destino. Sem perfil CMYK de um dos
+/// lados, o CMYK fica como está (fórmula não tem espaço definido).
+pub struct Converter {
+    cmyk: Option<T4to4>,
+    rgb: Option<T3to3>,
+}
+
+impl Converter {
+    pub fn new(from: &ColorManagement, to: &ColorManagement) -> Converter {
+        let mut warn = Vec::new();
+        let it = intent(&to.intent);
+        let flags = if to.black_point {
+            Flags::BLACKPOINT_COMPENSATION | Flags::NO_CACHE
+        } else {
+            Flags::NO_CACHE
+        };
+        let cmyk_of = |c: &ColorManagement, w: &mut Vec<String>| {
+            c.cmyk_profile
+                .as_deref()
+                .and_then(|p| load(p, lcms2::ColorSpaceSignature::CmykData, "CMYK", w))
+                .map(|(p, _)| p)
+        };
+        let rgb_of = |c: &ColorManagement, w: &mut Vec<String>| {
+            c.rgb_profile
+                .as_deref()
+                .and_then(|p| load(p, lcms2::ColorSpaceSignature::RgbData, "RGB", w))
+                .map(|(p, _)| p)
+                .unwrap_or_else(Profile::new_srgb)
+        };
+        let cmyk = match (cmyk_of(from, &mut warn), cmyk_of(to, &mut warn)) {
+            (Some(a), Some(b)) if from.cmyk_profile != to.cmyk_profile => {
+                Transform::new_flags_context(
+                    lcms2::GlobalContext::new(),
+                    &a,
+                    PixelFormat::CMYK_DBL,
+                    &b,
+                    PixelFormat::CMYK_DBL,
+                    it,
+                    flags,
+                )
+                .ok()
+            }
+            _ => None,
+        };
+        let rgb = (from.rgb_profile != to.rgb_profile)
+            .then(|| {
+                Transform::new_flags_context(
+                    lcms2::GlobalContext::new(),
+                    &rgb_of(from, &mut warn),
+                    PixelFormat::RGB_DBL,
+                    &rgb_of(to, &mut warn),
+                    PixelFormat::RGB_DBL,
+                    it,
+                    flags,
+                )
+                .ok()
+            })
+            .flatten();
+        Converter { cmyk, rgb }
+    }
+
+    /// Há algo a converter?
+    pub fn is_noop(&self) -> bool {
+        self.cmyk.is_none() && self.rgb.is_none()
+    }
+
+    /// Converte a cor no lugar; `true` se mudou.
+    pub fn convert(&self, c: &mut crate::model::Color) -> bool {
+        match (c.model.as_str(), &self.cmyk, &self.rgb) {
+            ("cmyk", Some(t), _) if c.values.len() >= 4 => {
+                let mut out = [[0.0; 4]];
+                t.transform_pixels(
+                    &[[c.values[0], c.values[1], c.values[2], c.values[3]].map(|v| v * 100.0)],
+                    &mut out,
+                );
+                c.values = out[0].map(|v| (v / 100.0).clamp(0.0, 1.0)).to_vec();
+                true
+            }
+            ("rgb", _, Some(t)) if c.values.len() >= 3 => {
+                let mut out = [[0.0; 3]];
+                t.transform_pixels(&[[c.values[0], c.values[1], c.values[2]]], &mut out);
+                c.values = out[0].map(|v| v.clamp(0.0, 1.0)).to_vec();
+                true
+            }
+            _ => false,
+        }
+    }
+}
 
 /// Transformações prontas para uma configuração.
 pub struct Cms {

@@ -164,6 +164,9 @@ pub struct App {
     /// Janela do contorno de deslocamento (GD-OFS-01) aberta.
     offset_dlg: Option<OffsetDialog>,
     pub(crate) ask_default: Option<DefaultAsk>,
+    /// Documento aberto com perfis diferentes dos de trabalho, esperando a
+    /// escolha (GD-CMS-04).
+    pub(crate) profile_ask: Option<String>,
     /// Salvamento automático desta execução (None nos testes).
     recovery: Option<crate::recovery::Session>,
     /// Cópias de uma execução que caiu, oferecidas ao abrir.
@@ -253,6 +256,7 @@ impl App {
             export_choice: false,
             offset_dlg: None,
             ask_default: None,
+            profile_ask: None,
             recovery: None,
             recover_offer: Vec::new(),
             crash_log: None,
@@ -453,6 +457,80 @@ impl App {
         }
     }
 
+    /// Política de perfis ao abrir (GD-CMS-04): manter, converter ou atribuir
+    /// os de trabalho. `ask` deixa a pergunta para a janela.
+    pub(crate) fn apply_profile_policy(&mut self, policy: &str) {
+        let Some(work) = self.ws.working_color.clone() else {
+            return;
+        };
+        let Some(d) = &mut self.doc else {
+            return;
+        };
+        if !graphdraw_core::cms::profiles_differ(&d.doc().data.settings.color, &work) {
+            return;
+        }
+        match policy {
+            "keep" => {}
+            "convert" => {
+                let n = graphdraw_core::edit::palette::convert_colors(&mut d.editor, &work);
+                self.status = format!(
+                    "{n} {}",
+                    tr(
+                        "cor(es) convertida(s) para os perfis de trabalho",
+                        "color(s) converted to the working profiles"
+                    )
+                );
+            }
+            "ignore" => d.editor.transaction(
+                tr("Usar perfis de trabalho", "Use working profiles"),
+                |ed| ed.edit_settings(|s| s.color = work),
+            ),
+            _ => self.profile_ask = Some(d.title()),
+        }
+    }
+
+    /// Pergunta da política de perfis (GD-CMS-04).
+    fn profile_window(&mut self, ctx: &egui::Context) {
+        let Some(title) = self.profile_ask.clone() else {
+            return;
+        };
+        let mut pick: Option<&str> = None;
+        let mut remember = false;
+        crate::widgets::modal(ctx, egui::Id::unique("perfis-diferentes")).show(ctx, |ui| {
+            ui.heading(tr("Perfis de cor diferentes", "Different color profiles"));
+            ui.add_space(theme::SPACE_300);
+            ui.label(format!(
+                "{title}: {}",
+                tr(
+                    "o arquivo usa perfis de cor diferentes dos seus perfis de trabalho.",
+                    "the file uses color profiles different from your working profiles."
+                )
+            ));
+            ui.checkbox(
+                &mut remember,
+                tr("Lembrar a escolha", "Remember the choice"),
+            );
+            ui.add_space(theme::SPACE_300);
+            crate::widgets::footer(ui, |ui| {
+                for (k, pt, en) in crate::colorui::POLICIES.iter().skip(1).rev() {
+                    if ui
+                        .add(crate::widgets::secondary_button(tr(pt, en)))
+                        .clicked()
+                    {
+                        pick = Some(k);
+                    }
+                }
+            });
+        });
+        if let Some(k) = pick {
+            self.profile_ask = None;
+            if remember {
+                self.ws.color_policy = k.to_string();
+            }
+            self.apply_profile_policy(k);
+        }
+    }
+
     /// Algum documento aberto tem alterações não salvas?
     fn any_modified(&self) -> bool {
         (0..self.tabs.len()).any(|i| self.doc_modified(i))
@@ -621,6 +699,8 @@ impl App {
             Ok((doc, report)) => {
                 let warn = report.items.iter().any(|i| i.severity != Severity::Info);
                 self.open_in_tab(DocState::from_document(doc, Some(path), report));
+                let policy = self.ws.color_policy.clone();
+                self.apply_profile_policy(&policy);
                 if warn {
                     self.right_tab = RightTab::Report;
                     self.show_right = true;
@@ -1936,9 +2016,9 @@ impl App {
                     .clicked()
                     && let Some(d) = &self.doc
                 {
-                    self.color_dlg = Some(crate::colorui::ColorDialog::new(
-                        &d.doc().data.settings.color,
-                    ));
+                    let mut dlg = crate::colorui::ColorDialog::new(&d.doc().data.settings.color);
+                    dlg.policy = self.ws.color_policy.clone();
+                    self.color_dlg = Some(dlg);
                     ui.close();
                 }
                 if ui
@@ -3259,6 +3339,7 @@ impl App {
         }
         self.offset_window(ctx);
         self.default_color_window(ctx);
+        self.profile_window(ctx);
         self.recovery_window(ctx);
         self.bitmap_window(ctx);
         self.cut_windows(ctx);
@@ -3283,6 +3364,12 @@ impl App {
             && let Some(ok) = dlg.show(ctx)
         {
             let cm = dlg.cm.clone();
+            if ok {
+                self.ws.color_policy = dlg.policy.clone();
+                if dlg.make_working {
+                    self.ws.working_color = Some(cm.clone());
+                }
+            }
             self.color_dlg = None;
             if ok && let Some(d) = &mut self.doc {
                 d.editor
@@ -4058,6 +4145,30 @@ mod tests {
     }
 
     /// GD-CNV-03 / DS 4.4: a janela "Converter em bitmap" cabe em 1366 × 768.
+    /// GD-CMS-04: arquivo com perfis diferentes dos de trabalho — "ask"
+    /// pergunta, "ignore" atribui os de trabalho, "keep" não mexe.
+    #[test]
+    fn gd_cms_04_profile_policy_on_open() {
+        let ctx = crate::theme::test_ctx();
+        let mut app = App::with_ctx(&ctx, None);
+        let work = graphdraw_core::cms::ColorManagement {
+            cmyk_profile: Some("C:/perfis/trabalho.icc".into()),
+            ..Default::default()
+        };
+        app.ws.working_color = Some(work.clone());
+        app.apply_profile_policy("keep");
+        assert!(app.profile_ask.is_none());
+        assert_ne!(app.doc.as_ref().unwrap().doc().data.settings.color, work);
+        app.apply_profile_policy("ask");
+        assert!(app.profile_ask.is_some(), "pergunta");
+        app.profile_ask = None;
+        app.apply_profile_policy("ignore");
+        assert_eq!(app.doc.as_ref().unwrap().doc().data.settings.color, work);
+        // Iguais: nada a perguntar.
+        app.apply_profile_policy("ask");
+        assert!(app.profile_ask.is_none());
+    }
+
     /// Recuperar: a cópia de uma execução que caiu abre numa aba, alterada
     /// (fechar pergunta), e sai da pasta; salvar por cima deixa o `.bak`.
     #[test]

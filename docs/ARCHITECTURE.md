@@ -274,6 +274,7 @@ Em Linux: `apt install libcdr-dev librevenge-dev pkg-config g++` e o mesmo
 | GD-CNV-03 | `ops::tests::gd_cnv_03_convert_to_bitmap`, `app::tests::bitmap_window_fits_small_screen` |
 | GD-PRE-01..10 (verificação prévia, sangria automática) | `preflight::tests::gd_pre_*` (core), `app::tests::gd_pre_preflight_panel_and_extend_command` |
 | GD-FER-20/21/25/26 (mão livre, linha 2 pontos, polilinha, curva 3 pontos) | `drawing::tests::gd_fer_*` (core), `canvas::tests::line_tools_on_canvas` (app) |
+| GD-CMS-04 (política de perfis ao abrir) | `palette::tests::gd_cms_04_convert_to_working_profile` (core), `app::tests::gd_cms_04_profile_policy_on_open` |
 | GD-SEP-01 (prévia de separações) | `separation::tests::*` (core), `canvas::tests::separation_preview_on_canvas` (app) |
 | GD-FIL-04..06/10/12 (padrões, caminho aberto) | `pattern::tests::*` (core), `tests/patterns.rs`, `dialogs::tests::pattern_fill_dialog` (app) |
 | GD-FER-40, GD-COT-01..03, GD-DOC-03 (cotas) | `dimension::tests::*` (core), `tests/dimensions.rs`, fixture `prepress.gdr`, `canvas::tests::dimension_tool_on_canvas` (app) |
@@ -394,6 +395,15 @@ Do M3:
   - no PDF/X-1a, o objeto com padrão é achatado em CMYK como as
     transparências;
   - cores especiais do padrão de duas cores não viram chapa separada.
+- Política de perfis (GD-CMS-04):
+  - os perfis de trabalho e a política (Perguntar, Manter, Converter, Usar
+    sem converter) ficam no perfil do usuário e se escolhem na janela
+    Gerenciamento de cor;
+  - ao abrir um `.gdr` com perfis diferentes, o editor aplica a política;
+  - Converter passa CMYK → CMYK e RGB → RGB pelo LittleCMS, num passo de
+    desfazer. Sem perfil CMYK de um dos lados, o CMYK fica como está;
+  - imagens com perfil ICC próprio e a importação `.cdr` ainda não seguem a
+    política (Beta).
 - Prévia de separações (GD-SEP-01): a cena é refeita por chapa, com as
   tintas em cinza. Ela segue o vazamento e a sobreimpressão do objeto. Na
   composta, as chapas se multiplicam e cada especial usa a cor alternativa.

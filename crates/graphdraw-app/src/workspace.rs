@@ -97,6 +97,10 @@ pub struct Workspace {
     pub density: String,
     /// Cor da paleta sem seleção vira padrão sem perguntar (GD-BDR-10).
     pub default_color_no_ask: bool,
+    /// Perfis de trabalho do usuário (GD-CMS-04); `None` = não definidos.
+    pub working_color: Option<graphdraw_core::cms::ColorManagement>,
+    /// Ao abrir arquivo com outros perfis: `ask`, `keep`, `convert`, `ignore`.
+    pub color_policy: String,
 }
 
 impl Default for Workspace {
@@ -110,6 +114,8 @@ impl Default for Workspace {
             tool: Tool::Select.info().0.into(),
             density: crate::theme::Density::Default.key().into(),
             default_color_no_ask: false,
+            working_color: None,
+            color_policy: "ask".into(),
         }
     }
 }
@@ -233,6 +239,8 @@ mod tests {
             tool: "tool-rect".into(),
             density: "ampla".into(),
             default_color_no_ask: true,
+            working_color: Some(Default::default()),
+            color_policy: "convert".into(),
         };
         let back = Workspace::from_json(&w.to_json()).unwrap();
         assert_eq!(back, w);

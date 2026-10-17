@@ -48,7 +48,7 @@ Prioridade:
   (GD-SEP-01).
 - [x] Preto 100% K com sobreimpressão automática em texto pequeno e linha
   fina (GD-SEP-02): coberto pela verificação (GD-PRE-07/08).
-- [ ] O que fazer com o perfil de cor ao abrir ou importar (GD-CMS-04).
+- [x] O que fazer com o perfil de cor ao abrir ou importar (GD-CMS-04): ao abrir `.gdr`; imagens com ICC e `.cdr` ficam para depois.
 
 ## P0 — Distribuição
 - [x] Ícone do programa e do arquivo `.gdr`, feitos a partir da logo do

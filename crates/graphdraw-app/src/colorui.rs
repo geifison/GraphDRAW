@@ -15,6 +15,36 @@ pub struct ColorDialog {
     /// Descrição do perfil CMYK lido.
     cmyk_name: Option<String>,
     checked: Option<ColorManagement>,
+    /// Também vira o perfil de trabalho (GD-CMS-04) e a política ao abrir.
+    pub make_working: bool,
+    pub policy: String,
+}
+
+/// Rótulos das políticas ao abrir um arquivo com outros perfis.
+pub const POLICIES: [(&str, &str, &str); 4] = [
+    ("ask", "Perguntar", "Ask"),
+    (
+        "keep",
+        "Manter os perfis do arquivo",
+        "Keep the file's profiles",
+    ),
+    (
+        "convert",
+        "Converter para os de trabalho",
+        "Convert to the working ones",
+    ),
+    (
+        "ignore",
+        "Usar os de trabalho sem converter",
+        "Use the working ones without converting",
+    ),
+];
+
+pub fn policy_label(k: &str) -> &'static str {
+    POLICIES
+        .iter()
+        .find(|p| p.0 == k)
+        .map_or(POLICIES[0].1, |p| tr(p.1, p.2))
 }
 
 impl ColorDialog {
@@ -24,6 +54,8 @@ impl ColorDialog {
             warnings: Vec::new(),
             cmyk_name: None,
             checked: None,
+            make_working: false,
+            policy: "ask".into(),
         }
     }
 
@@ -70,6 +102,21 @@ impl ColorDialog {
                 ))
                 .weak(),
             );
+            ui.separator();
+            ui.checkbox(
+                &mut self.make_working,
+                tr("Usar também como perfis de trabalho (novos documentos)", "Also use as the working profiles (new documents)"),
+            );
+            ui.horizontal(|ui| {
+                ui.label(tr("Arquivo com outros perfis:", "File with other profiles:"));
+                egui::ComboBox::from_id_salt("politica-cor")
+                    .selected_text(policy_label(&self.policy))
+                    .show_ui(ui, |ui| {
+                        for (k, pt, en) in POLICIES {
+                            ui.selectable_value(&mut self.policy, k.to_string(), tr(pt, en));
+                        }
+                    });
+            });
             ui.add_space(theme::SPACE_300);
             widgets::footer(ui, |ui| {
                 if ui.add(widgets::primary_button(tr("Aplicar", "Apply"))).clicked() {

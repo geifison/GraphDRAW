@@ -86,6 +86,39 @@ fn visit_colors(o: &mut Object, f: &mut dyn FnMut(&mut Color) -> bool) -> bool {
     changed
 }
 
+/// Converte as cores de todo o documento de `from` para os perfis de `to`
+/// e passa a usar `to` (GD-CMS-04). Devolve quantas cores mudaram; um
+/// passo de desfazer.
+pub fn convert_colors(ed: &mut Editor, to: &crate::cms::ColorManagement) -> usize {
+    let from = ed.doc.data.settings.color.clone();
+    let conv = crate::cms::Converter::new(&from, to);
+    let mut n = 0;
+    let to = to.clone();
+    ed.transaction("Converter para o perfil de trabalho", |ed| {
+        if !conv.is_noop() {
+            for page in 0..ed.doc.data.pages.len() {
+                for layer in 0..ed.doc.data.pages[page].layers.len() {
+                    for index in 0..ed.doc.data.pages[page].layers[layer].objects.len() {
+                        let loc = super::history::ObjLoc { page, layer, index };
+                        let mut o = ed.object(loc).unwrap().clone();
+                        let mut count = 0;
+                        if visit_colors(&mut o, &mut |c| {
+                            let ch = conv.convert(c);
+                            count += ch as usize;
+                            ch
+                        }) {
+                            n += count;
+                            ed.replace_object(loc, o);
+                        }
+                    }
+                }
+            }
+        }
+        ed.edit_settings(|s| s.color = to);
+    });
+    n
+}
+
 /// Troca a definição da cor global `id` (GD-PAL-03): a paleta e todas as
 /// cores de objetos com `ref` = `id`, em todas as páginas. Um passo.
 pub fn set_named(ed: &mut Editor, id: &str, color: Color) {
@@ -437,6 +470,80 @@ pub fn document_palette(ed: &Editor, name: &str) -> Palette {
 
 #[cfg(test)]
 mod tests {
+    /// GD-CMS-04: converter para outro perfil RGB muda os valores RGB, passa
+    /// a usar o perfil novo e é um passo de desfazer; perfis iguais não
+    /// mudam nada.
+    #[test]
+    fn gd_cms_04_convert_to_working_profile() {
+        use crate::cms::ColorManagement;
+        use lcms2::{CIExyY, CIExyYTRIPLE, Profile, ToneCurve};
+        let d65 = CIExyY {
+            x: 0.3127,
+            y: 0.3290,
+            Y: 1.0,
+        };
+        let prim = CIExyYTRIPLE {
+            Red: CIExyY {
+                x: 0.64,
+                y: 0.33,
+                Y: 1.0,
+            },
+            Green: CIExyY {
+                x: 0.30,
+                y: 0.60,
+                Y: 1.0,
+            },
+            Blue: CIExyY {
+                x: 0.15,
+                y: 0.06,
+                Y: 1.0,
+            },
+        };
+        let linear = ToneCurve::new(1.0);
+        let icc = Profile::new_rgb(&d65, &prim, &[&linear, &linear, &linear])
+            .unwrap()
+            .icc()
+            .unwrap();
+        let path =
+            std::env::temp_dir().join(format!("graphdraw-linear-{}.icc", std::process::id()));
+        std::fs::write(&path, icc).unwrap();
+        let mut d = crate::model::Document::new();
+        d.data.pages.push(crate::model::Page::new(10.0, 10.0));
+        let mut ed = Editor::new(d);
+        let mut o = Object::new(ObjectKind::Rectangle(crate::model::RectData {
+            width: 1.0,
+            height: 1.0,
+            corners: None,
+            extra: Default::default(),
+        }));
+        o.fill = Some(Fill::solid(Color::rgb(0.5, 0.5, 0.5)));
+        super::super::ops::add_object(&mut ed, 0, 0, o, "r");
+        let to = ColorManagement {
+            rgb_profile: Some(path.to_string_lossy().into_owned()),
+            ..Default::default()
+        };
+        assert!(crate::cms::profiles_differ(
+            &ed.doc.data.settings.color,
+            &to
+        ));
+        let undo = ed.undo_len();
+        assert_eq!(convert_colors(&mut ed, &to), 1);
+        assert_eq!(ed.undo_len(), undo + 1);
+        let v = match &ed.doc.data.pages[0].layers[0].objects[0].fill {
+            Some(Fill::Solid { color, .. }) => color.values[0],
+            _ => panic!(),
+        };
+        // 50% sRGB (≈ 21% de luz) num perfil linear fica perto de 0,21.
+        assert!((v - 0.214).abs() < 0.02, "{v}");
+        assert_eq!(ed.doc.data.settings.color, to);
+        // De novo para o mesmo perfil: nada a converter.
+        assert_eq!(convert_colors(&mut ed, &to), 0);
+        ed.undo();
+        ed.undo();
+        assert_eq!(ed.doc.data.settings.color, ColorManagement::default());
+        let _ = std::fs::remove_file(path);
+    }
+
     use super::*;
     use crate::model::{Document, Page, RectData, Stroke};
 
