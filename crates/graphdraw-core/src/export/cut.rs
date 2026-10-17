@@ -41,6 +41,8 @@ pub struct CutOptions {
     pub overcut: f64,
     /// Compensação de lâmina (distância do pivô à ponta), em µm.
     pub blade_offset: f64,
+    /// Largura do corte do laser/fresa (kerf), em µm (GD-PRE-20).
+    pub kerf: f64,
     /// Caixa de descasque com esta margem (µm) e linhas de divisão.
     pub weed_box: Option<f64>,
     /// Unidades do plotter por milímetro (HPGL).
@@ -62,6 +64,7 @@ impl Default for CutOptions {
             direction: Direction::Keep,
             overcut: 0.0,
             blade_offset: 0.0,
+            kerf: 0.0,
             weed_box: None,
             units_per_mm: 40.0,
             velocity: None,
@@ -337,6 +340,44 @@ fn weed(paths: &[CutPath], margin: f64) -> Vec<CutPath> {
     out
 }
 
+/// Kerf (GD-PRE-20): cada contorno fechado anda meio kerf — para fora nas
+/// peças (aninhamento par), para dentro nos furos (ímpar). Abertos ficam.
+fn kerf_compensate(paths: Vec<CutPath>, kerf: f64) -> Vec<CutPath> {
+    use crate::edit::shapeops::{Join, offset_region, union_all};
+    if kerf <= 0.0 {
+        return paths;
+    }
+    let depth: Vec<usize> = (0..paths.len())
+        .map(|i| {
+            (0..paths.len())
+                .filter(|&j| j != i && paths[i].closed && inside(&paths[i], &paths[j]))
+                .count()
+        })
+        .collect();
+    let mut out = Vec::new();
+    for (p, d) in paths.into_iter().zip(depth) {
+        if !p.closed || p.points.len() < 3 {
+            out.push(p);
+            continue;
+        }
+        let sign = if d % 2 == 0 { 1.0 } else { -1.0 };
+        let contour: Vec<[f64; 2]> = p.points.iter().map(|q| [q.x, q.y]).collect();
+        let shapes = union_all([vec![vec![contour]]]);
+        for c in offset_region(&shapes, sign * kerf / 2.0, Join::Miter)
+            .into_iter()
+            .flatten()
+        {
+            if c.len() >= 3 {
+                out.push(CutPath {
+                    points: c.iter().map(|q| Point::new(q[0], q[1])).collect(),
+                    closed: true,
+                });
+            }
+        }
+    }
+    out
+}
+
 /// Percurso de corte da página, pronto para o plotter: cada item é uma
 /// sequência de pontos com a caneta abaixada.
 pub fn cut_strokes(doc: &Document, page: usize, opts: &CutOptions) -> Vec<Vec<Point>> {
@@ -356,6 +397,7 @@ pub fn cut_strokes(doc: &Document, page: usize, opts: &CutOptions) -> Vec<Vec<Po
     let tol = opts.tolerance.max(0.1);
     let mut paths: Vec<CutPath> = beziers.iter().flat_map(|b| to_polylines(b, tol)).collect();
     paths.retain(|p| p.points.len() >= 2);
+    let mut paths = kerf_compensate(paths, opts.kerf);
     if let Some(m) = opts.weed_box {
         let extra = weed(&paths, m);
         paths.extend(extra);
@@ -571,6 +613,43 @@ mod tests {
             w.iter()
                 .any(|s| s.len() == 2 && (s[0].x - 20_000.0).abs() < 1e-6)
         );
+    }
+
+    /// GD-PRE-20: quadrado de 100 mm com furo de 20 mm, kerf 0,2 mm → peça
+    /// de 100,2 mm e furo de 19,8 mm; o desenho não muda.
+    #[test]
+    fn gd_pre_20_kerf_grows_parts_and_shrinks_holes() {
+        let d = doc_with(vec![
+            rect(0.0, 0.0, 100_000.0, 100_000.0, true),
+            rect(40_000.0, 40_000.0, 20_000.0, 20_000.0, true),
+        ]);
+        let st = cut_strokes(
+            &d,
+            0,
+            &CutOptions {
+                kerf: 200.0,
+                ..Default::default()
+            },
+        );
+        assert_eq!(st.len(), 2);
+        let size = |s: &Vec<Point>| {
+            let r = s
+                .iter()
+                .fold(kurbo::Rect::from_points(s[0], s[0]), |r, p| r.union_pt(*p));
+            (r.width(), r.height())
+        };
+        let mut sizes: Vec<(f64, f64)> = st.iter().map(size).collect();
+        sizes.sort_by(|a, b| a.0.total_cmp(&b.0));
+        assert!(
+            (sizes[0].0 - 19_800.0).abs() < 2.0 && (sizes[0].1 - 19_800.0).abs() < 2.0,
+            "{sizes:?}"
+        );
+        assert!(
+            (sizes[1].0 - 100_200.0).abs() < 2.0 && (sizes[1].1 - 100_200.0).abs() < 2.0,
+            "{sizes:?}"
+        );
+        // O furo continua saindo antes da peça.
+        assert!(size(&st[0]).0 < 50_000.0);
     }
 
     #[test]

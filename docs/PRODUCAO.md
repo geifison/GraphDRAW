@@ -46,8 +46,8 @@ Prioridade:
 - [ ] Opção de preencher caminho aberto (GD-FIL-12).
 - [ ] Prévia de separações por chapa, com sobreimpressão simulada
   (GD-SEP-01).
-- [ ] Preto 100% K com sobreimpressão automática em texto pequeno e linha
-  fina (GD-SEP-02).
+- [x] Preto 100% K com sobreimpressão automática em texto pequeno e linha
+  fina (GD-SEP-02): coberto pela verificação (GD-PRE-07/08).
 - [ ] O que fazer com o perfil de cor ao abrir ou importar (GD-CMS-04).
 
 ## P0 — Distribuição
@@ -78,7 +78,7 @@ Prioridade:
 Proposta de arquitetura trazida pelo responsável pelo produto, avaliada em
 2026-10-17. Estes itens entram porque são o diferencial para gráfica e
 corte; cada um vira requisito em spec nova (doc 28) antes do código.
-- [ ] Verificação prévia (preflight) contínua:
+- [x] Verificação prévia (preflight) contínua (doc 28, GD-PRE-01..08):
   - cobertura total de tinta acima do limite (300–320% em papel revestido,
     260% em não revestido), em falso tom por canal;
   - linha fina demais (menor que 0,25 pt em positivo, 0,5 pt em negativo),
@@ -88,11 +88,11 @@ corte; cada um vira requisito em spec nova (doc 28) antes do código.
 
   Junta GD-SEP-02 e GD-DIM-31. Os limites acima são o padrão e ficam
   configuráveis por documento.
-- [ ] Compensação de kerf para laser/CNC: deslocamento para fora nas
+- [x] Compensação de kerf para laser/CNC (GD-PRE-20): deslocamento para fora nas
   peças e para dentro nos furos, calculado na exportação sem mexer no
   vetor original. É diferente da compensação de lâmina do vinil
   (GD-CRT-05).
-- [ ] Sangria automática: objeto encostado na borda estende até a linha de
+- [x] Sangria automática (GD-PRE-10): objeto encostado na borda estende até a linha de
   sangria (opcional, por objeto).
 
 ## P1 — Da mesma avaliação

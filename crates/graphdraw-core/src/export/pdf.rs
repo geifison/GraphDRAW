@@ -409,10 +409,20 @@ fn write_page(w: &mut W, scene: &Scene, page_id: Ref, tree_id: Ref) {
             c.save_state();
             blend_state(&mut c, blend, &mut res, w);
         }
+        // Sobreimpressão (GD-PRE-08): /op (preenchimento), /OP (contorno), OPM 1.
+        let op = scene.overprint_of(item);
+        let overprinted = op != (false, false);
+        if overprinted {
+            c.save_state();
+            overprint_state(&mut c, op, &mut res, w);
+        }
         match item {
             Item::Shape(s) => shape(&mut c, s, &mut res, w),
             Item::Image(i) => image(&mut c, i, &mut res, w),
             Item::Text(t) => text_item(&mut c, t, &mut res, w),
+        }
+        if overprinted {
+            c.restore_state();
         }
         if blended {
             c.restore_state();
@@ -767,6 +777,7 @@ fn flatten_item(c: &mut Content, scene: &Scene, index: usize, res: &mut Resource
         items: scene.items[..=index].to_vec(),
         missing_fonts: Vec::new(),
         blends: scene.blends.clone(),
+        overprints: scene.overprints.clone(),
         item_bounds: Default::default(),
     };
     // Pixel (u, v) ← página: x = b.x0 + u/s, y = b.y1 − v/s.
@@ -869,6 +880,7 @@ struct Resources {
     spaces: HashMap<String, String>,
     spaces_list: Vec<(String, Ref)>,
     blends: HashMap<crate::model::BlendMode, String>,
+    overprints: HashMap<(bool, bool), String>,
 }
 
 fn path_ops(c: &mut Content, path: &BezPath) {
@@ -954,6 +966,26 @@ fn blend_state(c: &mut Content, b: crate::model::BlendMode, res: &mut Resources,
             let id = w.alloc();
             w.pdf.ext_graphics(id).blend_mode(mode);
             res.blends.insert(b, name.clone());
+            res.gstates_list.push((name.clone(), id));
+            name
+        }
+    };
+    c.set_parameters(Name(name.as_bytes()));
+}
+
+/// Estado gráfico da sobreimpressão: (preenchimento, contorno).
+fn overprint_state(c: &mut Content, op: (bool, bool), res: &mut Resources, w: &mut W) {
+    let name = match res.overprints.get(&op) {
+        Some(n) => n.clone(),
+        None => {
+            let name = format!("OP{}", res.overprints.len());
+            let id = w.alloc();
+            w.pdf
+                .ext_graphics(id)
+                .overprint_fill(op.0)
+                .overprint(op.1)
+                .overprint_mode(pdf_writer::types::OverprintMode::IgnoreZeroChannel);
+            res.overprints.insert(op, name.clone());
             res.gstates_list.push((name.clone(), id));
             name
         }

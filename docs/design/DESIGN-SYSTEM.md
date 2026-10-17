@@ -449,6 +449,19 @@ barra (no máximo os 2–4 controles mais usados) e o que fica só na janela.
 | Aparência | — | painel Camadas: opacidade, mesclagem, dados do objeto |
 | Gradiente (ferramenta G) | linear/radial na barra da ferramenta | paradas: cor e opacidade no balão da parada |
 
+### 4.6.1 Painel Verificação (doc 28)
+
+Aba **Verificação** (ícone `preflight`) no painel direito:
+- **Limites do documento**, recolhível: papel (Revestido 300% / Não
+  revestido 260%), tinta máxima em %, linha mínima, linha clara mínima,
+  texto preto até (pt), zona de segurança e "encostado a menos de" (mm).
+- A lista dos problemas da página: cada linha é `⚠` em
+  `accent-warning`, um link "objeto: problema" (seleciona) e **Corrigir**
+  quando há correção. **Corrigir todos** é um passo de desfazer.
+- Sem problemas: "Nenhum problema nesta página." em `accent-success`.
+- Na barra de status, com problemas: botão "⚠ N na verificação" em
+  `accent-warning`, que abre a aba.
+
 ### 4.7 Painel de camadas e objetos
 
 - Cada camada é um recolhível (aberto por padrão) com olho, impressão,

@@ -201,6 +201,7 @@ pub fn get(name: &str) -> ImageSource<'static> {
         "move-here" => icon!("move-here"),
         "instance" => icon!("instance"),
         "cancel" => icon!("cancel"),
+        "preflight" => icon!("preflight"),
         _ => icon!("history"),
     }
 }

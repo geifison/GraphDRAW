@@ -73,7 +73,19 @@
             "blackPoint": { "type": "boolean" }
           }
         },
-        "guides": { "type": "array", "items": { "$ref": "#/$defs/guide" } }
+        "guides": { "type": "array", "items": { "$ref": "#/$defs/guide" } },
+        "preflight": {
+          "type": "object",
+          "description": "Limites da verificação prévia (GD-PRE-02).",
+          "properties": {
+            "tac": { "type": "number", "minimum": 0 },
+            "minLine": { "$ref": "#/$defs/um", "minimum": 0 },
+            "minLineNegative": { "$ref": "#/$defs/um", "minimum": 0 },
+            "safeZone": { "$ref": "#/$defs/um", "minimum": 0 },
+            "nearEdge": { "$ref": "#/$defs/um", "minimum": 0 },
+            "blackTextSize": { "$ref": "#/$defs/um", "minimum": 0 }
+          }
+        }
       }
     },
     "color": {
@@ -183,7 +195,8 @@
         "startArrow": { "$ref": "#/$defs/arrow" },
         "endArrow": { "$ref": "#/$defs/arrow" },
         "nibStretch": { "type": "number", "exclusiveMinimum": 0, "maximum": 1, "description": "Caneta caligráfica: largura do bico (1 = redondo)." },
-        "nibAngle": { "type": "number", "description": "Ângulo do bico em graus." }
+        "nibAngle": { "type": "number", "description": "Ângulo do bico em graus." },
+        "overprint": { "type": "boolean", "description": "Sobreimpressão do contorno (GD-PRE-08)." }
       }
     },
     "arrow": {

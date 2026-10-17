@@ -120,6 +120,16 @@ impl CutExport {
                         o.blade_offset = v.max(0.0);
                     }
                     ui.end_row();
+                    // Laser/CNC: meio kerf para fora nas peças, para dentro nos furos (GD-PRE-20).
+                    ui.label(tr("Kerf (laser/CNC)", "Kerf (laser/CNC)"))
+                        .on_hover_text(tr(
+                            "Largura do corte: as peças crescem e os furos encolhem meio kerf; o desenho não muda",
+                            "Cut width: parts grow and holes shrink by half the kerf; the drawing does not change",
+                        ));
+                    if let Some(v) = widgets::length_field(ui, "corte-kerf", o.kerf, None) {
+                        o.kerf = v.max(0.0);
+                    }
+                    ui.end_row();
                     ui.label(tr("Tolerância das curvas", "Curve tolerance"));
                     if let Some(v) = widgets::length_field(ui, "corte-tol", o.tolerance, None) {
                         o.tolerance = v.max(1.0);

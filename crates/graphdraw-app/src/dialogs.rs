@@ -453,6 +453,11 @@ impl StrokeDialog {
                             "The fill covers the inner half of the outline",
                         ));
                 });
+                ui.checkbox(&mut s.overprint, tr("Sobreimprimir", "Overprint"))
+                    .on_hover_text(tr(
+                        "O contorno imprime por cima das outras tintas, sem vazar (GD-PRE-08)",
+                        "The outline prints over the other inks, without knocking out (GD-PRE-08)",
+                    ));
                 ui.horizontal(|ui| {
                     icons::button(ui, "scale-stroke", "", s.scale_with_object, false);
                     ui.checkbox(
@@ -537,7 +542,8 @@ fn merge_changes(s: &mut Stroke, old: &Stroke, new: &Stroke) {
         start_arrow,
         end_arrow,
         nib_stretch,
-        nib_angle
+        nib_angle,
+        overprint
     );
 }
 

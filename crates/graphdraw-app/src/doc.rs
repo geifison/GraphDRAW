@@ -28,6 +28,8 @@ pub struct DocState {
     pub layer_id: Option<String>,
     /// Identifica o documento nesta execução (cópia de recuperação).
     pub key: String,
+    /// Verificação prévia da página (revisão, página, problemas).
+    preflight: Option<(u64, usize, Arc<Vec<graphdraw_core::preflight::Issue>>)>,
     scene: Option<(u64, usize, Arc<Scene>)>,
     images: ImageCache,
 }
@@ -61,11 +63,30 @@ impl DocState {
                     NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
                 )
             },
+            preflight: None,
             scene: None,
             images: ImageCache::default(),
         };
         s.sync();
         s
+    }
+
+    /// Problemas da verificação prévia da página atual (GD-PRE-01), refeitos
+    /// só quando o documento ou a página mudam.
+    pub fn preflight(&mut self) -> Arc<Vec<graphdraw_core::preflight::Issue>> {
+        let rev = self.editor.revision();
+        if let Some((r, p, v)) = &self.preflight
+            && *r == rev
+            && *p == self.page
+        {
+            return v.clone();
+        }
+        let v = Arc::new(graphdraw_core::preflight::check(
+            &self.editor.doc,
+            self.page,
+        ));
+        self.preflight = Some((rev, self.page, v.clone()));
+        v
     }
 
     pub fn doc(&self) -> &Document {

@@ -206,6 +206,9 @@ pub struct Stroke {
     pub nib_stretch: f64,
     #[serde(default, skip_serializing_if = "is_zero")]
     pub nib_angle: f64,
+    /// Sobreimpressão do contorno (GD-PRE-08).
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub overprint: bool,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }
@@ -261,6 +264,7 @@ impl Stroke {
             end_arrow: None,
             nib_stretch: 1.0,
             nib_angle: 0.0,
+            overprint: false,
             extra: Map::new(),
         }
     }

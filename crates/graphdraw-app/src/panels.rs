@@ -404,7 +404,7 @@ impl App {
     }
 
     /// Conteúdo de uma aba (na coluna ou numa janela solta).
-    fn tab_content(&mut self, ui: &mut egui::Ui, tab: RightTab) {
+    pub(crate) fn tab_content(&mut self, ui: &mut egui::Ui, tab: RightTab) {
         let mut pal_act = None;
         let Some(doc) = self.doc.as_mut() else { return };
         match tab {
@@ -422,6 +422,7 @@ impl App {
                 }
             }
             RightTab::Report => report_panel(ui, doc),
+            RightTab::Preflight => preflight_panel(ui, doc),
             RightTab::Palettes => pal_act = self.palettes.panel(ui, doc),
         }
         if let Some(s) = self.palettes.status.take() {
@@ -3403,6 +3404,197 @@ fn eyedrop_bar(ui: &mut egui::Ui, e: &mut crate::eyedrop::Eyedrop) {
             "Click samples and becomes a bucket · click applies (right: outline) · Shift resamples · Alt toggles · Ctrl inside groups · Alt+click on a gradient clones the ramp · Esc empties",
         ),
     );
+}
+
+/// Texto do problema da verificação prévia (GD-PRE-01).
+pub(crate) fn issue_text(k: &graphdraw_core::preflight::IssueKind) -> String {
+    use graphdraw_core::preflight::{IssueKind, PT};
+    match k {
+        IssueKind::Ink { tac, stroke } => format!(
+            "{} {:.0}% {}",
+            tr("Tinta", "Ink"),
+            tac,
+            if *stroke {
+                tr("no contorno", "in the outline")
+            } else {
+                tr("no preenchimento", "in the fill")
+            }
+        ),
+        IssueKind::ThinLine { width, min } => format!(
+            "{} {:.2} pt ({} {:.2} pt)",
+            tr("Linha fina:", "Thin line:"),
+            width / PT,
+            tr("mínimo", "minimum"),
+            min / PT
+        ),
+        IssueKind::SafeZone => tr(
+            "Texto fora da zona de segurança",
+            "Text outside the safe zone",
+        )
+        .into(),
+        IssueKind::NearEdge => tr(
+            "Encostado no corte sem sangria",
+            "Touching the trim without bleed",
+        )
+        .into(),
+        IssueKind::BlackKnockout => tr(
+            "Preto 100% K sem sobreimpressão",
+            "100% K black without overprint",
+        )
+        .into(),
+    }
+}
+
+/// Painel Verificação (GD-PRE-01/02): limites do documento e problemas da
+/// página, com seleção e correção.
+fn preflight_panel(ui: &mut egui::Ui, doc: &mut DocState) {
+    use graphdraw_core::preflight::{self as pf, PT};
+    let mut s = doc.doc().data.settings.preflight.clone();
+    let before = s.clone();
+    egui::CollapsingHeader::new(tr("Limites do documento", "Document limits"))
+        .id_salt("verificacao-limites")
+        .show(ui, |ui| {
+            egui::Grid::new("verificacao-grade")
+                .num_columns(2)
+                .show(ui, |ui| {
+                    ui.label(tr("Papel", "Paper"));
+                    egui::ComboBox::from_id_salt("verificacao-papel")
+                        .selected_text(if s.tac == pf::TAC_UNCOATED {
+                            tr("Não revestido", "Uncoated")
+                        } else if s.tac == pf::TAC_COATED {
+                            tr("Revestido", "Coated")
+                        } else {
+                            tr("Personalizado", "Custom")
+                        })
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(
+                                &mut s.tac,
+                                pf::TAC_COATED,
+                                tr("Revestido (300%)", "Coated (300%)"),
+                            );
+                            ui.selectable_value(
+                                &mut s.tac,
+                                pf::TAC_UNCOATED,
+                                tr("Não revestido (260%)", "Uncoated (260%)"),
+                            );
+                        });
+                    ui.end_row();
+                    ui.label(tr("Tinta máxima", "Max ink"));
+                    ui.add(
+                        egui::DragValue::new(&mut s.tac)
+                            .range(100.0..=400.0)
+                            .suffix(" %"),
+                    );
+                    ui.end_row();
+                    let pt_field = |ui: &mut egui::Ui, label: &str, v: &mut f64| {
+                        ui.label(label);
+                        let mut p = *v / PT;
+                        if ui
+                            .add(
+                                egui::DragValue::new(&mut p)
+                                    .range(0.0..=72.0)
+                                    .speed(0.05)
+                                    .suffix(" pt"),
+                            )
+                            .changed()
+                        {
+                            *v = p * PT;
+                        }
+                        ui.end_row();
+                    };
+                    pt_field(ui, tr("Linha mínima", "Min line"), &mut s.min_line);
+                    pt_field(
+                        ui,
+                        tr("Linha clara mínima", "Min light line"),
+                        &mut s.min_line_negative,
+                    );
+                    pt_field(
+                        ui,
+                        tr("Texto preto até", "Black text up to"),
+                        &mut s.black_text_size,
+                    );
+                    ui.label(tr("Zona de segurança", "Safe zone"));
+                    if let Some(v) =
+                        widgets::length_field(ui, "verificacao-zona", s.safe_zone, None)
+                    {
+                        s.safe_zone = v.max(0.0);
+                    }
+                    ui.end_row();
+                    ui.label(tr("Encostado a menos de", "Touching within"));
+                    if let Some(v) =
+                        widgets::length_field(ui, "verificacao-borda", s.near_edge, None)
+                    {
+                        s.near_edge = v.max(0.0);
+                    }
+                    ui.end_row();
+                });
+        });
+    if s != before && !widgets::field_dragging(ui.ctx()) {
+        doc.editor.edit_settings(|st| st.preflight = s.clone());
+    }
+    ui.separator();
+    let issues = doc.preflight();
+    if issues.is_empty() {
+        ui.colored_label(
+            theme::ACCENT_SUCCESS,
+            tr("Nenhum problema nesta página.", "No problems on this page."),
+        );
+        return;
+    }
+    let fixable = issues.iter().filter(|i| i.fixable()).count();
+    let mut fix: Vec<pf::Issue> = Vec::new();
+    ui.horizontal(|ui| {
+        ui.label(format!(
+            "{} {}",
+            issues.len(),
+            tr("problema(s)", "problem(s)")
+        ));
+        if fixable > 0 && ui.button(tr("Corrigir todos", "Fix all")).clicked() {
+            fix = issues.iter().filter(|i| i.fixable()).cloned().collect();
+        }
+    });
+    let mut select = None;
+    egui::ScrollArea::vertical()
+        .id_salt("verificacao-lista")
+        .show(ui, |ui| {
+            for issue in issues.iter() {
+                let name = doc
+                    .editor
+                    .find(&issue.id)
+                    .and_then(|r| doc.editor.get(&r))
+                    .map(|o| {
+                        o.name
+                            .clone()
+                            .unwrap_or_else(|| crate::app::kind_label(&o.kind))
+                    })
+                    .unwrap_or_default();
+                ui.horizontal(|ui| {
+                    ui.colored_label(theme::ACCENT_WARNING, "⚠");
+                    if ui
+                        .link(format!("{name}: {}", issue_text(&issue.kind)))
+                        .on_hover_text(tr("Selecionar o objeto", "Select the object"))
+                        .clicked()
+                    {
+                        select = Some(issue.id.clone());
+                    }
+                    if issue.fixable() && ui.small_button(tr("Corrigir", "Fix")).clicked() {
+                        fix.push(issue.clone());
+                    }
+                });
+            }
+        });
+    if let Some(id) = select {
+        doc.selection = vec![id];
+    }
+    if !fix.is_empty() {
+        let page = doc.page;
+        doc.editor
+            .transaction(tr("Corrigir verificação", "Fix preflight"), |ed| {
+                for i in &fix {
+                    pf::fix(ed, page, i);
+                }
+            });
+    }
 }
 
 #[cfg(test)]

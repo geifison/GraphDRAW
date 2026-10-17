@@ -262,6 +262,10 @@ pub fn object_entries(doc: &DocState, clicked: &str, focus: bool) -> Vec<Entry> 
         tr("Exportar seleção…", "Export selection…"),
         Cmd::Run(Command::ExportSelection),
     ));
+    out.push(item(
+        tr("Estender até a sangria", "Extend to bleed"),
+        Cmd::Run(Command::ExtendToBleed),
+    ));
     out.push(if focus {
         item(tr("Sair do modo foco", "Leave focus mode"), Cmd::ExitFocus)
     } else {
@@ -424,6 +428,7 @@ pub fn icon_of(c: &Cmd) -> &'static str {
             K::FitTextToPath => "text-path",
             K::CutLine => "cut-line",
             K::ExportSelection => "export-selection",
+            K::ExtendToBleed => "bleed",
             K::FocusMode => "focus",
             K::Paste => "paste",
             K::SelectAll => "select-all",

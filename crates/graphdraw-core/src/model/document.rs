@@ -50,8 +50,15 @@ pub struct Settings {
     /// Gerenciamento de cor do documento (GD-CMS-02).
     #[serde(default, skip_serializing_if = "is_default_color")]
     pub color: crate::cms::ColorManagement,
+    /// Limites da verificação prévia (GD-PRE-02).
+    #[serde(default, skip_serializing_if = "is_default_preflight")]
+    pub preflight: crate::preflight::PreflightSettings,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
+}
+
+fn is_default_preflight(p: &crate::preflight::PreflightSettings) -> bool {
+    *p == crate::preflight::PreflightSettings::default()
 }
 
 fn is_default_color(c: &crate::cms::ColorManagement) -> bool {
@@ -67,6 +74,7 @@ impl Default for Settings {
             drawing_scale: unit_scale(),
             resolution: dpi(),
             color: Default::default(),
+            preflight: Default::default(),
             guides: Vec::new(),
             extra: Map::new(),
         }

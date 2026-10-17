@@ -2032,6 +2032,7 @@ impl CanvasState {
                     items,
                     missing_fonts: Vec::new(),
                     blends,
+                    overprints: scene.overprints.clone(),
                     item_bounds: Default::default(),
                 });
             }

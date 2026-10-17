@@ -37,6 +37,7 @@ pub enum RightTab {
     History,
     Pages,
     Report,
+    Preflight,
 }
 
 /// Opções da janela de contorno de deslocamento.
@@ -1456,6 +1457,31 @@ impl App {
                 }
             }
             C::ExportSelection => self.export_selection(),
+            C::Preflight => {
+                self.right_tab = RightTab::Preflight;
+                self.show_right = true;
+            }
+            C::ExtendToBleed => {
+                if let Some(d) = &mut self.doc {
+                    let sel = d.selection.clone();
+                    let page = d.page;
+                    let done =
+                        graphdraw_core::preflight::extend_to_bleed(&mut d.editor, page, &sel);
+                    self.status = if done.is_empty() {
+                        tr(
+                            "Nada encostado no corte (ou a página não tem sangria)",
+                            "Nothing touching the trim (or the page has no bleed)",
+                        )
+                        .into()
+                    } else {
+                        format!(
+                            "{} {}",
+                            done.len(),
+                            tr("objeto(s) até a sangria", "object(s) to the bleed")
+                        )
+                    };
+                }
+            }
             C::PasteInPlace => {
                 self.with_selection(|ed, s| Some(ops::duplicate(ed, s, Vec2::ZERO)));
             }
@@ -2270,6 +2296,7 @@ impl App {
                     (tr("Ocultar", "Hide"), Command::HideSelection, has_sel),
                     (tr("Mostrar todos", "Show all"), Command::ShowAll, true),
                     (tr("Desbloquear todos", "Unlock all"), Command::UnlockAll, true),
+                    (tr("Estender até a sangria", "Extend to bleed"), Command::ExtendToBleed, has_sel),
                 ] {
                     if ui
                         .add_enabled(on, egui::Button::new(keymap::menu(label, cmd)))
@@ -2468,6 +2495,15 @@ impl App {
                     .clicked()
                 {
                     self.run_command(Command::FocusMode, &ctx);
+                }
+                if ui
+                    .add(egui::Button::new(keymap::menu(
+                        tr("Verificação prévia", "Preflight"),
+                        Command::Preflight,
+                    )))
+                    .clicked()
+                {
+                    self.run_command(Command::Preflight, &ctx);
                 }
                 ui.checkbox(&mut self.canvas.show_rulers, tr("Réguas", "Rulers"));
                 ui.checkbox(
@@ -2859,6 +2895,25 @@ impl App {
             }
             if self.loading.is_some() {
                 ui.spinner();
+            }
+            // Verificação prévia (GD-PRE-01): total de problemas; clique abre o painel.
+            if let Some(d) = &mut self.doc {
+                let n = d.preflight().len();
+                if n > 0
+                    && ui
+                        .add(egui::Button::new(
+                            egui::RichText::new(format!(
+                                "⚠ {n} {}",
+                                tr("na verificação", "in preflight")
+                            ))
+                            .color(theme::ACCENT_WARNING),
+                        ))
+                        .on_hover_text(tr("Abrir o painel Verificação", "Open the Preflight panel"))
+                        .clicked()
+                {
+                    self.right_tab = RightTab::Preflight;
+                    self.show_right = true;
+                }
             }
             if let Some(d) = &self.doc {
                 let (w, h) = d.page_size();
@@ -4082,6 +4137,63 @@ mod tests {
             d.page().layers[0].objects[0].kind,
             ObjectKind::Text(_)
         ));
+    }
+
+    /// GD-PRE-01/06/10: a verificação acha o fundo encostado e a tinta
+    /// demais; "Estender até a sangria" leva o fundo à sangria; o painel
+    /// desenha a lista e "Verificação prévia" abre a aba.
+    #[test]
+    fn gd_pre_preflight_panel_and_extend_command() {
+        let ctx = crate::theme::test_ctx();
+        let mut app = App::with_ctx(&ctx, None);
+        let id = {
+            let d = app.doc.as_mut().unwrap();
+            d.editor.edit_settings(|s| s.bleed = 3_000.0);
+            let mut o = graphdraw_core::model::Object::new(ObjectKind::Rectangle(
+                graphdraw_core::model::RectData {
+                    width: 100_000.0,
+                    height: 100_000.0,
+                    corners: None,
+                    extra: Default::default(),
+                },
+            ));
+            o.transform = graphdraw_core::model::Transform::translate(1_000.0, 50_000.0);
+            o.fill = Some(graphdraw_core::model::Fill::solid(
+                graphdraw_core::model::Color::cmyk(1.0, 1.0, 1.0, 1.0),
+            ));
+            let id = ops::add_object(&mut d.editor, 0, 0, o, "r");
+            d.selection = vec![id.clone()];
+            id
+        };
+        let kinds = |app: &mut App| -> Vec<graphdraw_core::preflight::IssueKind> {
+            app.doc
+                .as_mut()
+                .unwrap()
+                .preflight()
+                .iter()
+                .map(|i| i.kind.clone())
+                .collect()
+        };
+        let k = kinds(&mut app);
+        assert!(
+            k.contains(&graphdraw_core::preflight::IssueKind::NearEdge),
+            "{k:?}"
+        );
+        assert!(
+            k.iter()
+                .any(|k| matches!(k, graphdraw_core::preflight::IssueKind::Ink { .. }))
+        );
+        app.run_command(Command::ExtendToBleed, &ctx);
+        let d = app.doc.as_ref().unwrap();
+        let b = ops::object_bounds(&d.editor, &d.editor.find(&id).unwrap(), false).unwrap();
+        assert!((b.x0 + 3_000.0).abs() < 1e-6, "{b:?}");
+        assert!(!kinds(&mut app).contains(&graphdraw_core::preflight::IssueKind::NearEdge));
+        app.run_command(Command::Preflight, &ctx);
+        assert_eq!(app.right_tab, RightTab::Preflight);
+        let mut out = ctx.run_ui(Default::default(), |ui| {
+            app.tab_content(ui, RightTab::Preflight)
+        });
+        out.textures_delta.clear();
     }
 
     /// Doc 06: com um trecho selecionado na edição, estilo e cor da paleta

@@ -165,6 +165,8 @@ pub struct Scene {
     /// Modo de mesclagem por objeto (GD-TRA-02); ausente = normal. Vale
     /// para cada item do objeto (como o /BM do PDF).
     pub blends: std::collections::HashMap<String, crate::model::BlendMode>,
+    /// Sobreimpressão por objeto: (preenchimento, contorno) (GD-PRE-08).
+    pub overprints: std::collections::HashMap<String, (bool, bool)>,
     /// Caixas dos itens (coordenadas da página, já incluindo a espessura do
     /// contorno), calculadas uma vez sob demanda para descarte rápido.
     pub item_bounds: OnceLock<Vec<kurbo::Rect>>,
@@ -187,6 +189,14 @@ impl Scene {
             return crate::model::BlendMode::Normal;
         }
         self.blends
+            .get(item.object_id())
+            .copied()
+            .unwrap_or_default()
+    }
+
+    /// Sobreimpressão do item: (preenchimento, contorno).
+    pub fn overprint_of(&self, item: &Item) -> (bool, bool) {
+        self.overprints
             .get(item.object_id())
             .copied()
             .unwrap_or_default()
@@ -283,6 +293,7 @@ pub fn build_scene(doc: &Document, page: &Page, opts: SceneOptions, images: &Ima
         wireframe: false,
         blend: crate::model::BlendMode::Normal,
         blends: std::collections::HashMap::new(),
+        overprints: std::collections::HashMap::new(),
     };
     if !page.hide_master {
         for layer in &doc.data.master_page.layers {
@@ -303,6 +314,7 @@ pub fn build_scene(doc: &Document, page: &Page, opts: SceneOptions, images: &Ima
         items: b.items,
         missing_fonts: missing,
         blends: b.blends,
+        overprints: b.overprints,
         item_bounds: OnceLock::new(),
     }
 }
@@ -318,6 +330,7 @@ struct Builder<'a> {
     /// Modo de mesclagem herdado do grupo.
     blend: crate::model::BlendMode,
     blends: std::collections::HashMap<String, crate::model::BlendMode>,
+    overprints: std::collections::HashMap<String, (bool, bool)>,
 }
 
 impl Builder<'_> {
@@ -340,6 +353,19 @@ impl Builder<'_> {
         }
         if self.blend != BlendMode::Normal {
             self.blends.insert(o.id.clone(), self.blend);
+        }
+        let op = (
+            matches!(
+                o.fill,
+                Some(crate::model::Fill::Solid {
+                    overprint: true,
+                    ..
+                })
+            ),
+            o.stroke.as_ref().is_some_and(|s| s.overprint),
+        );
+        if op != (false, false) {
+            self.overprints.insert(o.id.clone(), op);
         }
         self.object_items(o, parent, parent_alpha);
         self.blend = saved;

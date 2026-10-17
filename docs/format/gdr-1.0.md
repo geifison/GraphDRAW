@@ -42,6 +42,11 @@ Guias (GD-GUI-01): `settings.guides` valem em todas as páginas e
 `angle` (inclinada: ponto por onde passa e graus a partir de +X), `locked?`
 e `color?`. Listas vazias não são gravadas.
 
+`settings.preflight` (opcional; ausente = padrão) guarda os limites da verificação
+prévia (GD-PRE-02, doc 28): `tac` (%, padrão 300), `minLine` e `minLineNegative`
+(µm; 0,25 e 0,5 pt), `safeZone` (µm, 5 mm), `nearEdge` (µm, 1,5 mm) e
+`blackTextSize` (µm, 12 pt).
+
 `settings.color` (opcional; ausente = padrão) guarda o gerenciamento de cor do
 documento (GD-CMS-02): `rgbProfile` e `cmykProfile` (caminho de um arquivo
 ICC; ausente = sRGB embutido / conversão por fórmula), `intent`
@@ -138,7 +143,9 @@ desenhados como "nenhum".
 `{ "width", "color", "opacity?", "dash?": [traço, espaço, ...], "dashOffset?",
 "join?": "miter|round|bevel", "miterLimit?", "cap?": "butt|round|square",
 "position?": "center|inside|outside", "scaleWithObject?": true,
-"behindFill?": false, "startArrow?": arrow, "endArrow?": arrow, "nibStretch?": 1, "nibAngle?": 0 }` — comprimentos em µm; `width: 0` = fio de cabelo.
+"behindFill?": false, "startArrow?": arrow, "endArrow?": arrow, "nibStretch?": 1, "nibAngle?": 0, "overprint?": false }` — comprimentos em µm; `width: 0` = fio de cabelo.
+`overprint` (GD-PRE-08): o contorno sobreimprime (no PDF, `/OP true` com `OPM 1`); o
+preenchimento sólido tem o mesmo campo.
 Ponta de seta (GD-OUT-05, só em subcaminhos abertos): `{ "shape": "triangle|open|barbed|circle|square|bar",
 "scale?": 1, "offset?": 0, "rotation?": 0, "mirror?": false }` — tamanho padrão 4 × a espessura
 (mínimo 0,25 mm), `offset` em µm, `rotation` em graus; o traço recua para não passar da ponta.

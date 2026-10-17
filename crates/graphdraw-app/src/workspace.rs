@@ -12,7 +12,7 @@ use crate::canvas::Tool;
 use crate::i18n::tr;
 
 impl RightTab {
-    pub const ALL: [RightTab; 7] = [
+    pub const ALL: [RightTab; 8] = [
         RightTab::Transform,
         RightTab::Align,
         RightTab::Layers,
@@ -20,6 +20,7 @@ impl RightTab {
         RightTab::History,
         RightTab::Pages,
         RightTab::Report,
+        RightTab::Preflight,
     ];
 
     /// Chave estável no arquivo.
@@ -32,6 +33,7 @@ impl RightTab {
             RightTab::History => "historico",
             RightTab::Pages => "paginas",
             RightTab::Report => "relatorio",
+            RightTab::Preflight => "verificacao",
         }
     }
 
@@ -48,6 +50,7 @@ impl RightTab {
             RightTab::History => tr("Histórico", "History"),
             RightTab::Pages => tr("Páginas", "Pages"),
             RightTab::Report => tr("Relatório", "Report"),
+            RightTab::Preflight => tr("Verificação", "Preflight"),
         }
     }
 
@@ -61,6 +64,7 @@ impl RightTab {
             RightTab::History => "history",
             RightTab::Pages => "page-list",
             RightTab::Report => "report",
+            RightTab::Preflight => "preflight",
         }
     }
 }

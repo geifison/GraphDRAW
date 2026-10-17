@@ -158,6 +158,8 @@ commands! {
     RegistrationMarks = "cut.registration_marks", "Marcas de registro", "Registration marks", Object, NotText, true;
     Ungroup = "obj.ungroup", "Desagrupar", "Ungroup", Object, Selection, true;
     UngroupAll = "obj.ungroup_all", "Desagrupar tudo", "Ungroup all", Object, Selection, true;
+    ExtendToBleed = "obj.extend_bleed", "Estender até a sangria", "Extend to bleed", Object, Selection, true;
+    Preflight = "view.preflight", "Verificação prévia", "Preflight", View, Always, true;
     LockSelection = "obj.lock", "Bloquear", "Lock", Object, Selection, true;
     UnlockSelection = "obj.unlock", "Desbloquear", "Unlock", Object, Selection, true;
     HideSelection = "obj.hide", "Ocultar", "Hide", Object, Selection, true;
