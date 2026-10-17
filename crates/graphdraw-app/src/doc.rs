@@ -28,6 +28,8 @@ pub struct DocState {
     pub layer_id: Option<String>,
     /// Identifica o documento nesta execução (cópia de recuperação).
     pub key: String,
+    /// Grupo de simetria em que o desenho novo entra (GD-FER-33).
+    pub symmetry: Option<String>,
     /// Verificação prévia da página (revisão, página, problemas).
     preflight: Option<(u64, usize, Arc<Vec<graphdraw_core::preflight::Issue>>)>,
     scene: Option<(u64, usize, Arc<Scene>)>,
@@ -56,6 +58,7 @@ impl DocState {
             selection: Vec::new(),
             nodes: Vec::new(),
             layer_id: None,
+            symmetry: None,
             key: {
                 static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
                 format!(

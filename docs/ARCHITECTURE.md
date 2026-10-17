@@ -280,6 +280,7 @@ Em Linux: `apt install libcdr-dev librevenge-dev pkg-config g++` e o mesmo
 | GD-CMS-04 (política de perfis ao abrir) | `palette::tests::gd_cms_04_convert_to_working_profile` (core), `app::tests::gd_cms_04_profile_policy_on_open` |
 | GD-SEP-01 (prévia de separações) | `separation::tests::*` (core), `canvas::tests::separation_preview_on_canvas` (app) |
 | GD-FIL-04..06/10/12 (padrões, caminho aberto) | `pattern::tests::*` (core), `tests/patterns.rs`, `dialogs::tests::pattern_fill_dialog` (app) |
+| GD-FER-33 (simetria) | `symmetry::tests::*` (core), fixture `symmetry.gdr`, `canvas::tests::symmetry_draw_inside` (app) |
 | GD-FER-24, GD-BSP-01 (B-spline) | `bspline::tests::*` (core), fixture `bspline.gdr`, `canvas::tests::bspline_tool_on_canvas` (app) |
 | GD-FER-41, GD-CON-01 (conectores) | `connector::tests::*` (core), fixture `connectors.gdr`, `canvas::tests::connector_drag_links` (app) |
 | GD-FER-40, GD-COT-01..03, GD-DOC-03 (cotas) | `dimension::tests::*` (core), `tests/dimensions.rs`, fixture `prepress.gdr`, `canvas::tests::dimension_tool_on_canvas` (app) |

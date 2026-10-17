@@ -75,6 +75,7 @@ pub fn graph_paper(w: f64, h: f64, cols: u32, rows: u32, like: &Object) -> Objec
     }
     let mut g = Object::new(ObjectKind::Group(GroupData {
         children,
+        symmetry: None,
         extra: Map::new(),
     }));
     g.name = Some(format!("Papel gráfico {cols} × {rows}"));
@@ -147,6 +148,7 @@ mod tests {
             2,
             &Object::new(ObjectKind::Group(GroupData {
                 children: vec![],
+                symmetry: None,
                 extra: Map::new(),
             })),
         );

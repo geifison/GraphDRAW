@@ -412,6 +412,7 @@ impl App {
                         &mut self.corners_sel,
                         &mut text_params,
                     );
+                    symmetry_bar(ui, doc);
                 });
             }
         }
@@ -3732,6 +3733,88 @@ fn dimension_bar(ui: &mut egui::Ui, doc: &mut DocState, cs: &mut crate::canvas::
                     false
                 },
             );
+        }
+    }
+}
+
+/// Controles da simetria (GD-FER-33) com um grupo de simetria selecionado:
+/// tipo, número de eixos/cópias, ângulo, desenhar dentro e assar.
+fn symmetry_bar(ui: &mut egui::Ui, doc: &mut DocState) {
+    let [gid] = doc.selection.as_slice() else {
+        return;
+    };
+    let gid = gid.clone();
+    let Some(ObjectKind::Group(g)) = doc
+        .editor
+        .find(&gid)
+        .and_then(|r| doc.editor.get(&r))
+        .map(|o| &o.kind)
+    else {
+        return;
+    };
+    let Some(s0) = g.symmetry.clone() else {
+        return;
+    };
+    let mut s = s0.clone();
+    ui.separator();
+    for (k, label) in [
+        ("mirror", tr("Espelho", "Mirror")),
+        ("radial", tr("Radial", "Radial")),
+    ] {
+        if ui.selectable_label(s.kind == k, label).clicked() {
+            s.kind = k.into();
+        }
+    }
+    ui.label(if s.kind == "mirror" {
+        tr("Eixos", "Axes")
+    } else {
+        tr("Cópias", "Copies")
+    });
+    ui.add(egui::DragValue::new(&mut s.count).range(1..=32));
+    ui.label(tr("Ângulo", "Angle"));
+    ui.add(
+        egui::DragValue::new(&mut s.angle)
+            .range(-360.0..=360.0)
+            .suffix("°")
+            .speed(1.0),
+    );
+    if s != s0 {
+        let s = s.clone();
+        ops::modify(
+            &mut doc.editor,
+            std::slice::from_ref(&gid),
+            tr("Simetria", "Symmetry"),
+            |o| {
+                if let ObjectKind::Group(g) = &mut o.kind {
+                    g.symmetry = Some(s.clone());
+                    return true;
+                }
+                false
+            },
+        );
+    }
+    let mut inside = doc.symmetry.as_deref() == Some(gid.as_str());
+    if ui
+        .checkbox(&mut inside, tr("Desenhar dentro", "Draw inside"))
+        .on_hover_text(tr(
+            "O que for desenhado entra na simetria e ganha as cópias",
+            "What you draw goes into the symmetry and gets the copies",
+        ))
+        .changed()
+    {
+        doc.symmetry = inside.then(|| gid.clone());
+    }
+    if ui
+        .button(tr("Assar", "Bake"))
+        .on_hover_text(tr(
+            "Desagrupa, transformando as cópias em objetos",
+            "Ungroups, turning the copies into objects",
+        ))
+        .clicked()
+    {
+        doc.selection = ops::ungroup(&mut doc.editor, std::slice::from_ref(&gid));
+        if doc.symmetry.as_deref() == Some(gid.as_str()) {
+            doc.symmetry = None;
         }
     }
 }

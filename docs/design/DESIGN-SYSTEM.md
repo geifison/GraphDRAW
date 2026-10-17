@@ -542,6 +542,14 @@ Aba **Verificação** (ícone `preflight`) no painel direito:
     - na ferramenta Formato, os pontos da B-spline selecionada são alças:
       arrastar move, duplo clique fixa/solta.
   - **Medidas** (depois de Texto): Cota e Conector.
+- Simetria (GD-FER-33; Objeto → Simetria, menu de contexto com o ícone
+  `symmetry`): cria o grupo de simetria com a seleção (ou vazio, no meio
+  da página) e liga Desenhar dentro.
+  - Com o grupo selecionado, a barra da Seleção ganha Espelho | Radial,
+    Eixos/Cópias, Ângulo, Desenhar dentro e Assar.
+  - Com Desenhar dentro, os eixos aparecem tracejados em `border-width`
+    de `accent-primary` a 70% (na radial, raios a partir do centro), com
+    um círculo de `handle-size` no centro.
   - **Cota**:
     - a barra tem o tipo (Horizontal, Vertical, Paralela, Angular, Raio,
       Diâmetro, Segmento) e o formato (unidade, casas, Unidade, corpo em

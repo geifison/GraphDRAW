@@ -414,6 +414,12 @@ impl Builder<'_> {
                 for c in &g.children {
                     self.object(c, m, alpha);
                 }
+                // Cópias da simetria (GD-FER-33).
+                for t in crate::edit::symmetry::copies(g.symmetry.as_ref()) {
+                    for c in &g.children {
+                        self.object(c, m * t, alpha);
+                    }
+                }
                 None
             }
             // Conector (GD-CON-01): a rota entre as pontas resolvidas ao vivo,

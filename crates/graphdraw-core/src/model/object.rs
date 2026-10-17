@@ -185,8 +185,24 @@ fn half() -> f64 {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GroupData {
     pub children: Vec<Object>,
+    /// Simetria ao vivo (GD-FER-33): o grupo desenha também as cópias.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub symmetry: Option<Symmetry>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
+}
+
+/// Simetria do grupo (GD-FER-33): `mirror` = `count` eixos de espelho
+/// (1 = um espelho; N = caleidoscópio de N eixos), `radial` = `count`
+/// cópias giradas. Centro e ângulo do primeiro eixo no espaço do grupo.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Symmetry {
+    pub kind: String,
+    pub count: u32,
+    pub center: [f64; 2],
+    #[serde(default)]
+    pub angle: f64,
 }
 
 /// Fonte de um trecho de texto. `size` em µm (corpo).

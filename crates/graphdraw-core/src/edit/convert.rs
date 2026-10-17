@@ -128,6 +128,7 @@ fn text_to_curves(o: &Object, t: &crate::model::TextData) -> Option<Object> {
         .collect();
     out.kind = ObjectKind::Group(crate::model::GroupData {
         children,
+        symmetry: None,
         extra: Map::new(),
     });
     Some(out)

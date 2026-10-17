@@ -503,6 +503,7 @@ pub fn group(ed: &mut Editor, sel: &[String]) -> Option<String> {
     let children: Vec<Object> = refs.iter().map(|r| ed.get(r).unwrap().clone()).collect();
     let g = Object::new(ObjectKind::Group(GroupData {
         children,
+        symmetry: None,
         extra: Default::default(),
     }));
     let id = g.id.clone();
@@ -563,8 +564,7 @@ pub fn ungroup(ed: &mut Editor, sel: &[String]) -> Selection {
                 continue;
             };
             let gm = g.transform.affine();
-            let children: Vec<Object> = data
-                .children
+            let children: Vec<Object> = super::symmetry::baked(&data)
                 .into_iter()
                 .map(|mut ch| {
                     ch.transform = Transform::from_affine(gm * ch.transform.affine());

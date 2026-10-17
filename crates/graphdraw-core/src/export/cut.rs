@@ -100,8 +100,11 @@ fn collect(
     }
     let m = parent * o.transform.affine();
     if let ObjectKind::Group(g) = &o.kind {
-        for c in &g.children {
-            collect(c, m, layer_is_cut, opts, out);
+        let copies = crate::edit::symmetry::copies(g.symmetry.as_ref());
+        for t in std::iter::once(Affine::IDENTITY).chain(copies) {
+            for c in &g.children {
+                collect(c, m * t, layer_is_cut, opts, out);
+            }
         }
         return;
     }

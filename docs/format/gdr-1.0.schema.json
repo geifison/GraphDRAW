@@ -358,7 +358,17 @@
           "then": {
             "required": ["children"],
             "properties": {
-              "children": { "type": "array", "items": { "$ref": "#/$defs/object" } }
+              "children": { "type": "array", "items": { "$ref": "#/$defs/object" } },
+              "symmetry": {
+                "type": "object",
+                "required": ["kind", "count", "center"],
+                "properties": {
+                  "kind": { "enum": ["mirror", "radial"] },
+                  "count": { "type": "integer", "minimum": 1, "maximum": 64 },
+                  "center": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
+                  "angle": { "type": "number" }
+                }
+              }
             }
           }
         },

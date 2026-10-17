@@ -25,6 +25,7 @@ pub mod shapeops;
 pub mod smart;
 pub mod smartfill;
 pub mod snap;
+pub mod symmetry;
 pub mod text;
 pub mod tree;
 

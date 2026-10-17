@@ -306,6 +306,7 @@ mod tests {
     fn group(children: Vec<Object>, x: f64) -> Object {
         let mut g = Object::new(ObjectKind::Group(GroupData {
             children,
+            symmetry: None,
             extra: Map::new(),
         }));
         g.transform = Transform::translate(x, 0.0);

@@ -1629,6 +1629,26 @@ impl App {
                 }
             }
             C::ExportSelection => self.export_selection(),
+            C::Symmetry => {
+                if let Some(d) = &mut self.doc {
+                    use graphdraw_core::edit::symmetry;
+                    let (w, h) = d.page_size();
+                    let center = symmetry::default_center(
+                        ops::selection_bounds(&d.editor, &d.selection, false),
+                        w,
+                        h,
+                    );
+                    let sel = d.selection.clone();
+                    let page = d.page;
+                    if let Some(layer) = d.layer_for_new_object()
+                        && let Some(gid) =
+                            symmetry::create(&mut d.editor, page, layer, &sel, "mirror", 1, center)
+                    {
+                        d.symmetry = Some(gid.clone());
+                        d.selection = vec![gid];
+                    }
+                }
+            }
             C::ToGuides => {
                 if let Some(d) = &mut self.doc {
                     let sel = std::mem::take(&mut d.selection);
@@ -2496,6 +2516,7 @@ impl App {
                     (tr("Desbloquear todos", "Unlock all"), Command::UnlockAll, true),
                     (tr("Estender até a sangria", "Extend to bleed"), Command::ExtendToBleed, has_sel),
                     (tr("Converter em guia", "Convert to guide"), Command::ToGuides, has_sel),
+                    (tr("Simetria", "Symmetry"), Command::Symmetry, true),
                 ] {
                     if ui
                         .add_enabled(on, egui::Button::new(keymap::menu(label, cmd)))

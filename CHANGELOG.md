@@ -32,6 +32,9 @@ entre parênteses são os requisitos de `docs/spec/`.
   - horizontal, vertical, paralela, angular, raio, diâmetro e segmento;
   - ligadas aos nós medidos, com a escala de desenho (GD-FER-40,
     GD-COT-01..03).
+- Simetria ao vivo: espelho de N eixos ou radial de N cópias; o desenho
+  novo entra no grupo e editar um filho muda as cópias; Assar transforma
+  as cópias em objetos (GD-FER-33).
 - B-spline: pontos de controle fixados ou flutuantes, aberta ou fechada;
   editar arrastando os pontos na ferramenta Formato (GD-FER-24,
   GD-BSP-01).

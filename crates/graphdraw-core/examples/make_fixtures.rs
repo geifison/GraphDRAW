@@ -253,6 +253,7 @@ fn basic_shapes() -> Document {
         &mut ids,
         ObjectKind::Group(GroupData {
             children: vec![line, small],
+            symmetry: None,
             extra: Map::new(),
         }),
     );
@@ -709,6 +710,7 @@ fn m1_editing() -> Document {
         &mut ids,
         ObjectKind::Group(GroupData {
             children: vec![circle, square],
+            symmetry: None,
             extra: Map::new(),
         }),
     );
@@ -726,6 +728,7 @@ fn m1_editing() -> Document {
         &mut ids,
         ObjectKind::Group(GroupData {
             children: vec![base, inner],
+            symmetry: None,
             extra: Map::new(),
         }),
     );
@@ -806,6 +809,44 @@ fn patterns() -> Document {
             60.0 * MM,
             Fill::Pattern(Box::new(pat)),
         ));
+    }
+    d.data.pages.push(p);
+    d
+}
+
+/// GD-FER-33: espelho de um eixo e radial de seis cópias.
+fn symmetry() -> Document {
+    let mut ids = Ids::new(15);
+    let mut p = page(&mut ids, 200.0 * MM, 100.0 * MM);
+    let mut d = doc_with(vec![], "Simetria");
+    for (kind, count, cx, child) in [
+        ("mirror", 1, 50.0, (20.0, 30.0, 25.0, 40.0)),
+        ("radial", 6, 150.0, (150.0, 60.0, 8.0, 30.0)),
+    ] {
+        let (x, y, w, h) = child;
+        let r = rect(
+            &mut ids,
+            x * MM,
+            y * MM,
+            w * MM,
+            h * MM,
+            Fill::solid(Color::cmyk(0.0, 0.8, 0.4, 0.0)),
+        );
+        let mut g = obj(
+            &mut ids,
+            ObjectKind::Group(GroupData {
+                children: vec![r],
+                symmetry: Some(Symmetry {
+                    kind: kind.into(),
+                    count,
+                    center: [cx * MM, 50.0 * MM],
+                    angle: 90.0,
+                }),
+                extra: Map::new(),
+            }),
+        );
+        g.name = Some(format!("Simetria {kind}"));
+        p.layers[0].objects.push(g);
     }
     d.data.pages.push(p);
     d
@@ -1007,6 +1048,7 @@ fn main() {
         ("patterns", patterns()),
         ("connectors", connectors()),
         ("bspline", bspline()),
+        ("symmetry", symmetry()),
     ];
     for (name, doc) in &docs {
         let path = dir.join(format!("{name}.gdr"));

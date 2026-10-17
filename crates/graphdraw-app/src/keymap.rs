@@ -160,6 +160,7 @@ commands! {
     UngroupAll = "obj.ungroup_all", "Desagrupar tudo", "Ungroup all", Object, Selection, true;
     ExtendToBleed = "obj.extend_bleed", "Estender até a sangria", "Extend to bleed", Object, Selection, true;
     ToGuides = "obj.to_guides", "Converter em guia", "Convert to guide", Object, Selection, true;
+    Symmetry = "obj.symmetry", "Simetria", "Symmetry", Object, NotText, true;
     Preflight = "view.preflight", "Verificação prévia", "Preflight", View, Always, true;
     LockSelection = "obj.lock", "Bloquear", "Lock", Object, Selection, true;
     UnlockSelection = "obj.unlock", "Desbloquear", "Unlock", Object, Selection, true;

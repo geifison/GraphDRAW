@@ -191,6 +191,7 @@ fn gd_gdr_03_minor_version_accepted() {
 fn gd_gdr_04_ids_are_uuid_v7_and_coordinates_in_um() {
     let o = Object::new(ObjectKind::Group(graphdraw_core::model::GroupData {
         children: vec![],
+        symmetry: None,
         extra: Default::default(),
     }));
     let id = uuid::Uuid::parse_str(&o.id).unwrap();

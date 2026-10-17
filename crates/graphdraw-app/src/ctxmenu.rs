@@ -270,6 +270,10 @@ pub fn object_entries(doc: &DocState, clicked: &str, focus: bool) -> Vec<Entry> 
         tr("Converter em guia", "Convert to guide"),
         Cmd::Run(Command::ToGuides),
     ));
+    out.push(item(
+        tr("Simetria", "Symmetry"),
+        Cmd::Run(Command::Symmetry),
+    ));
     out.push(if focus {
         item(tr("Sair do modo foco", "Leave focus mode"), Cmd::ExitFocus)
     } else {
@@ -434,6 +438,7 @@ pub fn icon_of(c: &Cmd) -> &'static str {
             K::ExportSelection => "export-selection",
             K::ExtendToBleed => "bleed",
             K::ToGuides => "guide-object",
+            K::Symmetry => "symmetry",
             K::FocusMode => "focus",
             K::Paste => "paste",
             K::SelectAll => "select-all",

@@ -942,6 +942,39 @@ impl CanvasState {
     }
 
     /// Guias da página, mais a guia sendo criada ou movida.
+    /// Eixos da simetria ativa (GD-FER-33): tracejados pelo centro; na
+    /// radial, raios até a borda.
+    fn paint_symmetry(&self, painter: &egui::Painter, doc: &DocState, rect: Rect, ph: f64) {
+        let Some((s, m)) = active_symmetry(doc) else {
+            return;
+        };
+        let c = m * Point::new(s.center[0], s.center[1]);
+        let cs = self.screen(rect, ph, c);
+        let reach = (rect.width() + rect.height()) as f64;
+        let stroke = EStroke::new(
+            theme::BORDER_WIDTH,
+            theme::ACCENT_PRIMARY.gamma_multiply(0.7),
+        );
+        let n = s.count.clamp(1, 64) as usize;
+        let mirror = s.kind == "mirror";
+        for k in 0..n {
+            let t = s.angle.to_radians()
+                + if mirror {
+                    std::f64::consts::PI / n as f64 * k as f64
+                } else {
+                    std::f64::consts::TAU / n as f64 * k as f64
+                };
+            // Direção na página levada à tela (Y da tela para baixo).
+            let d = m * Point::new(s.center[0] + t.cos(), s.center[1] + t.sin()) - c;
+            let d = d / d.hypot().max(1e-12);
+            let dir = Vec2::new(d.x as f32, -d.y as f32);
+            let a = if mirror { cs - dir * reach as f32 } else { cs };
+            let b = cs + dir * reach as f32;
+            painter.add(egui::Shape::dashed_line(&[a, b], stroke, 6.0, 4.0));
+        }
+        painter.circle_stroke(cs, theme::HANDLE_SIZE / 2.0, stroke);
+    }
+
     fn paint_guides(&self, painter: &egui::Painter, rect: Rect, ph: f64) {
         let view = self.view;
         let to_page = |pos: Pos2| -> Point {
@@ -1106,13 +1139,7 @@ impl CanvasState {
         o.fill = if close { defaults.fill.clone() } else { None };
         o.stroke = defaults.stroke.clone();
         if let Some(layer) = doc.layer_for_new_object() {
-            let id = ops::add_object(
-                &mut doc.editor,
-                doc.page,
-                layer,
-                o,
-                tr("Desenhar curva", "Draw curve"),
-            );
+            let id = add_new(doc, layer, o, tr("Desenhar curva", "Draw curve"));
             doc.selection = vec![id];
         }
     }
@@ -1661,13 +1688,7 @@ impl CanvasState {
                     &crate::textedit::default_family(),
                     graphdraw_core::edit::text::DEFAULT_SIZE / 2.0,
                 );
-                let tid = ops::add_object(
-                    &mut doc.editor,
-                    doc.page,
-                    layer,
-                    t,
-                    tr("Quadro de texto", "Text frame"),
-                );
+                let tid = add_new(doc, layer, t, tr("Quadro de texto", "Text frame"));
                 doc.selection = vec![tid.clone()];
                 ev.switch_tool = Some(Tool::Text);
                 self.edit_text(doc, tid, None);
@@ -2111,6 +2132,7 @@ impl CanvasState {
         self.paint_spread(ui, &painter, doc, rect);
         self.paint_page(ui, &painter, doc, rect);
         self.paint_guides(&painter, rect, ph);
+        self.paint_symmetry(&painter, doc, rect, ph);
         for l in &self.smart_lines {
             let (a, b) = if l.vertical {
                 (Point::new(l.at, l.from), Point::new(l.at, l.to))
@@ -3868,13 +3890,7 @@ impl CanvasState {
             o.stroke = Some(s);
         }
         if let Some(layer) = doc.layer_for_new_object() {
-            let id = ops::add_object(
-                &mut doc.editor,
-                doc.page,
-                layer,
-                o,
-                tr("Criar cota", "Create dimension"),
-            );
+            let id = add_new(doc, layer, o, tr("Criar cota", "Create dimension"));
             doc.selection = vec![id];
         }
     }
@@ -3890,7 +3906,7 @@ impl CanvasState {
         o.fill = if closed { defaults.fill.clone() } else { None };
         o.stroke = defaults.stroke.clone();
         if let Some(layer) = doc.layer_for_new_object() {
-            let id = ops::add_object(&mut doc.editor, doc.page, layer, o, name);
+            let id = add_new(doc, layer, o, name);
             doc.selection = vec![id];
         }
     }
@@ -3920,13 +3936,7 @@ impl CanvasState {
         o.fill = if closed { defaults.fill.clone() } else { None };
         o.stroke = defaults.stroke.clone();
         if let Some(layer) = doc.layer_for_new_object() {
-            let id = ops::add_object(
-                &mut doc.editor,
-                doc.page,
-                layer,
-                o,
-                tr("Desenhar B-spline", "Draw B-spline"),
-            );
+            let id = add_new(doc, layer, o, tr("Desenhar B-spline", "Draw B-spline"));
             doc.selection = vec![id];
         }
     }
@@ -5377,13 +5387,7 @@ impl CanvasState {
                             .then(|| graphdraw_core::model::Arrow::new("triangle"));
                     }
                     if let Some(layer) = doc.layer_for_new_object() {
-                        let id = ops::add_object(
-                            &mut doc.editor,
-                            doc.page,
-                            layer,
-                            o,
-                            tr("Criar conector", "Create connector"),
-                        );
+                        let id = add_new(doc, layer, o, tr("Criar conector", "Create connector"));
                         doc.selection = vec![id];
                     }
                 }
@@ -6157,7 +6161,7 @@ fn add_shape(doc: &mut DocState, prim: Prim, w: f64, h: f64, m: Affine, defaults
             Prim::Basic => tr("Criar forma básica", "Create basic shape"),
             _ => tr("Criar retângulo", "Create rectangle"),
         };
-        let id = ops::add_object(&mut doc.editor, doc.page, layer, o, name);
+        let id = add_new(doc, layer, o, name);
         doc.selection = vec![id];
     }
 }
@@ -6171,6 +6175,7 @@ fn add_generated(doc: &mut DocState, prim: Prim, w: f64, h: f64, m: Affine, defa
     };
     let mut like = Object::new(ObjectKind::Group(graphdraw_core::model::GroupData {
         children: Vec::new(),
+        symmetry: None,
         extra: Map::new(),
     }));
     like.fill = defaults.fill.clone();
@@ -6199,7 +6204,7 @@ fn add_generated(doc: &mut DocState, prim: Prim, w: f64, h: f64, m: Affine, defa
         ),
     };
     o.transform = Transform::from_affine(m);
-    let id = ops::add_object(&mut doc.editor, doc.page, layer, o, name);
+    let id = add_new(doc, layer, o, name);
     doc.selection = vec![id];
 }
 
@@ -6225,6 +6230,44 @@ fn moved_guide(
 
 /// Polígono selecionado sozinho: referência, objeto, dados e matriz local →
 /// página.
+/// Objeto novo: dentro do grupo de simetria ativo desta página (GD-FER-33)
+/// ou no fim da camada.
+fn add_new(doc: &mut DocState, layer: usize, o: Object, name: &str) -> String {
+    if let Some(gid) = doc.symmetry.clone() {
+        if doc
+            .editor
+            .find(&gid)
+            .is_some_and(|r| r.loc.page == doc.page)
+        {
+            if let Some(id) =
+                graphdraw_core::edit::symmetry::add_to_group(&mut doc.editor, &gid, o.clone(), name)
+            {
+                return id;
+            }
+        } else if doc.editor.find(&gid).is_none() {
+            doc.symmetry = None;
+        }
+    }
+    ops::add_object(&mut doc.editor, doc.page, layer, o, name)
+}
+
+/// Grupo de simetria ativo: centro (página), dados e matriz do grupo.
+pub fn active_symmetry(doc: &DocState) -> Option<(graphdraw_core::model::Symmetry, Affine)> {
+    let gid = doc.symmetry.as_ref()?;
+    let r = doc.editor.find(gid)?;
+    if r.loc.page != doc.page {
+        return None;
+    }
+    let g = doc.editor.get(&r)?;
+    let ObjectKind::Group(d) = &g.kind else {
+        return None;
+    };
+    Some((
+        d.symmetry.clone()?,
+        doc.editor.parent_affine(&r) * g.transform.affine(),
+    ))
+}
+
 /// B-spline selecionada sozinha (referência, objeto, dados, matriz).
 fn single_bspline(
     doc: &DocState,
@@ -7313,6 +7356,76 @@ mod tests {
         assert_eq!(doc.page().layers[0].objects.len(), n + 1);
         click(&mut cs, &mut doc, outside);
         assert_eq!(doc.page().layers[0].objects.len(), n + 1, "fora: nada");
+    }
+
+    /// GD-FER-33 na tela: com a simetria ativa, o retângulo desenhado entra
+    /// no grupo e a cópia espelhada aparece do outro lado do eixo.
+    #[test]
+    fn symmetry_draw_inside() {
+        let (ctx, mut cs, mut doc, _id, rect, ph) = bdr_setup();
+        let gid = graphdraw_core::edit::symmetry::create(
+            &mut doc.editor,
+            0,
+            0,
+            &[],
+            "mirror",
+            1,
+            Point::new(105_000.0, 150_000.0),
+        )
+        .unwrap();
+        doc.symmetry = Some(gid.clone());
+        let (a, b) = (
+            cs.screen(rect, ph, Point::new(120_000.0, 180_000.0)),
+            cs.screen(rect, ph, Point::new(140_000.0, 200_000.0)),
+        );
+        let t = Tool::Rect;
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            t,
+            vec![egui::Event::PointerMoved(a)],
+        );
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            t,
+            vec![button(a, PointerButton::Primary, true)],
+        );
+        for k in 1..=4 {
+            let p = a + (b - a) * (k as f32 / 4.0);
+            canvas_frame(
+                &ctx,
+                &mut cs,
+                &mut doc,
+                t,
+                vec![egui::Event::PointerMoved(p)],
+            );
+        }
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            t,
+            vec![button(b, PointerButton::Primary, false)],
+        );
+        let g = doc
+            .editor
+            .get(&doc.editor.find(&gid).unwrap())
+            .unwrap()
+            .clone();
+        let ObjectKind::Group(d) = &g.kind else {
+            panic!()
+        };
+        assert_eq!(d.children.len(), 1, "o retângulo entrou no grupo");
+        let bb = ops::object_bounds(&doc.editor, &doc.editor.find(&gid).unwrap(), false).unwrap();
+        assert!(
+            (bb.x0 - 70_000.0).abs() < 600.0 && (bb.x1 - 140_000.0).abs() < 600.0,
+            "{bb:?}"
+        );
+        assert!(active_symmetry(&doc).is_some());
+        canvas_frame(&ctx, &mut cs, &mut doc, Tool::Select, vec![]);
     }
 
     /// GD-FER-24/GD-BSP-01 na tela: cliques põem pontos (Ctrl = fixado),

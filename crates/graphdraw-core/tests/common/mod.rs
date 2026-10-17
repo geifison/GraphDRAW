@@ -30,6 +30,7 @@ pub const VALID_GDR: &[&str] = &[
     "patterns.gdr",
     "connectors.gdr",
     "bspline.gdr",
+    "symmetry.gdr",
 ];
 
 /// Lê um membro de um pacote ZIP.
