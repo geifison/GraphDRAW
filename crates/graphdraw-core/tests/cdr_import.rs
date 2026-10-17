@@ -199,3 +199,98 @@ fn gd_cdr_07_imported_documents_save_as_valid_gdr() {
         assert_eq!(back.data, doc.data);
     }
 }
+
+/// Regressão com as amostras livres (conselho de 2026-10-17): cada uma abre
+/// com o mesmo relatório e exporta em todos os formatos de produção sem
+/// erro.
+#[test]
+fn fixtures_open_with_stable_report_and_export_everywhere() {
+    use graphdraw_core::export::cut::{CutOptions, cut_strokes, dxf, hpgl};
+    use graphdraw_core::export::{self, ExportOptions, PdfStandard};
+    if !bridge_available() {
+        return;
+    }
+    for (name, objects) in [("fdo65220-2.cdr", 5usize), ("fdo63782-1.cmx", 116)] {
+        let (doc, report) = open_path(&cdr_fixture(name)).unwrap();
+        let mut codes: Vec<&str> = report.items.iter().map(|i| i.code.as_str()).collect();
+        codes.sort();
+        codes.dedup();
+        assert_eq!(
+            codes,
+            vec!["cdr.color.rgb-only"],
+            "{name}: avisos novos na importação"
+        );
+        let mut n = 0;
+        doc.walk_objects(&mut |_| n += 1);
+        assert_eq!(n, objects, "{name}");
+        let pdf = export::pdf_document(&doc, &ExportOptions::default()).unwrap();
+        assert!(lopdf::Document::load_mem(&pdf).is_ok(), "{name}: PDF");
+        let x1a = ExportOptions {
+            pdf: PdfStandard::X1a(Default::default()),
+            text_to_curves: true,
+            ..Default::default()
+        };
+        assert!(export::pdf_document(&doc, &x1a).is_ok(), "{name}: PDF/X-1a");
+        let svg = export::svg_page(&doc, 0, &ExportOptions::default()).unwrap();
+        assert!(
+            roxmltree::Document::parse(&svg).is_ok(),
+            "{name}: SVG bem formado"
+        );
+        assert!(
+            export::png_page(
+                &doc,
+                0,
+                &ExportOptions {
+                    dpi: 72.0,
+                    ..Default::default()
+                }
+            )
+            .is_ok()
+        );
+        let opts = CutOptions {
+            only_marked: false,
+            ..Default::default()
+        };
+        let strokes = cut_strokes(&doc, 0, &opts);
+        assert!(!strokes.is_empty(), "{name}: contornos para corte");
+        let w = doc.data.pages[0].width;
+        assert!(hpgl(&strokes, w, &opts).starts_with("IN"), "{name}: PLT");
+        assert!(dxf(&strokes, &opts, w).contains("EOF"), "{name}: DXF");
+    }
+}
+
+/// Regressão da renderização da amostra .cdr (referência gerada e conferida
+/// a olho em 2026-10-17; não é referência do autor).
+#[test]
+fn cdr_render_matches_regression_reference() {
+    if !bridge_available() {
+        return;
+    }
+    let (doc, _) = open_path(&cdr_fixture("fdo65220-2.cdr")).unwrap();
+    let png = graphdraw_core::export::png_page(
+        &doc,
+        0,
+        &graphdraw_core::export::ExportOptions {
+            dpi: 72.0,
+            background: Some([255; 4]),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let got = image::load_from_memory(&png).unwrap().to_rgba8();
+    let reference = image::open(cdr_fixture("expected/fdo65220-2.png"))
+        .unwrap()
+        .to_rgba8();
+    assert_eq!(got.dimensions(), reference.dimensions());
+    let diff: f64 = got
+        .pixels()
+        .zip(reference.pixels())
+        .map(|(a, b)| {
+            (0..3)
+                .map(|i| (a.0[i] as f64 - b.0[i] as f64).abs())
+                .sum::<f64>()
+        })
+        .sum::<f64>()
+        / (got.width() * got.height() * 3) as f64;
+    assert!(diff < 1.0, "diferença média por canal {diff:.3}");
+}
