@@ -274,6 +274,7 @@ Em Linux: `apt install libcdr-dev librevenge-dev pkg-config g++` e o mesmo
 | GD-CNV-03 | `ops::tests::gd_cnv_03_convert_to_bitmap`, `app::tests::bitmap_window_fits_small_screen` |
 | GD-PRE-01..10 (verificação prévia, sangria automática) | `preflight::tests::gd_pre_*` (core), `app::tests::gd_pre_preflight_panel_and_extend_command` |
 | GD-FER-20/21/25/26 (mão livre, linha 2 pontos, polilinha, curva 3 pontos) | `drawing::tests::gd_fer_*` (core), `canvas::tests::line_tools_on_canvas` (app) |
+| GD-SEP-01 (prévia de separações) | `separation::tests::*` (core), `canvas::tests::separation_preview_on_canvas` (app) |
 | GD-FIL-04..06/10/12 (padrões, caminho aberto) | `pattern::tests::*` (core), `tests/patterns.rs`, `dialogs::tests::pattern_fill_dialog` (app) |
 | GD-FER-40, GD-COT-01..03, GD-DOC-03 (cotas) | `dimension::tests::*` (core), `tests/dimensions.rs`, fixture `prepress.gdr`, `canvas::tests::dimension_tool_on_canvas` (app) |
 | GD-FER-03 (transformação livre) | `freexf::tests::gd_fer_03_free_transform_modes` (core), `canvas::tests::free_transform_on_canvas` (app) |
@@ -393,6 +394,10 @@ Do M3:
   - no PDF/X-1a, o objeto com padrão é achatado em CMYK como as
     transparências;
   - cores especiais do padrão de duas cores não viram chapa separada.
+- Prévia de separações (GD-SEP-01): a cena é refeita por chapa, com as
+  tintas em cinza. Ela segue o vazamento e a sobreimpressão do objeto. Na
+  composta, as chapas se multiplicam e cada especial usa a cor alternativa.
+  Imagens e padrões (RGB) entram por fórmula de CMYK, sem perfil.
 - GD-FIL-10 vale para padrões; gradientes sempre acompanham o objeto.
 - GD-FIL-12: um caminho misto (aberto e fechado) mantém o preenchimento.
 

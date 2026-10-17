@@ -603,6 +603,8 @@ struct BezierDraft {
 struct RenderKey {
     page: usize,
     rev: u64,
+    /// Prévia de separações em uso (hash; 0 = desligada).
+    sep: u64,
     view: View,
     size: [usize; 2],
     ppp: f32,
@@ -631,6 +633,8 @@ pub struct CanvasState {
     stamped: usize,
     /// Há o que colar (a área de transferência fica no App).
     pub can_paste: bool,
+    /// Prévia de separações (GD-SEP-01): chapa ou composta; `None` = cores normais.
+    pub separation: Option<graphdraw_core::render::separation::SepView>,
     /// Lacuna da faca e largura do pincel da borracha (µm).
     pub knife_gap: f64,
     pub eraser_width: f64,
@@ -735,6 +739,7 @@ impl Default for CanvasState {
             menu_node: None,
             stamped: 0,
             can_paste: false,
+            separation: None,
             knife_gap: 0.0,
             eraser_width: 5_000.0,
             crop_pending: None,
@@ -2250,9 +2255,16 @@ impl CanvasState {
             (size.x * ppp).round().max(1.0) as usize,
             (size.y * ppp).round().max(1.0) as usize,
         ];
+        let sep = self.separation.as_ref().map_or(0, |s| {
+            use std::hash::{Hash, Hasher};
+            let mut h = std::collections::hash_map::DefaultHasher::new();
+            s.hash(&mut h);
+            h.finish() | 1
+        });
         let key = RenderKey {
             page: doc.page,
             rev: doc.editor.revision(),
+            sep,
             view: v,
             size: px,
             ppp,
@@ -2288,13 +2300,25 @@ impl CanvasState {
                     item_bounds: Default::default(),
                 });
             }
-            if let Some(pm) = raster::render(
-                &scene,
-                v.raster_affine(ph, ppp as f64),
-                px[0] as u32,
-                px[1] as u32,
-                &RasterOptions::default(),
-            ) {
+            let rendered = match &self.separation {
+                Some(sv) => graphdraw_core::render::separation::render_view(
+                    doc.doc(),
+                    &scene,
+                    sv,
+                    v.raster_affine(ph, ppp as f64),
+                    px[0] as u32,
+                    px[1] as u32,
+                    &RasterOptions::default(),
+                ),
+                None => raster::render(
+                    &scene,
+                    v.raster_affine(ph, ppp as f64),
+                    px[0] as u32,
+                    px[1] as u32,
+                    &RasterOptions::default(),
+                ),
+            };
+            if let Some(pm) = rendered {
                 if self.eyedrop.active {
                     self.pixels = Some((key, std::sync::Arc::new(pm.data().to_vec())));
                 }
@@ -6699,6 +6723,23 @@ mod tests {
         );
         assert_eq!(doc.selection, vec![id]);
         assert_eq!(ev.command, Some(crate::keymap::Command::UnlockSelection));
+    }
+
+    /// GD-SEP-01 na tela: com a prévia de uma chapa, a página é desenhada
+    /// pela chapa (o quadro muda de chave e de pixels).
+    #[test]
+    fn separation_preview_on_canvas() {
+        use graphdraw_core::render::separation::{Plate, SepView};
+        let (ctx, mut cs, mut doc, _id, _rect, _ph) = bdr_setup();
+        canvas_frame(&ctx, &mut cs, &mut doc, Tool::Select, vec![]);
+        let normal = cs.rendered.unwrap();
+        cs.separation = Some(SepView::Plate(Plate::Cyan));
+        canvas_frame(&ctx, &mut cs, &mut doc, Tool::Select, vec![]);
+        let cyan = cs.rendered.unwrap();
+        assert_ne!(normal.sep, cyan.sep, "outra chave de renderização");
+        cs.separation = Some(SepView::Composite);
+        canvas_frame(&ctx, &mut cs, &mut doc, Tool::Select, vec![]);
+        assert!(cs.rendered.is_some());
     }
 
     /// GD-FER-40/GD-COT-02: três cliques fazem a cota horizontal da base do

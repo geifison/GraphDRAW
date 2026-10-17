@@ -44,7 +44,7 @@ Prioridade:
   (GD-FIL-04/05/06), com PDF e SVG.
 - [x] O padrão acompanha a transformação do objeto (GD-FIL-10).
 - [x] Opção de preencher caminho aberto (GD-FIL-12).
-- [ ] Prévia de separações por chapa, com sobreimpressão simulada
+- [x] Prévia de separações por chapa, com sobreimpressão simulada
   (GD-SEP-01).
 - [x] Preto 100% K com sobreimpressão automática em texto pequeno e linha
   fina (GD-SEP-02): coberto pela verificação (GD-PRE-07/08).

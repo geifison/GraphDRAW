@@ -5,6 +5,7 @@ pub mod gradient;
 pub mod pattern;
 pub mod raster;
 pub mod scene;
+pub mod separation;
 pub mod text;
 
 pub use scene::{ImageCache, Item, Paint, Scene, SceneOptions, build_scene};

@@ -617,6 +617,12 @@ status mostra o botão “◉ Modo foco — sair”; Esc também sai.
     Transformações);
   - o balde, Esvaziar e a dica dos gestos.
 
+**Prévia de separações** (GD-SEP-01, menu Exibir):
+- Desligada | Composta (sobreimpressão simulada) | uma chapa (Ciano,
+  Magenta, Amarelo, Preto e cada cor especial do documento).
+- Uma chapa aparece em tons de cinza: preto = 100% de tinta.
+- A barra de status mostra "◐ Separação: … — sair"; o clique desliga.
+
 ### 5.2 Guias inteligentes e encaixe
 
 - Alinhamento a borda/centro de outro objeto: linha contínua de 1 px

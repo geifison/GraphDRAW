@@ -2517,6 +2517,30 @@ impl App {
                 {
                     self.run_command(Command::Preflight, &ctx);
                 }
+                // Prévia de separações (GD-SEP-01).
+                if let Some(d) = &self.doc {
+                    use graphdraw_core::render::separation::{SepView, plates};
+                    let all = plates(d.doc());
+                    ui.menu_button(tr("Prévia de separações", "Separations preview"), |ui| {
+                        let mut pick = |ui: &mut egui::Ui, v: Option<SepView>, label: String| {
+                            if ui.selectable_label(self.canvas.separation == v, label).clicked() {
+                                self.canvas.separation = v;
+                                ui.close();
+                            }
+                        };
+                        pick(ui, None, tr("Desligada", "Off").into());
+                        pick(
+                            ui,
+                            Some(SepView::Composite),
+                            tr("Composta (sobreimpressão simulada)", "Composite (simulated overprint)").into(),
+                        );
+                        ui.separator();
+                        for p in all {
+                            let label = plate_label(&p);
+                            pick(ui, Some(SepView::Plate(p)), label);
+                        }
+                    });
+                }
                 ui.checkbox(&mut self.canvas.show_rulers, tr("Réguas", "Rulers"));
                 ui.checkbox(
                     &mut self.canvas.spread,
@@ -2915,6 +2939,24 @@ impl App {
 
     fn status_bar(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
+            // Prévia de separações (GD-SEP-01): qual chapa; clicar desliga.
+            if let Some(sv) = &self.canvas.separation {
+                use graphdraw_core::render::separation::SepView;
+                let which = match sv {
+                    SepView::Composite => tr("composta", "composite").to_string(),
+                    SepView::Plate(p) => plate_label(p),
+                };
+                if ui
+                    .button(format!(
+                        "◐ {} {which} — {}",
+                        tr("Separação:", "Separation:"),
+                        tr("sair", "leave")
+                    ))
+                    .clicked()
+                {
+                    self.canvas.separation = None;
+                }
+            }
             // Modo foco (GD-BDR-82): indicador; clicar sai.
             if self.canvas.focus.is_some()
                 && ui
@@ -3806,6 +3848,18 @@ fn cursor_position(ui: &mut egui::Ui, p: Option<kurbo::Point>) {
             },
         );
         ui.label("mm");
+    }
+}
+
+/// Nome da chapa na interface (GD-SEP-01).
+pub(crate) fn plate_label(p: &graphdraw_core::render::separation::Plate) -> String {
+    use graphdraw_core::render::separation::Plate;
+    match p {
+        Plate::Cyan => tr("Ciano", "Cyan").into(),
+        Plate::Magenta => tr("Magenta", "Magenta").into(),
+        Plate::Yellow => tr("Amarelo", "Yellow").into(),
+        Plate::Black => tr("Preto", "Black").into(),
+        Plate::Spot(n) => n.clone(),
     }
 }
 
