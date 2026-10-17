@@ -331,11 +331,16 @@ de texto.
 
 ### 4.6 Barra de propriedades (barra superior contextual)
 
-- **Altura fixa:** `bar-property-height` = 36 px (controles Compact de
-  24 px + `space-150` em cima e embaixo). A altura **nunca muda**, seja qual
-  for a ferramenta, a seleção ou a quantidade de controles mostrados; trocar
-  de contexto não pode empurrar o canvas para cima ou para baixo.
-- **Uma linha só:** nada quebra linha. Se os controles não cabem na
+- **Altura fixa:** `bar-property-height` = 72 px (duas linhas de controles
+  Compact de 24 px, `space-150` em cima e embaixo e `bar-row-gap` =
+  `space-300` entre elas). A altura **nunca muda**, seja qual for a
+  ferramenta, a seleção ou a quantidade de controles mostrados; trocar de
+  contexto não pode empurrar o canvas para cima ou para baixo.
+- **Empilhar:** pares relacionados ficam um sobre o outro (X/Y, L/A,
+  espelhar H/V, ordem 2 × 2, agrupar/desagrupar, fonte/estilo e corpo,
+  negrito/itálico, alinhamentos 2 × 2). Controles soltos ficam centrados
+  na altura.
+- **Sem quebra de linha:** nada quebra linha. Se os controles não cabem na
   largura, a barra rola na horizontal (roda do mouse ou arrasto; barra de
   rolagem oculta) e um degradê na borda indica que há mais conteúdo.
 - Textos de ajuda longos (dicas da ferramenta) são cortados com reticências
@@ -345,7 +350,7 @@ de texto.
   de âncora 3 × 3) também cabe em 24 px de altura: não usar grade de
   linhas do toolkit, que dá a cada linha a altura mínima de controle.
 - Todo contexto novo da barra tem teste de layout que confirma a altura de
-  36 px em 1366 × 768.
+  72 px em 1366 × 768.
 
 ### 4.7 Painel de camadas e objetos
 
@@ -468,7 +473,7 @@ seleção; alças e nós de 6 px com borda de 1,5 px; marca de encaixe em
 nos microcontroles, 24 nos cursores) com traço de 1,5 px; botões de
 ferramenta ghost Compact de 24 px com os quatro estados; botões primário
 e secundário nos rodapés das janelas; modais com raio `radius-lg` e margem
-`space-600`; barra de propriedades com altura fixa de 36 px (teste de
+`space-600`; barra de propriedades com altura fixa de 72 px (teste de
 layout para página, seleção e nós); arrasto no rótulo dos campos
 numéricos; dicas com 400 ms; itens de menu com 26 px; `shadow-page` na
 folha.
@@ -494,7 +499,7 @@ Ao corrigir um item, atualizar esta tabela no mesmo commit.
       por grupo.
 - [ ] Campos numéricos em `type-numeric`, com contas, unidades e arrasto.
 - [ ] Janela nova cabe em 1366 × 768 (teste de layout).
-- [ ] Contexto novo na barra de propriedades mantém a altura de 36 px.
+- [ ] Contexto novo na barra de propriedades mantém a altura de 72 px.
 - [ ] Toda ação tem retorno visual imediato; as essenciais têm atalho.
 - [ ] Comando novo com atalho entra como `Command` em
       `crates/graphdraw-app/src/keymap.rs`, com atalho nos dois perfis

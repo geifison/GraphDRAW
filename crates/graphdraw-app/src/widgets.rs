@@ -60,6 +60,25 @@ fn drag_handle(ui: &mut egui::Ui, text: &str, step: f64) -> Option<f64> {
     let resp = ui
         .add(egui::Label::new(text).sense(Sense::drag()))
         .on_hover_cursor(egui::CursorIcon::ResizeHorizontal);
+    drag_amount(ui, resp, step)
+}
+
+/// Alça de arrasto com ícone no lugar do rótulo (ex.: ângulo).
+fn drag_icon(ui: &mut egui::Ui, icon: &str, tip: &str, step: f64) -> Option<f64> {
+    let tint = theme::palette(ui).fg_muted;
+    let resp = ui
+        .add(
+            egui::Image::new(crate::icons::get_micro(icon))
+                .fit_to_exact_size(Vec2::splat(theme::ICON_MICRO))
+                .tint(tint)
+                .sense(Sense::drag()),
+        )
+        .on_hover_cursor(egui::CursorIcon::ResizeHorizontal)
+        .on_hover_text(tip);
+    drag_amount(ui, resp, step)
+}
+
+fn drag_amount(ui: &mut egui::Ui, resp: egui::Response, step: f64) -> Option<f64> {
     if resp.drag_started() {
         ui.data_mut(|d| d.insert_temp(drag_flag(), true));
         return None;
@@ -159,17 +178,28 @@ pub fn number_field(ui: &mut egui::Ui, id: &str, value: f64, suffix: &str) -> Op
     r.or(d.map(|d| value + d))
 }
 
-/// Número com rótulo arrastável à esquerda (ângulo, escala…).
-pub fn labeled_number(
+/// Número com ícone arrastável à esquerda (o ícone também tem dica).
+pub fn icon_number(
     ui: &mut egui::Ui,
-    label: &str,
+    icon: &str,
+    tip: &str,
     id: &str,
     value: f64,
     suffix: &str,
 ) -> Option<f64> {
-    let d = drag_handle(ui, label, NUMBER_DRAG_STEP);
+    let d = drag_icon(ui, icon, tip, NUMBER_DRAG_STEP);
     let r = number_field(ui, id, value, suffix);
     r.or(d.map(|d| value + d))
+}
+
+/// Dois grupos de controles empilhados na barra de propriedades (4.6):
+/// `f` é chamado com a linha 0 (de cima) e depois com a 1 (de baixo).
+pub fn stack(ui: &mut egui::Ui, mut f: impl FnMut(&mut egui::Ui, usize)) {
+    ui.vertical(|ui| {
+        ui.spacing_mut().item_spacing.y = theme::BAR_ROW_GAP;
+        ui.horizontal(|ui| f(ui, 0));
+        ui.horizontal(|ui| f(ui, 1));
+    });
 }
 
 /// Botão primário: a ação principal de um grupo (DESIGN-SYSTEM 4.1).

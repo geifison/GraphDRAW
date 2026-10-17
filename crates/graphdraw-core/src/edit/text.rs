@@ -195,6 +195,8 @@ pub struct TextStyle {
     pub size: Option<f64>,
     pub bold: Option<bool>,
     pub italic: Option<bool>,
+    /// Peso exato (100–900), vindo dos estilos que a fonte tem.
+    pub weight: Option<u16>,
     /// `left`, `center`, `right`, `justify`.
     pub align: Option<String>,
 }
@@ -214,11 +216,22 @@ pub fn apply_style(t: &mut TextData, st: &TextStyle) {
             if let Some(b) = st.bold {
                 s.font.weight = if b { 700 } else { 400 };
             }
+            if let Some(w) = st.weight {
+                s.font.weight = w;
+            }
             if let Some(i) = st.italic {
                 s.font.italic = i;
             }
         }
     }
+}
+
+/// Peso do primeiro trecho.
+pub fn current_weight(t: &TextData) -> u16 {
+    t.paragraphs
+        .first()
+        .and_then(|p| p.spans.first())
+        .map_or(400, |s| s.font.weight)
 }
 
 /// Estilo do primeiro trecho (para mostrar na barra de propriedades).

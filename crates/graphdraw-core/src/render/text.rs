@@ -199,6 +199,44 @@ pub fn family_outline(family: &str, text: &str, size: f64) -> Option<(BezPath, f
     Some((out, s.ascent))
 }
 
+/// Estilos instalados de uma família: (peso, itálico), sem repetição, do
+/// mais leve ao mais pesado e o reto antes do itálico.
+pub fn font_styles(family: &str) -> Vec<(u16, bool)> {
+    let mut v: Vec<(u16, bool)> = fonts()
+        .db
+        .faces()
+        .filter(|f| {
+            f.families
+                .iter()
+                .any(|(n, _)| n.eq_ignore_ascii_case(family))
+        })
+        .map(|f| (f.weight.0, f.style != fontdb::Style::Normal))
+        .collect();
+    v.sort_unstable();
+    v.dedup();
+    v
+}
+
+/// Nome do estilo para a interface ("Regular", "Bold Italic"…).
+pub fn style_name(weight: u16, italic: bool) -> String {
+    let w = match weight {
+        0..=150 => "Thin",
+        151..=250 => "ExtraLight",
+        251..=350 => "Light",
+        351..=450 => "Regular",
+        451..=550 => "Medium",
+        551..=650 => "SemiBold",
+        651..=750 => "Bold",
+        751..=850 => "ExtraBold",
+        _ => "Black",
+    };
+    match (w, italic) {
+        ("Regular", true) => "Italic".into(),
+        (w, true) => format!("{w} Italic"),
+        (w, false) => w.into(),
+    }
+}
+
 /// Famílias de fonte instaladas, em ordem alfabética (GD-FNT-01).
 pub fn font_families() -> Vec<String> {
     let mut v: Vec<String> = fonts()

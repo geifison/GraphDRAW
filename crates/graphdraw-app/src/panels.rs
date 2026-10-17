@@ -15,9 +15,7 @@ use crate::doc::DocState;
 use crate::i18n::tr;
 use crate::icons;
 use crate::theme;
-use crate::widgets::{
-    self, fmt_mm, labeled_length, labeled_number, length_field, number_field, swatch,
-};
+use crate::widgets::{self, fmt_mm, labeled_length, length_field, number_field, swatch};
 
 /// Célula do seletor de âncora e o vão entre células.
 const ANCHOR_CELL: f32 = 7.0;
@@ -617,43 +615,102 @@ fn text_bar(
         return None;
     };
     let mut out = None;
-    if let Some(fam) = picker.show(ui, &family)
-        && fam != family
-    {
-        out = Some(TextStyle {
-            family: Some(fam),
-            ..Default::default()
-        });
-    }
+    // Só os estilos que a fonte tem instalados (pesos e itálicos).
+    let weight = targets
+        .first()
+        .and_then(|id| doc.editor.find(id))
+        .and_then(|r| doc.editor.get(&r))
+        .and_then(|o| match &o.kind {
+            ObjectKind::Text(t) => Some(tedit::current_weight(t)),
+            _ => None,
+        })
+        .unwrap_or(400);
+    let styles = graphdraw_core::render::text::font_styles(&family);
+    let has_bold = styles.iter().any(|(w, i)| *w >= 600 && *i == italic);
+    let has_italic = styles.iter().any(|(w, i)| *i && (*w >= 600) == bold);
     let pt = 25_400.0 / 72.0;
     let mut points = (size / pt * 10.0).round() / 10.0;
-    if ui
-        .add(
-            egui::DragValue::new(&mut points)
-                .range(1.0..=1000.0)
-                .speed(0.2)
-                .suffix(" pt"),
-        )
-        .changed()
-    {
-        out = Some(TextStyle {
-            size: Some(points * pt),
-            ..Default::default()
-        });
-    }
-    if icons::button(ui, "text-bold", tr("Negrito", "Bold"), bold, true).clicked() {
-        out = Some(TextStyle {
-            bold: Some(!bold),
-            ..Default::default()
-        });
-    }
-    if icons::button(ui, "text-italic", tr("Itálico", "Italic"), italic, true).clicked() {
-        out = Some(TextStyle {
-            italic: Some(!italic),
-            ..Default::default()
-        });
-    }
+    widgets::stack(ui, |ui, row| {
+        if row == 0 {
+            if let Some(fam) = picker.show(ui, &family)
+                && fam != family
+            {
+                out = Some(TextStyle {
+                    family: Some(fam),
+                    ..Default::default()
+                });
+            };
+        } else {
+            let name = graphdraw_core::render::text::style_name(weight, italic);
+            egui::ComboBox::from_id_salt("texto-estilo")
+                .selected_text(name)
+                .width(theme::FONT_STYLE_WIDTH)
+                .show_ui(ui, |ui| {
+                    for (w, i) in &styles {
+                        let label = graphdraw_core::render::text::style_name(*w, *i);
+                        if ui
+                            .selectable_label(*w == weight && *i == italic, label)
+                            .clicked()
+                        {
+                            out = Some(TextStyle {
+                                weight: Some(*w),
+                                italic: Some(*i),
+                                ..Default::default()
+                            });
+                        }
+                    }
+                })
+                .response
+                .on_hover_text(tr(
+                    "Estilos que esta fonte tem instalados",
+                    "Styles installed for this font",
+                ));
+            if ui
+                .add(
+                    egui::DragValue::new(&mut points)
+                        .range(1.0..=1000.0)
+                        .speed(0.2)
+                        .suffix(" pt"),
+                )
+                .on_hover_text(tr("Corpo", "Size"))
+                .changed()
+            {
+                out = Some(TextStyle {
+                    size: Some(points * pt),
+                    ..Default::default()
+                });
+            };
+        }
+    });
+    widgets::stack(ui, |ui, row| {
+        if row == 0 {
+            let tip = if has_bold || bold {
+                tr("Negrito", "Bold")
+            } else {
+                tr("Esta fonte não tem negrito", "This font has no bold")
+            };
+            if icons::button(ui, "text-bold", tip, bold, has_bold || bold).clicked() {
+                out = Some(TextStyle {
+                    bold: Some(!bold),
+                    ..Default::default()
+                });
+            };
+        } else {
+            let tip = if has_italic || italic {
+                tr("Itálico", "Italic")
+            } else {
+                tr("Esta fonte não tem itálico", "This font has no italic")
+            };
+            if icons::button(ui, "text-italic", tip, italic, has_italic || italic).clicked() {
+                out = Some(TextStyle {
+                    italic: Some(!italic),
+                    ..Default::default()
+                });
+            };
+        }
+    });
     ui.separator();
+    let mut aligns = Vec::new();
     for (icon, tip, a, cmd) in [
         (
             "text-left",
@@ -683,14 +740,46 @@ fn text_bar(
             crate::keymap::Command::TextJustify,
         ),
     ] {
-        if icons::button(ui, icon, crate::keymap::hint(tip, cmd), align == a, true).clicked() {
-            out = Some(TextStyle {
-                align: Some(a.into()),
-                ..Default::default()
-            });
+        aligns.push((icon, crate::keymap::hint(tip, cmd), a));
+    }
+    let mut picked = None;
+    let mut buttons = |ui: &mut egui::Ui, items: &[(&str, &str, &str)]| {
+        for (icon, tip, a) in items {
+            if icons::button(ui, icon, tip, align == *a, true).clicked() {
+                picked = Some(a.to_string());
+            }
         }
+    };
+    widgets::stack(ui, |ui, row| {
+        if row == 0 {
+            buttons(ui, &aligns[..2]);
+        } else {
+            buttons(ui, &aligns[2..]);
+        }
+    });
+    if let Some(a) = picked {
+        out = Some(TextStyle {
+            align: Some(a),
+            ..Default::default()
+        });
     }
     out
+}
+
+/// Ângulo de rotação (graus, −180..180) do primeiro objeto selecionado, na
+/// página (inclui a rotação dos grupos pais).
+fn selection_angle(doc: &DocState, sel: &[String]) -> f64 {
+    let Some(r) = sel.first().and_then(|id| doc.editor.find(id)) else {
+        return 0.0;
+    };
+    let Some(o) = doc.editor.get(&r) else {
+        return 0.0;
+    };
+    let m = (doc.editor.parent_affine(&r) * o.transform.affine()).as_coeffs();
+    let a = m[1].atan2(m[0]).to_degrees();
+    // Valor limpo: arredonda ruído numérico (89,9999999 → 90).
+    let a = (a * 1e6).round() / 1e6;
+    if a <= -180.0 { a + 360.0 } else { a }
 }
 
 fn select_bar(ui: &mut egui::Ui, doc: &mut DocState, anchor: &mut Anchor, lock: &mut bool) -> bool {
@@ -701,6 +790,7 @@ fn select_bar(ui: &mut egui::Ui, doc: &mut DocState, anchor: &mut Anchor, lock: 
     // Booleanas com dois ou mais objetos (doc 09): alvo = último selecionado.
     if sel.len() >= 2 {
         use graphdraw_core::edit::shapeops::{self, BoolOp};
+        let mut ops_buttons = Vec::new();
         for (icon, tip, op) in [
             (
                 "bool-weld",
@@ -730,28 +820,60 @@ fn select_bar(ui: &mut egui::Ui, doc: &mut DocState, anchor: &mut Anchor, lock: 
                 BoolOp::Intersect,
             ),
         ] {
-            if icons::button(ui, icon, tip, false, true).clicked()
-                && let Some(n) = shapeops::boolean(&mut doc.editor, &sel, op, op.default_options())
-            {
-                doc.selection = n;
-                return false;
+            ops_buttons.push((icon, tip, op));
+        }
+        let mut picked = None;
+        widgets::stack(ui, |ui, row| {
+            if row == 0 {
+                for (icon, tip, op) in &ops_buttons[..2] {
+                    if icons::button(ui, icon, tip, false, true).clicked() {
+                        picked = Some(*op);
+                    }
+                }
+            } else {
+                let (icon, tip, op) = &ops_buttons[2];
+                if icons::button(ui, icon, tip, false, true).clicked() {
+                    picked = Some(*op);
+                };
             }
+        });
+        if let Some(op) = picked
+            && let Some(n) = shapeops::boolean(&mut doc.editor, &sel, op, op.default_options())
+        {
+            doc.selection = n;
+            return false;
         }
         ui.separator();
     }
     anchor_picker(ui, anchor);
     let p = anchor.point(b);
-    if let Some(x) = labeled_length(ui, "X", "x", p.x, None) {
+    let (mut nx, mut ny) = (None, None);
+    widgets::stack(ui, |ui, row| {
+        if row == 0 {
+            nx = labeled_length(ui, "X", "x", p.x, None);
+        } else {
+            ny = labeled_length(ui, "Y", "y", p.y, None);
+        }
+    });
+    if let Some(x) = nx {
         ops::set_position(&mut doc.editor, &sel, *anchor, Point::new(x, p.y));
     }
-    if let Some(y) = labeled_length(ui, "Y", "y", p.y, None) {
+    if let Some(y) = ny {
         ops::set_position(&mut doc.editor, &sel, *anchor, Point::new(p.x, y));
     }
     ui.separator();
-    if let Some(w) = labeled_length(ui, tr("L", "W"), "w", b.width(), Some(b.width())) {
+    let (mut nw, mut nh) = (None, None);
+    widgets::stack(ui, |ui, row| {
+        if row == 0 {
+            nw = labeled_length(ui, tr("L", "W"), "w", b.width(), Some(b.width()));
+        } else {
+            nh = labeled_length(ui, tr("A", "H"), "h", b.height(), Some(b.height()));
+        }
+    });
+    if let Some(w) = nw {
         ops::set_size(&mut doc.editor, &sel, *anchor, Some(w), None, *lock);
     }
-    if let Some(h) = labeled_length(ui, tr("A", "H"), "h", b.height(), Some(b.height())) {
+    if let Some(h) = nh {
         ops::set_size(&mut doc.editor, &sel, *anchor, None, Some(h), *lock);
     }
     // Cadeado fechado = proporção travada; aberto = largura e altura livres.
@@ -776,47 +898,67 @@ fn select_bar(ui: &mut egui::Ui, doc: &mut DocState, anchor: &mut Anchor, lock: 
         *lock = !*lock;
     }
     ui.separator();
-    if let Some(a) = labeled_number(ui, "∠", "angulo", 0.0, "°") {
-        ops::transform(
-            &mut doc.editor,
-            &sel,
-            ops::rotate_about(anchor.point(b), a),
-            tr("Girar", "Rotate"),
-        );
-    }
-    if icons::button(
+    // Ângulo atual do (primeiro) objeto; digitar gira até o valor.
+    let current = selection_angle(doc, &sel);
+    if let Some(a) = widgets::icon_number(
         ui,
-        "mirror-h",
-        tr("Espelhar na horizontal", "Mirror horizontally"),
-        false,
-        true,
-    )
-    .clicked()
-    {
-        ops::transform(
-            &mut doc.editor,
-            &sel,
-            ops::mirror_about(b.center(), true),
-            tr("Espelhar", "Mirror"),
-        );
+        "rotate-ccw",
+        tr(
+            "Ângulo de rotação (arraste o ícone ou digite)",
+            "Rotation angle (drag the icon or type)",
+        ),
+        "angulo",
+        current,
+        "°",
+    ) {
+        let delta = a - current;
+        if delta.abs() > 1e-9 {
+            ops::transform(
+                &mut doc.editor,
+                &sel,
+                ops::rotate_about(anchor.point(b), delta),
+                tr("Girar", "Rotate"),
+            );
+        }
     }
-    if icons::button(
-        ui,
-        "mirror-v",
-        tr("Espelhar na vertical", "Mirror vertically"),
-        false,
-        true,
-    )
-    .clicked()
-    {
+    let mut mirror = None;
+    widgets::stack(ui, |ui, row| {
+        if row == 0 {
+            if icons::button(
+                ui,
+                "mirror-h",
+                tr("Espelhar na horizontal", "Mirror horizontally"),
+                false,
+                true,
+            )
+            .clicked()
+            {
+                mirror = Some(true);
+            };
+        } else {
+            if icons::button(
+                ui,
+                "mirror-v",
+                tr("Espelhar na vertical", "Mirror vertically"),
+                false,
+                true,
+            )
+            .clicked()
+            {
+                mirror = Some(false);
+            };
+        }
+    });
+    if let Some(h) = mirror {
         ops::transform(
             &mut doc.editor,
             &sel,
-            ops::mirror_about(b.center(), false),
+            ops::mirror_about(b.center(), h),
             tr("Espelhar", "Mirror"),
         );
     }
     ui.separator();
+    let mut order_buttons = Vec::new();
     for (icon, tip, order) in [
         (
             "order-front",
@@ -851,36 +993,57 @@ fn select_bar(ui: &mut egui::Ui, doc: &mut DocState, anchor: &mut Anchor, lock: 
             Order::ToBack,
         ),
     ] {
-        if icons::button(ui, icon, tip, false, true).clicked() {
-            ops::reorder(&mut doc.editor, &sel, order);
+        order_buttons.push((icon, tip, order));
+    }
+    let mut reorder = None;
+    let mut buttons = |ui: &mut egui::Ui, items: &[(&str, &str, Order)]| {
+        for (icon, tip, order) in items {
+            if icons::button(ui, icon, tip, false, true).clicked() {
+                reorder = Some(*order);
+            }
         }
+    };
+    widgets::stack(ui, |ui, row| {
+        if row == 0 {
+            buttons(ui, &order_buttons[..2]);
+        } else {
+            buttons(ui, &order_buttons[2..]);
+        }
+    });
+    if let Some(o) = reorder {
+        ops::reorder(&mut doc.editor, &sel, o);
     }
     ui.separator();
-    if icons::button(
-        ui,
-        "group",
-        crate::keymap::hint(tr("Agrupar", "Group"), crate::keymap::Command::Group_),
-        false,
-        sel.len() > 1,
-    )
-    .clicked()
-        && let Some(id) = ops::group(&mut doc.editor, &sel)
-    {
-        doc.selection = vec![id];
-    }
     let any_group = doc
         .selected_objects()
         .iter()
         .any(|o| matches!(o.kind, ObjectKind::Group(_)));
-    if icons::button(
-        ui,
-        "ungroup",
-        crate::keymap::hint(tr("Desagrupar", "Ungroup"), crate::keymap::Command::Ungroup),
-        false,
-        any_group,
-    )
-    .clicked()
-    {
+    let (mut do_group, mut do_ungroup) = (false, false);
+    widgets::stack(ui, |ui, row| {
+        if row == 0 {
+            do_group = icons::button(
+                ui,
+                "group",
+                crate::keymap::hint(tr("Agrupar", "Group"), crate::keymap::Command::Group_),
+                false,
+                sel.len() > 1,
+            )
+            .clicked();
+        } else {
+            do_ungroup = icons::button(
+                ui,
+                "ungroup",
+                crate::keymap::hint(tr("Desagrupar", "Ungroup"), crate::keymap::Command::Ungroup),
+                false,
+                any_group,
+            )
+            .clicked();
+        }
+    });
+    if do_group && let Some(id) = ops::group(&mut doc.editor, &sel) {
+        doc.selection = vec![id];
+    }
+    if do_ungroup {
         doc.selection = ops::ungroup(&mut doc.editor, &sel);
     }
     // Primitivas (GD-PRI-01/02): parâmetros editáveis até converter em curvas.
@@ -2062,6 +2225,31 @@ mod tests {
         (panel, content)
     }
 
+    /// O campo de ângulo mostra a rotação atual e girar até um valor
+    /// deixa o objeto naquele ângulo.
+    #[test]
+    fn angle_field_shows_current_rotation() {
+        use graphdraw_core::model::{Object, ObjectKind, RectData};
+        let mut doc = DocState::new_blank();
+        let o = Object::new(ObjectKind::Rectangle(RectData {
+            width: 50_000.0,
+            height: 30_000.0,
+            corners: None,
+            extra: Default::default(),
+        }));
+        let id = ops::add_object(&mut doc.editor, 0, 0, o, "t");
+        let sel = vec![id];
+        assert_eq!(selection_angle(&doc, &sel), 0.0);
+        let c = kurbo::Point::new(25_000.0, 15_000.0);
+        ops::transform(&mut doc.editor, &sel, ops::rotate_about(c, 30.0), "g");
+        assert!((selection_angle(&doc, &sel) - 30.0).abs() < 1e-6);
+        let cur = selection_angle(&doc, &sel);
+        ops::transform(&mut doc.editor, &sel, ops::rotate_about(c, 90.0 - cur), "g");
+        assert!((selection_angle(&doc, &sel) - 90.0).abs() < 1e-6);
+        ops::transform(&mut doc.editor, &sel, ops::rotate_about(c, 100.0), "g");
+        assert!((selection_angle(&doc, &sel) + 170.0).abs() < 1e-6, "faixa −180..180");
+    }
+
     /// DESIGN-SYSTEM 4.6: em todo contexto (página, objeto selecionado,
     /// edição de nós) os controles cabem na altura da barra, sem nada
     /// cortado em cima ou embaixo.
@@ -2079,7 +2267,9 @@ mod tests {
         let fits = |(panel, content): (f32, egui::Rect), what: &str| {
             assert_eq!(panel, crate::theme::BAR_PROPERTY_HEIGHT, "{what}");
             assert!(
-                content.height() <= crate::theme::BUTTON_COMPACT + 0.5,
+                // Duas linhas de controles + o vão entre elas (4.6).
+                content.height()
+                    <= 2.0 * crate::theme::BUTTON_COMPACT + crate::theme::BAR_ROW_GAP + 0.5,
                 "{what}: {content:?}"
             );
         };

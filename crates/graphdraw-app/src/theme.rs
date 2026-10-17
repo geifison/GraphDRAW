@@ -251,7 +251,9 @@ pub const BUTTON_MIN_WIDTH: f32 = 80.0;
 pub const PRESS_OFFSET: f32 = 0.5;
 pub const MENU_ITEM_HEIGHT: f32 = 26.0;
 /// Altura fixa da barra de propriedades (4.6).
-pub const BAR_PROPERTY_HEIGHT: f32 = BUTTON_COMPACT + 2.0 * SPACE_150;
+pub const BAR_PROPERTY_HEIGHT: f32 = 2.0 * (BUTTON_COMPACT + 2.0 * SPACE_150);
+/// Espaço entre as duas linhas de controles empilhados na barra (4.6).
+pub const BAR_ROW_GAP: f32 = SPACE_300;
 /// Abas de documento (4.5): altura da faixa, largura cheia e mínima.
 pub const TAB_DOC_HEIGHT: f32 = BUTTON_DEFAULT + SPACE_100;
 pub const TAB_DOC_WIDTH: f32 = 220.0;
@@ -275,6 +277,8 @@ pub const CUT_PREVIEW_SECONDS: f32 = 4.0;
 pub const HEX_FIELD_WIDTH: f32 = 72.0;
 /// Escolha de família de fonte na barra de propriedades (doc 06).
 pub const FONT_COMBO_WIDTH: f32 = 180.0;
+/// Estilo da fonte (Regular, Bold…) na barra de texto.
+pub const FONT_STYLE_WIDTH: f32 = 110.0;
 /// Lista do seletor de fonte: largura, altura máxima, altura da prévia de
 /// cada família e largura máxima da prévia (doc 06, GD-FNT-01).
 pub const FONT_POPUP_WIDTH: f32 = 300.0;
@@ -577,7 +581,7 @@ mod tests {
 
     #[test]
     fn tokens_follow_the_design_system() {
-        assert_eq!(BAR_PROPERTY_HEIGHT, 36.0);
+        assert_eq!(BAR_PROPERTY_HEIGHT, 72.0);
         assert_eq!(ACCENT_PRIMARY, Color32::from_rgb(0x63, 0x66, 0xF1));
         assert_eq!(DARK.bg_surface_1, Color32::from_rgb(0x1E, 0x1E, 0x23));
         let s = style(&DARK, Visuals::dark());
