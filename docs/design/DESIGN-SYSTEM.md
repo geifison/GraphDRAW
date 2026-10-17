@@ -449,7 +449,7 @@ barra (no máximo os 2–4 controles mais usados) e o que fica só na janela.
 | Aparência | — | painel Camadas: opacidade, mesclagem, dados do objeto |
 | Gradiente (ferramenta G) | linear/radial na barra da ferramenta | paradas: cor e opacidade no balão da parada |
 
-### 4.5.1 Janela de preenchimento: Padrão (GD-FIL-04..06)
+### 4.6.1 Janela de preenchimento: Padrão (GD-FIL-04..06)
 
 Botão `fill-pattern` depois dos gradientes. O conteúdo:
 - Duas cores | Imagem | Vetorial.
@@ -472,7 +472,7 @@ Botão `fill-pattern` depois dos gradientes. O conteúdo:
 Exibir → "Preencher caminhos abertos" (GD-FIL-12) é uma opção do
 documento.
 
-### 4.6.1 Painel Verificação (doc 28)
+### 4.6.2 Painel Verificação (doc 28)
 
 Aba **Verificação** (ícone `preflight`) no painel direito:
 - **Limites do documento**, recolhível: papel (Revestido 300% / Não
