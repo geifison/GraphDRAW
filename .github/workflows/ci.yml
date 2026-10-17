@@ -22,6 +22,7 @@ jobs:
             mingw-w64-ucrt-x86_64-pkgconf
             mingw-w64-ucrt-x86_64-libcdr
             mingw-w64-x86_64-binutils
+            mingw-w64-x86_64-nsis
       - name: Ponte libcdr (gd-cdr-bridge)
         shell: msys2 {0}
         run: bash native/cdr-bridge/build.sh
@@ -39,6 +40,20 @@ jobs:
         run: cargo test --workspace
       - name: Licenças das dependências
         run: node scripts/check-licenses.mjs
+      - name: Instalador (tags v*)
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: msys2 {0}
+        run: |
+          export PATH="/mingw64/bin:$PATH:$(cygpath "$USERPROFILE")/.cargo/bin"
+          bash scripts/package-windows.sh
+      - name: Publicar instalador como artefato
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: GraphDraw-windows-setup
+          path: |
+            target/package/*-setup.exe
+            target/package/*-setup.exe.sha256
       # GD-NF-01/02. O runner do CI não é a máquina de referência da spec
       # (i5, 16 GB), por isso o passo informa mas não bloqueia.
       - name: Desempenho (GD-NF-01, GD-NF-02)

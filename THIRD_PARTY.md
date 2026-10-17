@@ -56,6 +56,12 @@ permitida). A lista completa de crates transitivos fica em `Cargo.lock`.
 Binários da libcdr/librevenge e dependências vêm dos pacotes do MSYS2
 (`mingw-w64-ucrt-x86_64-libcdr` e dependências).
 
+## Instalador Windows
+
+| Nome | Versão | Licença | Uso |
+|---|---|---|---|
+| NSIS | 3.x (MSYS2 `mingw-w64-x86_64-nsis`) | zlib/libpng (stubs e plugins distribuídos no instalador) | Gera `GraphDraw-<versão>-setup.exe` (`installer/windows/graphdraw.nsi`) |
+
 ## Somente para desenvolvimento/testes (não distribuídas)
 
 | Nome | Versão | Licença | Uso |

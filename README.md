@@ -59,6 +59,22 @@ graphdraw info desenho.cdr
 graphdraw fidelity D:/corpus-privado
 ```
 
+## Instalação (Windows)
+
+`GraphDraw-<versão>-setup.exe` instala só para o usuário, sem precisar de
+administrador, em `%LOCALAPPDATA%\Programs\GraphDraw`. O instalador:
+- cria o atalho no menu Iniciar e, se escolhido, na área de trabalho;
+- associa o `.gdr` (ícone próprio); o `.cdr` é opcional e vem desmarcado;
+- instala a ponte de importação `.cdr` e a linha de comando
+  `graphdraw-cli.exe`;
+- cria o desinstalador, que aparece em Configurações → Aplicativos.
+
+Para gerar o instalador: compile a ponte (`native/cdr-bridge/build.sh`),
+instale o NSIS (`pacman -S mingw-w64-x86_64-nsis` no MSYS2) e rode
+`bash scripts/package-windows.sh`. O resultado é
+`target/package/GraphDraw-<versão>-setup.exe` com o `.sha256`. No CI, toda
+tag `v*` gera o instalador como artefato.
+
 ## Compilação
 
 Resumo (detalhes em [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#3-compilação)):

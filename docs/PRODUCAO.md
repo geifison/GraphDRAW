@@ -53,13 +53,15 @@ Prioridade:
 ## P0 — Distribuição
 - [x] Ícone do programa e do arquivo `.gdr`, feitos a partir da logo do
   projeto e embutidos no executável.
-- [ ] Instalador Windows:
+- [x] Instalador Windows (NSIS, só para o usuário):
   - menu Iniciar;
   - associação de `.gdr` (e `.cdr` opcional);
   - desinstalador;
   - a ponte libcdr e as DLLs junto.
 - [ ] Pacote Linux (AppImage ou .deb), se o Linux entrar na 1.0.
-- [ ] Release no CI: gerar o instalador por tag, com o checksum.
+- [x] Release no CI: gerar o instalador por tag, com o checksum (artefato
+  do job; publicar como release do GitHub fica para quando houver o
+  repositório público).
 - [ ] Janela "Sobre": versão, licença e THIRD_PARTY.
 - [ ] Versão 1.0.0 no workspace e um CHANGELOG.
 - [x] Atualizar o README (ainda diz "M1 em validação").
@@ -84,7 +86,8 @@ corte; cada um vira requisito em spec nova (doc 28) antes do código.
   - objeto na zona de segurança do corte;
   - preto 100% K sem sobreimpressão.
 
-  Junta GD-SEP-02 e GD-DIM-31.
+  Junta GD-SEP-02 e GD-DIM-31. Os limites acima são o padrão e ficam
+  configuráveis por documento.
 - [ ] Compensação de kerf para laser/CNC: deslocamento para fora nas
   peças e para dentro nos furos, calculado na exportação sem mexer no
   vetor original. É diferente da compensação de lâmina do vinil
