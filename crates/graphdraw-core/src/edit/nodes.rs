@@ -539,7 +539,50 @@ fn collinear(run: &[CubicBez], tol: f64) -> bool {
         .all(|c| line.nearest(c.p3, 1e-9).distance_sq.sqrt() <= tol)
 }
 
+/// Junta nós seguidos no mesmo ponto (segmento de comprimento zero): o
+/// primeiro fica com a alça de chegada, o último dá a de saída.
+fn merge_coincident(sp: &crate::model::Subpath) -> crate::model::Subpath {
+    let same = |a: &Node, b: &Node| (pt(a.p) - pt(b.p)).hypot() <= 1e-9;
+    let mut nodes: Vec<Node> = Vec::with_capacity(sp.nodes.len());
+    for nd in &sp.nodes {
+        match nodes.last_mut() {
+            Some(last) if same(last, nd) => last.handle_out = nd.handle_out,
+            _ => nodes.push(nd.clone()),
+        }
+    }
+    if sp.closed && nodes.len() > 1 && same(&nodes[0], nodes.last().unwrap()) {
+        let last = nodes.pop().unwrap();
+        nodes[0].handle_in = last.handle_in;
+    }
+    crate::model::Subpath {
+        closed: sp.closed,
+        nodes,
+        extra: sp.extra.clone(),
+    }
+}
+
+/// Direção unitária, ou a de `fallback` quando `d` é nula.
+fn unit_or(d: Vec2, fallback: Vec2) -> Vec2 {
+    if d.hypot() > 1e-12 {
+        d.normalize()
+    } else if fallback.hypot() > 1e-12 {
+        fallback.normalize()
+    } else {
+        Vec2::new(1.0, 0.0)
+    }
+}
+
 fn reduce_subpath(sp: &crate::model::Subpath, tol: f64, corner_deg: f64) -> Option<Vec<Node>> {
+    let merged = merge_coincident(sp);
+    let had_dupes = merged.nodes.len() < sp.nodes.len();
+    match reduce_clean(&merged, tol, corner_deg) {
+        Some(v) => Some(v),
+        None if had_dupes => Some(merged.nodes),
+        None => None,
+    }
+}
+
+fn reduce_clean(sp: &crate::model::Subpath, tol: f64, corner_deg: f64) -> Option<Vec<Node>> {
     let n = sp.nodes.len();
     let segs = crate::geometry::segment_count(sp);
     if n < 3 || segs < 2 {
@@ -600,8 +643,9 @@ fn reduce_subpath(sp: &crate::model::Subpath, tol: f64, corner_deg: f64) -> Opti
                 let k = ((c.arclen(step * 0.1) / step).ceil() as usize).clamp(4, 400);
                 pts.extend((1..=k).map(|j| c.eval(j as f64 / k as f64)));
             }
-            let t1 = dir_out(&run[0]).normalize();
-            let t2 = -dir_in(&run[run.len() - 1]).normalize();
+            let chord = run[run.len() - 1].p3 - run[0].p0;
+            let t1 = unit_or(dir_out(&run[0]), chord);
+            let t2 = -unit_or(dir_in(&run[run.len() - 1]), chord);
             let fitted = super::fit::fit_open(&pts, t1, t2, tol);
             let els: Vec<PathEl> = fitted.elements().iter().copied().skip(1).collect();
             for (j, el) in els.iter().enumerate() {
@@ -1095,5 +1139,57 @@ mod tests {
         assert!(ys.windows(2).all(|w| (w[0] - w[1]).abs() < 1e-9), "{ys:?}");
         let x0 = wave().subpaths[0].nodes[0].p[0];
         assert_eq!(p.subpaths[0].nodes[0].p[0], x0, "x não muda");
+    }
+
+    /// Revisão de 2026-10-17: nós repetidos no mesmo ponto não geram alça
+    /// NaN nem escondem o canto.
+    #[test]
+    fn reduce_with_coincident_nodes() {
+        let mut nb = Node::corner(5.0, 0.0);
+        nb.handle_out = Some([6.0, 3.0]);
+        let mut nc = Node::corner(10.0, 5.0);
+        nc.handle_in = Some([10.0, 3.0]);
+        let mut p = PathData {
+            subpaths: vec![Subpath {
+                closed: false,
+                nodes: vec![
+                    Node::corner(0.0, 0.0),
+                    Node::corner(0.0, 0.0),
+                    nb,
+                    nc,
+                    Node::corner(10.0, 10.0),
+                ],
+                extra: Default::default(),
+            }],
+            fill_rule: Default::default(),
+            extra: Default::default(),
+        };
+        reduce(&mut p, &[], 0.1, 10.0);
+        let all_finite = p.subpaths[0].nodes.iter().all(|n| {
+            n.p.iter()
+                .chain(n.handle_in.iter().flatten())
+                .chain(n.handle_out.iter().flatten())
+                .all(|v| v.is_finite())
+        });
+        assert!(all_finite, "{:?}", p.subpaths[0].nodes);
+        assert!(p.subpaths[0].nodes.len() < 5);
+        // Canto de 90° com nó repetido continua canto.
+        let mut sq = PathData {
+            subpaths: vec![Subpath {
+                closed: false,
+                nodes: vec![
+                    Node::corner(0.0, 0.0),
+                    Node::corner(10.0, 0.0),
+                    Node::corner(10.0, 0.0),
+                    Node::corner(10.0, 10.0),
+                ],
+                extra: Default::default(),
+            }],
+            fill_rule: Default::default(),
+            extra: Default::default(),
+        };
+        reduce(&mut sq, &[], 0.1, 10.0);
+        let ps: Vec<[f64; 2]> = sq.subpaths[0].nodes.iter().map(|n| n.p).collect();
+        assert_eq!(ps, vec![[0.0, 0.0], [10.0, 0.0], [10.0, 10.0]]);
     }
 }

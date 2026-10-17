@@ -1154,13 +1154,7 @@ impl App {
                         &mut d.editor,
                         &ids,
                         tr("Converter tipo de texto", "Convert text kind"),
-                        |o| match &mut o.kind {
-                            ObjectKind::Text(t) => {
-                                graphdraw_core::edit::text::to_artistic(t)
-                                    || graphdraw_core::edit::text::to_paragraph(t)
-                            }
-                            _ => false,
-                        },
+                        graphdraw_core::edit::text::convert_kind,
                     );
                 }
             }

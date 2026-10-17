@@ -255,16 +255,13 @@ pub fn boolean(
     let at = top_loc(&target_ref);
     ed.transaction(name, |ed| {
         // Remove primeiro e insere no lugar do alvo (ou logo acima dele).
-        let target_top = ed.object(at).map(|o| o.id.clone());
+        let above = super::ops::survivor_above(ed, at, &remove);
         for id in &remove {
             if let Some(r) = ed.find(id) {
                 ed.remove_at(&r);
             }
         }
-        let index = match target_top.and_then(|t| ed.find(&t)) {
-            Some(r) => r.loc.index + 1,
-            None => at.index.min(ed.objects(at.page, at.layer).len()),
-        };
+        let index = super::ops::index_below(ed, at, above.as_ref());
         ed.insert_object(ObjLoc { index, ..at }, obj);
     });
     Some(vec![new_id])
@@ -319,16 +316,13 @@ fn local_path_object(ed: &Editor, r: &ObjRef, shapes: &Shapes, like: &Object) ->
 fn put_results(ed: &mut Editor, name: &str, remove: &[String], at: &ObjRef, objs: Vec<Object>) {
     let at = top_loc(at);
     ed.transaction(name, |ed| {
-        let anchor = ed.object(at).map(|o| o.id.clone());
+        let above = super::ops::survivor_above(ed, at, remove);
         for id in remove {
             if let Some(r) = ed.find(id) {
                 ed.remove_at(&r);
             }
         }
-        let base = match anchor.and_then(|t| ed.find(&t)) {
-            Some(r) => r.loc.index + 1,
-            None => at.index.min(ed.objects(at.page, at.layer).len()),
-        };
+        let base = super::ops::index_below(ed, at, above.as_ref());
         for (k, o) in objs.into_iter().enumerate() {
             ed.insert_object(
                 ObjLoc {
@@ -1169,5 +1163,40 @@ mod tests {
         let mut filled = o;
         filled.fill = Some(Fill::solid(Color::black()));
         assert!((area(&region(&filled, Affine::IDENTITY)) - 600_000_000.0).abs() < 1e5);
+    }
+
+    /// Revisão de 2026-10-17: com os selecionados espalhados na pilha, o
+    /// resultado fica no lugar do de cima, não no topo da camada.
+    #[test]
+    fn results_keep_place_in_stack() {
+        for op in [ShapeOp::Exclude, ShapeOp::FrontMinusBack, ShapeOp::Divide] {
+            let mut ed = editor();
+            let x = rect(&mut ed, 200.0, 0.0, 10.0, 10.0);
+            let a = rect(&mut ed, 0.0, 0.0, 20_000.0, 20_000.0);
+            let y = rect(&mut ed, 300.0, 0.0, 10.0, 10.0);
+            let b = rect(&mut ed, 10_000.0, 0.0, 20_000.0, 20_000.0);
+            let z = rect(&mut ed, 400.0, 0.0, 10.0, 10.0);
+            let made = shape_op(&mut ed, &[a, b], op).unwrap();
+            let ids = ids_in_order(&ed);
+            assert_eq!(ids[..2], [x.clone(), y.clone()], "{op:?}");
+            assert_eq!(ids.last(), Some(&z), "{op:?}: Z continua no topo");
+            assert!(
+                ids[2..ids.len() - 1].iter().all(|i| made.contains(i)),
+                "{op:?}"
+            );
+        }
+        let mut ed = editor();
+        let a = rect(&mut ed, 0.0, 0.0, 20_000.0, 20_000.0);
+        let y = rect(&mut ed, 300.0, 0.0, 10.0, 10.0);
+        let b = rect(&mut ed, 10_000.0, 0.0, 20_000.0, 20_000.0);
+        let z = rect(&mut ed, 400.0, 0.0, 10.0, 10.0);
+        let w = boolean(
+            &mut ed,
+            &[a, b],
+            BoolOp::Weld,
+            BoolOp::Weld.default_options(),
+        )
+        .unwrap();
+        assert_eq!(ids_in_order(&ed), vec![y, w[0].clone(), z], "soldar");
     }
 }

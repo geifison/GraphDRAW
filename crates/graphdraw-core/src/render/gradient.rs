@@ -211,7 +211,8 @@ pub fn ps_param(g: &Gradient) -> String {
                 num(rx)
             )
         }
-        _ => s += "exch atan 360 div ",
+        // No centro exato, `0 0 atan` é erro no PostScript: vale 0.
+        _ => s += "exch 2 copy abs exch abs add 0 eq {pop pop 0} {atan 360 div} ifelse ",
     }
     match g.spread.as_str() {
         "repeat" => s += "dup floor sub ",
@@ -229,7 +230,15 @@ pub fn ps_function(g: &Gradient, stops: &[(f64, Vec<f32>)]) -> String {
     let seg = |i: usize| -> String {
         let (o0, c0) = (&stops[i].0, &stops[i].1);
         let (o1, c1) = (&stops[i + 1].0, &stops[i + 1].1);
-        let w = (o1 - o0).max(1e-9);
+        let w = o1 - o0;
+        if w < 1e-6 {
+            // Parada dura: a cor da parada seguinte, sem dividir por zero.
+            let mut s = "pop ".to_string();
+            for v in c1.iter().take(n) {
+                s += &format!("{} ", num(*v as f64));
+            }
+            return s;
+        }
         let mut s = format!("{} sub {} div ", num(*o0), num(w));
         for k in 0..n {
             let d = c1[k] as f64 - c0[k] as f64;

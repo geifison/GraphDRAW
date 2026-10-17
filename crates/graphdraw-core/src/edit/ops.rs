@@ -1457,6 +1457,26 @@ pub fn clear_transformations(ed: &mut Editor, sel: &[String]) {
     });
 }
 
+/// Primeiro objeto acima de `at` (na mesma camada) que não está em
+/// `removed`: os resultados que substituem os removidos entram logo abaixo
+/// dele, mantendo o lugar na pilha mesmo com removidos espalhados.
+pub(crate) fn survivor_above(ed: &Editor, at: ObjLoc, removed: &[String]) -> Option<String> {
+    ed.objects(at.page, at.layer)
+        .iter()
+        .skip(at.index + 1)
+        .find(|o| !removed.contains(&o.id))
+        .map(|o| o.id.clone())
+}
+
+/// Índice para inserir logo abaixo de `above` (ou no topo da camada).
+pub(crate) fn index_below(ed: &Editor, at: ObjLoc, above: Option<&String>) -> usize {
+    above
+        .and_then(|id| ed.find(id))
+        .filter(|r| r.is_top() && r.loc.layer == at.layer && r.loc.page == at.page)
+        .map(|r| r.loc.index)
+        .unwrap_or_else(|| ed.objects(at.page, at.layer).len())
+}
+
 /// Converter em bitmap (GD-CNV-03): a seleção vira uma imagem PNG a `dpi`,
 /// com ou sem anti-serrilhado, fundo transparente (`background = None`)
 /// ou de cor, no lugar do objeto mais à frente. Devolve o ID da imagem.
@@ -1535,16 +1555,13 @@ pub fn convert_to_bitmap(
         .filter_map(|r| ed.get(r).map(|o| o.id.clone()))
         .collect();
     ed.transaction("Converter em bitmap", |ed| {
-        let anchor = ed.object(front).map(|o| o.id.clone());
+        let above = survivor_above(ed, front, &remove);
         for rid in &remove {
             if let Some(r) = ed.find(rid) {
                 ed.remove_at(&r);
             }
         }
-        let index = match anchor.and_then(|a| ed.find(&a)) {
-            Some(r) => r.loc.index + 1,
-            None => front.index.min(ed.objects(front.page, front.layer).len()),
-        };
+        let index = index_below(ed, front, above.as_ref());
         ed.insert_object(ObjLoc { index, ..front }, img);
     });
     Some(id)

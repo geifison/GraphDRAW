@@ -406,6 +406,35 @@ pub fn is_empty(t: &TextData) -> bool {
     len(t) == 0
 }
 
+/// Menor x de caractere do texto (início visual das linhas).
+fn left_edge(t: &TextData) -> f64 {
+    let l = crate::render::text::layout_text(t);
+    let m = l
+        .lines
+        .iter()
+        .flat_map(|l| l.carets.iter().map(|c| c.1))
+        .fold(f64::INFINITY, f64::min);
+    if m.is_finite() { m } else { 0.0 }
+}
+
+/// Troca artístico ↔ parágrafo (GD-TXT-03) mantendo o texto no mesmo lugar
+/// da página, inclusive centrado ou à direita.
+pub fn convert_kind(o: &mut Object) -> bool {
+    let ObjectKind::Text(t) = &mut o.kind else {
+        return false;
+    };
+    let before = left_edge(t);
+    if !(to_artistic(t) || to_paragraph(t)) {
+        return false;
+    }
+    let dx = before - left_edge(t);
+    if dx.abs() > 1e-9 {
+        o.transform =
+            Transform::from_affine(o.transform.affine() * kurbo::Affine::translate((dx, 0.0)));
+    }
+    true
+}
+
 /// Texto artístico → parágrafo (GD-TXT-03): o quadro fica do tamanho do
 /// texto, então as linhas continuam as mesmas; trechos e estilos ficam.
 pub fn to_paragraph(t: &mut TextData) -> bool {
@@ -413,11 +442,15 @@ pub fn to_paragraph(t: &mut TextData) -> bool {
         return false;
     }
     let layout = crate::render::text::layout_text(t);
-    let width = layout
-        .lines
-        .iter()
-        .flat_map(|l| l.carets.iter().map(|c| c.1))
-        .fold(0.0, f64::max);
+    let xs = || {
+        layout
+            .lines
+            .iter()
+            .flat_map(|l| l.carets.iter().map(|c| c.1))
+    };
+    // Centrado ou à direita, o texto artístico fica dos dois lados de x = 0.
+    let width = xs().fold(f64::NEG_INFINITY, f64::max) - xs().fold(f64::INFINITY, f64::min);
+    let width = if width.is_finite() { width } else { 0.0 };
     let height = layout
         .lines
         .last()
@@ -596,5 +629,45 @@ mod tests {
         let l = crate::render::text::layout_text(t);
         assert_eq!((l.lines.len(), l.overflow), (lines, false));
         assert!(!to_paragraph(t), "já é parágrafo");
+    }
+
+    /// Revisão de 2026-10-17: centrado e à direita, a conversão mantém a
+    /// largura e o lugar do texto.
+    #[test]
+    fn convert_kind_keeps_place_when_centered() {
+        if crate::render::text::resolve_family("Arial", 400, false).is_none() {
+            return;
+        }
+        for align in ["center", "right"] {
+            let mut o = new_text(50_000.0, 50_000.0, None, "Arial", 5_000.0);
+            let t = data(&mut o);
+            insert(
+                t,
+                0,
+                "uma linha
+outra linha maior",
+            );
+            apply_style(
+                t,
+                &TextStyle {
+                    align: Some(align.into()),
+                    ..Default::default()
+                },
+            );
+            let page_left = |o: &Object| {
+                let ObjectKind::Text(t) = &o.kind else {
+                    unreachable!()
+                };
+                o.transform.affine().as_coeffs()[4] + left_edge(t)
+            };
+            let x0 = page_left(&o);
+            let lines0 = crate::render::text::layout_text(data(&mut o)).lines.len();
+            assert!(convert_kind(&mut o), "{align}");
+            assert!((page_left(&o) - x0).abs() < 1.0, "{align}: pulou");
+            let l = crate::render::text::layout_text(data(&mut o));
+            assert_eq!(l.lines.len(), lines0, "{align}: mesma quebra");
+            assert!(convert_kind(&mut o));
+            assert!((page_left(&o) - x0).abs() < 1.0, "{align}: volta");
+        }
     }
 }

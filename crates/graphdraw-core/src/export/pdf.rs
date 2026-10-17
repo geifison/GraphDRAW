@@ -1300,6 +1300,13 @@ fn fill(c: &mut Content, s: &ShapeItem, p: &Paint, res: &mut Resources, w: &mut 
 fn stroke(c: &mut Content, s: &ShapeItem, st: &StrokeStyle, res: &mut Resources, w: &mut W) {
     let (color, alpha) = match &st.paint {
         Paint::Solid { color, alpha } => (color.clone(), *alpha),
+        // Gradiente calculado: a cor do meio, igual à tela.
+        Paint::Gradient {
+            gradient, alpha, ..
+        } if !crate::render::gradient::is_native(gradient) => {
+            let (c, o) = crate::render::gradient::color_at(gradient, 0.5);
+            (c, *alpha * o)
+        }
         Paint::Gradient {
             gradient, alpha, ..
         } => (

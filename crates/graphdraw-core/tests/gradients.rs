@@ -143,3 +143,42 @@ fn gd_fil_03_elliptic_conic_rectangular() {
         }
     }
 }
+
+/// Revisão de 2026-10-17: parada dura no início e o centro do cônico não
+/// geram erro na função PostScript (o Poppler não reclama).
+#[test]
+fn postscript_function_edge_cases() {
+    let Some(tool) = fidelity::poppler_tool("pdftoppm") else {
+        return;
+    };
+    for kind in ["conic", "elliptic"] {
+        let mut d = doc(kind, 20.0);
+        if let Some(Fill::Gradient(g)) = &mut d.data.pages[0].layers[0].objects[0].fill {
+            g.stops.insert(
+                1,
+                GradientStop {
+                    offset: 0.0,
+                    color: Color::rgb(1.0, 0.0, 0.0),
+                    opacity: 1.0,
+                    extra: Map::new(),
+                },
+            );
+        }
+        let pdf = export::pdf_document(&d, &ExportOptions::default()).unwrap();
+        let tmp = tempfile::tempdir().unwrap();
+        let f = tmp.path().join("g.pdf");
+        std::fs::write(&f, &pdf).unwrap();
+        // 1 ppp por mm com centro exato num pixel: 25,4 ppp, página 40 mm.
+        let out = std::process::Command::new(&tool)
+            .args(["-r", "254", "-png"])
+            .arg(&f)
+            .arg(tmp.path().join("p"))
+            .output()
+            .unwrap();
+        let err = String::from_utf8_lossy(&out.stderr);
+        assert!(
+            out.status.success() && !err.to_lowercase().contains("error"),
+            "{kind}: {err}"
+        );
+    }
+}
