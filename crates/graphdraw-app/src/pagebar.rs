@@ -1,6 +1,6 @@
 //! Barra de páginas em abas, acima da barra de status (doc 21, GD-PGT-*).
 //!
-//! `[Grade] [Lista] [◄] Pág. [n] / N [►] | [0] Mestra | [1] Capa | … | [+]`
+//! `[Grade] [Lista] [◄] Pág. [n] / N [►] | [1] Capa | [2] Base | … | [+]`
 //!
 //! A seleção de abas guarda IDs de página, não índices, para continuar certa
 //! depois de reordenar, desfazer ou excluir.
@@ -8,15 +8,15 @@
 use std::collections::HashMap;
 
 use eframe::egui::{self, Color32, Pos2, Rect, Sense, Vec2};
-use graphdraw_core::edit::history::MASTER_KEY;
-use graphdraw_core::edit::{MASTER, pages};
+use graphdraw_core::edit::pages;
 use graphdraw_core::export::ExportFormat;
 use graphdraw_core::model::{Color, Page};
 
 use crate::doc::DocState;
 use crate::i18n::tr;
 use crate::icons;
-use crate::widgets::{fmt_mm, length_field};
+use crate::theme;
+use crate::widgets::length_field;
 
 /// Pedido que a barra devolve para a janela principal.
 pub enum PageAction {
@@ -32,17 +32,18 @@ struct Rename {
 }
 
 struct TabDrag {
-    /// Páginas arrastadas, na ordem do documento.
+    /// Páginas arrastadas; a agarrada primeiro, depois as outras selecionadas.
     ids: Vec<String>,
     /// Distância do ponteiro à borda esquerda da aba agarrada.
     grab: f32,
+    /// Última posição horizontal do ponteiro (no quadro em que o botão é
+    /// solto o ponteiro pode já não ter posição).
+    x: f32,
 }
 
 struct Settings {
-    id: String,
     width: f64,
     height: f64,
-    own_bleed: bool,
     bleed: f64,
 }
 
@@ -59,6 +60,8 @@ pub struct PageBar {
     settings: Option<Settings>,
     thumbs: HashMap<String, (u64, egui::TextureHandle)>,
     last_active: Option<usize>,
+    /// Retângulo de cada aba no último quadro (ID da página → área).
+    tab_rects: Vec<(String, Rect)>,
 }
 
 /// Etiquetas de cor (GD-PGT-20). Cores próprias, em RGB só para a tela.
@@ -85,7 +88,7 @@ impl PageBar {
     /// IDs das abas selecionadas que ainda existem; sem seleção, a ativa.
     fn selected(&self, doc: &DocState) -> Vec<usize> {
         let mut v: Vec<usize> = self.sel.iter().filter_map(|id| index_of(doc, id)).collect();
-        if v.is_empty() && !doc.is_master() {
+        if v.is_empty() {
             v.push(doc.page);
         }
         v.sort();
@@ -102,11 +105,7 @@ impl PageBar {
     }
 
     fn thumb(&mut self, ctx: &egui::Context, doc: &DocState, index: usize) -> egui::TextureHandle {
-        let id = if index == MASTER {
-            MASTER_KEY.to_string()
-        } else {
-            doc.doc().data.pages[index].id.clone()
-        };
+        let id = doc.doc().data.pages[index].id.clone();
         let rev = doc.editor.revision();
         if let Some((r, t)) = self.thumbs.get(&id)
             && *r == rev
@@ -141,54 +140,31 @@ impl PageBar {
         doc.prune_selection();
     }
 
-    /// Atalhos da barra (GD-PGT-04, 06, 07, 11).
-    pub fn shortcuts(&mut self, ctx: &egui::Context, doc: &mut DocState) -> Vec<PageAction> {
+    /// Comandos de página vindos dos atalhos (GD-PGT-04, 06, 07, 11; GD-UI-10).
+    pub fn command(&mut self, c: crate::keymap::Command, doc: &mut DocState) -> Vec<PageAction> {
+        use crate::keymap::Command as C;
         let mut out = Vec::new();
         let n = doc.doc().data.pages.len();
-        let typing = ctx.egui_wants_keyboard_input();
-        let cmd = egui::Modifiers::COMMAND;
-        if ctx.input_mut(|i| i.consume_key(cmd, egui::Key::J)) {
-            self.jump_focus = true;
-        }
-        if ctx.input_mut(|i| i.consume_key(cmd | egui::Modifiers::SHIFT, egui::Key::N)) {
-            let after = if doc.is_master() { n - 1 } else { doc.page };
-            let i = pages::add_after(&mut doc.editor, after);
-            self.go(doc, i, &mut out);
-        }
-        if typing {
-            return out;
-        }
-        let pressed = |k| ctx.input(|i| i.key_pressed(k) && i.modifiers.is_none());
-        let cur = if doc.is_master() {
-            None
-        } else {
-            Some(doc.page)
-        };
-        let target = if pressed(egui::Key::PageDown) {
-            Some(cur.map_or(0, |c| (c + 1).min(n - 1)))
-        } else if pressed(egui::Key::PageUp) {
-            match cur {
-                Some(0) => Some(MASTER),
-                Some(c) => Some(c - 1),
-                None => None,
+        let cur = doc.page;
+        match c {
+            C::PageJump => self.jump_focus = true,
+            C::PageNew => {
+                let i = pages::add_after(&mut doc.editor, cur);
+                self.go(doc, i, &mut out);
             }
-        } else if pressed(egui::Key::Home) {
-            Some(0)
-        } else if pressed(egui::Key::End) {
-            Some(n - 1)
-        } else {
-            None
-        };
-        if let Some(t) = target {
-            self.go(doc, t, &mut out);
-        }
-        if pressed(egui::Key::F2) && !doc.is_master() {
-            let p = &doc.doc().data.pages[doc.page];
-            self.rename = Some(Rename {
-                id: p.id.clone(),
-                text: pages::display_name(p, doc.page),
-                focus: true,
-            });
+            C::PageNext => self.go(doc, (cur + 1).min(n - 1), &mut out),
+            C::PagePrev => self.go(doc, cur.saturating_sub(1), &mut out),
+            C::PageFirst => self.go(doc, 0, &mut out),
+            C::PageLast => self.go(doc, n - 1, &mut out),
+            C::PageRename => {
+                let p = &doc.doc().data.pages[cur];
+                self.rename = Some(Rename {
+                    id: p.id.clone(),
+                    text: pages::display_name(p, cur),
+                    focus: true,
+                });
+            }
+            _ => {}
         }
         out
     }
@@ -199,7 +175,7 @@ impl PageBar {
         self.sel
             .retain(|id| doc.doc().data.pages.iter().any(|p| &p.id == id));
         ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 4.0;
+            ui.spacing_mut().item_spacing.x = theme::SPACE_100;
             if icons::button(
                 ui,
                 "page-grid",
@@ -212,61 +188,72 @@ impl PageBar {
                 self.grid = !self.grid;
             }
             self.list_button(ui, doc, &mut out);
-            let cur = if doc.is_master() {
-                None
-            } else {
-                Some(doc.page)
-            };
+            let cur = doc.page;
             if icons::button(
                 ui,
                 "page-prev",
-                tr("Página anterior (PgUp)", "Previous page (PgUp)"),
+                crate::keymap::hint(
+                    tr("Página anterior", "Previous page"),
+                    crate::keymap::Command::PagePrev,
+                ),
                 false,
-                cur.is_some_and(|c| c > 0),
+                cur > 0,
             )
             .clicked()
             {
-                let c = cur.unwrap();
+                let c = cur;
                 self.go(doc, c - 1, &mut out);
             }
             self.jump_field(ui, doc, &mut out);
             if icons::button(
                 ui,
                 "page-next",
-                tr("Próxima página (PgDn)", "Next page (PgDn)"),
+                crate::keymap::hint(
+                    tr("Próxima página", "Next page"),
+                    crate::keymap::Command::PageNext,
+                ),
                 false,
-                cur.is_none_or(|c| c + 1 < n),
+                cur + 1 < n,
             )
             .clicked()
             {
-                let t = cur.map_or(0, |c| c + 1);
+                let t = cur + 1;
                 self.go(doc, t, &mut out);
             }
             ui.separator();
             // Abas ocupam o espaço até o botão "+".
-            let width = (ui.available_width() - 40.0).max(80.0);
-            ui.allocate_ui(Vec2::new(width, 30.0), |ui| {
-                egui::ScrollArea::horizontal()
-                    .id_salt("abas-paginas")
-                    .max_width(width)
-                    .scroll_bar_visibility(
-                        egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded,
-                    )
-                    .show(ui, |ui| self.tabs(ui, doc, &mut out));
-            });
+            // Reserva o botão "+" à direita.
+            let reserve = theme::BUTTON_COMPACT + 2.0 * theme::SPACE_200;
+            let width = (ui.available_width() - reserve).max(80.0);
+            ui.allocate_ui(
+                Vec2::new(width, theme::BUTTON_COMPACT + theme::SPACE_150),
+                |ui| {
+                    egui::ScrollArea::horizontal()
+                        .id_salt("abas-paginas")
+                        .scroll_source(egui::scroll_area::ScrollSource {
+                            drag: egui::scroll_area::DragScroll::Never,
+                            ..egui::scroll_area::ScrollSource::ALL
+                        })
+                        .max_width(width)
+                        .scroll_bar_visibility(
+                            egui::scroll_area::ScrollBarVisibility::VisibleWhenNeeded,
+                        )
+                        .show(ui, |ui| self.tabs(ui, doc, &mut out));
+                },
+            );
             if icons::button(
                 ui,
                 "page-add",
-                tr(
-                    "Nova página após a atual (Ctrl+Shift+N)",
-                    "New page after the current one (Ctrl+Shift+N)",
+                crate::keymap::hint(
+                    tr("Nova página após a atual", "New page after the current one"),
+                    crate::keymap::Command::PageNew,
                 ),
                 false,
                 true,
             )
             .clicked()
             {
-                let after = cur.unwrap_or(n - 1);
+                let after = cur;
                 let i = pages::add_after(&mut doc.editor, after);
                 self.go(doc, i, &mut out);
             }
@@ -297,13 +284,6 @@ impl PageBar {
                 egui::ScrollArea::vertical()
                     .max_height(320.0)
                     .show(ui, |ui| {
-                        if (q.is_empty() || "mestra master 0".contains(&q))
-                            && ui
-                                .selectable_label(doc.is_master(), tr("[0] Mestra", "[0] Master"))
-                                .clicked()
-                        {
-                            jump = Some(MASTER);
-                        }
                         for (i, p) in doc.doc().data.pages.iter().enumerate() {
                             let l = label(p, i);
                             if (q.is_empty()
@@ -329,11 +309,7 @@ impl PageBar {
         let n = doc.doc().data.pages.len();
         ui.label(tr("Pág.", "Page"));
         let id = ui.scope_id().with("pular-pagina");
-        let shown = if doc.is_master() {
-            "0".to_string()
-        } else {
-            (doc.page + 1).to_string()
-        };
+        let shown = (doc.page + 1).to_string();
         let mut text: String = ui
             .data(|d| d.get_temp::<String>(id))
             .unwrap_or_else(|| shown.clone());
@@ -344,9 +320,9 @@ impl PageBar {
                     .desired_width(32.0)
                     .align(egui::Align2::CENTER_CENTER),
             )
-            .on_hover_text(tr(
-                "Digite o número e Enter (Ctrl+J)",
-                "Type the number and press Enter (Ctrl+J)",
+            .on_hover_text(crate::keymap::hint(
+                tr("Digite o número e Enter", "Type the number and press Enter"),
+                crate::keymap::Command::PageJump,
             ));
         if self.jump_focus {
             r.request_focus();
@@ -358,9 +334,10 @@ impl PageBar {
             ui.data_mut(|d| d.remove::<String>(id));
         }
         if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-            if let Ok(k) = text.trim().parse::<usize>() {
-                let t = if k == 0 { MASTER } else { k.min(n) - 1 };
-                self.go(doc, t, out);
+            if let Ok(k) = text.trim().parse::<usize>()
+                && k >= 1
+            {
+                self.go(doc, k.min(n) - 1, out);
             }
             ui.data_mut(|d| d.remove::<String>(id));
         }
@@ -376,24 +353,21 @@ impl PageBar {
         let dirty = doc.editor.dirty_pages();
         let font = egui::TextStyle::Button.resolve(ui.style());
         let text_color = ui.visuals().text_color();
-        let h = 26.0;
-        let gap = 3.0;
-        let pad = 10.0;
-        let lock_w = 16.0;
-
-        // Mestra (fixa no começo, não arrasta).
-        let master_text = tr("[0] Mestra", "[0] Master");
-        let mg = ui
-            .painter()
-            .layout_no_wrap(master_text.into(), font.clone(), text_color);
-        let master_w = mg.size().x + 2.0 * pad;
+        // Aba de página (DESIGN-SYSTEM 4.5): altura Compact.
+        let h = theme::BUTTON_COMPACT;
+        let gap = theme::SPACE_050;
+        let pad = theme::SPACE_200;
+        let lock_w = theme::ICON_MICRO + theme::SPACE_100;
 
         // Ordem exibida: durante um arrasto, as abas arrastadas entram onde
         // o ponteiro está e as vizinhas se afastam (renumeração ao vivo).
         let ids: Vec<String> = doc.doc().data.pages.iter().map(|p| p.id.clone()).collect();
         let pointer = ui.input(|i| i.pointer.interact_pos());
+        if let (Some(d), Some(p)) = (&mut self.drag, pointer) {
+            d.x = p.x;
+        }
         let origin = ui.cursor().min;
-        let base_x = origin.x + master_w + gap;
+        let base_x = origin.x;
         let widths: HashMap<String, f32> = doc
             .doc()
             .data
@@ -412,7 +386,7 @@ impl PageBar {
             .collect();
         let mut order = ids.clone();
         let mut insert_at = None;
-        if let (Some(d), Some(p)) = (&self.drag, pointer) {
+        if let Some(d) = &self.drag {
             let rest: Vec<String> = ids
                 .iter()
                 .filter(|id| !d.ids.contains(id))
@@ -420,7 +394,7 @@ impl PageBar {
                 .collect();
             let mut x = base_x;
             let mut k = rest.len();
-            let left = p.x - d.grab;
+            let left = d.x - d.grab;
             for (j, id) in rest.iter().enumerate() {
                 let w = widths[id];
                 if left < x + w / 2.0 {
@@ -435,47 +409,12 @@ impl PageBar {
                 order.insert(k + m, id.clone());
             }
         }
-        let total: f32 = master_w + order.iter().map(|id| widths[id] + gap).sum::<f32>() + gap;
+        let total: f32 = order.iter().map(|id| widths[id] + gap).sum::<f32>() + gap;
         let (strip, _) = ui.allocate_exact_size(Vec2::new(total, h), Sense::hover());
-
-        // Aba da mestra.
-        let mrect =
-            Rect::from_min_size(Pos2::new(strip.min.x, strip.min.y), Vec2::new(master_w, h));
-        let mresp = ui
-            .interact(mrect, ui.scope_id().with("aba-mestra"), Sense::click())
-            .on_hover_text(tr(
-                "Página mestra: o que estiver nela aparece como fundo em todas as páginas",
-                "Master page: its content shows as background on every page",
-            ));
-        let empty_master = doc
-            .doc()
-            .data
-            .master_page
-            .layers
-            .iter()
-            .all(|l| l.objects.is_empty());
-        paint_tab(
-            ui,
-            mrect,
-            master_text,
-            doc.is_master(),
-            false,
-            None,
-            false,
-            empty_master,
-        );
-        if mresp.clicked() {
-            self.go(doc, MASTER, out);
-        }
-        if !doc.is_master() {
-            let _ = mresp.on_hover_ui(|ui| {
-                let t = self.thumb(ui.ctx(), doc, MASTER);
-                ui.add(egui::Image::new(&t).max_size(Vec2::splat(160.0)));
-            });
-        }
 
         let mut x = base_x;
         let mut drop = None;
+        self.tab_rects.clear();
         let alt = ui.input(|i| i.modifiers.alt);
         let active_changed = self.last_active != Some(doc.page);
         self.last_active = Some(doc.page);
@@ -486,15 +425,15 @@ impl PageBar {
             let anim = ui.ctx().animate_value_with_time(
                 ui.scope_id().with(("aba-x", id)),
                 x - strip.min.x,
-                0.12,
+                crate::theme::MOTION_BASE,
             );
             let mut rect =
                 Rect::from_min_size(Pos2::new(strip.min.x + anim, strip.min.y), Vec2::new(w, h));
             if dragging
-                && let (Some(d), Some(p)) = (&self.drag, pointer)
+                && let Some(d) = &self.drag
                 && d.ids.first() == Some(id)
             {
-                rect = Rect::from_min_size(Pos2::new(p.x - d.grab, strip.min.y), Vec2::new(w, h));
+                rect = Rect::from_min_size(Pos2::new(d.x - d.grab, strip.min.y), Vec2::new(w, h));
             }
             x += w + gap;
             // Só os campos usados (não clonar a página, que pode ser enorme).
@@ -512,8 +451,9 @@ impl PageBar {
                 name,
                 if dirty.contains(id) { "*" } else { "" }
             );
-            let active = !doc.is_master() && i == doc.page;
+            let active = i == doc.page;
             let selected = self.sel.contains(id);
+            self.tab_rects.push((id.clone(), rect));
             let resp = ui.interact(
                 rect,
                 ui.scope_id().with(("aba", id)),
@@ -578,13 +518,15 @@ impl PageBar {
                 // A aba agarrada vai na frente do bloco, para seguir o ponteiro.
                 let mut ids2 = vec![id.clone()];
                 ids2.extend(grabbed.into_iter().filter(|s| s != id));
-                let grab = resp
+                let px = resp
                     .interact_pointer_pos()
-                    .map_or(0.0, |p| p.x - rect.min.x);
-                self.drag = Some(TabDrag { ids: ids2, grab });
-            }
-            if resp.drag_stopped() && self.drag.is_some() {
-                drop = Some(alt);
+                    .or(pointer)
+                    .map_or(rect.center().x, |p| p.x);
+                self.drag = Some(TabDrag {
+                    ids: ids2,
+                    grab: px - rect.min.x,
+                    x: px,
+                });
             }
             if resp.clicked() {
                 let m = ui.input(|i| i.modifiers);
@@ -592,7 +534,7 @@ impl PageBar {
                     if let Some(k) = self.sel.iter().position(|s| s == id) {
                         self.sel.remove(k);
                     } else {
-                        if self.sel.is_empty() && !doc.is_master() {
+                        if self.sel.is_empty() {
                             self.sel.push(doc.doc().data.pages[doc.page].id.clone());
                         }
                         self.sel.push(id.clone());
@@ -603,7 +545,7 @@ impl PageBar {
                         .anchor
                         .as_ref()
                         .and_then(|a| index_of(doc, a))
-                        .unwrap_or(if doc.is_master() { 0 } else { doc.page });
+                        .unwrap_or(doc.page);
                     let (lo, hi) = (a.min(i), a.max(i));
                     self.sel = (lo..=hi).map(|k| ids[k].clone()).collect();
                 } else {
@@ -630,11 +572,19 @@ impl PageBar {
             }
             resp.context_menu(|ui| self.context_menu(ui, doc, id, i, out));
         }
-        if self.drag.is_some() && !ui.input(|i| i.pointer.any_down()) && drop.is_none() {
-            // Soltou fora de qualquer aba.
+        // Soltar: vale em qualquer lugar (não depende de qual aba recebe o evento).
+        if self.drag.is_some()
+            && ui.input(|i| i.pointer.primary_released() || !i.pointer.primary_down())
+        {
             drop = Some(alt);
         }
-        if let (Some(dup), Some(d), Some(k)) = (drop, self.drag.take(), insert_at) {
+        // `take` só depois de soltar: antes, o arrasto sumia um quadro após começar.
+        let finished = if drop.is_some() {
+            self.drag.take()
+        } else {
+            None
+        };
+        if let (Some(dup), Some(d), Some(k)) = (drop, finished, insert_at) {
             let rest: Vec<usize> = (0..n).filter(|i| !d.ids.contains(&ids[*i])).collect();
             let to = rest.get(k).copied().unwrap_or(n);
             let mut idx: Vec<usize> = d.ids.iter().filter_map(|id| index_of(doc, id)).collect();
@@ -655,12 +605,11 @@ impl PageBar {
                     self.go(doc, f, out);
                 }
             } else {
-                let active_id = (!doc.is_master()).then(|| ids[doc.page].clone());
+                let active_id = Some(ids[doc.page].clone());
                 pages::move_block(&mut doc.editor, &idx, to);
                 doc.sync();
                 if let Some(a) = active_id.and_then(|a| index_of(doc, &a)) {
                     doc.page = a;
-                    doc.last_page = a;
                 }
             }
         } else if drop.is_some() {
@@ -699,17 +648,24 @@ impl PageBar {
         let n = doc.doc().data.pages.len();
         // Sem os objetos: a página pode ser grande e o menu redesenha a cada quadro.
         let page = doc.doc().data.pages[i].props_only();
-        if ui.button(tr("Configurar página…", "Page setup…")).clicked() {
+        if ui
+            .button(tr("Tamanho das páginas…", "Page size…"))
+            .clicked()
+        {
             self.settings = Some(Settings {
-                id: page.id.clone(),
                 width: page.width,
                 height: page.height,
-                own_bleed: page.bleed.is_some(),
                 bleed: page.bleed.unwrap_or(doc.doc().data.settings.bleed),
             });
             ui.close();
         }
-        if ui.button(tr("Renomear  (F2)", "Rename  (F2)")).clicked() {
+        if ui
+            .button(crate::keymap::menu(
+                tr("Renomear", "Rename"),
+                crate::keymap::Command::PageRename,
+            ))
+            .clicked()
+        {
             self.rename = Some(Rename {
                 id: id.to_string(),
                 text: pages::display_name(&page, i),
@@ -738,22 +694,6 @@ impl PageBar {
             doc.prune_selection();
             ui.close();
         }
-        let hide = page.hide_master;
-        if ui
-            .checkbox(
-                &mut hide.clone(),
-                tr("Ocultar a mestra nesta página", "Hide master on this page"),
-            )
-            .clicked()
-        {
-            doc.editor
-                .transaction(tr("Mestra na página", "Master on page"), |ed| {
-                    for &t in &targets {
-                        ed.edit_page(t, |p| p.hide_master = !hide);
-                    }
-                });
-            ui.close();
-        }
         ui.menu_button(tr("Etiqueta de cor", "Color tag"), |ui| {
             let mut pick: Option<Option<Color>> = None;
             if ui.button(tr("Nenhuma", "None")).clicked() {
@@ -761,9 +701,10 @@ impl PageBar {
             }
             for (name, c) in tag_colors() {
                 ui.horizontal(|ui| {
-                    let (r, _) = ui.allocate_exact_size(Vec2::splat(12.0), Sense::hover());
+                    let (r, _) =
+                        ui.allocate_exact_size(Vec2::splat(theme::SPACE_300), Sense::hover());
                     ui.painter()
-                        .rect_filled(r, 2.0, crate::widgets::to_color32(&c));
+                        .rect_filled(r, theme::RADIUS_XS, crate::widgets::to_color32(&c));
                     if ui.button(name).clicked() {
                         pick = Some(Some(c.clone()));
                     }
@@ -852,25 +793,33 @@ impl PageBar {
                 )
             };
             let mut close = None;
-            egui::Modal::new(egui::Id::unique("confirmar-excluir-pagina")).show(ctx, |ui| {
-                ui.set_width(380.0);
-                ui.label(msg);
-                ui.weak(tr(
-                    "Pode ser desfeito com Ctrl+Z.",
-                    "This can be undone with Ctrl+Z.",
-                ));
-                ui.add_space(8.0);
-                ui.horizontal(|ui| {
-                    if ui.button(tr("Excluir", "Delete")).clicked() {
-                        close = Some(true);
-                    }
-                    if ui.button(tr("Cancelar", "Cancel")).clicked()
-                        || ui.input(|i| i.key_pressed(egui::Key::Escape))
-                    {
-                        close = Some(false);
-                    }
-                });
-            });
+            crate::widgets::modal(ctx, egui::Id::unique("confirmar-excluir-pagina")).show(
+                ctx,
+                |ui| {
+                    ui.set_width(380.0);
+                    ui.label(msg);
+                    ui.weak(tr(
+                        "Pode ser desfeito com Ctrl+Z.",
+                        "This can be undone with Ctrl+Z.",
+                    ));
+                    ui.add_space(theme::SPACE_300);
+                    crate::widgets::footer(ui, |ui| {
+                        if ui
+                            .add(crate::widgets::primary_button(tr("Excluir", "Delete")))
+                            .clicked()
+                        {
+                            close = Some(true);
+                        }
+                        if ui
+                            .add(crate::widgets::secondary_button(tr("Cancelar", "Cancel")))
+                            .clicked()
+                            || ui.input(|i| i.key_pressed(egui::Key::Escape))
+                        {
+                            close = Some(false);
+                        }
+                    });
+                },
+            );
             match close {
                 Some(true) => {
                     self.confirm = None;
@@ -885,10 +834,9 @@ impl PageBar {
         // Configuração da página (GD-PGT-16).
         if let Some(s) = &mut self.settings {
             let mut close = None;
-            let doc_bleed = doc.doc().data.settings.bleed;
-            egui::Modal::new(egui::Id::unique("configurar-pagina")).show(ctx, |ui| {
+            crate::widgets::modal(ctx, egui::Id::unique("configurar-pagina")).show(ctx, |ui| {
                 ui.set_width(380.0);
-                ui.heading(tr("Configurar página", "Page setup"));
+                ui.heading(tr("Tamanho das páginas", "Page size"));
                 ui.separator();
                 egui::Grid::new("cfg-pagina").num_columns(2).show(ui, |ui| {
                     ui.label(tr("Largura", "Width"));
@@ -925,23 +873,9 @@ impl PageBar {
                     });
                     ui.end_row();
                     ui.label(tr("Sangria", "Bleed"));
-                    ui.vertical(|ui| {
-                        ui.checkbox(
-                            &mut s.own_bleed,
-                            tr("Própria desta página", "Own for this page"),
-                        );
-                        if s.own_bleed {
-                            ui.horizontal(|ui| {
-                                if let Some(v) = length_field(ui, "cfg-s", s.bleed, None) {
-                                    s.bleed = v.max(0.0);
-                                }
-                            });
-                        } else {
-                            ui.weak(format!(
-                                "{} {} mm",
-                                tr("A do documento:", "Document's:"),
-                                fmt_mm(doc_bleed)
-                            ));
+                    ui.horizontal(|ui| {
+                        if let Some(v) = length_field(ui, "cfg-s", s.bleed, None) {
+                            s.bleed = v.max(0.0);
                         }
                     });
                     ui.end_row();
@@ -965,12 +899,21 @@ impl PageBar {
                     "Os campos aceitam unidades: 1080px, 8.5in, 297.",
                     "Fields accept units: 1080px, 8.5in, 297.",
                 ));
+                ui.weak(tr(
+                    "O documento tem um tamanho só: vale para todas as páginas.",
+                    "A document has a single size: this applies to every page.",
+                ));
                 ui.separator();
-                ui.horizontal(|ui| {
-                    if ui.button(tr("OK", "OK")).clicked() {
+                crate::widgets::footer(ui, |ui| {
+                    if ui
+                        .add(crate::widgets::primary_button(tr("OK", "OK")))
+                        .clicked()
+                    {
                         close = Some(true);
                     }
-                    if ui.button(tr("Cancelar", "Cancel")).clicked()
+                    if ui
+                        .add(crate::widgets::secondary_button(tr("Cancelar", "Cancel")))
+                        .clicked()
                         || ui.input(|i| i.key_pressed(egui::Key::Escape))
                     {
                         close = Some(false);
@@ -979,19 +922,15 @@ impl PageBar {
             });
             match close {
                 Some(true) => {
-                    if let Some(i) = index_of(doc, &s.id) {
-                        let (w, h) = (s.width, s.height);
-                        let bleed = s.own_bleed.then_some(s.bleed);
-                        doc.editor
-                            .transaction(tr("Configurar página", "Page setup"), |ed| {
-                                ed.edit_page(i, |p| {
-                                    p.width = w;
-                                    p.height = h;
-                                    p.bleed = bleed;
-                                })
-                            });
-                        out.push(PageAction::Switched);
-                    }
+                    let bleed = (s.bleed > 0.0).then_some(s.bleed);
+                    pages::set_size_all(
+                        &mut doc.editor,
+                        s.width,
+                        s.height,
+                        bleed,
+                        tr("Tamanho das páginas", "Page size"),
+                    );
+                    out.push(PageAction::Switched);
                     self.settings = None;
                 }
                 Some(false) => self.settings = None,
@@ -1013,13 +952,10 @@ impl PageBar {
                     egui::ScrollArea::vertical().show(ui, |ui| {
                         ui.horizontal_wrapped(|ui| {
                             let n = doc.doc().data.pages.len();
-                            for i in std::iter::once(MASTER).chain(0..n) {
+                            for i in 0..n {
                                 let t = self.thumb(ctx, doc, i);
-                                let (name, active) = if i == MASTER {
-                                    (tr("[0] Mestra", "[0] Master").to_string(), doc.is_master())
-                                } else {
-                                    (label(&doc.doc().data.pages[i], i), i == doc.page)
-                                };
+                                let (name, active) =
+                                    (label(&doc.doc().data.pages[i], i), i == doc.page);
                                 let r = ui
                                     .vertical(|ui| {
                                         ui.set_width(170.0);
@@ -1029,11 +965,11 @@ impl PageBar {
                                         let r = ui.add(img);
                                         if active {
                                             ui.painter().rect_stroke(
-                                                r.rect.expand(2.0),
-                                                2.0,
+                                                r.rect.expand(theme::SPACE_050),
+                                                theme::RADIUS_XS,
                                                 egui::Stroke::new(
-                                                    2.0,
-                                                    ui.visuals().selection.bg_fill,
+                                                    theme::FOCUS_WIDTH,
+                                                    theme::ACCENT_PRIMARY,
                                                 ),
                                                 egui::StrokeKind::Outside,
                                             );
@@ -1070,36 +1006,39 @@ fn paint_tab(
     locked: bool,
     faded: bool,
 ) {
-    let v = ui.visuals();
+    let pal = theme::palette(ui);
     let mut fill = if active {
-        v.selection.bg_fill
+        theme::ACCENT_PRIMARY
     } else if selected {
-        v.selection.bg_fill.gamma_multiply(0.45)
+        pal.bg_surface_toggled
     } else {
-        v.widgets.inactive.weak_bg_fill
+        pal.bg_surface_2
     };
     let mut color = if active {
-        v.selection.stroke.color
+        theme::FG_ON_ACCENT
     } else {
-        v.text_color()
+        pal.fg_primary
     };
     if faded {
         fill = fill.gamma_multiply(0.5);
         color = color.gamma_multiply(0.5);
     }
     let p = ui.painter();
-    p.rect_filled(rect, 4.0, fill);
+    p.rect_filled(rect, theme::RADIUS_SM, fill);
     if let Some(t) = tag {
-        let strip = Rect::from_min_size(rect.min, Vec2::new(rect.width(), 3.0));
-        p.rect_filled(strip, 2.0, t);
+        let strip = Rect::from_min_size(rect.min, Vec2::new(rect.width(), theme::TAB_TAG_STRIP));
+        p.rect_filled(strip, theme::RADIUS_XS, t);
     }
-    let mut tx = rect.min.x + 10.0;
+    let mut tx = rect.min.x + theme::SPACE_200;
     if locked {
-        let r = Rect::from_center_size(Pos2::new(tx + 6.0, rect.center().y), Vec2::splat(13.0));
-        egui::Image::new(icons::get("lock-on"))
+        let r = Rect::from_center_size(
+            Pos2::new(tx + theme::ICON_MICRO / 2.0, rect.center().y),
+            Vec2::splat(theme::ICON_MICRO),
+        );
+        egui::Image::new(icons::get_micro("lock-on"))
             .tint(color)
             .paint_at(ui, r);
-        tx += 16.0;
+        tx += theme::ICON_MICRO + theme::SPACE_100;
     }
     p.text(
         Pos2::new(tx, rect.center().y),
@@ -1131,28 +1070,128 @@ mod tests {
         used
     }
 
-    #[test]
-    fn bar_draws_pages_master_and_overview() {
-        let ctx = egui::Context::default();
+    fn frame_with(
+        ctx: &egui::Context,
+        bar: &mut PageBar,
+        doc: &mut DocState,
+        events: Vec<egui::Event>,
+        alt: bool,
+    ) {
+        let mut all = vec![egui::Event::ModifiersChanged(egui::Modifiers {
+            alt,
+            ..Default::default()
+        })];
+        all.extend(events);
+        let input = egui::RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(1366.0, 768.0))),
+            events: all,
+            ..Default::default()
+        };
+        let mut out = ctx.run_ui(input, |ui| {
+            egui::Panel::bottom("paginas").show(ui, |ui| {
+                doc.sync();
+                bar.show(ui, doc);
+            });
+        });
+        out.textures_delta.clear();
+    }
+
+    fn names(doc: &DocState) -> Vec<String> {
+        doc.doc()
+            .data
+            .pages
+            .iter()
+            .enumerate()
+            .map(|(i, p)| pages::display_name(p, i))
+            .collect()
+    }
+
+    /// Arrasta a aba `from` até depois da última, em vários quadros, como o
+    /// mouse faria.
+    fn drag_tab_to_end(
+        ctx: &egui::Context,
+        bar: &mut PageBar,
+        doc: &mut DocState,
+        from: usize,
+        alt: bool,
+    ) {
+        frame(ctx, bar, doc);
+        frame(ctx, bar, doc);
+        let start = bar.tab_rects[from].1.center();
+        let last = bar.tab_rects.last().unwrap().1;
+        let end = Pos2::new(last.right() + 20.0, start.y);
+        let mods = egui::Modifiers {
+            alt,
+            ..Default::default()
+        };
+        let press = |pos, pressed| egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: mods,
+        };
+        frame_with(ctx, bar, doc, vec![egui::Event::PointerMoved(start)], alt);
+        frame_with(ctx, bar, doc, vec![press(start, true)], alt);
+        for k in 1..=12 {
+            let t = k as f32 / 12.0;
+            let pos = start + (end - start) * t;
+            frame_with(ctx, bar, doc, vec![egui::Event::PointerMoved(pos)], alt);
+        }
+        frame_with(ctx, bar, doc, vec![press(end, false)], alt);
+        frame_with(ctx, bar, doc, vec![], alt);
+    }
+
+    fn three_pages() -> DocState {
         let mut doc = DocState::new_blank();
         pages::add_after(&mut doc.editor, 0);
         pages::add_after(&mut doc.editor, 1);
+        for (i, n) in ["A", "B", "C"].iter().enumerate() {
+            doc.editor.edit_page(i, |p| p.name = Some((*n).into()));
+        }
+        doc
+    }
+
+    /// GD-PGT-12: arrastar e soltar reordena; a página ativa continua a mesma.
+    #[test]
+    fn drag_and_drop_reorders_tabs() {
+        let ctx = crate::theme::test_ctx();
+        let mut doc = three_pages();
+        let mut bar = PageBar::default();
+        drag_tab_to_end(&ctx, &mut bar, &mut doc, 0, false);
+        assert_eq!(names(&doc), ["B", "C", "A"]);
+        assert!(bar.drag.is_none());
+        assert_eq!(
+            pages::display_name(doc.page(), doc.page),
+            "A",
+            "ativa segue a página"
+        );
+        doc.editor.undo();
+        assert_eq!(names(&doc), ["A", "B", "C"], "um passo só");
+    }
+
+    /// GD-PGT-13: Alt + arrastar duplica na posição solta.
+    #[test]
+    fn alt_drag_duplicates_tab() {
+        let ctx = crate::theme::test_ctx();
+        let mut doc = three_pages();
+        let mut bar = PageBar::default();
+        drag_tab_to_end(&ctx, &mut bar, &mut doc, 0, true);
+        assert_eq!(names(&doc), ["A", "B", "C", "A (Cópia)"]);
+    }
+
+    #[test]
+    fn bar_draws_pages_and_overview() {
+        let ctx = crate::theme::test_ctx();
+        let mut doc = three_pages();
         let mut bar = PageBar::default();
         for _ in 0..3 {
-            let r = frame(&ctx, &mut bar, &mut doc);
-            assert!(r.height() < 60.0, "barra alta demais: {r:?}");
+            frame(&ctx, &mut bar, &mut doc);
         }
+        assert_eq!(bar.tab_rects.len(), 3, "três abas, sem aba mestra");
+        assert!(bar.tab_rects.iter().all(|(_, r)| r.height() < 40.0));
         bar.grid = true;
         frame(&ctx, &mut bar, &mut doc);
         frame(&ctx, &mut bar, &mut doc);
         assert!(bar.grid, "visão geral continua aberta");
-        doc.set_page(MASTER);
-        frame(&ctx, &mut bar, &mut doc);
-        assert!(doc.is_master());
-        assert_eq!(
-            doc.page_size(),
-            (210_000.0, 297_000.0),
-            "mestra usa o tamanho da última página"
-        );
     }
 }

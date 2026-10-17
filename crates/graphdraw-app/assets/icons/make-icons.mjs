@@ -1,9 +1,12 @@
 // Gera os ícones do GraphDraw (desenhos próprios do projeto, MPL-2.0).
-// Estilo único: grade 24×24, traço 1,75 px, pontas e cantos arredondados,
+// Estilo único (docs/design/DESIGN-SYSTEM.md, seção 3): traço de 1,5 px na
+// grade em que o ícone é exibido (20 px na interface, 16 px nos
+// microcontroles, 24 px nos cursores), pontas e cantos arredondados,
 // monocromático branco — a interface aplica a cor do tema (tint).
+// Os desenhos abaixo são feitos num rascunho 24×24, dentro da área 3..21.
 //
 //   node crates/graphdraw-app/assets/icons/make-icons.mjs
-import { writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -52,8 +55,8 @@ const icons = {
   snap: `<path d="M6 4 V12 a6 6 0 0 0 12 0 V4 H14 V12 a2 2 0 0 1 -4 0 V4 Z"/><path d="M6 7.5 H10 M14 7.5 H18"/>`,
   grid: `<rect x="4" y="4" width="16" height="16" rx="1"/><path d="M9.3 4 V20 M14.7 4 V20 M4 9.3 H20 M4 14.7 H20"/>`,
   // ---- nós ----
-  "node-add": `<path d="M3.5 17 C 7 7, 13 7, 15 11"/>${node(3.5, 17, 2)}<path d="M18 12 V20 M14 16 H22"/>`,
-  "node-delete": `<path d="M3.5 17 C 7 7, 13 7, 15 11"/>${node(3.5, 17, 2)}<path d="M14 16 H22"/>`,
+  "node-add": `<path d="M3.5 17 C 7 7, 13 7, 15 11"/>${node(3.5, 17, 2)}<path d="M17.5 12.5 V19.5 M14 16 H21"/>`,
+  "node-delete": `<path d="M3.5 17 C 7 7, 13 7, 15 11"/>${node(3.5, 17, 2)}<path d="M14 16 H21"/>`,
   "node-join": `<path d="M3 17 C 5 9, 9 8, 11 12"/><path d="M21 17 C 19 9, 15 8, 13 12"/>${node(12, 12, 2.2)}`,
   "node-connect": `<path d="M3 17 C 4 10, 7 9, 8.5 12"/><path d="M21 17 C 20 10, 17 9, 15.5 12"/><path d="M8.5 12 H15.5" stroke-dasharray="1.6 2"/>${node(8.5, 12, 1.8)}${node(15.5, 12, 1.8)}`,
   "node-break": `<path d="M3 17 C 5 9, 8 8, 10 11"/><path d="M21 17 C 19 9, 16 8, 14 11"/>${node(10, 11, 1.8)}${node(14, 11, 1.8)}<path d="M12 15 V21"/>`,
@@ -85,9 +88,9 @@ const icons = {
   wireframe: `<path d="M12 4 L20.5 18.5 H3.5 Z" stroke-dasharray="2 2"/><circle cx="12" cy="13.5" r="2.2"/>`,
   // ---- contorno: junção, terminação, posição, opções ----
   // Junção: contorno de uma faixa grossa dobrada em ângulo, com a linha-guia fina no meio.
-  "join-miter": `<path d="M4 20.5 L12 8 L20 20.5" stroke-width="1" stroke-dasharray="1.4 1.4"/><path d="M0.8 18 L12 1.6 L23.2 18 M7.6 21 L12 14 L16.4 21"/>`,
-  "join-round": `<path d="M4 20.5 L12 8 L20 20.5" stroke-width="1" stroke-dasharray="1.4 1.4"/><path d="M0.8 18 L9.3 5.5 a3.3 3.3 0 0 1 5.4 0 L23.2 18 M7.6 21 L12 14 L16.4 21"/>`,
-  "join-bevel": `<path d="M4 20.5 L12 8 L20 20.5" stroke-width="1" stroke-dasharray="1.4 1.4"/><path d="M0.8 18 L9.3 5.5 H14.7 L23.2 18 M7.6 21 L12 14 L16.4 21"/>`,
+  "join-miter": `<path d="M5.2 19.2 L12 8.6 L18.8 19.2" stroke-width="1" stroke-dasharray="1.4 1.4"/><path d="M2.5 17.1 L12 3.2 L21.5 17.1 M8.3 19.7 L12 13.7 L15.7 19.7"/>`,
+  "join-round": `<path d="M5.2 19.2 L12 8.6 L18.8 19.2" stroke-width="1" stroke-dasharray="1.4 1.4"/><path d="M2.5 17.1 L9.7 6.5 a2.8 2.8 0 0 1 4.6 0 L21.5 17.1 M8.3 19.7 L12 13.7 L15.7 19.7"/>`,
+  "join-bevel": `<path d="M5.2 19.2 L12 8.6 L18.8 19.2" stroke-width="1" stroke-dasharray="1.4 1.4"/><path d="M2.5 17.1 L9.7 6.5 H14.3 L21.5 17.1 M8.3 19.7 L12 13.7 L15.7 19.7"/>`,
   // Terminação: faixa grossa até a linha-guia vertical (o fim geométrico).
   "cap-butt": `<path d="M15 4 V20" stroke-width="1" stroke-dasharray="1.4 1.4"/><path d="M3 8.5 H15 V15.5 H3"/><path d="M3 12 H15" stroke-width="1"/>`,
   "cap-round": `<path d="M15 4 V20" stroke-width="1" stroke-dasharray="1.4 1.4"/><path d="M3 8.5 H15 a3.5 3.5 0 0 1 0 7 H3"/><path d="M3 12 H15" stroke-width="1"/>`,
@@ -105,22 +108,72 @@ const icons = {
   "page-prev": `<path d="M14.5 6 L8.5 12 L14.5 18"/>`,
   "page-next": `<path d="M9.5 6 L15.5 12 L9.5 18"/>`,
   "page-add": `<rect x="5" y="3.5" width="12" height="16" rx="1"/><path d="M18 14.5 V21.5 M14.5 18 H21.5"/>`,
+  // ---- cursores (desenhados sobre o canvas no lugar do cursor do sistema) ----
+  "cur-shape": `<path d="M5 3.5 L5 17 L8.5 13.5 L11 18.5 L13 17.5 L10.6 12.6 L15.5 12.3 Z"/>${node(18.5, 18.5, 2.2)}`,
+  "cur-move": `<path d="M12 3 V21 M3 12 H21 M9.5 5.5 L12 3 L14.5 5.5 M9.5 18.5 L12 21 L14.5 18.5 M5.5 9.5 L3 12 L5.5 14.5 M18.5 9.5 L21 12 L18.5 14.5"/>`,
+  "cur-grab": `<path d="M7.5 11 V9.5 a1.5 1.5 0 0 1 3 0 V11 M10.5 9.5 a1.5 1.5 0 0 1 3 0 V11 M13.5 10 a1.5 1.5 0 0 1 3 0 V12.5 M7.5 11.5 a1.5 1.5 0 0 0 -2.5 1 L6.5 17 a5 5 0 0 0 4.5 3 H13 a4 4 0 0 0 4 -4 V12.5"/>`,
+  "cur-rotate": `<path d="M18.5 12 a6.5 6.5 0 1 1 -2 -4.7"/><path d="M17 3.5 V7.5 H13"/>`,
+  // ---- página (barra de propriedades sem seleção) ----
+  "page-portrait": `<rect x="7" y="3.5" width="10" height="17" rx="1"/><path d="M9.5 7.5 H14.5"/>`,
+  "page-landscape": `<rect x="3.5" y="7" width="17" height="10" rx="1"/><path d="M6.5 10 H11.5"/>`,
+  "fit-art": `<path d="M3.5 8 V3.5 H8 M16 3.5 H20.5 V8 M20.5 16 V20.5 H16 M8 20.5 H3.5 V16"/><path d="M8.5 15.5 L12 8.5 L15.5 15.5 Z"/>`,
+  bleed: `<rect x="7" y="7" width="10" height="10" rx="0.5"/><path d="M3.5 7 V3.5 H7 M17 3.5 H20.5 V7 M20.5 17 V20.5 H17 M7 20.5 H3.5 V17" stroke-dasharray="1.6 1.6"/>`,
+  // Documento (abas de documento).
+  doc: `<path d="M6.5 3 H14 L18.5 7.5 V21 H6.5 Z M14 3 V7.5 H18.5"/>`,
   report: `<path d="M6 3.5 H18 V20.5 H6 Z M9 8 H15 M9 12 H15 M9 16 H12.5"/>`,
   history: `<circle cx="12" cy="12" r="8"/><path d="M12 7.5 V12 L15 14"/>`,
 };
 
-const header = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">`;
+// Ferramentas que também são cursores: o mesmo desenho, na grade de cursor.
+for (const t of ["select", "zoom", "pan"]) icons[`cur-${t}`] = icons[`tool-${t}`];
+
+// Grades de exibição (DESIGN-SYSTEM.md, 3.1). Os desenhos acima ocupam a
+// área 3..21 do rascunho 24×24; cada grade leva essa área para dentro da
+// margem óptica de 1,5 px, e o traço é corrigido para dar 1,5 px na grade
+// em que o ícone é exibido.
+const DRAFT_MIN = 3, DRAFT_SPAN = 18, MARGIN = 1.5, STROKE = 1.5;
+const grid = (size) => {
+  const s = (size - 2 * MARGIN) / DRAFT_SPAN;
+  const t = MARGIN - DRAFT_MIN * s;
+  return { size, transform: `translate(${t.toFixed(4)} ${t.toFixed(4)}) scale(${s.toFixed(5)})`, stroke: (STROKE / s).toFixed(4) };
+};
+const UI = grid(20);
+const MICRO = grid(16);
+// Cursores: grade própria de 24 px, desenhados direto nela.
+const CURSOR = { size: 24, transform: "", stroke: STROKE };
+// Ícones de microcontroles (linhas do painel de camadas, abas).
+const micro = ["eye-on", "eye-off", "print-on", "print-off", "lock-on", "lock-off", "doc"];
+
+const gridOf = (name) => (name.startsWith("cur-") ? CURSOR : UI);
+const svg = (g, body) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" width="${g.size}" height="${g.size}" viewBox="0 0 ${g.size} ${g.size}">` +
+  `<g${g.transform ? ` transform="${g.transform}"` : ""} fill="none" stroke="#fff" stroke-width="${g.stroke}" stroke-linecap="round" stroke-linejoin="round">${body}</g></svg>\n`;
+
+mkdirSync(join(dir, "16"), { recursive: true });
 for (const [name, body] of Object.entries(icons)) {
-  writeFileSync(join(dir, `${name}.svg`), `${header}${body}</svg>\n`);
+  writeFileSync(join(dir, `${name}.svg`), svg(gridOf(name), body));
 }
-// Folha de prova para revisão visual de todos os ícones lado a lado.
-const cols = 10;
-const names = Object.keys(icons);
-const rows = Math.ceil(names.length / cols);
-let sheet = `<svg xmlns="http://www.w3.org/2000/svg" width="${cols * 64}" height="${rows * 64}" viewBox="0 0 ${cols * 64} ${rows * 64}"><rect width="100%" height="100%" fill="#2b2d31"/>`;
-names.forEach((n, i) => {
-  const x = (i % cols) * 64 + 8, y = Math.floor(i / cols) * 64 + 8;
-  sheet += `<g transform="translate(${x} ${y}) scale(2)" fill="none" stroke="#fff" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${icons[n]}</g>`;
+for (const name of micro) {
+  writeFileSync(join(dir, "16", `${name}.svg`), svg(MICRO, icons[name]));
+}
+
+// Folha de prova: cada ícone na grade em que é exibido, ampliado 3×, com o
+// limite do container e o limite óptico marcados.
+const cols = 10, cell = 84, zoom = 3;
+const entries = [
+  ...Object.keys(icons).map((n) => [n, gridOf(n)]),
+  ...micro.map((n) => [`${n} (16)`, MICRO, n]),
+];
+const rows = Math.ceil(entries.length / cols);
+let sheet = `<svg xmlns="http://www.w3.org/2000/svg" width="${cols * cell}" height="${rows * cell}" viewBox="0 0 ${cols * cell} ${rows * cell}"><rect width="100%" height="100%" fill="#1E1E23"/>`;
+entries.forEach(([label, g, src], i) => {
+  const x = (i % cols) * cell + (cell - g.size * zoom) / 2, y = Math.floor(i / cols) * cell + 4;
+  const inner = g.size - 2 * MARGIN;
+  sheet += `<g transform="translate(${x} ${y}) scale(${zoom})">` +
+    `<rect width="${g.size}" height="${g.size}" fill="none" stroke="#363642" stroke-width="${1 / zoom}"/>` +
+    `<rect x="${MARGIN}" y="${MARGIN}" width="${inner}" height="${inner}" fill="none" stroke="#27272E" stroke-width="${1 / zoom}" stroke-dasharray="${2 / zoom}"/>` +
+    `<g${g.transform ? ` transform="${g.transform}"` : ""} fill="none" stroke="#fff" stroke-width="${g.stroke}" stroke-linecap="round" stroke-linejoin="round">${icons[src ?? label]}</g></g>` +
+    `<text x="${(i % cols) * cell + cell / 2}" y="${Math.floor(i / cols) * cell + cell - 6}" fill="#A0A0AB" font-family="sans-serif" font-size="8" text-anchor="middle">${label}</text>`;
 });
 writeFileSync(join(dir, "..", "icons-sheet.svg"), sheet + "</svg>\n");
-console.log(`${names.length} ícones`);
+console.log(`${Object.keys(icons).length} ícones + ${micro.length} na grade de 16`);

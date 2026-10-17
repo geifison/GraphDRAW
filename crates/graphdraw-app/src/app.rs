@@ -7,8 +7,8 @@
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, channel};
 
-use eframe::egui::{self, Key, KeyboardShortcut, Modifiers};
-use graphdraw_core::edit::ops::{self, Anchor, Order};
+use eframe::egui::{self, Key};
+use graphdraw_core::edit::ops::{self, Align, AlignTo, Anchor, Order};
 use graphdraw_core::export::{self, ExportFormat, ExportOptions};
 use graphdraw_core::model::ObjectKind;
 use graphdraw_core::report::Severity;
@@ -19,7 +19,9 @@ use crate::canvas::{CanvasState, Defaults, Tool};
 use crate::doc::{DocState, default_stroke};
 use crate::i18n::tr;
 use crate::icons;
+use crate::keymap::{self, Command, Keymap};
 use crate::panels::{AlignUi, TransformUi};
+use crate::theme;
 use crate::view::ACTUAL_SIZE;
 use crate::widgets::fmt_mm;
 
@@ -35,12 +37,30 @@ pub enum RightTab {
     Report,
 }
 
-/// Ação que exige confirmar alterações não salvas (GD-UND-07).
+/// Ação que pode exigir confirmar alterações não salvas (GD-UND-07).
 #[derive(Clone)]
 enum Pending {
     New,
     Open(Option<PathBuf>),
+    /// Fechar a aba de documento com este índice.
+    Close(usize),
     Quit,
+}
+
+/// Ação que "Repetir" refaz.
+#[derive(Clone, Copy)]
+enum LastAction {
+    Command(Command),
+    Nudge(Vec2),
+}
+
+/// Documento aberto numa aba (GD-UI-01: "área de desenho com abas por
+/// documento"). Cada um tem a própria vista e a própria barra de páginas.
+#[derive(Default)]
+struct DocTab {
+    doc: Option<DocState>,
+    canvas: CanvasState,
+    page_bar: crate::pagebar::PageBar,
 }
 
 pub struct App {
@@ -51,6 +71,10 @@ pub struct App {
     pub(crate) defaults: Defaults,
     pub(crate) right_tab: RightTab,
     show_right: bool,
+    /// Arrasto em rótulo de campo numérico em andamento (transação aberta).
+    field_drag: bool,
+    /// Tema já enviado para a barra de título do sistema.
+    window_theme: Option<egui::ThemePreference>,
     pub(crate) xf: TransformUi,
     pub(crate) align: AlignUi,
     pub(crate) anchor: Anchor,
@@ -65,13 +89,32 @@ pub struct App {
     nudge: (f64, f64),
     /// Janela de contorno ou preenchimento aberta.
     style_dlg: Option<crate::dialogs::StyleDialog>,
-    /// Barra de páginas em abas (doc 21).
+    /// Barra de páginas em abas (doc 21), do documento ativo.
     page_bar: crate::pagebar::PageBar,
+    /// Atalhos ativos (GD-UI-10) e a edição deles na janela de atalhos.
+    keys: Keymap,
+    key_capture: Option<Command>,
+    keys_filter: String,
+    /// Ferramenta anterior, para o comando "alternar com a Seleção".
+    prev_tool: Option<Tool>,
+    /// Última ação repetível (Repetir).
+    last_action: Option<LastAction>,
+    /// Janela "Exportar" (escolha do formato) aberta.
+    export_choice: bool,
+    /// Condição de impressão escolhida para o PDF/X-1a (GD-EXP-07).
+    print_condition: export::PrintCondition,
+    /// Tipo do próximo PDF exportado.
+    pdf_standard: export::PdfStandard,
+    /// Abas de documento. O ativo fica em `doc`/`canvas`/`page_bar`; a
+    /// posição dele em `tabs` guarda só um lugar vazio.
+    tabs: Vec<DocTab>,
+    active: usize,
 }
 
 impl App {
     pub fn new(cc: &eframe::CreationContext<'_>, initial: Option<PathBuf>) -> App {
         egui_extras::install_image_loaders(&cc.egui_ctx);
+        crate::theme::apply(&cc.egui_ctx);
         let mut app = App {
             doc: Some(DocState::new_blank()),
             loading: None,
@@ -83,6 +126,8 @@ impl App {
             },
             right_tab: RightTab::Transform,
             show_right: true,
+            field_drag: false,
+            window_theme: None,
             xf: TransformUi::default(),
             align: AlignUi::default(),
             anchor: Anchor::Center,
@@ -96,15 +141,164 @@ impl App {
             nudge: (1_000.0, 10_000.0),
             style_dlg: None,
             page_bar: Default::default(),
+            tabs: vec![DocTab::default()],
+            active: 0,
+            keys: Keymap::load(),
+            key_capture: None,
+            keys_filter: String::new(),
+            prev_tool: None,
+            last_action: None,
+            export_choice: false,
+            print_condition: export::PrintCondition::Fogra39,
+            pdf_standard: export::PdfStandard::Screen,
         };
+        keymap::set_current(&app.keys);
         if let Some(p) = initial {
             app.start_open(p, &cc.egui_ctx);
         }
         app
     }
 
-    fn modified(&self) -> bool {
-        self.doc.as_ref().is_some_and(|d| d.editor.is_modified())
+    /// Algum documento aberto tem alterações não salvas?
+    fn any_modified(&self) -> bool {
+        (0..self.tabs.len()).any(|i| self.doc_modified(i))
+    }
+
+    fn doc_modified(&self, i: usize) -> bool {
+        let d = if i == self.active {
+            self.doc.as_ref()
+        } else {
+            self.tabs.get(i).and_then(|t| t.doc.as_ref())
+        };
+        d.is_some_and(|d| d.editor.is_modified())
+    }
+
+    // ---- abas de documento --------------------------------------------------
+
+    /// Troca o documento ativo.
+    fn switch_tab(&mut self, i: usize) {
+        if i == self.active || i >= self.tabs.len() {
+            return;
+        }
+        if let Some(d) = &mut self.doc {
+            self.canvas.cancel(d);
+        }
+        self.style_dlg = None;
+        self.tabs[self.active] = DocTab {
+            doc: self.doc.take(),
+            canvas: std::mem::take(&mut self.canvas),
+            page_bar: std::mem::take(&mut self.page_bar),
+        };
+        let t = std::mem::take(&mut self.tabs[i]);
+        self.doc = t.doc;
+        self.canvas = t.canvas;
+        self.page_bar = t.page_bar;
+        self.active = i;
+    }
+
+    /// Abre um documento numa aba nova. Se a aba ativa for um documento em
+    /// branco que ninguém tocou, ela é reaproveitada.
+    fn open_in_tab(&mut self, doc: DocState) {
+        let pristine = self.doc.as_ref().is_some_and(|d| {
+            d.path.is_none()
+                && !d.editor.is_modified()
+                && d.doc().data.pages.len() == 1
+                && d.doc().data.pages[0].object_count() == 0
+        });
+        let mut canvas = CanvasState::default();
+        canvas.snap = self.canvas.snap;
+        canvas.show_grid = self.canvas.show_grid;
+        if !(pristine || self.doc.is_none() && !self.tabs.is_empty()) {
+            if self.tabs.is_empty() {
+                self.tabs.push(DocTab::default());
+                self.active = 0;
+            } else {
+                self.tabs.push(DocTab::default());
+                let last = self.tabs.len() - 1;
+                self.switch_tab(last);
+            }
+        }
+        if self.tabs.is_empty() {
+            self.tabs.push(DocTab::default());
+            self.active = 0;
+        }
+        self.style_dlg = None;
+        self.doc = Some(doc);
+        self.canvas = canvas;
+        self.page_bar = Default::default();
+    }
+
+    /// Fecha a aba (sem perguntar; quem chama confirma antes).
+    fn close_tab(&mut self, i: usize) {
+        if i >= self.tabs.len() {
+            return;
+        }
+        self.switch_tab(i);
+        self.style_dlg = None;
+        self.tabs.remove(self.active);
+        self.doc = None;
+        if self.tabs.is_empty() {
+            self.active = 0;
+            self.canvas.reset_for_new_document();
+            self.page_bar = Default::default();
+            return;
+        }
+        let next = self.active.min(self.tabs.len() - 1);
+        let t = std::mem::take(&mut self.tabs[next]);
+        self.doc = t.doc;
+        self.canvas = t.canvas;
+        self.page_bar = t.page_bar;
+        self.active = next;
+    }
+
+    /// Índice da aba com este arquivo, se já estiver aberto.
+    fn tab_with_path(&self, path: &std::path::Path) -> Option<usize> {
+        let same = |d: &DocState| {
+            d.path
+                .as_ref()
+                .is_some_and(|p| p == path || p.canonicalize().ok() == path.canonicalize().ok())
+        };
+        (0..self.tabs.len()).find(|&i| {
+            if i == self.active {
+                self.doc.as_ref().is_some_and(same)
+            } else {
+                self.tabs[i].doc.as_ref().is_some_and(same)
+            }
+        })
+    }
+
+    fn tab_title(&self, i: usize) -> Option<(String, Option<PathBuf>)> {
+        let d = if i == self.active {
+            self.doc.as_ref()
+        } else {
+            self.tabs.get(i).and_then(|t| t.doc.as_ref())
+        }?;
+        Some((d.title(), d.path.clone()))
+    }
+
+    /// Abas de documento no topo da área de trabalho (DESIGN-SYSTEM 4.5).
+    fn doc_tabs(&mut self, ui: &mut egui::Ui) {
+        let ctx = ui.ctx().clone();
+        let infos: Vec<crate::doctabs::TabInfo> = (0..self.tabs.len())
+            .filter_map(|i| self.tab_title(i))
+            .map(|(title, path)| crate::doctabs::TabInfo {
+                title,
+                tip: match path {
+                    Some(p) => p.display().to_string(),
+                    None => tr("Documento ainda não salvo", "Not saved yet").into(),
+                },
+            })
+            .collect();
+        let ev = crate::doctabs::strip(ui, &infos, self.active);
+        if let Some(i) = ev.switch {
+            self.switch_tab(i);
+        }
+        if let Some(i) = ev.close {
+            self.request(Pending::Close(i), &ctx);
+        }
+        if ev.new {
+            self.request(Pending::New, &ctx);
+        }
     }
 
     // ---- arquivos ---------------------------------------------------------
@@ -132,8 +326,7 @@ impl App {
         match result {
             Ok((doc, report)) => {
                 let warn = report.items.iter().any(|i| i.severity != Severity::Info);
-                self.doc = Some(DocState::from_document(doc, Some(path), report));
-                self.canvas.reset_for_new_document();
+                self.open_in_tab(DocState::from_document(doc, Some(path), report));
                 if warn {
                     self.right_tab = RightTab::Report;
                     self.show_right = true;
@@ -155,21 +348,34 @@ impl App {
         }
     }
 
+    /// Pede uma ação; fechar ou sair com alterações não salvas pergunta antes.
+    /// Novo e Abrir criam outra aba, então não precisam perguntar.
     fn request(&mut self, action: Pending, ctx: &egui::Context) {
-        if self.modified() {
-            self.confirm = Some(action);
-        } else {
-            self.run(action, ctx);
+        match action {
+            Pending::Close(i) if self.doc_modified(i) => {
+                self.switch_tab(i);
+                self.confirm = Some(Pending::Close(self.active));
+            }
+            Pending::Quit if self.any_modified() => {
+                // Mostra um documento alterado por vez; ao resolver, pede de novo.
+                let first = (0..self.tabs.len())
+                    .find(|&i| self.doc_modified(i))
+                    .unwrap();
+                self.switch_tab(first);
+                self.confirm = Some(Pending::Quit);
+            }
+            other => self.run(other, ctx),
         }
     }
 
     fn run(&mut self, action: Pending, ctx: &egui::Context) {
         match action {
-            Pending::New => {
-                self.doc = Some(DocState::new_blank());
-                self.canvas.reset_for_new_document();
-            }
-            Pending::Open(Some(p)) => self.start_open(p, ctx),
+            Pending::New => self.open_in_tab(DocState::new_blank()),
+            Pending::Open(Some(p)) => match self.tab_with_path(&p) {
+                Some(i) => self.switch_tab(i),
+                None => self.start_open(p, ctx),
+            },
+            Pending::Close(i) => self.close_tab(i),
             Pending::Open(None) => {
                 if let Some(p) = rfd::FileDialog::new()
                     .add_filter(
@@ -231,11 +437,18 @@ impl App {
         }
     }
 
+    /// Exporta o documento em PDF/X-1a:2001 para gráfica (GD-EXP-07).
+    fn export_pdfx(&mut self) {
+        self.pdf_standard = export::PdfStandard::X1a(self.print_condition);
+        self.export_pages(ExportFormat::Pdf, Vec::new());
+        self.pdf_standard = export::PdfStandard::Screen;
+    }
+
     /// Exporta a página atual (formatos de uma página) ou o documento (PDF).
     fn export(&mut self, format: ExportFormat) {
         let Some(doc) = &self.doc else { return };
         let pages = if format.single_page() {
-            vec![doc.last_page]
+            vec![doc.page]
         } else {
             Vec::new()
         };
@@ -264,21 +477,45 @@ impl App {
         else {
             return;
         };
+        let pdfx =
+            format == ExportFormat::Pdf && matches!(self.pdf_standard, export::PdfStandard::X1a(_));
         let opts = ExportOptions {
             pages,
             dpi: doc.doc().data.settings.resolution,
+            pdf: if format == ExportFormat::Pdf {
+                self.pdf_standard
+            } else {
+                export::PdfStandard::Screen
+            },
             ..Default::default()
         };
-        match export::export(doc.doc(), &out, format, &opts) {
-            Ok(files) => {
-                self.status = format!(
-                    "{} {}",
-                    tr("Exportado para", "Exported to"),
-                    files
-                        .first()
-                        .map(|f| f.display().to_string())
-                        .unwrap_or_default()
-                )
+        match export::export_with_report(doc.doc(), &out, format, &opts) {
+            Ok((files, warnings)) => {
+                let path = files
+                    .first()
+                    .map(|f| f.display().to_string())
+                    .unwrap_or_default();
+                self.status = format!("{} {path}", tr("Exportado para", "Exported to"));
+                if pdfx {
+                    // Relatório do PDF/X-1a: o que foi convertido para a gráfica.
+                    let body = if warnings.is_empty() {
+                        tr(
+                            "Nada precisou ser convertido: o documento já estava em CMYK, sem transparência e com imagens em boa resolução.",
+                            "Nothing had to be converted: the document was already CMYK, without transparency and with good image resolution.",
+                        )
+                        .to_string()
+                    } else {
+                        warnings
+                            .iter()
+                            .map(|w| format!("• {w}"))
+                            .collect::<Vec<_>>()
+                            .join("\n")
+                    };
+                    self.message = Some((
+                        tr("PDF/X-1a exportado", "PDF/X-1a exported").into(),
+                        format!("{path}\n\n{body}"),
+                    ));
+                }
             }
             Err(e) => {
                 self.message = Some((
@@ -432,96 +669,26 @@ impl App {
 
     // ---- atalhos de teclado (esquema padrão próprio, GD-UI-10) ----------------
 
+    /// Atalhos (GD-UI-10): os comandos vêm do mapa ativo; só setas, Delete,
+    /// Enter e Esc são fixos.
     fn shortcuts(&mut self, ctx: &egui::Context) {
-        let cmd = |k| KeyboardShortcut::new(Modifiers::COMMAND, k);
-        let cmd_shift = |k| KeyboardShortcut::new(Modifiers::COMMAND | Modifiers::SHIFT, k);
-        let fired = |s: KeyboardShortcut| ctx.input_mut(|i| i.consume_shortcut(&s));
-        if fired(cmd_shift(Key::S)) {
-            self.save(true);
+        if self.key_capture.is_some() {
+            return;
         }
-        if fired(cmd(Key::S)) {
-            self.save(false);
-        }
-        if fired(cmd(Key::N)) {
-            self.request(Pending::New, ctx);
-        }
-        if fired(cmd(Key::O)) {
-            self.request(Pending::Open(None), ctx);
-        }
-        if fired(cmd_shift(Key::Z)) || fired(cmd(Key::Y)) {
-            self.redo();
-        }
-        if fired(cmd(Key::Z)) {
-            self.undo();
-        }
-        if fired(cmd(Key::D)) {
-            let off = self.nudge.1 / 2.0;
-            self.with_selection(|ed, s| Some(ops::duplicate(ed, s, Vec2::new(off, -off))));
-        }
-        if fired(cmd(Key::A)) {
-            self.select_all();
-        }
-        if fired(cmd(Key::Q)) {
-            self.with_selection(|ed, s| {
-                ops::convert_to_curves(ed, s);
-                None
-            });
-        }
-        if fired(cmd(Key::G)) {
-            self.group();
-        }
-        if fired(cmd(Key::U)) {
-            self.with_selection(|ed, s| Some(ops::ungroup(ed, s)));
-        }
-        if fired(KeyboardShortcut::new(Modifiers::SHIFT, Key::PageUp)) {
-            self.with_selection(|ed, s| {
-                ops::reorder(ed, s, Order::ToFront);
-                None
-            });
-        }
-        if fired(KeyboardShortcut::new(Modifiers::SHIFT, Key::PageDown)) {
-            self.with_selection(|ed, s| {
-                ops::reorder(ed, s, Order::ToBack);
-                None
-            });
-        }
-        if fired(cmd(Key::PageUp)) {
-            self.with_selection(|ed, s| {
-                ops::reorder(ed, s, Order::Forward);
-                None
-            });
-        }
-        if fired(cmd(Key::PageDown)) {
-            self.with_selection(|ed, s| {
-                ops::reorder(ed, s, Order::Backward);
-                None
-            });
+        let state = keymap::State {
+            selected: self.doc.as_ref().map_or(0, |d| d.selection.len()),
+            editing_text: false,
+        };
+        for c in self.keys.fired(ctx, state) {
+            self.run_command(c, ctx);
         }
         if ctx.egui_wants_keyboard_input() {
             return;
         }
-        let (keys, mods) = ctx.input(|i| (i.keys_down.clone(), i.modifiers));
+        let mods = ctx.input(|i| i.modifiers);
         let pressed = |k| ctx.input(|i| i.key_pressed(k));
-        if mods.is_none() || mods == Modifiers::SHIFT {
-            for (k, t) in [
-                (Key::V, Tool::Select),
-                (Key::N, Tool::Shape),
-                (Key::Z, Tool::Zoom),
-                (Key::H, Tool::Pan),
-                (Key::B, Tool::Bezier),
-                (Key::R, Tool::Rect),
-                (Key::E, Tool::Ellipse),
-            ] {
-                if mods.is_none() && pressed(k) {
-                    self.set_tool(t);
-                }
-            }
-        }
         if pressed(Key::Delete) || pressed(Key::Backspace) && self.tool != Tool::Bezier {
             self.delete();
-        }
-        if pressed(Key::Backspace) && self.tool == Tool::Bezier {
-            // tratado no quadro (remove o último nó) — aqui só evita excluir objetos.
         }
         if pressed(Key::Enter)
             && self.tool == Tool::Bezier
@@ -540,6 +707,9 @@ impl App {
             }
         }
         // Setas: deslocamento fino; Shift = superdeslocamento (GD-FER-01).
+        if mods.ctrl || mods.alt {
+            return;
+        }
         let step = if mods.shift {
             self.nudge.1
         } else {
@@ -558,42 +728,223 @@ impl App {
         if pressed(Key::ArrowDown) {
             d.y -= step;
         }
-        if d != Vec2::ZERO
-            && let Some(doc) = &mut self.doc
-        {
-            if self.tool == Tool::Shape && !doc.nodes.is_empty() {
-                if let Some((loc, o, m)) =
-                    crate::canvas::single_path(doc).map(|s| (s.r, s.obj.clone(), s.m))
-                {
-                    let inv = m.inverse();
-                    let ld = inv * kurbo::Point::new(d.x, d.y) - inv * kurbo::Point::ORIGIN;
-                    let mut no = o;
-                    if let ObjectKind::Path(p) = &mut no.kind {
-                        graphdraw_core::edit::nodes::move_nodes(p, &doc.nodes, [ld.x, ld.y]);
-                    }
-                    doc.editor
-                        .transaction(tr("Mover nós", "Move nodes"), |ed| ed.replace_at(&loc, no));
+        if d != Vec2::ZERO {
+            self.nudge_by(d);
+            self.last_action = Some(LastAction::Nudge(d));
+        }
+    }
+
+    /// Desloca a seleção (ou os nós, na ferramenta Forma).
+    fn nudge_by(&mut self, d: Vec2) {
+        let Some(doc) = &mut self.doc else { return };
+        if self.tool == Tool::Shape && !doc.nodes.is_empty() {
+            if let Some((loc, o, m)) =
+                crate::canvas::single_path(doc).map(|s| (s.r, s.obj.clone(), s.m))
+            {
+                let inv = m.inverse();
+                let ld = inv * kurbo::Point::new(d.x, d.y) - inv * kurbo::Point::ORIGIN;
+                let mut no = o;
+                if let ObjectKind::Path(p) = &mut no.kind {
+                    graphdraw_core::edit::nodes::move_nodes(p, &doc.nodes, [ld.x, ld.y]);
                 }
-            } else {
-                let sel = doc.selection.clone();
-                ops::translate(&mut doc.editor, &sel, d);
+                doc.editor
+                    .transaction(tr("Mover nós", "Move nodes"), |ed| ed.replace_at(&loc, no));
+            }
+        } else {
+            let sel = doc.selection.clone();
+            ops::translate(&mut doc.editor, &sel, d);
+        }
+    }
+
+    /// Executa um comando (de atalho, menu ou "Repetir").
+    fn run_command(&mut self, c: Command, ctx: &egui::Context) {
+        use Command as C;
+        if !c.ready() {
+            self.status = format!(
+                "{}: {}",
+                c.label(),
+                tr(
+                    "ainda não existe nesta versão (atalho reservado)",
+                    "not available yet (shortcut reserved)"
+                )
+            );
+            return;
+        }
+        let repeatable = matches!(
+            c,
+            C::Duplicate
+                | C::PasteInPlace
+                | C::ToCurves
+                | C::OutlineToObject
+                | C::AlignTop
+                | C::AlignBottom
+                | C::AlignLeft
+                | C::AlignRight
+                | C::AlignCentersV
+                | C::AlignCentersH
+                | C::CenterOnPage
+                | C::ToFront
+                | C::ToBack
+                | C::Forward
+                | C::Backward
+        );
+        if repeatable {
+            self.last_action = Some(LastAction::Command(c));
+        }
+        let align = |how| {
+            move |ed: &mut graphdraw_core::edit::Editor, s: &[String]| {
+                ops::align(ed, s, how, AlignTo::LastSelected, false);
+                None
+            }
+        };
+        let order = |how| {
+            move |ed: &mut graphdraw_core::edit::Editor, s: &[String]| {
+                ops::reorder(ed, s, how);
+                None
+            }
+        };
+        match c {
+            C::New => self.request(Pending::New, ctx),
+            C::Open => self.request(Pending::Open(None), ctx),
+            C::Save => {
+                self.save(false);
+            }
+            C::SaveAs => {
+                self.save(true);
+            }
+            C::Import => self.import(),
+            C::Export => self.export_choice = self.doc.is_some(),
+            C::Close if !self.tabs.is_empty() => {
+                let i = self.active;
+                self.request(Pending::Close(i), ctx);
+            }
+            C::NextDoc if self.tabs.len() > 1 => {
+                self.switch_tab((self.active + 1) % self.tabs.len())
+            }
+            C::PrevDoc if self.tabs.len() > 1 => {
+                self.switch_tab((self.active + self.tabs.len() - 1) % self.tabs.len())
+            }
+            C::Undo => self.undo(),
+            C::Redo => self.redo(),
+            C::Duplicate => {
+                let off = self.nudge.1 / 2.0;
+                self.with_selection(|ed, s| Some(ops::duplicate(ed, s, Vec2::new(off, -off))));
+            }
+            C::PasteInPlace => {
+                self.with_selection(|ed, s| Some(ops::duplicate(ed, s, Vec2::ZERO)));
+            }
+            C::Repeat => match self.last_action {
+                Some(LastAction::Command(prev)) if prev != C::Repeat => self.run_command(prev, ctx),
+                Some(LastAction::Nudge(d)) => self.nudge_by(d),
+                _ => {
+                    self.status = tr("Nada para repetir", "Nothing to repeat").into();
+                }
+            },
+            C::SelectAll => self.select_all(),
+            C::ToCurves => self.with_selection(|ed, s| {
+                ops::convert_to_curves(ed, s);
+                None
+            }),
+            C::OutlineToObject => self.with_selection(|ed, s| {
+                let n = ops::outline_to_object(ed, s);
+                (!n.is_empty()).then_some(n)
+            }),
+            C::Group_ => self.group(),
+            C::Ungroup => self.with_selection(|ed, s| Some(ops::ungroup(ed, s))),
+            C::TransformPosition | C::TransformRotate => {
+                self.show_right = true;
+                self.right_tab = RightTab::Transform;
+                self.xf.mode = if c == C::TransformRotate { 1 } else { 0 };
+            }
+            C::AlignTop => self.with_selection(align(Align::Top)),
+            C::AlignBottom => self.with_selection(align(Align::Bottom)),
+            C::AlignLeft => self.with_selection(align(Align::Left)),
+            C::AlignRight => self.with_selection(align(Align::Right)),
+            C::AlignCentersV => self.with_selection(align(Align::CenterH)),
+            C::AlignCentersH => self.with_selection(align(Align::CenterV)),
+            C::CenterOnPage => {
+                let Some((w, h)) = self.doc.as_ref().map(|d| d.page_size()) else {
+                    return;
+                };
+                let page = kurbo::Rect::new(0.0, 0.0, w, h);
+                self.with_selection(|ed, s| {
+                    ed.transaction(tr("Centralizar na página", "Center on page"), |ed| {
+                        ops::align(ed, s, Align::CenterH, AlignTo::Page(page), false);
+                        ops::align(ed, s, Align::CenterV, AlignTo::Page(page), false);
+                    });
+                    None
+                });
+            }
+            C::ToFront => self.with_selection(order(Order::ToFront)),
+            C::ToBack => self.with_selection(order(Order::ToBack)),
+            C::Forward => self.with_selection(order(Order::Forward)),
+            C::Backward => self.with_selection(order(Order::Backward)),
+            C::ZoomObjects => self.zoom_all(),
+            C::ZoomPage => self.canvas.fit_pending = true,
+            C::ActualSize => self.canvas.actual_pending = true,
+            C::ZoomIn => self.zoom_center(1.25),
+            C::ZoomOut => self.zoom_center(0.8),
+            C::ToolSelect => self.set_tool(Tool::Select),
+            C::ToolShape => self.set_tool(Tool::Shape),
+            C::ToolZoom => self.set_tool(Tool::Zoom),
+            C::ToolPan => self.set_tool(Tool::Pan),
+            C::ToolBezier => self.set_tool(Tool::Bezier),
+            C::ToolRect => self.set_tool(Tool::Rect),
+            C::ToolEllipse => self.set_tool(Tool::Ellipse),
+            C::ToolToggleSelect => {
+                if self.tool != Tool::Select {
+                    self.prev_tool = Some(self.tool);
+                    self.set_tool(Tool::Select);
+                } else if let Some(t) = self.prev_tool.take() {
+                    self.set_tool(t);
+                }
+            }
+            C::PageNext
+            | C::PagePrev
+            | C::PageFirst
+            | C::PageLast
+            | C::PageNew
+            | C::PageJump
+            | C::PageRename => {
+                if let Some(d) = &mut self.doc {
+                    let acts = self.page_bar.command(c, d);
+                    self.page_actions(acts);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Importa desenho (.gdr/.cdr/.cmx: objetos da 1ª página, agrupados) ou
+    /// imagem para a página atual, centralizado.
+    fn import(&mut self) {
+        if self.doc.is_none() {
+            return;
+        }
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter(
+                tr("Desenhos e imagens", "Drawings and images"),
+                &[
+                    "gdr", "cdr", "cmx", "png", "jpg", "jpeg", "bmp", "gif", "tif", "tiff", "webp",
+                ],
+            )
+            .pick_file()
+        else {
+            return;
+        };
+        let doc = self.doc.as_mut().unwrap();
+        match crate::import::into_page(doc, &path) {
+            Ok(id) => {
+                doc.selection = vec![id];
+                self.status = format!("{} {}", tr("Importado:", "Imported:"), path.display());
+            }
+            Err(e) => {
+                self.message = Some((
+                    tr("Não foi possível importar", "Could not import").into(),
+                    format!("{}\n\n{e}", path.display()),
+                ))
             }
         }
-        if !mods.any() {
-            if pressed(Key::Num0) {
-                self.canvas.fit_pending = true;
-            }
-            if pressed(Key::Num1) {
-                self.canvas.actual_pending = true;
-            }
-            if pressed(Key::Plus) || pressed(Key::Equals) {
-                self.zoom_center(1.25);
-            }
-            if pressed(Key::Minus) {
-                self.zoom_center(0.8);
-            }
-        }
-        let _ = keys;
     }
 
     // ---- interface ------------------------------------------------------------
@@ -606,11 +957,21 @@ impl App {
         let can_redo = self.doc.as_ref().is_some_and(|d| d.editor.can_redo());
         egui::MenuBar::new().ui(ui, |ui| {
             ui.menu_button(tr("Arquivo", "File"), |ui| {
-                if ui.button(tr("Novo  (Ctrl+N)", "New  (Ctrl+N)")).clicked() {
+                theme::menu_density(ui);
+                if ui
+                    .button(crate::keymap::menu(
+                        tr("Novo", "New"),
+                        crate::keymap::Command::New,
+                    ))
+                    .clicked()
+                {
                     self.request(Pending::New, &ctx);
                 }
                 if ui
-                    .button(tr("Abrir…  (Ctrl+O)", "Open…  (Ctrl+O)"))
+                    .button(crate::keymap::menu(
+                        tr("Abrir…", "Open…"),
+                        crate::keymap::Command::Open,
+                    ))
                     .clicked()
                 {
                     self.request(Pending::Open(None), &ctx);
@@ -619,7 +980,10 @@ impl App {
                 if ui
                     .add_enabled(
                         has,
-                        egui::Button::new(tr("Salvar  (Ctrl+S)", "Save  (Ctrl+S)")),
+                        egui::Button::new(crate::keymap::menu(
+                            tr("Salvar", "Save"),
+                            crate::keymap::Command::Save,
+                        )),
                     )
                     .clicked()
                 {
@@ -628,9 +992,9 @@ impl App {
                 if ui
                     .add_enabled(
                         has,
-                        egui::Button::new(tr(
-                            "Salvar como…  (Ctrl+Shift+S)",
-                            "Save as…  (Ctrl+Shift+S)",
+                        egui::Button::new(crate::keymap::menu(
+                            tr("Salvar como…", "Save as…"),
+                            crate::keymap::Command::SaveAs,
                         )),
                     )
                     .clicked()
@@ -638,6 +1002,30 @@ impl App {
                     self.save(true);
                 }
                 ui.separator();
+                if ui
+                    .add_enabled(
+                        has,
+                        egui::Button::new(keymap::menu(
+                            tr("Importar…", "Import…"),
+                            Command::Import,
+                        )),
+                    )
+                    .clicked()
+                {
+                    self.run_command(Command::Import, &ctx);
+                }
+                if ui
+                    .add_enabled(
+                        has,
+                        egui::Button::new(keymap::menu(
+                            tr("Exportar…", "Export…"),
+                            Command::Export,
+                        )),
+                    )
+                    .clicked()
+                {
+                    self.run_command(Command::Export, &ctx);
+                }
                 if ui
                     .add_enabled(
                         has,
@@ -651,13 +1039,25 @@ impl App {
                     .add_enabled(
                         has,
                         egui::Button::new(tr(
-                            "Exportar documento como PDF…",
-                            "Export document as PDF…",
+                            "Exportar documento como PDF (tela)…",
+                            "Export document as PDF (screen)…",
                         )),
                     )
                     .clicked()
                 {
                     self.export(ExportFormat::Pdf);
+                }
+                if ui
+                    .add_enabled(
+                        has,
+                        egui::Button::new(tr(
+                            "Exportar PDF/X-1a para gráfica…",
+                            "Export PDF/X-1a for print…",
+                        )),
+                    )
+                    .clicked()
+                {
+                    self.export_pdfx();
                 }
                 if ui
                     .add_enabled(
@@ -669,15 +1069,32 @@ impl App {
                     self.export(ExportFormat::Png);
                 }
                 ui.separator();
+                if ui
+                    .add_enabled(
+                        has,
+                        egui::Button::new(crate::keymap::menu(
+                            tr("Fechar", "Close"),
+                            crate::keymap::Command::Close,
+                        )),
+                    )
+                    .clicked()
+                {
+                    let i = self.active;
+                    self.request(Pending::Close(i), &ctx);
+                }
                 if ui.button(tr("Sair", "Quit")).clicked() {
                     self.request(Pending::Quit, &ctx);
                 }
             });
             ui.menu_button(tr("Editar", "Edit"), |ui| {
+                theme::menu_density(ui);
                 if ui
                     .add_enabled(
                         can_undo,
-                        egui::Button::new(tr("Desfazer  (Ctrl+Z)", "Undo  (Ctrl+Z)")),
+                        egui::Button::new(crate::keymap::menu(
+                            tr("Desfazer", "Undo"),
+                            crate::keymap::Command::Undo,
+                        )),
                     )
                     .clicked()
                 {
@@ -686,7 +1103,10 @@ impl App {
                 if ui
                     .add_enabled(
                         can_redo,
-                        egui::Button::new(tr("Refazer  (Ctrl+Y)", "Redo  (Ctrl+Y)")),
+                        egui::Button::new(crate::keymap::menu(
+                            tr("Refazer", "Redo"),
+                            crate::keymap::Command::Redo,
+                        )),
                     )
                     .clicked()
                 {
@@ -696,7 +1116,10 @@ impl App {
                 if ui
                     .add_enabled(
                         has_sel,
-                        egui::Button::new(tr("Duplicar  (Ctrl+D)", "Duplicate  (Ctrl+D)")),
+                        egui::Button::new(crate::keymap::menu(
+                            tr("Duplicar", "Duplicate"),
+                            crate::keymap::Command::Duplicate,
+                        )),
                     )
                     .clicked()
                 {
@@ -715,20 +1138,49 @@ impl App {
                 if ui
                     .add_enabled(
                         has,
-                        egui::Button::new(tr("Selecionar tudo  (Ctrl+A)", "Select all  (Ctrl+A)")),
+                        egui::Button::new(crate::keymap::menu(
+                            tr("Selecionar tudo", "Select all"),
+                            crate::keymap::Command::SelectAll,
+                        )),
                     )
                     .clicked()
                 {
                     self.select_all();
                 }
-            });
-            ui.menu_button(tr("Objeto", "Object"), |ui| {
+                ui.separator();
                 if ui
                     .add_enabled(
                         has_sel,
-                        egui::Button::new(tr(
-                            "Converter em curvas  (Ctrl+Q)",
-                            "Convert to curves  (Ctrl+Q)",
+                        egui::Button::new(keymap::menu(
+                            tr("Copiar no mesmo lugar", "Copy in place"),
+                            Command::PasteInPlace,
+                        )),
+                    )
+                    .clicked()
+                {
+                    self.run_command(Command::PasteInPlace, &ctx);
+                }
+                if ui
+                    .add_enabled(
+                        has,
+                        egui::Button::new(keymap::menu(
+                            tr("Repetir a última ação", "Repeat last action"),
+                            Command::Repeat,
+                        )),
+                    )
+                    .clicked()
+                {
+                    self.run_command(Command::Repeat, &ctx);
+                }
+            });
+            ui.menu_button(tr("Objeto", "Object"), |ui| {
+                theme::menu_density(ui);
+                if ui
+                    .add_enabled(
+                        has_sel,
+                        egui::Button::new(crate::keymap::menu(
+                            tr("Converter em curvas", "Convert to curves"),
+                            crate::keymap::Command::ToCurves,
                         )),
                     )
                     .clicked()
@@ -738,11 +1190,38 @@ impl App {
                         None
                     });
                 }
+                if ui
+                    .add_enabled(
+                        has_sel,
+                        egui::Button::new(keymap::menu(
+                            tr("Converter contorno em objeto", "Convert outline to object"),
+                            Command::OutlineToObject,
+                        )),
+                    )
+                    .clicked()
+                {
+                    self.run_command(Command::OutlineToObject, &ctx);
+                }
+                if ui
+                    .add_enabled(
+                        has_sel,
+                        egui::Button::new(keymap::menu(
+                            tr("Centralizar na página", "Center on page"),
+                            Command::CenterOnPage,
+                        )),
+                    )
+                    .clicked()
+                {
+                    self.run_command(Command::CenterOnPage, &ctx);
+                }
                 ui.separator();
                 if ui
                     .add_enabled(
                         has_sel,
-                        egui::Button::new(tr("Agrupar  (Ctrl+G)", "Group  (Ctrl+G)")),
+                        egui::Button::new(crate::keymap::menu(
+                            tr("Agrupar", "Group"),
+                            crate::keymap::Command::Group_,
+                        )),
                     )
                     .clicked()
                 {
@@ -751,7 +1230,10 @@ impl App {
                 if ui
                     .add_enabled(
                         has_sel,
-                        egui::Button::new(tr("Desagrupar  (Ctrl+U)", "Ungroup  (Ctrl+U)")),
+                        egui::Button::new(crate::keymap::menu(
+                            tr("Desagrupar", "Ungroup"),
+                            crate::keymap::Command::Ungroup,
+                        )),
                     )
                     .clicked()
                 {
@@ -760,27 +1242,30 @@ impl App {
                 ui.separator();
                 for (label, order) in [
                     (
-                        tr(
-                            "Trazer para frente  (Shift+PgUp)",
-                            "Bring to front  (Shift+PgUp)",
+                        crate::keymap::menu(
+                            tr("Trazer para frente", "Bring to front"),
+                            crate::keymap::Command::ToFront,
                         ),
                         Order::ToFront,
                     ),
                     (
-                        tr(
-                            "Um passo à frente  (Ctrl+PgUp)",
-                            "Bring forward  (Ctrl+PgUp)",
+                        crate::keymap::menu(
+                            tr("Um passo à frente", "Bring forward"),
+                            crate::keymap::Command::Forward,
                         ),
                         Order::Forward,
                     ),
                     (
-                        tr("Um passo atrás  (Ctrl+PgDn)", "Send backward  (Ctrl+PgDn)"),
+                        crate::keymap::menu(
+                            tr("Um passo atrás", "Send backward"),
+                            crate::keymap::Command::Backward,
+                        ),
                         Order::Backward,
                     ),
                     (
-                        tr(
-                            "Enviar para trás  (Shift+PgDn)",
-                            "Send to back  (Shift+PgDn)",
+                        crate::keymap::menu(
+                            tr("Enviar para trás", "Send to back"),
+                            crate::keymap::Command::ToBack,
                         ),
                         Order::ToBack,
                     ),
@@ -795,14 +1280,21 @@ impl App {
                 }
             });
             ui.menu_button(tr("Exibir", "View"), |ui| {
+                theme::menu_density(ui);
                 if ui
-                    .button(tr("Ajustar à página  (0)", "Fit page  (0)"))
+                    .button(crate::keymap::menu(
+                        tr("Ajustar à página", "Fit page"),
+                        crate::keymap::Command::ZoomPage,
+                    ))
                     .clicked()
                 {
                     self.canvas.fit_pending = true;
                 }
                 if ui
-                    .button(tr("Tamanho real  (1)", "Actual size  (1)"))
+                    .button(crate::keymap::menu(
+                        tr("Tamanho real", "Actual size"),
+                        crate::keymap::Command::ActualSize,
+                    ))
                     .clicked()
                 {
                     self.canvas.actual_pending = true;
@@ -850,8 +1342,22 @@ impl App {
                 }
                 ui.separator();
                 ui.checkbox(&mut self.show_right, tr("Painéis", "Panels"));
+                // Tema claro e escuro (GD-UI-04); o escuro é o padrão.
+                ui.menu_button(tr("Tema", "Theme"), |ui| {
+                    let cur = ui.ctx().options(|o| o.theme_preference);
+                    for (pref, label) in [
+                        (egui::ThemePreference::Dark, tr("Escuro", "Dark")),
+                        (egui::ThemePreference::Light, tr("Claro", "Light")),
+                        (egui::ThemePreference::System, tr("Do sistema", "System")),
+                    ] {
+                        if ui.radio(cur == pref, label).clicked() {
+                            ui.ctx().set_theme(pref);
+                        }
+                    }
+                });
             });
             ui.menu_button(tr("Ajuda", "Help"), |ui| {
+                theme::menu_density(ui);
                 if ui
                     .button(tr("Atalhos de teclado", "Keyboard shortcuts"))
                     .clicked()
@@ -877,7 +1383,7 @@ impl App {
             if icons::button(
                 ui,
                 "file-new",
-                tr("Novo (Ctrl+N)", "New (Ctrl+N)"),
+                crate::keymap::hint(tr("Novo", "New"), crate::keymap::Command::New),
                 false,
                 true,
             )
@@ -888,7 +1394,7 @@ impl App {
             if icons::button(
                 ui,
                 "file-open",
-                tr("Abrir (Ctrl+O)", "Open (Ctrl+O)"),
+                crate::keymap::hint(tr("Abrir", "Open"), crate::keymap::Command::Open),
                 false,
                 true,
             )
@@ -899,7 +1405,7 @@ impl App {
             if icons::button(
                 ui,
                 "file-save",
-                tr("Salvar (Ctrl+S)", "Save (Ctrl+S)"),
+                crate::keymap::hint(tr("Salvar", "Save"), crate::keymap::Command::Save),
                 false,
                 has,
             )
@@ -922,7 +1428,7 @@ impl App {
             if icons::button(
                 ui,
                 "undo",
-                tr("Desfazer (Ctrl+Z)", "Undo (Ctrl+Z)"),
+                crate::keymap::hint(tr("Desfazer", "Undo"), crate::keymap::Command::Undo),
                 false,
                 can_undo,
             )
@@ -933,7 +1439,7 @@ impl App {
             if icons::button(
                 ui,
                 "redo",
-                tr("Refazer (Ctrl+Y)", "Redo (Ctrl+Y)"),
+                crate::keymap::hint(tr("Refazer", "Redo"), crate::keymap::Command::Redo),
                 false,
                 can_redo,
             )
@@ -945,7 +1451,10 @@ impl App {
             if icons::button(
                 ui,
                 "fit-page",
-                tr("Ajustar à página (0)", "Fit page (0)"),
+                crate::keymap::hint(
+                    tr("Ajustar à página", "Fit page"),
+                    crate::keymap::Command::ZoomPage,
+                ),
                 false,
                 has,
             )
@@ -1036,16 +1545,12 @@ impl App {
             }
             if let Some(d) = &self.doc {
                 let (w, h) = d.page_size();
-                let which = if d.is_master() {
-                    tr("Página mestra", "Master page").to_string()
-                } else {
-                    format!(
-                        "{} {}/{}",
-                        tr("Página", "Page"),
-                        d.page + 1,
-                        d.doc().data.pages.len()
-                    )
-                };
+                let which = format!(
+                    "{} {}/{}",
+                    tr("Página", "Page"),
+                    d.page + 1,
+                    d.doc().data.pages.len()
+                );
                 ui.label(format!("{which} · {} × {} mm", fmt_mm(w), fmt_mm(h)));
                 if d.page_locked() {
                     ui.label(tr("· bloqueada", "· locked"));
@@ -1102,46 +1607,77 @@ impl App {
             self.style_dlg = None;
         }
         if let Some((title, body)) = self.message.clone() {
-            egui::Window::new(title)
-                .collapsible(false)
-                .resizable(false)
-                .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
-                .show(ctx, |ui| {
-                    ui.label(body);
-                    if ui.button("OK").clicked() {
+            crate::widgets::modal(ctx, egui::Id::unique("mensagem")).show(ctx, |ui| {
+                ui.heading(title);
+                ui.add_space(theme::SPACE_300);
+                ui.label(body);
+                ui.add_space(theme::SPACE_300);
+                crate::widgets::footer(ui, |ui| {
+                    if ui.add(crate::widgets::primary_button("OK")).clicked()
+                        || ui.input(|i| i.key_pressed(Key::Escape) || i.key_pressed(Key::Enter))
+                    {
                         self.message = None;
                     }
                 });
+            });
         }
         if let Some(action) = self.confirm.clone() {
-            let mut close = false;
-            egui::Window::new(tr("Alterações não salvas", "Unsaved changes"))
-                .collapsible(false)
-                .resizable(false)
-                .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
-                .show(ctx, |ui| {
-                    ui.label(tr(
-                        "O documento tem alterações não salvas. Deseja salvá-las?",
-                        "The document has unsaved changes. Save them?",
-                    ));
-                    ui.horizontal(|ui| {
-                        if ui.button(tr("Salvar", "Save")).clicked() {
-                            close = true;
-                            if self.save(false) {
-                                self.run(action.clone(), ctx);
-                            }
-                        }
-                        if ui.button(tr("Descartar", "Discard")).clicked() {
-                            close = true;
-                            self.run(action.clone(), ctx);
-                        }
-                        if ui.button(tr("Cancelar", "Cancel")).clicked() {
-                            close = true;
-                        }
-                    });
+            // 0 = cancelar, 1 = salvar, 2 = descartar.
+            let mut choice = None;
+            let name = self.doc.as_ref().map(|d| d.title()).unwrap_or_default();
+            crate::widgets::modal(ctx, egui::Id::unique("alteracoes-nao-salvas")).show(ctx, |ui| {
+                ui.heading(tr("Alterações não salvas", "Unsaved changes"));
+                ui.add_space(theme::SPACE_300);
+                ui.label(format!(
+                    "{} \"{}\" {}",
+                    tr("O documento", "The document"),
+                    name.trim_end_matches(" •"),
+                    tr(
+                        "tem alterações não salvas. Deseja salvá-las?",
+                        "has unsaved changes. Save them?"
+                    )
+                ));
+                ui.add_space(theme::SPACE_300);
+                crate::widgets::footer(ui, |ui| {
+                    if ui
+                        .add(crate::widgets::primary_button(tr("Salvar", "Save")))
+                        .clicked()
+                    {
+                        choice = Some(1);
+                    }
+                    if ui
+                        .add(crate::widgets::secondary_button(tr("Descartar", "Discard")))
+                        .clicked()
+                    {
+                        choice = Some(2);
+                    }
+                    if ui
+                        .add(crate::widgets::secondary_button(tr("Cancelar", "Cancel")))
+                        .clicked()
+                        || ui.input(|i| i.key_pressed(Key::Escape))
+                    {
+                        choice = Some(0);
+                    }
                 });
-            if close {
+            });
+            if let Some(c) = choice {
                 self.confirm = None;
+                let ok = match c {
+                    1 => self.save(false),
+                    2 => true,
+                    _ => false,
+                };
+                if ok {
+                    match action {
+                        // Sair: este documento está resolvido (salvo ou
+                        // descartado); fecha a aba e pergunta pelo próximo.
+                        Pending::Quit => {
+                            self.close_tab(self.active);
+                            self.request(Pending::Quit, ctx);
+                        }
+                        other => self.run(other, ctx),
+                    }
+                }
             }
         }
         if self.show_about {
@@ -1153,81 +1689,236 @@ impl App {
                 ui.label(format!("v{}", env!("CARGO_PKG_VERSION")));
             });
         }
+        if self.export_choice {
+            let mut pick = None;
+            let mut pdfx = false;
+            let mut close = false;
+            crate::widgets::modal(ctx, egui::Id::unique("escolher-exportacao")).show(ctx, |ui| {
+                ui.set_width(320.0);
+                ui.heading(tr("Exportar", "Export"));
+                ui.add_space(theme::SPACE_300);
+                for (label, f) in [
+                    (
+                        tr("PDF — documento inteiro", "PDF — whole document"),
+                        ExportFormat::Pdf,
+                    ),
+                    (
+                        tr("SVG — página atual", "SVG — current page"),
+                        ExportFormat::Svg,
+                    ),
+                    (
+                        tr("PNG — página atual", "PNG — current page"),
+                        ExportFormat::Png,
+                    ),
+                ] {
+                    if ui
+                        .add(
+                            egui::Button::new(label)
+                                .min_size(egui::Vec2::new(300.0, theme::BUTTON_DEFAULT)),
+                        )
+                        .clicked()
+                    {
+                        pick = Some(f);
+                    }
+                }
+                ui.add_space(theme::SPACE_300);
+                ui.separator();
+                ui.label(egui::RichText::new(tr("Para gráfica", "For print")).strong());
+                if ui
+                    .add(
+                        egui::Button::new(tr(
+                            "PDF/X-1a — documento inteiro",
+                            "PDF/X-1a — whole document",
+                        ))
+                        .min_size(egui::Vec2::new(300.0, theme::BUTTON_DEFAULT)),
+                    )
+                    .on_hover_text(tr(
+                        "Só CMYK e cores especiais, sem transparência, com sangria e área de corte (ISO 15930-1). RGB é convertido e a transparência é achatada; um relatório mostra o que mudou.",
+                        "CMYK and spot colors only, no transparency, with bleed and trim (ISO 15930-1). RGB is converted and transparency flattened; a report shows what changed.",
+                    ))
+                    .clicked()
+                {
+                    pdfx = true;
+                }
+                ui.horizontal(|ui| {
+                    ui.label(tr("Condição de impressão", "Print condition"));
+                    egui::ComboBox::from_id_salt("condicao-impressao")
+                        .selected_text(self.print_condition.description())
+                        .width(220.0)
+                        .show_ui(ui, |ui| {
+                            for c in export::PrintCondition::ALL {
+                                ui.selectable_value(&mut self.print_condition, c, c.description());
+                            }
+                        });
+                });
+                ui.add_space(theme::SPACE_300);
+                crate::widgets::footer(ui, |ui| {
+                    if ui
+                        .add(crate::widgets::secondary_button(tr("Cancelar", "Cancel")))
+                        .clicked()
+                        || ui.input(|i| i.key_pressed(Key::Escape))
+                    {
+                        close = true;
+                    }
+                });
+            });
+            if let Some(f) = pick {
+                self.export_choice = false;
+                self.export(f);
+            } else if pdfx {
+                self.export_choice = false;
+                self.export_pdfx();
+            } else if close {
+                self.export_choice = false;
+            }
+        }
         if self.show_keys {
-            egui::Window::new(tr("Atalhos de teclado", "Keyboard shortcuts"))
-                .collapsible(false)
-                .open(&mut self.show_keys)
-                .show(ctx, |ui| {
-                    egui::Grid::new("atalhos").striped(true).show(ui, |ui| {
+            self.keys_window(ctx);
+        }
+    }
+
+    /// Janela de atalhos (GD-UI-10): escolher perfil, ver e mudar atalhos,
+    /// importar e exportar o mapa em JSON.
+    fn keys_window(&mut self, ctx: &egui::Context) {
+        // Captura da nova combinação.
+        if let Some(cmd) = self.key_capture {
+            let got = ctx.input(|i| {
+                i.events.iter().find_map(|e| match e {
+                    egui::Event::Key {
+                        key,
+                        pressed: true,
+                        modifiers,
+                        ..
+                    } => Some((*key, *modifiers)),
+                    _ => None,
+                })
+            });
+            if let Some((key, m)) = got {
+                match key {
+                    Key::Escape => {}
+                    Key::Backspace | Key::Delete if m.is_none() => self.keys.set(cmd, None),
+                    _ => self.keys.set(
+                        cmd,
+                        Some(keymap::Chord {
+                            key,
+                            ctrl: m.ctrl || m.command,
+                            shift: m.shift,
+                            alt: m.alt,
+                        }),
+                    ),
+                }
+                self.key_capture = None;
+                self.keys_changed();
+            }
+        }
+        let mut open = true;
+        let screen = ctx.content_rect();
+        let mut new_profile = None;
+        let mut import = false;
+        let mut export_json = false;
+        egui::Window::new(tr("Atalhos de teclado", "Keyboard shortcuts"))
+            .open(&mut open)
+            .collapsible(false)
+            .default_size(egui::Vec2::new(620.0, screen.height() * 0.7))
+            .max_size(screen.size() * 0.9)
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(tr("Perfil", "Profile"));
+                    egui::ComboBox::from_id_salt("perfil-atalhos")
+                        .selected_text(self.keys.profile.label())
+                        .width(240.0)
+                        .show_ui(ui, |ui| {
+                            for p in [keymap::Profile::GraphDraw, keymap::Profile::Alternative] {
+                                if ui.selectable_label(self.keys.profile == p, p.label()).clicked() {
+                                    new_profile = Some(p);
+                                }
+                            }
+                        });
+                    if ui.button(tr("Importar…", "Import…")).clicked() {
+                        import = true;
+                    }
+                    if ui.button(tr("Exportar…", "Export…")).clicked() {
+                        export_json = true;
+                    }
+                });
+                ui.weak(tr(
+                    "O perfil escolhido fica salvo e vale sempre que o GraphDraw abrir. Clique num atalho para trocar: pressione a nova combinação (Esc cancela, Backspace remove). Mudar um atalho cria o perfil Personalizado.",
+                    "The chosen profile is saved and used every time GraphDraw starts. Click a shortcut to change it: press the new combination (Esc cancels, Backspace removes). Changing a shortcut creates the Custom profile.",
+                ));
+                ui.add(
+                    egui::TextEdit::singleline(&mut self.keys_filter)
+                        .hint_text(tr("Procurar comando…", "Search command…")),
+                );
+                ui.separator();
+                let q = self.keys_filter.trim().to_lowercase();
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    for g in keymap::Group::ALL {
+                        let cmds: Vec<Command> = Command::ALL
+                            .iter()
+                            .copied()
+                            .filter(|c| c.group() == g)
+                            .filter(|c| q.is_empty() || c.label().to_lowercase().contains(&q))
+                            .collect();
+                        if cmds.is_empty() {
+                            continue;
+                        }
+                        ui.label(egui::RichText::new(g.label()).text_style(theme::section_style()));
+                        egui::Grid::new(("atalhos", g.label()))
+                            .num_columns(2)
+                            .striped(true)
+                            .min_col_width(260.0)
+                            .show(ui, |ui| {
+                                for c in cmds {
+                                    let name = if c.ready() {
+                                        egui::RichText::new(c.label())
+                                    } else {
+                                        egui::RichText::new(format!(
+                                            "{}  {}",
+                                            c.label(),
+                                            tr("(em breve)", "(coming soon)")
+                                        ))
+                                        .weak()
+                                    };
+                                    ui.label(name);
+                                    let keys: Vec<String> = self
+                                        .keys
+                                        .bindings
+                                        .iter()
+                                        .filter(|b| b.command == c)
+                                        .map(|b| b.chord.text())
+                                        .collect();
+                                    let text = if self.key_capture == Some(c) {
+                                        tr("Pressione as teclas…", "Press the keys…").to_string()
+                                    } else if keys.is_empty() {
+                                        "—".to_string()
+                                    } else {
+                                        keys.join("  ·  ")
+                                    };
+                                    if ui
+                                        .add(
+                                            egui::Button::new(egui::RichText::new(text).monospace())
+                                                .min_size(egui::Vec2::new(150.0, theme::BUTTON_COMPACT)),
+                                        )
+                                        .clicked()
+                                    {
+                                        self.key_capture = Some(c);
+                                    }
+                                    ui.end_row();
+                                }
+                            });
+                        ui.add_space(theme::SPACE_300);
+                    }
+                    ui.label(
+                        egui::RichText::new(tr("Teclas fixas", "Fixed keys"))
+                            .text_style(theme::section_style()),
+                    );
+                    egui::Grid::new("atalhos-fixos").num_columns(2).show(ui, |ui| {
                         for (k, d) in [
-                            (
-                                "V / N / Z / H",
-                                tr(
-                                    "Seleção / Forma / Zoom / Mão",
-                                    "Select / Shape / Zoom / Hand",
-                                ),
-                            ),
-                            (
-                                "B / R / E",
-                                tr(
-                                    "Bézier / Retângulo / Elipse",
-                                    "Bézier / Rectangle / Ellipse",
-                                ),
-                            ),
-                            (
-                                tr("Espaço (segurar)", "Space (hold)"),
-                                tr("Mão temporária", "Temporary hand"),
-                            ),
-                            (
-                                tr("Roda do mouse", "Mouse wheel"),
-                                tr("Zoom no cursor", "Zoom at cursor"),
-                            ),
-                            (
-                                "0 / 1 / + / −",
-                                tr(
-                                    "Ajustar página / tamanho real / aproximar / afastar",
-                                    "Fit / actual size / zoom in / out",
-                                ),
-                            ),
-                            (
-                                tr("Setas (Shift)", "Arrows (Shift)"),
-                                tr("Deslocar 1 mm (10 mm)", "Nudge 1 mm (10 mm)"),
-                            ),
-                            ("Ctrl+Z / Ctrl+Y", tr("Desfazer / refazer", "Undo / redo")),
-                            (
-                                "Ctrl+D / Del",
-                                tr("Duplicar / excluir", "Duplicate / delete"),
-                            ),
-                            ("Ctrl+Q", tr("Converter em curvas", "Convert to curves")),
-                            (
-                                "Ctrl+G / Ctrl+U",
-                                tr("Agrupar / desagrupar", "Group / ungroup"),
-                            ),
-                            (
-                                tr("Ctrl+clique", "Ctrl+click"),
-                                tr(
-                                    "Selecionar objeto dentro do grupo",
-                                    "Select object inside group",
-                                ),
-                            ),
-                            (
-                                tr("Shift ao arrastar", "Shift while dragging"),
-                                tr(
-                                    "Proporcional / somar à seleção",
-                                    "Proportional / add to selection",
-                                ),
-                            ),
-                            (
-                                tr("Ctrl ao arrastar", "Ctrl while dragging"),
-                                tr(
-                                    "Do centro / restringir eixo / passos de 15°",
-                                    "From center / constrain / 15° steps",
-                                ),
-                            ),
-                            (
-                                tr("Clique de novo na seleção", "Click selection again"),
-                                tr("Alças de girar e inclinar", "Rotate and skew handles"),
-                            ),
+                            (tr("Setas (Shift)", "Arrows (Shift)"), tr("Deslocar 1 mm (10 mm)", "Nudge 1 mm (10 mm)")),
+                            ("Delete", tr("Excluir", "Delete")),
+                            ("Esc", tr("Cancelar / limpar seleção", "Cancel / clear selection")),
+                            ("Enter", tr("Terminar curva Bézier", "Finish Bézier curve")),
+                            (tr("Ctrl+clique", "Ctrl+click"), tr("Selecionar dentro do grupo", "Select inside group")),
                         ] {
                             ui.monospace(k);
                             ui.label(d);
@@ -1235,6 +1926,65 @@ impl App {
                         }
                     });
                 });
+            });
+        if !open {
+            self.show_keys = false;
+            self.key_capture = None;
+        }
+        if let Some(p) = new_profile {
+            self.keys = Keymap::for_profile(p);
+            self.keys_changed();
+        }
+        if export_json
+            && let Some(path) = rfd::FileDialog::new()
+                .set_file_name("atalhos.json")
+                .add_filter("JSON", &["json"])
+                .save_file()
+            && let Err(e) = std::fs::write(&path, self.keys.to_json())
+        {
+            self.message = Some((
+                tr("Não foi possível exportar", "Could not export").into(),
+                e.to_string(),
+            ));
+        }
+        if import
+            && let Some(path) = rfd::FileDialog::new()
+                .add_filter("JSON", &["json"])
+                .pick_file()
+        {
+            match std::fs::read_to_string(&path)
+                .map_err(|e| e.to_string())
+                .and_then(|t| Keymap::from_json(&t))
+            {
+                Ok((k, skipped)) => {
+                    self.keys = k;
+                    self.keys.profile = keymap::Profile::Custom;
+                    self.keys_changed();
+                    if skipped > 0 {
+                        self.status = format!(
+                            "{skipped} {}",
+                            tr(
+                                "atalhos ignorados (comando ou tecla desconhecidos)",
+                                "shortcuts skipped (unknown command or key)"
+                            )
+                        );
+                    }
+                }
+                Err(e) => {
+                    self.message = Some((
+                        tr("Mapa de atalhos inválido", "Invalid shortcut map").into(),
+                        e,
+                    ));
+                }
+            }
+        }
+    }
+
+    /// Salva o mapa e atualiza os rótulos de menus e dicas.
+    fn keys_changed(&mut self) {
+        keymap::set_current(&self.keys);
+        if let Err(e) = self.keys.save() {
+            self.status = format!("{} {e}", tr("Atalhos não salvos:", "Shortcuts not saved:"));
         }
     }
 }
@@ -1256,6 +2006,7 @@ impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         self.poll_loading();
+        theme::sync_window_theme(&ctx, &mut self.window_theme);
         // Arrastar-soltar (GD-CDR-01).
         if let Some(p) = ctx.input(|i| {
             i.raw.dropped_files.iter().find_map(|f| {
@@ -1266,9 +2017,12 @@ impl eframe::App for App {
             self.request(Pending::Open(Some(p)), &ctx);
         }
         // Fechar a janela com alterações pendentes (GD-UND-07).
-        if ctx.input(|i| i.viewport().close_requested()) && self.modified() && !self.allow_close {
+        if ctx.input(|i| i.viewport().close_requested()) && self.any_modified() && !self.allow_close
+        {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
-            self.confirm = Some(Pending::Quit);
+            if self.confirm.is_none() {
+                self.request(Pending::Quit, &ctx);
+            }
         }
         if let Some(d) = &self.doc {
             ctx.send_viewport_cmd(egui::ViewportCommand::Title(format!(
@@ -1279,24 +2033,23 @@ impl eframe::App for App {
         self.shortcuts(&ctx);
         if let Some(d) = &mut self.doc {
             d.sync();
-            let acts = self.page_bar.shortcuts(&ctx, d);
-            self.page_actions(acts);
         }
+        self.canvas.space_pans = self.keys.space_is_free();
 
         egui::Panel::top("menu").show(ui, |ui| self.menu(ui));
         egui::Panel::top("padrao").show(ui, |ui| self.standard_toolbar(ui));
-        egui::Panel::top("propriedades").show(ui, |ui| self.property_bar(ui));
-        egui::Panel::bottom("status").show(ui, |ui| self.status_bar(ui));
-        egui::Panel::bottom("paginas").show(ui, |ui| {
-            if let Some(d) = &mut self.doc {
-                let acts = self.page_bar.show(ui, d);
-                self.page_actions(acts);
-            }
-        });
+        crate::widgets::property_panel(&ctx).show(ui, |ui| self.property_bar(ui));
+        // Barra de status em `bg-surface-0`.
+        egui::Panel::bottom("status")
+            .frame(
+                egui::Frame::side_top_panel(&ctx.global_style())
+                    .fill(theme::palette_for(&ctx.global_style().visuals).bg_surface_0),
+            )
+            .show(ui, |ui| self.status_bar(ui));
         egui::Panel::bottom("paleta").show(ui, |ui| self.palette_bar(ui));
         egui::Panel::left("ferramentas")
             .resizable(false)
-            .exact_size(46.0)
+            .exact_size(theme::BUTTON_COMPACT + 2.0 * theme::SPACE_200)
             .show(ui, |ui| self.toolbox(ui));
         if self.show_right {
             egui::Panel::right("paineis")
@@ -1304,6 +2057,29 @@ impl eframe::App for App {
                 .show(ui, |ui| self.right_panel(ui));
         }
         egui::CentralPanel::no_frame().show(ui, |ui| {
+            // Abas de documento no topo da área de trabalho; as páginas do
+            // documento ativo ficam logo abaixo do desenho (GD-UI-01, doc 21).
+            egui::Panel::top("documentos")
+                .frame(egui::Frame::NONE)
+                .show_separator_line(false)
+                .resizable(false)
+                .exact_size(theme::TAB_DOC_HEIGHT)
+                .show(ui, |ui| self.doc_tabs(ui));
+            if self.doc.is_none() {
+                ui.centered_and_justified(|ui| {
+                    ui.weak(tr(
+                        "Nenhum documento aberto — Ctrl+N cria um, Ctrl+O abre um arquivo",
+                        "No document open — Ctrl+N creates one, Ctrl+O opens a file",
+                    ));
+                });
+                return;
+            }
+            egui::Panel::bottom("paginas").show(ui, |ui| {
+                if let Some(d) = &mut self.doc {
+                    let acts = self.page_bar.show(ui, d);
+                    self.page_actions(acts);
+                }
+            });
             if let Some(doc) = &mut self.doc {
                 // Backspace na ferramenta Bézier remove o último nó do traçado.
                 let ev = self.canvas.show(ui, doc, self.tool, &self.defaults);
@@ -1316,6 +2092,18 @@ impl eframe::App for App {
                 doc.prune_selection();
             }
         });
+        // Arrasto em rótulo de campo numérico: o arrasto inteiro vira um passo
+        // só de desfazer (DESIGN-SYSTEM 4.2).
+        let dragging = crate::widgets::field_dragging(&ctx);
+        if let Some(d) = &mut self.doc {
+            if dragging && !self.field_drag && !d.editor.in_transaction() {
+                d.editor.begin(tr("Ajustar valor", "Adjust value"));
+                self.field_drag = true;
+            } else if !dragging && self.field_drag {
+                d.editor.commit();
+                self.field_drag = false;
+            }
+        }
         self.dialogs(&ctx);
     }
 }

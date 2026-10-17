@@ -14,33 +14,51 @@ use crate::canvas::{Tool, single_path};
 use crate::doc::DocState;
 use crate::i18n::tr;
 use crate::icons;
-use crate::widgets::{self, fmt_mm, length_field, number_field, swatch};
+use crate::theme;
+use crate::widgets::{
+    self, fmt_mm, labeled_length, labeled_number, length_field, number_field, swatch,
+};
+
+/// Célula do seletor de âncora e o vão entre células.
+const ANCHOR_CELL: f32 = 7.0;
+const ANCHOR_GAP: f32 = 1.0;
 
 /// Seletor do ponto de referência (9 âncoras, GD-TRF-01).
+/// As 9 células são desenhadas num quadrado só (3 × 7 px + vãos = 23 px):
+/// uma grade do egui daria a cada linha a altura mínima de controle (24 px)
+/// e o seletor passaria da altura da barra de propriedades.
 pub fn anchor_picker(ui: &mut egui::Ui, anchor: &mut Anchor) {
-    egui::Grid::new(ui.scope_id().with("ancora"))
-        .spacing(Vec2::splat(1.0))
-        .show(ui, |ui| {
-            for (i, a) in Anchor::ALL.into_iter().enumerate() {
-                let (rect, resp) = ui.allocate_exact_size(Vec2::splat(7.0), egui::Sense::click());
-                let on = *anchor == a;
-                let c = if on {
-                    ui.visuals().selection.bg_fill
-                } else {
-                    ui.visuals().widgets.inactive.bg_fill
-                };
-                ui.painter().rect_filled(rect, 1.0, c);
-                if resp
-                    .on_hover_text(tr("Ponto de referência", "Reference point"))
-                    .clicked()
-                {
-                    *anchor = a;
-                }
-                if i % 3 == 2 {
-                    ui.end_row();
-                }
-            }
-        });
+    let step = ANCHOR_CELL + ANCHOR_GAP;
+    let side = 3.0 * ANCHOR_CELL + 2.0 * ANCHOR_GAP;
+    let (rect, resp) = ui.allocate_exact_size(Vec2::splat(side), egui::Sense::click());
+    let cell_at = |p: egui::Pos2| {
+        let d = p - rect.min;
+        let (col, row) = ((d.x / step) as usize, (d.y / step) as usize);
+        (rect.contains(p) && col < 3 && row < 3).then_some(row * 3 + col)
+    };
+    let hovered = resp.hover_pos().and_then(cell_at);
+    let pal = theme::palette(ui);
+    for (i, a) in Anchor::ALL.into_iter().enumerate() {
+        let min = rect.min + Vec2::new((i % 3) as f32 * step, (i / 3) as f32 * step);
+        let c = if *anchor == a {
+            theme::ACCENT_PRIMARY
+        } else if hovered == Some(i) {
+            pal.fg_muted
+        } else {
+            pal.border_default
+        };
+        ui.painter().rect_filled(
+            egui::Rect::from_min_size(min, Vec2::splat(ANCHOR_CELL)),
+            theme::RADIUS_XS,
+            c,
+        );
+    }
+    let resp = resp.on_hover_text(tr("Ponto de referência", "Reference point"));
+    if resp.clicked()
+        && let Some(i) = resp.interact_pointer_pos().and_then(cell_at)
+    {
+        *anchor = Anchor::ALL[i];
+    }
 }
 
 impl App {
@@ -50,30 +68,62 @@ impl App {
             ui.label(tr("Nenhum documento aberto", "No document open"));
             return;
         };
-        ui.horizontal_wrapped(|ui| {
-            match self.tool {
-                Tool::Shape => shape_bar(ui, doc),
-                Tool::Bezier => {
-                    ui.label(tr(
+        let mut refit = false;
+        // Altura fixa e uma linha só (DESIGN-SYSTEM 4.6): dicas longas são
+        // cortadas; controles que não cabem rolam na horizontal.
+        let hint = |ui: &mut egui::Ui, t: &str| widgets::hint_line(ui, t);
+        match self.tool {
+            Tool::Shape => widgets::single_line_bar(ui, "barra-forma", |ui| shape_bar(ui, doc)),
+            Tool::Bezier => {
+                hint(
+                    ui,
+                    tr(
                         "Clique = nó de canto · clique e arraste = nó suave · clique no primeiro nó fecha · Enter/duplo clique termina · Backspace desfaz o último nó · Esc cancela",
                         "Click = corner node · click-drag = smooth node · click first node to close · Enter/double-click finishes · Backspace removes last · Esc cancels",
-                    ));
-                }
-                Tool::Rect | Tool::Ellipse => {
-                    ui.label(tr("Arraste para desenhar · Shift = proporcional · Ctrl = a partir do centro", "Drag to draw · Shift = proportional · Ctrl = from center"));
-                }
-                Tool::Zoom => {
-                    ui.label(tr("Clique aproxima · botão direito afasta · arraste um retângulo para enquadrar", "Click zooms in · right-click zooms out · drag a rectangle to frame it"));
-                }
-                Tool::Pan => {
-                    ui.label(tr("Arraste para mover a vista (espaço ativa temporariamente)", "Drag to pan (hold space for temporary hand)"));
-                }
-                Tool::Select => select_bar(ui, doc, &mut self.anchor, &mut self.lock_ratio),
+                    ),
+                );
             }
-        });
+            Tool::Rect | Tool::Ellipse => {
+                hint(
+                    ui,
+                    tr(
+                        "Arraste para desenhar · Shift = proporcional · Ctrl = a partir do centro",
+                        "Drag to draw · Shift = proportional · Ctrl = from center",
+                    ),
+                );
+            }
+            Tool::Zoom => {
+                hint(
+                    ui,
+                    tr(
+                        "Clique aproxima · botão direito afasta · arraste um retângulo para enquadrar",
+                        "Click zooms in · right-click zooms out · drag a rectangle to frame it",
+                    ),
+                );
+            }
+            Tool::Pan => {
+                hint(
+                    ui,
+                    tr(
+                        "Arraste para mover a vista (espaço ativa temporariamente)",
+                        "Drag to pan (hold space for temporary hand)",
+                    ),
+                );
+            }
+            Tool::Select => {
+                widgets::single_line_bar(ui, "barra-selecao", |ui| {
+                    refit = select_bar(ui, doc, &mut self.anchor, &mut self.lock_ratio);
+                });
+            }
+        }
+        if refit {
+            self.canvas.fit_pending = true;
+        }
     }
 
     pub fn right_panel(&mut self, ui: &mut egui::Ui) {
+        // Painéis laterais em densidade Default (28 px).
+        theme::density_default(ui);
         ui.horizontal_wrapped(|ui| {
             for (tab, label) in [
                 (RightTab::Transform, tr("Transformar", "Transform")),
@@ -107,8 +157,8 @@ impl App {
     /// Barra de paleta (GD-PAL-05): clique = preenchimento, botão direito = contorno.
     pub fn palette_bar(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 2.0;
-            let none = swatch(ui, None, 18.0).on_hover_text(tr(
+            ui.spacing_mut().item_spacing.x = theme::SPACE_050;
+            let none = swatch(ui, None, theme::SWATCH).on_hover_text(tr(
                 "Sem cor (clique: sem preenchimento · direito: sem contorno)",
                 "No color (click: no fill · right: no outline)",
             ));
@@ -119,7 +169,7 @@ impl App {
                 self.apply_stroke_color(None);
             }
             for c in widgets::palette() {
-                let r = swatch(ui, Some(&c), 18.0).on_hover_text(tr(
+                let r = swatch(ui, Some(&c), theme::SWATCH).on_hover_text(tr(
                     "Clique: preenchimento · botão direito: contorno",
                     "Click: fill · right-click: outline",
                 ));
@@ -168,39 +218,184 @@ impl App {
     }
 }
 
-fn select_bar(ui: &mut egui::Ui, doc: &mut DocState, anchor: &mut Anchor, lock: &mut bool) {
+/// Sem nada selecionado, a barra mostra as propriedades da página
+/// (GD-UI-01): formato, medidas, orientação, sangria e ajustar à arte. Tudo
+/// vale para todas as páginas do documento (GD-PAG-01). Devolve `true` se o
+/// tamanho mudou (a vista é reajustada).
+fn page_bar_props(ui: &mut egui::Ui, doc: &mut DocState) -> bool {
+    use graphdraw_core::edit::{pages, pagesize};
+    let (w, h) = doc.page_size();
+    let bleed = doc.page().bleed.unwrap_or(doc.doc().data.settings.bleed);
+    let mut new_size: Option<(f64, f64)> = None;
+    let mut new_bleed: Option<f64> = None;
+    let mut changed = false;
+
+    ui.label(egui::RichText::new(tr("Página", "Page")).text_style(theme::section_style()));
+    // Formato: o nome do formato conhecido, se as medidas baterem.
+    let current = pagesize::snap_format(w, h, 500.0)
+        .map(|(p, ..)| p.name)
+        .or_else(|| {
+            pagesize::PRESETS
+                .iter()
+                .find(|p| {
+                    ((p.width - w).abs() < 500.0 && (p.height - h).abs() < 500.0)
+                        || ((p.width - h).abs() < 500.0 && (p.height - w).abs() < 500.0)
+                })
+                .map(|p| p.name)
+        })
+        .unwrap_or(tr("Personalizado", "Custom"));
+    egui::ComboBox::from_id_salt("formato-pagina")
+        .selected_text(current)
+        .width(140.0)
+        .show_ui(ui, |ui| {
+            for (cat, title) in [
+                (pagesize::Category::Print, tr("Impressão", "Print")),
+                (pagesize::Category::Screen, tr("Telas", "Screens")),
+                (pagesize::Category::Social, tr("Redes sociais", "Social")),
+            ] {
+                ui.label(egui::RichText::new(title).weak());
+                for p in pagesize::PRESETS.iter().filter(|p| p.category == cat) {
+                    let dims = if p.pixels {
+                        format!(
+                            "{:.0} × {:.0} px",
+                            p.width / (25_400.0 / 96.0),
+                            p.height / (25_400.0 / 96.0)
+                        )
+                    } else {
+                        format!("{} × {} mm", fmt_mm(p.width), fmt_mm(p.height))
+                    };
+                    if ui
+                        .selectable_label(current == p.name, format!("{}   {dims}", p.name))
+                        .clicked()
+                    {
+                        // Mantém a orientação atual.
+                        let land = w > h && p.width != p.height;
+                        new_size = Some(if land == (p.width > p.height) {
+                            (p.width, p.height)
+                        } else {
+                            (p.height, p.width)
+                        });
+                    }
+                }
+            }
+        })
+        .response
+        .on_hover_text(tr("Formato das páginas", "Page format"));
+    if let Some(v) = labeled_length(ui, tr("L", "W"), "pag-l", w, None) {
+        new_size = Some((v.max(1000.0), h));
+    }
+    if let Some(v) = labeled_length(ui, tr("A", "H"), "pag-a", h, None) {
+        new_size = Some((w, v.max(1000.0)));
+    }
+    let portrait = h >= w;
+    if icons::button(
+        ui,
+        "page-portrait",
+        tr("Retrato", "Portrait"),
+        portrait,
+        true,
+    )
+    .clicked()
+        && !portrait
+    {
+        new_size = Some((h, w));
+    }
+    if icons::button(
+        ui,
+        "page-landscape",
+        tr("Paisagem", "Landscape"),
+        !portrait,
+        true,
+    )
+    .clicked()
+        && portrait
+    {
+        new_size = Some((h, w));
+    }
+    ui.separator();
+    icons::button(ui, "bleed", tr("Sangria", "Bleed"), false, false);
+    if let Some(v) = length_field(ui, "pag-sangria", bleed, None) {
+        new_bleed = Some(v.max(0.0));
+    }
+    ui.separator();
+    let has_art = pagesize::art_bounds(&doc.editor, doc.page).is_some();
+    if icons::button(
+        ui,
+        "fit-art",
+        tr(
+            "Ajustar a página à arte (todas as páginas ficam com esse tamanho)",
+            "Fit page to artwork (every page gets that size)",
+        ),
+        false,
+        has_art && !doc.page_locked(),
+    )
+    .clicked()
+    {
+        changed |= pagesize::fit_to_art(&mut doc.editor, doc.page);
+    }
+    ui.weak(format!(
+        "{} {}",
+        doc.doc().data.pages.len(),
+        tr("página(s) com este tamanho", "page(s) with this size")
+    ));
+    if new_size.is_some() || new_bleed.is_some() {
+        let (nw, nh) = new_size.unwrap_or((w, h));
+        let b = new_bleed.unwrap_or(bleed);
+        pages::set_size_all(
+            &mut doc.editor,
+            nw,
+            nh,
+            (b > 0.0).then_some(b),
+            tr("Tamanho das páginas", "Page size"),
+        );
+        changed |= new_size.is_some();
+    }
+    changed
+}
+
+fn select_bar(ui: &mut egui::Ui, doc: &mut DocState, anchor: &mut Anchor, lock: &mut bool) -> bool {
     let sel = doc.selection.clone();
     let Some(b) = ops::selection_bounds(&doc.editor, &sel, false) else {
-        ui.label(tr(
-            "Clique num objeto para selecionar; arraste para selecionar por área",
-            "Click an object to select it; drag to select an area",
-        ));
-        return;
+        return page_bar_props(ui, doc);
     };
     anchor_picker(ui, anchor);
     let p = anchor.point(b);
-    ui.label("X");
-    if let Some(x) = length_field(ui, "x", p.x, None) {
+    if let Some(x) = labeled_length(ui, "X", "x", p.x, None) {
         ops::set_position(&mut doc.editor, &sel, *anchor, Point::new(x, p.y));
     }
-    ui.label("Y");
-    if let Some(y) = length_field(ui, "y", p.y, None) {
+    if let Some(y) = labeled_length(ui, "Y", "y", p.y, None) {
         ops::set_position(&mut doc.editor, &sel, *anchor, Point::new(p.x, y));
     }
     ui.separator();
-    ui.label(tr("L", "W"));
-    if let Some(w) = length_field(ui, "w", b.width(), Some(b.width())) {
+    if let Some(w) = labeled_length(ui, tr("L", "W"), "w", b.width(), Some(b.width())) {
         ops::set_size(&mut doc.editor, &sel, *anchor, Some(w), None, *lock);
     }
-    ui.label(tr("A", "H"));
-    if let Some(h) = length_field(ui, "h", b.height(), Some(b.height())) {
+    if let Some(h) = labeled_length(ui, tr("A", "H"), "h", b.height(), Some(b.height())) {
         ops::set_size(&mut doc.editor, &sel, *anchor, None, Some(h), *lock);
     }
-    ui.toggle_value(lock, "🔗")
-        .on_hover_text(tr("Manter proporção", "Keep proportions"));
+    // Cadeado fechado = proporção travada; aberto = largura e altura livres.
+    let (icon, tip) = if *lock {
+        (
+            "lock-on",
+            tr(
+                "Proporção mantida (clique para destravar)",
+                "Proportions kept (click to unlock)",
+            ),
+        )
+    } else {
+        (
+            "lock-off",
+            tr(
+                "Proporção livre (clique para manter)",
+                "Proportions free (click to keep)",
+            ),
+        )
+    };
+    if icons::button(ui, icon, tip, *lock, true).clicked() {
+        *lock = !*lock;
+    }
     ui.separator();
-    ui.label("∠");
-    if let Some(a) = number_field(ui, "angulo", 0.0, "°") {
+    if let Some(a) = labeled_number(ui, "∠", "angulo", 0.0, "°") {
         ops::transform(
             &mut doc.editor,
             &sel,
@@ -244,25 +439,34 @@ fn select_bar(ui: &mut egui::Ui, doc: &mut DocState, anchor: &mut Anchor, lock: 
     for (icon, tip, order) in [
         (
             "order-front",
-            tr(
-                "Trazer para frente (Shift+PgUp)",
-                "Bring to front (Shift+PgUp)",
+            crate::keymap::hint(
+                tr("Trazer para frente", "Bring to front"),
+                crate::keymap::Command::ToFront,
             ),
             Order::ToFront,
         ),
         (
             "order-forward",
-            tr("Um passo à frente (Ctrl+PgUp)", "Bring forward (Ctrl+PgUp)"),
+            crate::keymap::hint(
+                tr("Um passo à frente", "Bring forward"),
+                crate::keymap::Command::Forward,
+            ),
             Order::Forward,
         ),
         (
             "order-backward",
-            tr("Um passo atrás (Ctrl+PgDn)", "Send backward (Ctrl+PgDn)"),
+            crate::keymap::hint(
+                tr("Um passo atrás", "Send backward"),
+                crate::keymap::Command::Backward,
+            ),
             Order::Backward,
         ),
         (
             "order-back",
-            tr("Enviar para trás (Shift+PgDn)", "Send to back (Shift+PgDn)"),
+            crate::keymap::hint(
+                tr("Enviar para trás", "Send to back"),
+                crate::keymap::Command::ToBack,
+            ),
             Order::ToBack,
         ),
     ] {
@@ -274,7 +478,7 @@ fn select_bar(ui: &mut egui::Ui, doc: &mut DocState, anchor: &mut Anchor, lock: 
     if icons::button(
         ui,
         "group",
-        tr("Agrupar (Ctrl+G)", "Group (Ctrl+G)"),
+        crate::keymap::hint(tr("Agrupar", "Group"), crate::keymap::Command::Group_),
         false,
         sel.len() > 1,
     )
@@ -290,7 +494,7 @@ fn select_bar(ui: &mut egui::Ui, doc: &mut DocState, anchor: &mut Anchor, lock: 
     if icons::button(
         ui,
         "ungroup",
-        tr("Desagrupar (Ctrl+U)", "Ungroup (Ctrl+U)"),
+        crate::keymap::hint(tr("Desagrupar", "Ungroup"), crate::keymap::Command::Ungroup),
         false,
         any_group,
     )
@@ -308,7 +512,10 @@ fn select_bar(ui: &mut egui::Ui, doc: &mut DocState, anchor: &mut Anchor, lock: 
         && icons::button(
             ui,
             "to-curves",
-            tr("Converter em curvas (Ctrl+Q)", "Convert to curves (Ctrl+Q)"),
+            crate::keymap::hint(
+                tr("Converter em curvas", "Convert to curves"),
+                crate::keymap::Command::ToCurves,
+            ),
             false,
             true,
         )
@@ -404,6 +611,7 @@ fn select_bar(ui: &mut egui::Ui, doc: &mut DocState, anchor: &mut Anchor, lock: 
             _ => {}
         }
     }
+    false
 }
 
 fn corner_label(k: &str) -> &'static str {
@@ -440,7 +648,10 @@ fn shape_bar(ui: &mut egui::Ui, doc: &mut DocState) {
         if icons::button(
             ui,
             "to-curves",
-            tr("Converter em curvas (Ctrl+Q)", "Convert to curves (Ctrl+Q)"),
+            crate::keymap::hint(
+                tr("Converter em curvas", "Convert to curves"),
+                crate::keymap::Command::ToCurves,
+            ),
             false,
             true,
         )
@@ -828,7 +1039,29 @@ fn transform_panel(ui: &mut egui::Ui, doc: &mut DocState, xf: &mut TransformUi) 
         ui.end_row();
     });
     if xf.mode == 2 || xf.mode == 3 {
-        ui.checkbox(&mut xf.proportional, tr("Proporcional", "Proportional"));
+        ui.horizontal(|ui| {
+            let icon = if xf.proportional {
+                "lock-on"
+            } else {
+                "lock-off"
+            };
+            if icons::button(
+                ui,
+                icon,
+                tr("Manter proporção", "Keep proportions"),
+                xf.proportional,
+                true,
+            )
+            .clicked()
+            {
+                xf.proportional = !xf.proportional;
+            }
+            ui.label(if xf.proportional {
+                tr("Proporção mantida", "Proportions kept")
+            } else {
+                tr("Proporção livre", "Proportions free")
+            });
+        });
     }
     ui.checkbox(
         &mut xf.each,
@@ -1008,25 +1241,11 @@ fn pages_panel(ui: &mut egui::Ui, doc: &mut DocState) -> bool {
             fmt_mm(p.width),
             fmt_mm(p.height)
         );
-        if ui
-            .selectable_label(!doc.is_master() && i == doc.page, label)
-            .clicked()
-        {
+        if ui.selectable_label(i == doc.page, label).clicked() {
             switch = Some(i);
         }
     }
     ui.separator();
-    if doc.is_master() {
-        ui.weak(tr(
-            "Editando a página mestra: o tamanho exibido é o da última página aberta.",
-            "Editing the master page: the size shown is that of the last open page.",
-        ));
-        if let Some(i) = switch {
-            doc.set_page(i);
-            return true;
-        }
-        return false;
-    }
     let cur = doc.page;
     ui.horizontal_wrapped(|ui| {
         if ui.button(tr("+ Página", "+ Page")).clicked() {
@@ -1044,7 +1263,7 @@ fn pages_panel(ui: &mut egui::Ui, doc: &mut DocState) -> bool {
             switch = Some(doc.page);
         }
     });
-    // Tamanho da página atual (GD-PAG-01).
+    // Tamanho das páginas: um só por documento (GD-PAG-01).
     ui.separator();
     let (w, h) = doc.page_size();
     let mut nw = None;
@@ -1079,13 +1298,14 @@ fn pages_panel(ui: &mut egui::Ui, doc: &mut DocState) -> bool {
     });
     if nw.is_some() || nh.is_some() {
         let (w2, h2) = (nw.unwrap_or(w).max(1000.0), nh.unwrap_or(h).max(1000.0));
-        doc.editor
-            .transaction(tr("Tamanho da página", "Page size"), |ed| {
-                ed.edit_page(cur, |p| {
-                    p.width = w2;
-                    p.height = h2;
-                })
-            });
+        let bleed = doc.page().bleed;
+        pages::set_size_all(
+            &mut doc.editor,
+            w2,
+            h2,
+            bleed,
+            tr("Tamanho das páginas", "Page size"),
+        );
     }
     if let Some(i) = switch {
         doc.set_page(i.min(doc.doc().data.pages.len() - 1));
@@ -1357,14 +1577,8 @@ fn report_panel(ui: &mut egui::Ui, doc: &mut DocState) {
     for item in &r.items {
         let (tag, color) = match item.severity {
             Severity::Info => (tr("info", "info"), ui.visuals().weak_text_color()),
-            Severity::Warning => (
-                tr("aviso", "warning"),
-                egui::Color32::from_rgb(0xd0, 0x8a, 0x00),
-            ),
-            Severity::Error => (
-                tr("erro", "error"),
-                egui::Color32::from_rgb(0xd0, 0x30, 0x30),
-            ),
+            Severity::Warning => (tr("aviso", "warning"), theme::ACCENT_WARNING),
+            Severity::Error => (tr("erro", "error"), theme::ACCENT_DANGER),
         };
         ui.horizontal_wrapped(|ui| {
             ui.colored_label(color, format!("[{tag}]"));
@@ -1385,5 +1599,105 @@ fn report_panel(ui: &mut egui::Ui, doc: &mut DocState) {
     }
     if let Some(p) = goto {
         doc.set_page(p);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Sem seleção, a barra de propriedades mostra a página e cabe numa linha.
+    #[test]
+    fn page_properties_show_without_selection() {
+        let ctx = crate::theme::test_ctx();
+        let mut doc = DocState::new_blank();
+        graphdraw_core::edit::pages::add_after(&mut doc.editor, 0);
+        let mut h = 0.0;
+        for _ in 0..2 {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::Vec2::new(1920.0, 1080.0),
+                )),
+                ..Default::default()
+            };
+            let mut out = ctx.run_ui(input, |ui| {
+                egui::Panel::top("propriedades").show(ui, |ui| {
+                    let r = ui.horizontal_wrapped(|ui| page_bar_props(ui, &mut doc));
+                    h = r.response.rect.height();
+                });
+            });
+            out.textures_delta.clear();
+        }
+        assert!(h > 0.0 && h < 45.0, "uma linha: {h}");
+        // Mudar o tamanho pela barra vale para todas as páginas.
+        graphdraw_core::edit::pages::set_size_all(&mut doc.editor, 148_000.0, 210_000.0, None, "t");
+        assert!(doc.doc().data.pages.iter().all(|p| p.width == 148_000.0));
+    }
+
+    /// Desenha a barra de propriedades em 1366 × 768 e devolve a altura do
+    /// painel e a área ocupada pelos controles.
+    fn bar(doc: &mut DocState, f: impl Fn(&mut egui::Ui, &mut DocState)) -> (f32, egui::Rect) {
+        let ctx = crate::theme::test_ctx();
+        let (mut panel, mut content) = (0.0, egui::Rect::NOTHING);
+        for _ in 0..3 {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::Vec2::new(1366.0, 768.0),
+                )),
+                ..Default::default()
+            };
+            let mut out = ctx.run_ui(input, |ui| {
+                let c = ui.ctx().clone();
+                panel = widgets::property_panel(&c)
+                    .show(ui, |ui| {
+                        widgets::single_line_bar(ui, "t", |ui| {
+                            f(ui, doc);
+                            content = ui.min_rect();
+                        });
+                    })
+                    .response
+                    .rect
+                    .height();
+            });
+            out.textures_delta.clear();
+        }
+        (panel, content)
+    }
+
+    /// DESIGN-SYSTEM 4.6: em todo contexto (página, objeto selecionado,
+    /// edição de nós) os controles cabem na altura da barra, sem nada
+    /// cortado em cima ou embaixo.
+    #[test]
+    fn bar_contexts_fit_bar_height() {
+        use graphdraw_core::model::{Object, ObjectKind, RectData};
+        let mut doc = DocState::new_blank();
+        let o = Object::new(ObjectKind::Rectangle(RectData {
+            width: 50_000.0,
+            height: 30_000.0,
+            corners: None,
+            extra: Default::default(),
+        }));
+        let id = ops::add_object(&mut doc.editor, 0, 0, o, "t");
+        let fits = |(panel, content): (f32, egui::Rect), what: &str| {
+            assert_eq!(panel, crate::theme::BAR_PROPERTY_HEIGHT, "{what}");
+            assert!(
+                content.height() <= crate::theme::BUTTON_COMPACT + 0.5,
+                "{what}: {content:?}"
+            );
+        };
+        let page = |ui: &mut egui::Ui, d: &mut DocState| {
+            page_bar_props(ui, d);
+        };
+        fits(bar(&mut doc, page), "página");
+        doc.selection = vec![id.clone()];
+        let select = |ui: &mut egui::Ui, d: &mut DocState| {
+            let (mut a, mut l) = (Anchor::Center, true);
+            select_bar(ui, d, &mut a, &mut l);
+        };
+        fits(bar(&mut doc, select), "seleção");
+        ops::convert_to_curves(&mut doc.editor, &[id]);
+        fits(bar(&mut doc, shape_bar), "nós");
     }
 }

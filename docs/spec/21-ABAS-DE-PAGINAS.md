@@ -4,7 +4,8 @@ Origem: requisito do responsável pelo produto (2026-10-16). Complementa
 GD-PAG-01..05 (doc 02) e GD-UI-01 (doc 20).
 
 ## Layout
-- **GD-PGT-01** Barra de páginas logo acima da barra de status, com, da
+- **GD-PGT-00** Abas de documento no topo da área de trabalho: cada documento aberto tem a sua aba, e as páginas (esta barra) pertencem ao documento ativo e ficam logo abaixo do desenho. Novo e Abrir criam aba; fechar (`×`, botão do meio, `Ctrl+W`) pede para salvar se houver alterações; sair pergunta documento por documento. `Ctrl+Tab` / `Ctrl+Shift+Tab` trocam de documento. Abrir um arquivo que já está aberto só ativa a aba dele.
+- **GD-PGT-01** Barra de páginas logo abaixo da área de desenho do documento, com, da
   esquerda para a direita: botão Grade (visão geral), botão Lista (busca),
   anterior, campo "Pág. [n] / total", próxima, abas `[n] Nome` e botão `+`.
 - **GD-PGT-02** Roda do mouse sobre as abas rola a barra na horizontal.
@@ -42,9 +43,9 @@ GD-PAG-01..05 (doc 02) e GD-UI-01 (doc 20).
   desfazível. A última página não pode ser excluída.
 
 ## Parâmetros por página (menu de contexto da aba)
-- **GD-PGT-16** Configurar página: largura, altura, orientação
-  (retrato/paisagem troca as medidas), sangria própria (opcional; sem ela
-  vale a do documento, GD-PAG-02). Perfil de cor por página fica para quando
+- **GD-PGT-16** Tamanho das páginas: largura, altura, orientação
+  (retrato/paisagem troca as medidas) e sangria, sempre para todas as
+  páginas do documento (GD-PAG-01). Perfil de cor por página fica para quando
   houver gerenciamento de cor (GD-CMS, M2).
 - **GD-PGT-17** Duplicar página; renomear; excluir.
 - **GD-PGT-18** Bloquear página: nada nela pode ser selecionado ou editado
@@ -55,8 +56,7 @@ GD-PAG-01..05 (doc 02) e GD-UI-01 (doc 20).
   rascunho), salva no documento.
 
 ## Página mestra
-- **GD-PGT-21** Aba `[0] Mestra`: o conteúdo da página mestra (GD-CAM-02)
-  aparece como fundo travado em todas as páginas que não a ocultam.
+- **GD-PGT-21** *(removido em 2026-10-16 a pedido do responsável pelo produto: não há aba nem edição de página mestra na interface.)*
 
 ## Aceite
 - Mover a página "Capa" da posição 2 para a 5 → aba `[5] Capa`; desfazer →
@@ -65,5 +65,5 @@ GD-PAG-01..05 (doc 02) e GD-UI-01 (doc 20).
   com o mesmo número de objetos e IDs diferentes.
 - Excluir página com 3 objetos pede confirmação; Ctrl+Z restaura os 3.
 - Editar um objeto da página 2 → só a aba 2 ganha o marcador; salvar limpa.
-- Página 1 em A4 retrato e página 2 com 1080×1080 px → exportação PDF com
-  dois tamanhos de página diferentes.
+- Mudar o tamanho na aba 2 para A5 → todas as abas passam a A5; desfazer
+  volta todas num passo.

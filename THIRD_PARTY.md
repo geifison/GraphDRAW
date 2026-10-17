@@ -29,6 +29,13 @@ permitida). A lista completa de crates transitivos fica em `Cargo.lock`.
 | eframe / egui | 0.37.0 | MIT OR Apache-2.0 | Interface do visualizador |
 | rfd | 0.17.2 | MIT | Diálogos nativos de abrir/salvar |
 
+## Fontes embutidas no aplicativo
+
+| Nome | Versão | Licença | Uso |
+|---|---|---|---|
+| Inter (Regular, Medium, SemiBold) | 4.1 | SIL Open Font License 1.1 (texto em `crates/graphdraw-app/assets/fonts/Inter-LICENSE.txt`) | Fonte da interface (DESIGN-SYSTEM 2.3) |
+| Hack | a que vem no egui 0.37.0 | MIT (fonte embutida pelo egui) | Fonte monoespaçada dos campos numéricos (`type-numeric`) |
+
 ## Distribuídas com o GraphDraw — ponte `gd-cdr-bridge` (DLLs ao lado do executável no Windows)
 
 | Nome | Versão | Licença | Uso |
@@ -52,6 +59,7 @@ Binários da libcdr/librevenge e dependências vêm dos pacotes do MSYS2
 | jsonschema | 0.58.6 | MIT | Validação das fixtures contra o schema (GD-GDR-08) |
 | roxmltree | 0.21.1 | MIT OR Apache-2.0 | Verificar SVG bem formado nos testes |
 | tempfile | 3.27.0 | MIT OR Apache-2.0 | Diretórios temporários nos testes |
+| lopdf | 0.45.0 | MIT | Ler o PDF/X-1a exportado e conferir os requisitos (GD-EXP-07) nos testes |
 | MSYS2 (gcc, pkgconf, binutils, make) | — | várias (GPL, ferramentas de build) | Compilar a ponte; `dlltool` para o alvo GNU do Rust |
 | poppler (pdftoppm/pdfinfo) | — | GPL-2.0 | Conferência manual dos PDFs (ferramenta externa, não vinculada) |
 

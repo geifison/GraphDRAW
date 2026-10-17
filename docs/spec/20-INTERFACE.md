@@ -10,6 +10,9 @@ Identidade **própria**: nome, ícones, cores, layout e textos criados pelo proj
 
 ## Interação
 - **GD-UI-10** Atalhos de teclado configuráveis; esquema padrão próprio documentado; importação de mapa de atalhos genérico (JSON).
+  - Perfis prontos: **GraphDraw** (padrão de fábrica, próprio) e **Alternativo** (lista de teclas de função e letras de alinhamento definida pelo responsável pelo produto em 2026-10-16). O perfil escolhido fica salvo no perfil do usuário e vale sempre. Editar qualquer atalho cria o perfil Personalizado; importar/exportar em JSON.
+  - Um mesmo atalho pode ter um comando durante a edição de texto e outro fora dela (ex.: Ctrl+R repetir × alinhar texto à direita).
+  - Atalhos de ferramentas ainda inexistentes ficam reservados e avisam na barra de status.
 - **GD-UI-11** Entrada numérica em qualquer campo aceita expressões e unidades (doc 08 GD-TRF-04).
 - **GD-UI-12** Menu de contexto (botão direito) com ações relevantes ao objeto sob o cursor.
 - **GD-UI-13** Prévia ao vivo ao alterar parâmetros (antes de confirmar).

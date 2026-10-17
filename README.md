@@ -21,17 +21,22 @@ O editor abre `.gdr`, `.cdr` e `.cmx` (diálogo ou arrastar-soltar) e salva em `
 - Edição de nós: adicionar, excluir, unir, quebrar, fechar/abrir, inverter e tipo de nó.
 - Preenchimento uniforme e contorno (espessura, cor, tracejado, junção, terminação, posição centrada/interna/externa). Na paleta, clique define o preenchimento e o botão direito define o contorno.
 - Agrupar (`Ctrl+G`) e desagrupar (`Ctrl+U`); `Ctrl+clique` seleciona um objeto dentro do grupo sem desagrupar.
-- Barra de páginas em abas, acima da barra de status: renomear com duplo clique ou `F2`, arrastar para reordenar, `Alt`+arrastar para duplicar, `Ctrl`/`Shift`+clique para selecionar várias, botão do meio para excluir (pede confirmação se a página tiver objetos), menu de contexto (configurar tamanho, orientação e sangria, bloquear, etiqueta de cor, exportar), busca por nome, visão geral com miniaturas e aba `[0] Mestra` para o fundo comum a todas as páginas. `Ctrl+J` pula para uma página; `Home`/`End`, `PgUp`/`PgDn` navegam; `Ctrl+Shift+N` cria página.
+- Barra de páginas em abas, acima da barra de status: renomear com duplo clique ou `F2`, arrastar para reordenar, `Alt`+arrastar para duplicar, `Ctrl`/`Shift`+clique para selecionar várias, botão do meio para excluir (pede confirmação se a página tiver objetos), menu de contexto (configurar tamanho, orientação e sangria, bloquear, etiqueta de cor, exportar), busca por nome e visão geral com miniaturas. `Ctrl+J` pula para uma página; `Home`/`End`, `PgUp`/`PgDn` navegam; `Ctrl+Shift+N` cria página.
 - Cor de preenchimento e de contorno à direita da barra de status; duplo clique abre a janela de edição.
 - Painéis: Transformar, Alinhar, Camadas (visível, imprimível, bloqueada, esboço, ordem, mover seleção), Histórico, Páginas e Relatório de importação.
 - Desfazer/refazer (`Ctrl+Z`/`Ctrl+Y`), encaixe em objetos, página e grade, e campos numéricos com contas e unidades (`10+5`, `2in`, `50%`).
 
-A lista completa de atalhos fica em *Ajuda → Atalhos de teclado*.
+Os atalhos são configuráveis em *Ajuda → Atalhos de teclado*: perfil **GraphDraw** (padrão) ou **Alternativo** (teclas de função: F4 zoom em tudo, F10 Forma, F6 Retângulo, F7 Elipse, P centraliza na página, T/B/L/R/C/E alinham, Espaço alterna com a Seleção…). A escolha fica salva; dá para mudar qualquer atalho e importar/exportar o mapa em JSON.
 
 ## Linha de comando
 
 ```bash
 graphdraw convert desenho.cdr desenho.pdf
+```
+
+```bash
+graphdraw convert desenho.gdr para-grafica.pdf --pdfx            # PDF/X-1a:2001, FOGRA39 (couché)
+graphdraw convert desenho.gdr para-grafica.pdf --pdfx fogra47    # papel não couché
 ```
 
 ```bash
@@ -62,6 +67,9 @@ $env:PATH = "$env:PATH;C:\msys64\mingw64\bin"
 ```
 
 Ajuste o caminho para onde o MSYS2 foi instalado. Para deixar a mudança permanente, inclua a pasta no `PATH` do usuário nas variáveis de ambiente do Windows.
+
+## Design
+Aparência e interação seguem o [Design System](docs/design/DESIGN-SYSTEM.md), fonte única de cores, tipografia, ícones e componentes. Todo elemento novo de interface passa pelo checklist dele.
 
 ## Procedência
 Desenvolvido em sala limpa: o código é escrito exclusivamente a partir da especificação funcional em [`docs/spec/`](docs/spec/), sem acesso a código, binários ou ativos de terceiros. Ver [protocolo](docs/spec/00-PROTOCOLO-CLEANROOM.md) e [CONTRIBUTING](CONTRIBUTING.md). Dependências em [THIRD_PARTY.md](THIRD_PARTY.md).

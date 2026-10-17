@@ -1,12 +1,36 @@
 //! Ícones próprios do GraphDraw (assets/icons, gerados por make-icons.mjs).
-//! Todos monocromáticos; a cor vem do tema via `tint`.
+//! Todos monocromáticos; a cor vem do tema via `tint`. Grade de 20 px na
+//! interface, 16 px nos microcontroles e 24 px nos cursores
+//! (DESIGN-SYSTEM 3.1).
 
-use eframe::egui::{self, ImageSource, Vec2};
+use eframe::egui::{self, Color32, ImageSource, Rect, Sense, Vec2};
+
+use crate::theme;
 
 macro_rules! icon {
     ($name:literal) => {
         egui::include_image!(concat!("../assets/icons/", $name, ".svg"))
     };
+}
+
+macro_rules! micro {
+    ($name:literal) => {
+        egui::include_image!(concat!("../assets/icons/16/", $name, ".svg"))
+    };
+}
+
+/// Versão de 16 px (microcontroles), quando existe; senão a de 20 px.
+pub fn get_micro(name: &str) -> ImageSource<'static> {
+    match name {
+        "eye-on" => micro!("eye-on"),
+        "eye-off" => micro!("eye-off"),
+        "print-on" => micro!("print-on"),
+        "print-off" => micro!("print-off"),
+        "lock-on" => micro!("lock-on"),
+        "lock-off" => micro!("lock-off"),
+        "doc" => micro!("doc"),
+        other => get(other),
+    }
 }
 
 pub fn get(name: &str) -> ImageSource<'static> {
@@ -89,21 +113,38 @@ pub fn get(name: &str) -> ImageSource<'static> {
         "page-prev" => icon!("page-prev"),
         "page-next" => icon!("page-next"),
         "page-add" => icon!("page-add"),
+        "cur-shape" => icon!("cur-shape"),
+        "cur-move" => icon!("cur-move"),
+        "cur-grab" => icon!("cur-grab"),
+        "cur-rotate" => icon!("cur-rotate"),
+        "cur-select" => icon!("cur-select"),
+        "cur-zoom" => icon!("cur-zoom"),
+        "cur-pan" => icon!("cur-pan"),
+        "page-portrait" => icon!("page-portrait"),
+        "page-landscape" => icon!("page-landscape"),
+        "fit-art" => icon!("fit-art"),
+        "bleed" => icon!("bleed"),
+        "doc" => icon!("doc"),
         _ => icon!("history"),
     }
 }
 
-/// Botão de ícone pequeno (linhas de lista, como no painel de camadas).
+/// Botão de ícone pequeno (linhas de lista, como no painel de camadas):
+/// ícone de 16 px num botão ghost de 20 px.
 pub fn small_button(ui: &mut egui::Ui, name: &str, tip: &str, enabled: bool) -> egui::Response {
-    let color = ui.visuals().text_color();
-    let img = egui::Image::new(get(name))
-        .fit_to_exact_size(Vec2::splat(16.0))
-        .tint(color);
-    ui.add_enabled(enabled, egui::Button::image(img).frame(false))
-        .on_hover_text(tip)
+    ghost(
+        ui,
+        get_micro(name),
+        tip,
+        false,
+        enabled,
+        theme::ICON_MICRO + 2.0 * theme::SPACE_050,
+        theme::ICON_MICRO,
+    )
 }
 
-/// Botão só com ícone, dica ao passar o mouse e estado "selecionado".
+/// Botão de ferramenta (ghost, Compact 24 px) só com ícone, dica e estado
+/// "ligado" (DESIGN-SYSTEM 4.1).
 pub fn button(
     ui: &mut egui::Ui,
     name: &str,
@@ -111,15 +152,61 @@ pub fn button(
     selected: bool,
     enabled: bool,
 ) -> egui::Response {
-    let color = ui.visuals().text_color();
-    let img = egui::Image::new(get(name))
-        .fit_to_exact_size(Vec2::splat(20.0))
-        .tint(color);
-    ui.add_enabled(
+    ghost(
+        ui,
+        get(name),
+        tip,
+        selected,
         enabled,
-        egui::Button::image(img)
-            .selected(selected)
-            .min_size(Vec2::splat(30.0)),
+        theme::BUTTON_COMPACT,
+        theme::ICON_UI,
     )
-    .on_hover_text(tip)
+}
+
+/// Botão ghost de ícone: transparente em repouso; hover, pressionado e
+/// ligado conforme a tabela de estados da seção 4.1.
+fn ghost(
+    ui: &mut egui::Ui,
+    image: ImageSource<'static>,
+    tip: &str,
+    selected: bool,
+    enabled: bool,
+    size: f32,
+    icon: f32,
+) -> egui::Response {
+    let sense = if enabled {
+        Sense::click()
+    } else {
+        Sense::hover()
+    };
+    let (rect, resp) = ui.allocate_exact_size(Vec2::splat(size), sense);
+    resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, enabled, selected, tip));
+    if ui.is_rect_visible(rect) {
+        let pal = theme::palette(ui);
+        let pressed = enabled && resp.is_pointer_button_down_on();
+        let (fill, tint, border) = if !enabled {
+            (Color32::TRANSPARENT, pal.fg_muted.gamma_multiply(0.4), None)
+        } else if pressed {
+            (pal.bg_surface_active, pal.fg_pressed, None)
+        } else if selected {
+            (
+                pal.bg_surface_toggled,
+                theme::ACCENT_PRIMARY,
+                Some(theme::border_focus()),
+            )
+        } else if resp.hovered() {
+            (pal.bg_surface_hover, pal.fg_strong, None)
+        } else {
+            (Color32::TRANSPARENT, pal.fg_muted, None)
+        };
+        let p = ui.painter();
+        p.rect_filled(rect, theme::RADIUS_SM, fill);
+        if let Some(b) = border {
+            p.rect_stroke(rect, theme::RADIUS_SM, b, egui::StrokeKind::Inside);
+        }
+        let shift = if pressed { theme::PRESS_OFFSET } else { 0.0 };
+        let r = Rect::from_center_size(rect.center() + Vec2::new(0.0, shift), Vec2::splat(icon));
+        egui::Image::new(image).tint(tint).paint_at(ui, r);
+    }
+    resp.on_hover_text(tip)
 }

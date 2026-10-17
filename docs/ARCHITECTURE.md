@@ -134,6 +134,7 @@ documentada no código aberto da libcdr.
   original (DeviceRGB / DeviceCMYK / DeviceGray / Separation); opacidade por
   ExtGState; gradientes por shading axial/radial; imagens com SMask. Texto
   sai em curvas no M0.
+- **PDF/X-1a:2001** (GD-EXP-07, `--pdfx` / *Arquivo → Exportar PDF/X-1a*): PDF 1.3; cores convertidas para CMYK (RGB por fórmula, sem ICC até o GD-CMS), transparência achatada (imagem CMYK de 300 ppp da composição, recortada pelo contorno vetorial do objeto), imagens em DeviceCMYK sem SMask e sem Interpolate, TrimBox/BleedBox/MediaBox com a sangria, OutputIntent GTS_PDFX (FOGRA39, FOGRA47 ou CGATS TR 001), Info com as chaves GTS e Trapped, /ID. `PdfReport` lista o que foi convertido. Verificação estrutural em `tests/pdfx.rs` (sem validador externo).
 - **Posição do contorno** (GD-OUT-04): interno e externo são um traço de
   espessura dupla recortado pela forma (tela/PNG: máscara; SVG:
   `clipPath`/`mask`; PDF: recorte `W`). No PDF o externo usa par-ímpar com
@@ -159,7 +160,7 @@ só traduz gestos em chamadas destas funções.
 | Módulo | Papel | Requisitos |
 |---|---|---|
 | `history` | `Editor`: documento + registro de alterações reversíveis por transação (só o "antes" e o "depois" de cada objeto, camada ou página tocados, nunca o documento inteiro). Arrastos viram um passo. | doc 12 (GD-UND-01..08), GD-CAM-01 |
-| `pages` | Operações da barra de abas: nova página após a atual, duplicar com IDs novos, mover em bloco, excluir mantendo ao menos uma. A página mestra é endereçada pelo índice `MASTER` no `Editor`, então objetos e camadas dela usam o mesmo histórico. | GD-PGT-03, 11..15, 21 |
+| `pages` | Operações da barra de abas: nova página após a atual, duplicar com IDs novos, mover em bloco, excluir mantendo ao menos uma. | GD-PGT-03, 11..15 |
 | `tree` | `ObjRef` = posição do objeto de primeiro nível + caminho de índices até o filho. Alterar um filho substitui o objeto de primeiro nível no histórico, então grupos não precisam de tipo de alteração próprio. | GD-SEL-02 |
 | `ops` | Operações sobre a seleção (lista ordenada de IDs, em qualquer nível): transformar em coordenadas da página (convertidas para o espaço do pai), alinhar, ordem, agrupar/desagrupar, duplicar, excluir, mover para camada, preenchimento/contorno (num grupo valem para o conteúdo). | GD-TRF-01/02, GD-ALI-01/02, GD-ORD-01, GD-CAM-03, GD-FIL-01/02, GD-OUT-01..04 |
 | `nodes`, `convert` | Edição de nós e conversão de primitivas em curvas. | GD-NOD-01..05, GD-CNV-01 (parcial) |
@@ -244,7 +245,7 @@ Em Linux: `apt install libcdr-dev librevenge-dev pkg-config g++` e o mesmo
 | GD-TRF-01/02, GD-ALI-01/02, GD-ORD-01 | `ops::tests::gd_trf_*`, `gd_ali_*`, `gd_ord_01_ordering` |
 | GD-TRF-04 / GD-UI-11 | `units::tests::gd_trf_04_expressions` |
 | GD-SNP-01/02 | `snap::tests::gd_snp_01_objects_page_grid_priority` |
-| GD-PGT-03, 05, 11..15, 21 | `pages::tests::*`, `history::tests::page_props_keep_objects`, `pagebar::tests::*` (app) |
+| GD-PGT-03, 05, 11..15 | `pages::tests::*`, `history::tests::page_props_keep_objects`, `pagebar::tests::*` (app) |
 | GD-OUT-04 | `tests/stroke_position.rs`, `tests/m1_editing.rs` |
 | GD-CAM-01 (esboço), GD-CAM-03 | `tests/m1_editing.rs`, `ops::tests::gd_cam_03_move_to_layer`, `history::tests::layers_undo` |
 | Zoom/pan do editor | `graphdraw-app/src/view.rs` (testes de unidade) |

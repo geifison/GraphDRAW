@@ -11,4 +11,5 @@ egui_extras = { version = "0.37.0", default-features = false, features = ["svg"]
 graphdraw-core = { version = "0.1.0", path = "../graphdraw-core" }
 kurbo = "0.13.1"
 rfd = "0.17.2"
+serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"

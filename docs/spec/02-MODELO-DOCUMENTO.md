@@ -20,7 +20,7 @@ Aplicação
 - Aceite: criar retângulo de 10 mm → armazenado 10000 µm; exibido 10 mm, 0,3937 pol, 28,35 pt.
 
 ## Páginas
-- **GD-PAG-01** Cada página tem tamanho e orientação próprios; predefinições ISO A/B/C, Carta, Ofício, Tabloide, e personalizados.
+- **GD-PAG-01** Todas as páginas de um documento têm o mesmo tamanho e orientação: mudar o de uma muda o de todas *(decisão do responsável pelo produto, 2026-10-16; antes cada página tinha o seu)*. Predefinições ISO A/B/C, Carta, Ofício, Tabloide, e personalizados. Arquivos importados com páginas de tamanhos diferentes abrem como estão; a primeira mudança de tamanho iguala todas.
 - **GD-PAG-02** Sangria (bleed) por documento, exibida como área ao redor da página.
 - **GD-PAG-03** Inserir, duplicar (com ou sem conteúdo), excluir, reordenar, renomear páginas.
 - **GD-PAG-04** Visualização em página única, múltiplas páginas lado a lado (pranchas/spreads) e visão geral.

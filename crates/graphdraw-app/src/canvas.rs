@@ -23,6 +23,7 @@ use serde_json::Map;
 
 use crate::doc::DocState;
 use crate::i18n::tr;
+use crate::theme;
 use crate::view::View;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -39,24 +40,50 @@ pub enum Tool {
 impl Tool {
     pub fn info(self) -> (&'static str, &'static str, &'static str) {
         match self {
-            Tool::Select => ("tool-select", tr("Seleção (V)", "Select (V)"), "V"),
+            Tool::Select => (
+                "tool-select",
+                crate::keymap::hint(tr("Seleção", "Select"), crate::keymap::Command::ToolSelect),
+                "V",
+            ),
             Tool::Shape => (
                 "tool-shape",
-                tr("Forma — editar nós (N)", "Shape — edit nodes (N)"),
+                crate::keymap::hint(
+                    tr("Forma — editar nós", "Shape — edit nodes"),
+                    crate::keymap::Command::ToolShape,
+                ),
                 "N",
             ),
-            Tool::Zoom => ("tool-zoom", tr("Zoom (Z)", "Zoom (Z)"), "Z"),
+            Tool::Zoom => (
+                "tool-zoom",
+                crate::keymap::hint(tr("Zoom", "Zoom"), crate::keymap::Command::ToolZoom),
+                "Z",
+            ),
             Tool::Pan => (
                 "tool-pan",
-                tr(
-                    "Mão — mover a vista (H; espaço temporário)",
-                    "Hand — pan (H; hold space)",
+                crate::keymap::hint(
+                    tr("Mão — mover a vista", "Hand — pan"),
+                    crate::keymap::Command::ToolPan,
                 ),
                 "H",
             ),
-            Tool::Bezier => ("tool-bezier", tr("Bézier (B)", "Bézier (B)"), "B"),
-            Tool::Rect => ("tool-rect", tr("Retângulo (R)", "Rectangle (R)"), "R"),
-            Tool::Ellipse => ("tool-ellipse", tr("Elipse (E)", "Ellipse (E)"), "E"),
+            Tool::Bezier => (
+                "tool-bezier",
+                crate::keymap::hint(tr("Bézier", "Bézier"), crate::keymap::Command::ToolBezier),
+                "B",
+            ),
+            Tool::Rect => (
+                "tool-rect",
+                crate::keymap::hint(
+                    tr("Retângulo", "Rectangle"),
+                    crate::keymap::Command::ToolRect,
+                ),
+                "R",
+            ),
+            Tool::Ellipse => (
+                "tool-ellipse",
+                crate::keymap::hint(tr("Elipse", "Ellipse"), crate::keymap::Command::ToolEllipse),
+                "E",
+            ),
         }
     }
     pub const ALL: [Tool; 7] = [
@@ -170,6 +197,8 @@ pub struct CanvasState {
     pub snap: SnapSettings,
     pub show_grid: bool,
     pub canvas_size: Vec2,
+    /// Segurar Espaço vira a mão (quando o perfil de atalhos não usa o Espaço).
+    pub space_pans: bool,
 }
 
 impl Default for CanvasState {
@@ -193,15 +222,39 @@ impl Default for CanvasState {
             },
             show_grid: false,
             canvas_size: Vec2::new(800.0, 600.0),
+            space_pans: true,
         }
     }
 }
 
-const HANDLE: f32 = 5.0;
-const ACCENT: Color32 = Color32::from_rgb(0x1e, 0x88, 0xe5);
-
 fn accent() -> Color32 {
-    ACCENT
+    theme::ACCENT_PRIMARY
+}
+
+/// Linha da seleção e das prévias: 1 px `accent-primary` (DESIGN-SYSTEM 5.1).
+fn thin() -> EStroke {
+    EStroke::new(theme::GUIDE_WIDTH, accent())
+}
+
+/// Borda das alças e nós: 1,5 px `accent-primary`.
+fn handle_stroke() -> EStroke {
+    EStroke::new(theme::HANDLE_STROKE, accent())
+}
+
+/// Cor da marca de encaixe: página, margem, sangria e grade em
+/// `guide-page`; objetos em `guide-object` (5.2).
+fn guide_color(kind: SnapKind) -> Color32 {
+    match kind {
+        SnapKind::Grid | SnapKind::PageCorner | SnapKind::PageEdge | SnapKind::PageCenter => {
+            theme::GUIDE_PAGE
+        }
+        _ => theme::GUIDE_OBJECT,
+    }
+}
+
+/// Raio de atração do encaixe em µm no zoom atual.
+fn snap_radius(view: &View) -> f64 {
+    theme::SNAP_RADIUS_PX / view.zoom
 }
 
 /// Retorno do quadro para a janela principal.
@@ -289,12 +342,7 @@ impl CanvasState {
         let (rect, response) = ui.allocate_exact_size(ui.available_size(), Sense::click_and_drag());
         self.canvas_size = rect.size();
         let painter = ui.painter_at(rect);
-        let desk = if ui.visuals().dark_mode {
-            Color32::from_gray(48)
-        } else {
-            Color32::from_gray(205)
-        };
-        painter.rect_filled(rect, 0.0, desk);
+        painter.rect_filled(rect, theme::RADIUS_NONE, theme::palette(ui).bg_canvas);
 
         let (pw, ph) = doc.page_size();
         let size = rect.size();
@@ -320,7 +368,7 @@ impl CanvasState {
         // ---- navegação comum a todas as ferramentas ----
         let (space, mods, scroll, pinch, hover) = ui.input(|i| {
             (
-                i.key_down(Key::Space),
+                i.key_down(Key::Space) && self.space_pans && !i.modifiers.any(),
                 i.modifiers,
                 i.smooth_scroll_delta.y,
                 i.zoom_delta(),
@@ -431,35 +479,27 @@ impl CanvasState {
         if !self.is_dragging() && matches!(tool, Tool::Rect | Tool::Ellipse | Tool::Bezier) {
             self.snap_hit = self.cursor_page.and_then(|p| {
                 let c = snap::candidates(doc.page(), &self.snap, &[]);
-                snap::snap(p, &c, &self.snap, 8.0 / self.view.zoom)
+                snap::snap(p, &c, &self.snap, snap_radius(&self.view))
             });
-        }
-
-        // Cursor.
-        let cursor = if panning_tool || matches!(self.drag, Drag::Pan) {
-            if self.is_dragging() {
-                CursorIcon::Grabbing
-            } else {
-                CursorIcon::Grab
-            }
-        } else {
-            match tool {
-                Tool::Zoom => CursorIcon::ZoomIn,
-                Tool::Bezier | Tool::Rect | Tool::Ellipse => CursorIcon::Crosshair,
-                Tool::Shape => CursorIcon::Default,
-                _ => match self.drag {
-                    Drag::Move { .. } => CursorIcon::Move,
-                    _ => CursorIcon::Default,
-                },
-            }
-        };
-        if response.hovered() {
-            ui.ctx().set_cursor_icon(cursor);
         }
 
         // ---- desenho ----
         self.paint_page(ui, &painter, doc, rect);
         self.paint_overlays(ui, &painter, doc, rect, tool);
+
+        // Cursor da ferramenta (desenhado por cima, no lugar do cursor do sistema).
+        if response.hovered()
+            && let Some(pos) = hover
+        {
+            let ph = doc.page_size().1;
+            match self.cursor_glyph(tool, panning_tool, doc, pos, rect, ph) {
+                Glyph::System(c) => ui.ctx().set_cursor_icon(c),
+                g => {
+                    ui.ctx().set_cursor_icon(CursorIcon::None);
+                    paint_glyph(ui.ctx(), &g, pos);
+                }
+            }
+        }
         ev
     }
 
@@ -477,12 +517,13 @@ impl CanvasState {
             rect.min + Vec2::new(a as f32, b as f32)
         };
         let page_rect = Rect::from_min_max(s(0.0, ph), s(pw, 0.0));
-        painter.rect_filled(
-            page_rect.translate(Vec2::new(3.0, 3.0)),
-            0.0,
-            Color32::from_black_alpha(60),
+        // Folha `page-paper` com `shadow-page` sobre o canvas (5.3).
+        painter.add(
+            theme::palette(ui)
+                .shadow_page()
+                .as_shape(page_rect, theme::RADIUS_NONE),
         );
-        painter.rect_filled(page_rect, 0.0, Color32::WHITE);
+        painter.rect_filled(page_rect, theme::RADIUS_NONE, theme::PAGE_PAPER);
 
         let ppp = ui.ctx().pixels_per_point();
         let size = rect.size();
@@ -542,18 +583,11 @@ impl CanvasState {
                 Color32::WHITE,
             );
         }
-        painter.rect_stroke(
-            page_rect,
-            0.0,
-            EStroke::new(1.0, Color32::from_gray(140)),
-            egui::StrokeKind::Outside,
-        );
-
         // Grade (quando ligada e legível).
         if self.show_grid
             && let Some(g) = self.snap.grid.filter(|g| *g * v.zoom >= 6.0)
         {
-            let stroke = EStroke::new(1.0, Color32::from_rgba_unmultiplied(30, 136, 229, 40));
+            let stroke = EStroke::new(theme::GUIDE_WIDTH, theme::GRID_LINE);
             let mut x = 0.0;
             while x <= pw {
                 painter.line_segment([s(x, 0.0), s(x, ph)], stroke);
@@ -564,6 +598,90 @@ impl CanvasState {
                 painter.line_segment([s(0.0, y), s(pw, y)], stroke);
                 y += g;
             }
+        }
+    }
+
+    /// Qual cursor mostrar: o da ferramenta, ou o de redimensionar/girar
+    /// sobre as alças da seleção.
+    fn cursor_glyph(
+        &self,
+        tool: Tool,
+        panning: bool,
+        doc: &DocState,
+        pos: Pos2,
+        rect: Rect,
+        ph: f64,
+    ) -> Glyph {
+        let icon = |name, hx, hy| Glyph::Icon {
+            name,
+            hotspot: (hx, hy),
+        };
+        if panning || matches!(self.drag, Drag::Pan) {
+            return if self.is_dragging() {
+                icon("cur-grab", 12.0, 12.0)
+            } else {
+                icon("cur-pan", 12.0, 12.0)
+            };
+        }
+        let resize = |a: Anchor| {
+            Glyph::System(match a {
+                Anchor::TopLeft | Anchor::BottomRight => CursorIcon::ResizeNwSe,
+                Anchor::TopRight | Anchor::BottomLeft => CursorIcon::ResizeNeSw,
+                Anchor::Top | Anchor::Bottom => CursorIcon::ResizeVertical,
+                _ => CursorIcon::ResizeHorizontal,
+            })
+        };
+        match &self.drag {
+            Drag::Move { .. } => return icon("cur-move", 12.0, 12.0),
+            Drag::Rotate { .. } => return icon("cur-rotate", 12.0, 12.0),
+            Drag::Scale { handle, .. } => return resize(*handle),
+            Drag::Skew { horizontal, .. } => {
+                return Glyph::System(if *horizontal {
+                    CursorIcon::ResizeHorizontal
+                } else {
+                    CursorIcon::ResizeVertical
+                });
+            }
+            _ => {}
+        }
+        if tool == Tool::Select
+            && let Some(b) = ops::selection_bounds(&doc.editor, &doc.selection, false)
+        {
+            for (a, hp) in self.handle_rects(rect, ph, b) {
+                if (hp - pos).length() <= theme::HANDLE_HIT {
+                    let corner = matches!(
+                        a,
+                        Anchor::TopLeft
+                            | Anchor::TopRight
+                            | Anchor::BottomLeft
+                            | Anchor::BottomRight
+                    );
+                    return match (self.rotate_mode, corner) {
+                        (true, true) => icon("cur-rotate", 12.0, 12.0),
+                        (true, false) => {
+                            Glyph::System(if matches!(a, Anchor::Top | Anchor::Bottom) {
+                                CursorIcon::ResizeHorizontal
+                            } else {
+                                CursorIcon::ResizeVertical
+                            })
+                        }
+                        (false, _) => resize(a),
+                    };
+                }
+            }
+        }
+        match tool {
+            Tool::Select => icon("cur-select", 6.0, 3.5),
+            Tool::Shape => icon("cur-shape", 5.0, 3.5),
+            Tool::Zoom => icon("cur-zoom", 10.5, 10.5),
+            Tool::Pan => icon("cur-pan", 12.0, 12.0),
+            Tool::Bezier => Glyph::Cross {
+                badge: "tool-bezier",
+            },
+            Tool::Rect => Glyph::Cross { badge: "tool-rect" },
+            Tool::Ellipse => Glyph::Cross {
+                badge: "tool-ellipse",
+            },
         }
     }
 
@@ -600,14 +718,15 @@ impl CanvasState {
         tool: Tool,
     ) {
         let ph = doc.page_size().1;
-        let thin = EStroke::new(1.0, accent());
+        let thin = thin();
+        let hs = handle_stroke();
         // Contorno fino de cada objeto selecionado + caixa da seleção com alças.
         for r in ops::refs(&doc.editor, &doc.selection) {
             if let Some(b) = ops::object_bounds(&doc.editor, &r, false) {
                 painter.rect_stroke(
                     self.screen_rect(rect, ph, b),
                     0.0,
-                    EStroke::new(1.0, Color32::from_rgba_unmultiplied(30, 136, 229, 110)),
+                    EStroke::new(theme::GUIDE_WIDTH, theme::SELECTION_OBJECT),
                     egui::StrokeKind::Middle,
                 );
             }
@@ -616,7 +735,7 @@ impl CanvasState {
             && let Some(b) = ops::selection_bounds(&doc.editor, &doc.selection, false)
         {
             let sr = self.screen_rect(rect, ph, b);
-            painter.rect_stroke(sr, 0.0, thin, egui::StrokeKind::Middle);
+            painter.rect_stroke(sr, theme::RADIUS_NONE, thin, egui::StrokeKind::Middle);
             if self.rotate_mode {
                 for (a, p) in self.handle_rects(rect, ph, b) {
                     let corner = matches!(
@@ -627,27 +746,29 @@ impl CanvasState {
                             | Anchor::BottomRight
                     );
                     if corner {
-                        painter.circle(p, HANDLE, Color32::WHITE, thin);
+                        painter.circle(p, theme::HANDLE_SIZE / 2.0, theme::HANDLE_FILL, hs);
                     } else {
-                        let d = HANDLE;
+                        let d = theme::HANDLE_SIZE / 2.0 + theme::SPACE_050;
                         let pts = vec![
                             p + Vec2::new(0.0, -d),
                             p + Vec2::new(d, 0.0),
                             p + Vec2::new(0.0, d),
                             p + Vec2::new(-d, 0.0),
                         ];
-                        painter.add(egui::Shape::convex_polygon(pts, Color32::WHITE, thin));
+                        painter.add(egui::Shape::convex_polygon(pts, theme::HANDLE_FILL, hs));
                     }
                 }
                 let c = self.screen(rect, ph, self.rotation_center(b));
-                painter.circle_stroke(c, 6.0, thin);
-                painter.line_segment([c - Vec2::new(9.0, 0.0), c + Vec2::new(9.0, 0.0)], thin);
-                painter.line_segment([c - Vec2::new(0.0, 9.0), c + Vec2::new(0.0, 9.0)], thin);
+                let (cr, arm) = (theme::ROTATION_CENTER, theme::ROTATION_CENTER_ARM);
+                painter.circle_stroke(c, cr, thin);
+                painter.line_segment([c - Vec2::new(arm, 0.0), c + Vec2::new(arm, 0.0)], thin);
+                painter.line_segment([c - Vec2::new(0.0, arm), c + Vec2::new(0.0, arm)], thin);
             } else {
                 for (_, p) in self.handle_rects(rect, ph, b) {
-                    let r = Rect::from_center_size(p, Vec2::splat(HANDLE * 2.0));
-                    painter.rect_filled(r, 1.0, Color32::WHITE);
-                    painter.rect_stroke(r, 1.0, thin, egui::StrokeKind::Middle);
+                    // Âncora: 6 × 6 px, borda 1,5 px, raio `radius-xs` (5.1).
+                    let r = Rect::from_center_size(p, Vec2::splat(theme::HANDLE_SIZE));
+                    painter.rect_filled(r, theme::RADIUS_XS, theme::HANDLE_FILL);
+                    painter.rect_stroke(r, theme::RADIUS_XS, hs, egui::StrokeKind::Middle);
                 }
             }
         }
@@ -660,8 +781,8 @@ impl CanvasState {
             Drag::Rubber { start } | Drag::NodeRubber { start } | Drag::ZoomRect { start } => {
                 if let Some(h) = hover {
                     let r = Rect::from_two_pos(*start, h);
-                    painter.rect_filled(r, 0.0, Color32::from_rgba_unmultiplied(30, 136, 229, 25));
-                    painter.rect_stroke(r, 0.0, thin, egui::StrokeKind::Middle);
+                    painter.rect_filled(r, theme::RADIUS_NONE, theme::SELECTION_FILL);
+                    painter.rect_stroke(r, theme::RADIUS_NONE, thin, egui::StrokeKind::Middle);
                 }
             }
             Drag::DrawRect { start, ellipse, .. } => {
@@ -676,7 +797,7 @@ impl CanvasState {
                             thin,
                         ));
                     } else {
-                        painter.rect_stroke(sr, 0.0, thin, egui::StrokeKind::Middle);
+                        painter.rect_stroke(sr, theme::RADIUS_NONE, thin, egui::StrokeKind::Middle);
                     }
                 }
             }
@@ -703,27 +824,28 @@ impl CanvasState {
             self.stroke_bez(painter, rect, ph, &path, thin);
             for n in &d.nodes {
                 let p = self.screen(rect, ph, pt(n.p));
-                painter.rect_filled(Rect::from_center_size(p, Vec2::splat(7.0)), 1.0, accent());
+                painter.rect_filled(
+                    Rect::from_center_size(p, Vec2::splat(theme::HANDLE_SIZE)),
+                    theme::RADIUS_XS,
+                    accent(),
+                );
                 for h in [n.handle_in, n.handle_out].into_iter().flatten() {
                     let hp = self.screen(rect, ph, pt(h));
                     painter.line_segment([p, hp], thin);
-                    painter.circle_filled(hp, 3.0, accent());
+                    painter.circle_filled(hp, theme::NODE_SIZE / 2.0, accent());
                 }
             }
         }
         if let Some(s) = self.snap_hit {
             let p = self.screen(rect, ph, s.point);
-            painter.circle_stroke(
-                p,
-                6.0,
-                EStroke::new(2.0, Color32::from_rgb(0xe5, 0x39, 0x35)),
-            );
+            let color = guide_color(s.kind);
+            painter.circle_stroke(p, theme::SNAP_MARK, EStroke::new(theme::FOCUS_WIDTH, color));
             painter.text(
-                p + Vec2::new(9.0, -9.0),
+                p + Vec2::new(theme::SNAP_MARK, -theme::SNAP_MARK) * 1.5,
                 egui::Align2::LEFT_BOTTOM,
                 s.kind.label(),
-                egui::FontId::proportional(11.0),
-                Color32::from_rgb(0xe5, 0x39, 0x35),
+                theme::font_micro(),
+                color,
             );
         }
     }
@@ -769,8 +891,9 @@ impl CanvasState {
         };
         let mut bez = graphdraw_core::model::geom::subpaths_to_bez(&path.subpaths);
         bez.apply_affine(m);
-        self.stroke_bez(painter, rect, ph, &bez, EStroke::new(1.0, accent()));
-        let thin = EStroke::new(1.0, accent());
+        let thin = thin();
+        let hs = handle_stroke();
+        self.stroke_bez(painter, rect, ph, &bez, thin);
         for r in nodes::all_nodes(path) {
             let n = nodes::node(path, r).unwrap();
             let p = self.screen(rect, ph, m * pt(n.p));
@@ -779,18 +902,24 @@ impl CanvasState {
                 for h in [n.handle_in, n.handle_out].into_iter().flatten() {
                     let hp = self.screen(rect, ph, m * pt(h));
                     painter.line_segment([p, hp], thin);
-                    painter.circle(hp, 3.5, Color32::WHITE, thin);
+                    painter.circle(hp, theme::NODE_SIZE / 2.0, theme::HANDLE_FILL, hs);
                 }
             }
-            let r = Rect::from_center_size(p, Vec2::splat(8.0));
-            let fill = if selected { accent() } else { Color32::WHITE };
+            // Nó de canto = quadrado, nó suave = círculo; selecionado em
+            // `accent-primary`, senão branco com borda (5.1).
+            let r = Rect::from_center_size(p, Vec2::splat(theme::NODE_SIZE));
+            let fill = if selected {
+                accent()
+            } else {
+                theme::HANDLE_FILL
+            };
             match n.kind {
                 NodeKind::Corner => {
-                    painter.rect_filled(r, 0.0, fill);
-                    painter.rect_stroke(r, 0.0, thin, egui::StrokeKind::Middle);
+                    painter.rect_filled(r, theme::RADIUS_XS, fill);
+                    painter.rect_stroke(r, theme::RADIUS_XS, hs, egui::StrokeKind::Middle);
                 }
                 _ => {
-                    painter.circle(p, 4.5, fill, thin);
+                    painter.circle(p, theme::NODE_SIZE / 2.0, fill, hs);
                 }
             }
         }
@@ -816,8 +945,8 @@ impl CanvasState {
             Tool::Zoom => self.drag = Drag::ZoomRect { start: origin },
             Tool::Rect | Tool::Ellipse => {
                 let cands = snap::candidates(doc.page(), &self.snap, &[]);
-                let start =
-                    snap::snap(p, &cands, &self.snap, 8.0 / self.view.zoom).map_or(p, |s| s.point);
+                let start = snap::snap(p, &cands, &self.snap, snap_radius(&self.view))
+                    .map_or(p, |s| s.point);
                 self.drag = Drag::DrawRect {
                     start,
                     ellipse: tool == Tool::Ellipse,
@@ -848,7 +977,7 @@ impl CanvasState {
         ph: f64,
     ) {
         if let Some(b) = ops::selection_bounds(&doc.editor, &doc.selection, false) {
-            let near = |q: Pos2| (q - origin).length() <= HANDLE + 3.0;
+            let near = |q: Pos2| (q - origin).length() <= theme::HANDLE_HIT;
             if self.rotate_mode {
                 let c = self.rotation_center(b);
                 if near(self.screen(rect, ph, c)) {
@@ -1043,7 +1172,7 @@ impl CanvasState {
     }
 
     fn update_drag(&mut self, doc: &mut DocState, cur: Point, mods: egui::Modifiers, _tol: f64) {
-        let radius = 8.0 / self.view.zoom;
+        let radius = snap_radius(&self.view);
         self.snap_hit = None;
         match &self.drag {
             Drag::Move {
@@ -1350,7 +1479,7 @@ impl CanvasState {
             p,
             &snap::candidates(doc.page(), &self.snap, &[]),
             &self.snap,
-            8.0 / self.view.zoom,
+            snap_radius(&self.view),
         )
         .map_or(p, |s| s.point);
         if let Some(d) = &self.bezier
@@ -1505,6 +1634,90 @@ impl CanvasState {
     }
 }
 
+/// Cursor desenhado sobre o canvas.
+enum Glyph {
+    /// Ícone com o ponto ativo em coordenadas da grade 24×24.
+    Icon {
+        name: &'static str,
+        hotspot: (f32, f32),
+    },
+    /// Mira precisa com o ícone da ferramenta ao lado (ferramentas de desenho).
+    Cross { badge: &'static str },
+    /// Cursor do sistema (alças de redimensionar).
+    System(CursorIcon),
+}
+
+const CURSOR_SIZE: f32 = theme::ICON_CURSOR;
+
+/// Desenha o ícone em preto com um halo branco, para aparecer tanto no papel
+/// quanto na área de trabalho escura.
+fn paint_icon(ctx: &egui::Context, painter: &egui::Painter, name: &str, r: Rect) {
+    let img = egui::Image::new(crate::icons::get(name));
+    let Ok(egui::load::TexturePoll::Ready { texture }) =
+        img.load_for_size(ctx, r.size() * ctx.pixels_per_point())
+    else {
+        return;
+    };
+    let uv = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
+    for (dx, dy) in [
+        (-1.0, 0.0),
+        (1.0, 0.0),
+        (0.0, -1.0),
+        (0.0, 1.0),
+        (-1.0, -1.0),
+        (1.0, 1.0),
+        (-1.0, 1.0),
+        (1.0, -1.0),
+    ] {
+        painter.image(
+            texture.id,
+            r.translate(Vec2::new(dx, dy)),
+            uv,
+            theme::CURSOR_HALO,
+        );
+    }
+    painter.image(texture.id, r, uv, theme::CURSOR_INK);
+}
+
+fn paint_glyph(ctx: &egui::Context, g: &Glyph, pos: Pos2) {
+    let layer = egui::LayerId::new(egui::Order::Tooltip, egui::Id::unique("cursor-ferramenta"));
+    let painter = ctx.layer_painter(layer);
+    match g {
+        Glyph::Icon { name, hotspot } => {
+            let k = CURSOR_SIZE / 24.0;
+            let min = pos - Vec2::new(hotspot.0 * k, hotspot.1 * k);
+            paint_icon(
+                ctx,
+                &painter,
+                name,
+                Rect::from_min_size(min, Vec2::splat(CURSOR_SIZE)),
+            );
+        }
+        Glyph::Cross { badge } => {
+            let (gap, len) = (theme::CROSS_GAP, theme::CROSS_ARM);
+            let ink = theme::GUIDE_WIDTH;
+            for (w, c) in [
+                (ink + 2.0 * theme::CURSOR_HALO_WIDTH, theme::CURSOR_HALO),
+                (ink, theme::CURSOR_INK),
+            ] {
+                let st = EStroke::new(w, c);
+                for (a, b) in [
+                    (Vec2::new(-len, 0.0), Vec2::new(-gap, 0.0)),
+                    (Vec2::new(gap, 0.0), Vec2::new(len, 0.0)),
+                    (Vec2::new(0.0, -len), Vec2::new(0.0, -gap)),
+                    (Vec2::new(0.0, gap), Vec2::new(0.0, len)),
+                ] {
+                    painter.line_segment([pos + a, pos + b], st);
+                }
+            }
+            let off = len - 1.0;
+            let r = Rect::from_min_size(pos + Vec2::splat(off), Vec2::splat(theme::CROSS_BADGE));
+            paint_icon(ctx, &painter, badge, r);
+        }
+        Glyph::System(_) => {}
+    }
+}
+
 fn pt(p: [f64; 2]) -> Point {
     Point::new(p[0], p[1])
 }
@@ -1609,4 +1822,45 @@ fn fit_rect(r: kurbo::Rect, ph: f64, size: Vec2) -> View {
 /// Ajusta a vista para mostrar `r` (zoom para seleção/tudo, GD-FER-04).
 pub fn zoom_to_rect(cs: &mut CanvasState, r: kurbo::Rect) {
     cs.zoom_to = Some(r.inflate(r.width() * 0.05, r.height() * 0.05));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Cada ferramenta tem o próprio cursor; alças da seleção usam os de
+    /// redimensionar do sistema.
+    #[test]
+    fn each_tool_has_its_cursor() {
+        let cs = CanvasState::default();
+        let doc = DocState::new_blank();
+        let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(800.0, 600.0));
+        let pos = Pos2::new(400.0, 300.0);
+        let name = |g: Glyph| match g {
+            Glyph::Icon { name, .. } => name.to_string(),
+            Glyph::Cross { badge } => format!("mira+{badge}"),
+            Glyph::System(c) => format!("{c:?}"),
+        };
+        let got: Vec<String> = Tool::ALL
+            .iter()
+            .map(|t| name(cs.cursor_glyph(*t, false, &doc, pos, rect, 297_000.0)))
+            .collect();
+        assert_eq!(
+            got,
+            [
+                "cur-select",
+                "cur-shape",
+                "cur-zoom",
+                "cur-pan",
+                "mira+tool-bezier",
+                "mira+tool-rect",
+                "mira+tool-ellipse"
+            ]
+        );
+        assert_eq!(
+            name(cs.cursor_glyph(Tool::Select, true, &doc, pos, rect, 297_000.0)),
+            "cur-pan",
+            "espaço = mão"
+        );
+    }
 }

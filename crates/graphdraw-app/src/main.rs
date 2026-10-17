@@ -8,10 +8,14 @@ mod app;
 mod canvas;
 mod dialogs;
 mod doc;
+mod doctabs;
 mod i18n;
 mod icons;
+mod import;
+mod keymap;
 mod pagebar;
 mod panels;
+mod theme;
 mod view;
 mod widgets;
 

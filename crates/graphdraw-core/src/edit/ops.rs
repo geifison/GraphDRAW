@@ -709,6 +709,147 @@ pub fn edit_stroke(ed: &mut Editor, sel: &[String], f: impl Fn(&mut Stroke)) {
     });
 }
 
+/// Converte o contorno em objeto (GD-OUT-09): gera um caminho fechado com
+/// preenchimento na cor do contorno, logo acima do original (abaixo, se o
+/// contorno estava atrás do preenchimento). O original perde o contorno; se
+/// não tinha preenchimento, é substituído. Devolve os IDs dos objetos novos.
+///
+/// Limitação: contorno interno/externo é convertido como centrado (falta a
+/// operação booleana para recortar).
+pub fn outline_to_object(ed: &mut Editor, sel: &[String]) -> Selection {
+    use crate::model::{FillRule, PathData};
+    let mut out = Vec::new();
+    let targets: Vec<String> = sel
+        .iter()
+        .filter(|id| {
+            ed.find(id)
+                .and_then(|r| ed.get(&r))
+                .is_some_and(|o| o.stroke.is_some() && super::query::local_outline(o).is_some())
+        })
+        .cloned()
+        .collect();
+    if targets.is_empty() {
+        return out;
+    }
+    ed.transaction(
+        format!(
+            "Converter contorno em objeto ({})",
+            plural(targets.len(), "objeto", "objetos")
+        ),
+        |ed| {
+            for id in &targets {
+                let Some(r) = ed.find(id) else { continue };
+                let o = ed.get(&r).unwrap().clone();
+                let (Some(st), Some(local)) = (o.stroke.clone(), super::query::local_outline(&o))
+                else {
+                    continue;
+                };
+                // Espessura no espaço local do objeto.
+                let m = ed.parent_affine(&r) * o.transform.affine();
+                let scale = m.determinant().abs().sqrt().max(1e-12);
+                let page_w = if st.width <= 0.0 {
+                    crate::model::paint::HAIRLINE_UM
+                } else if st.scale_with_object {
+                    st.width * scale
+                } else {
+                    st.width
+                };
+                let w = page_w / scale;
+                let cap = match st.cap.as_str() {
+                    "round" => kurbo::Cap::Round,
+                    "square" => kurbo::Cap::Square,
+                    _ => kurbo::Cap::Butt,
+                };
+                let join = match st.join.as_str() {
+                    "round" => kurbo::Join::Round,
+                    "bevel" => kurbo::Join::Bevel,
+                    _ => kurbo::Join::Miter,
+                };
+                let mut ks = kurbo::Stroke::new(w)
+                    .with_caps(cap)
+                    .with_join(join)
+                    .with_miter_limit(st.miter_limit);
+                if let Some(d) = st.dash.as_ref().filter(|d| d.iter().any(|v| *v > 0.0)) {
+                    let k = if st.scale_with_object {
+                        1.0
+                    } else {
+                        1.0 / scale
+                    };
+                    ks = ks.with_dashes(st.dash_offset * k, d.iter().map(|v| v * k));
+                }
+                let tol = (w / 1000.0).max(0.01);
+                let shape = close_all(&kurbo::stroke(
+                    local,
+                    &ks,
+                    &kurbo::StrokeOpts::default(),
+                    tol,
+                ));
+                let mut obj = Object::new(ObjectKind::Path(PathData {
+                    subpaths: super::convert::bez_to_subpaths(&shape),
+                    fill_rule: FillRule::Nonzero,
+                    extra: Default::default(),
+                }));
+                obj.transform = o.transform;
+                obj.fill = Some(Fill::Solid {
+                    color: st.color.clone(),
+                    opacity: st.opacity,
+                    overprint: false,
+                    extra: Default::default(),
+                });
+                obj.opacity = o.opacity;
+                obj.name = o.name.as_ref().map(|n| format!("{n} (contorno)"));
+                out.push(obj.id.clone());
+                let filled = !matches!(o.fill, None | Some(Fill::None));
+                let c = r.container();
+                if filled {
+                    let mut base = o.clone();
+                    base.stroke = None;
+                    ed.replace_at(&r, base);
+                    let at = if st.behind_fill {
+                        r.index()
+                    } else {
+                        r.index() + 1
+                    };
+                    ed.insert_at(&c, at, obj);
+                } else {
+                    ed.replace_at(&r, obj);
+                }
+            }
+        },
+    );
+    out
+}
+
+/// Fecha todos os subcaminhos (a expansão de traço devolve contornos que
+/// voltam ao ponto inicial sem o comando de fechar).
+fn close_all(path: &kurbo::BezPath) -> kurbo::BezPath {
+    use kurbo::PathEl;
+    let mut out = kurbo::BezPath::new();
+    let mut open = false;
+    for el in path.elements() {
+        match el {
+            PathEl::MoveTo(_) => {
+                if open {
+                    out.close_path();
+                }
+                open = true;
+                out.push(*el);
+            }
+            PathEl::ClosePath => {
+                if open {
+                    out.close_path();
+                }
+                open = false;
+            }
+            other => out.push(*other),
+        }
+    }
+    if open {
+        out.close_path();
+    }
+    out
+}
+
 /// Converte primitivas em curvas (GD-CNV-01, subconjunto).
 pub fn convert_to_curves(ed: &mut Editor, sel: &[String]) {
     modify(ed, sel, "Converter em curvas", |o| {
@@ -897,6 +1038,61 @@ mod tests {
         delete(&mut ed, &ids);
         assert_eq!(ed.objects(0, 0).len(), 1);
         assert_eq!(ed.history().last().unwrap().0, "Excluir 3 objetos");
+    }
+
+    /// Aceite de GD-OUT-09: linha de 2 mm com terminação redonda vira caminho
+    /// fechado com semicírculos de raio 1 mm nas pontas.
+    #[test]
+    fn gd_out_09_outline_to_object() {
+        use crate::model::{Node, PathData, Subpath};
+        let mut d = Document::new();
+        d.data.pages.push(Page::new(100_000.0, 100_000.0));
+        let mut ed = Editor::new(d);
+        let mut line = Object::new(ObjectKind::Path(PathData {
+            subpaths: vec![Subpath {
+                closed: false,
+                nodes: vec![Node::corner(0.0, 0.0), Node::corner(10_000.0, 0.0)],
+                extra: Map::new(),
+            }],
+            fill_rule: Default::default(),
+            extra: Map::new(),
+        }));
+        let mut st = Stroke::new(2_000.0, Color::cmyk(0.0, 1.0, 0.0, 0.0));
+        st.cap = "round".into();
+        line.stroke = Some(st);
+        let id = add_object(&mut ed, 0, 0, line, "Linha");
+        let new = outline_to_object(&mut ed, std::slice::from_ref(&id));
+        assert_eq!(new.len(), 1);
+        assert!(
+            ed.find(&id).is_none(),
+            "linha sem preenchimento é substituída"
+        );
+        let o = selected_objects(&ed, &new)[0].clone();
+        assert!(o.stroke.is_none());
+        assert!(
+            matches!(&o.fill, Some(Fill::Solid { color, .. }) if *color == Color::cmyk(0.0, 1.0, 0.0, 0.0))
+        );
+        let ObjectKind::Path(p) = &o.kind else {
+            panic!()
+        };
+        assert!(p.subpaths.iter().all(|s| s.closed), "caminho fechado");
+        let b = bounds(&o, Affine::IDENTITY, false).unwrap();
+        assert!(
+            (b.x0 + 1_000.0).abs() < 5.0 && (b.x1 - 11_000.0).abs() < 5.0,
+            "{b:?}"
+        );
+        assert!(
+            (b.y0 + 1_000.0).abs() < 5.0 && (b.y1 - 1_000.0).abs() < 5.0,
+            "{b:?}"
+        );
+        let area = crate::geometry::signed_area(p).abs();
+        let expected = 10_000.0 * 2_000.0 + std::f64::consts::PI * 1_000.0 * 1_000.0;
+        assert!(
+            (area - expected).abs() / expected < 0.005,
+            "{area} vs {expected}"
+        );
+        ed.undo();
+        assert!(ed.find(&id).is_some());
     }
 
     fn b_any(ed: &Editor, id: &str) -> Rect {

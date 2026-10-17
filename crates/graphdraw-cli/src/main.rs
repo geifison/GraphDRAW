@@ -61,6 +61,10 @@ struct ConvertArgs {
     /// Grava o relatório de importação em JSON.
     #[arg(long, value_name = "ARQUIVO")]
     report: Option<PathBuf>,
+    /// PDF para gráfica (PDF/X-1a:2001). Condição de impressão opcional:
+    /// fogra39 (couché, padrão), fogra47 (não couché) ou swop.
+    #[arg(long, value_name = "CONDIÇÃO", num_args = 0..=1, default_missing_value = "fogra39")]
+    pdfx: Option<String>,
 }
 
 fn main() -> ExitCode {
@@ -139,17 +143,29 @@ fn convert_one(
         Some(spec) => export::parse_pages(spec, doc.data.pages.len()).map_err(|e| e.to_string())?,
         None => Vec::new(),
     };
+    let pdf = match &args.pdfx {
+        None => export::PdfStandard::Screen,
+        Some(c) => {
+            export::PdfStandard::X1a(export::PrintCondition::from_name(c).ok_or_else(|| {
+                format!("condição de impressão desconhecida: '{c}' (use fogra39, fogra47 ou swop)")
+            })?)
+        }
+    };
     let opts = ExportOptions {
+        pdf,
         pages,
         dpi: args.dpi,
         text_to_curves: args.text_to_curves,
         antialias: !args.no_antialias,
         background,
     };
-    let written = export::export(&doc, output, format, &opts)
+    let (written, warnings) = export::export_with_report(&doc, output, format, &opts)
         .map_err(|e| format!("{}: {e}", output.display()))?;
     for w in written {
         println!("{} → {}", input.display(), w.display());
+    }
+    for w in warnings {
+        eprintln!("  aviso: {w}");
     }
     Ok(report)
 }

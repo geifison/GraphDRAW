@@ -21,6 +21,7 @@ use crate::canvas::Defaults;
 use crate::doc::{DocState, default_stroke};
 use crate::i18n::tr;
 use crate::icons;
+use crate::theme;
 use crate::widgets::{color_editor, fmt_mm, length_field, to_color32};
 
 #[allow(clippy::large_enum_variant)]
@@ -82,26 +83,21 @@ enum Close {
 
 fn buttons(ui: &mut egui::Ui) -> Close {
     let mut out = Close::No;
-    // Altura fixa: dentro de um modal, um layout sem limite ocuparia a tela toda.
-    let size = Vec2::new(ui.available_width(), 28.0);
-    ui.allocate_ui_with_layout(
-        size,
-        egui::Layout::right_to_left(egui::Align::Center),
-        |ui| {
-            if ui
-                .add(egui::Button::new(tr("OK", "OK")).min_size(Vec2::new(80.0, 0.0)))
-                .clicked()
-            {
-                out = Close::Ok;
-            }
-            if ui
-                .add(egui::Button::new(tr("Cancelar", "Cancel")).min_size(Vec2::new(80.0, 0.0)))
-                .clicked()
-            {
-                out = Close::Cancel;
-            }
-        },
-    );
+    // Rodapé (DESIGN-SYSTEM 4.4): Cancelar (secundário) e OK (primário) à direita.
+    crate::widgets::footer(ui, |ui| {
+        if ui
+            .add(crate::widgets::primary_button(tr("OK", "OK")))
+            .clicked()
+        {
+            out = Close::Ok;
+        }
+        if ui
+            .add(crate::widgets::secondary_button(tr("Cancelar", "Cancel")))
+            .clicked()
+        {
+            out = Close::Cancel;
+        }
+    });
     if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
         out = Close::Cancel;
     }
@@ -109,9 +105,9 @@ fn buttons(ui: &mut egui::Ui) -> Close {
 }
 
 fn section(ui: &mut egui::Ui, title: &str, body: impl FnOnce(&mut egui::Ui)) {
-    ui.label(egui::RichText::new(title).strong());
+    ui.label(egui::RichText::new(title).text_style(theme::section_style()));
     ui.indent(title, body);
-    ui.add_space(6.0);
+    ui.add_space(theme::SPACE_300);
 }
 
 /// Grupo de botões de ícone mutuamente exclusivos.
@@ -225,33 +221,34 @@ impl StrokeDialog {
         } else {
             tr("Contorno", "Outline")
         };
-        let resp = egui::Modal::new(egui::Id::unique("janela-contorno")).show(ctx, |ui| {
-            ui.set_width(560.0);
-            ui.heading(title);
-            ui.separator();
-            // Sem separador vertical: ele pede a altura toda e o modal sai da tela.
-            let max_h = (ui.ctx().content_rect().height() * 0.75).max(240.0);
-            ui.horizontal_top(|ui| {
-                ui.vertical(|ui| {
-                    ui.set_width(300.0);
-                    egui::ScrollArea::vertical()
-                        .max_height(max_h)
-                        .auto_shrink([false, true])
-                        .show(ui, |ui| self.form(ui));
+        let resp =
+            crate::widgets::modal(ctx, egui::Id::unique("janela-contorno")).show(ctx, |ui| {
+                ui.set_width(560.0);
+                ui.heading(title);
+                ui.separator();
+                // Sem separador vertical: ele pede a altura toda e o modal sai da tela.
+                let max_h = (ui.ctx().content_rect().height() * theme::MODAL_MAX_HEIGHT).max(240.0);
+                ui.horizontal_top(|ui| {
+                    ui.vertical(|ui| {
+                        ui.set_width(300.0);
+                        egui::ScrollArea::vertical()
+                            .max_height(max_h)
+                            .auto_shrink([false, true])
+                            .show(ui, |ui| self.form(ui));
+                    });
+                    ui.add_space(theme::SPACE_400);
+                    ui.vertical(|ui| {
+                        ui.label(tr("Prévia", "Preview"));
+                        self.preview(ui);
+                        ui.weak(tr(
+                            "Prévia em tamanho real aproximado (cerca de 4 px por mm).",
+                            "Approximately real-size preview (about 4 px per mm).",
+                        ));
+                    });
                 });
-                ui.add_space(16.0);
-                ui.vertical(|ui| {
-                    ui.label(tr("Prévia", "Preview"));
-                    self.preview(ui);
-                    ui.weak(tr(
-                        "Prévia em tamanho real aproximado (cerca de 4 px por mm).",
-                        "Approximately real-size preview (about 4 px per mm).",
-                    ));
-                });
+                ui.separator();
+                buttons(ui)
             });
-            ui.separator();
-            buttons(ui)
-        });
         self.rect = resp.response.rect;
         match resp.inner {
             Close::No => false,
@@ -531,7 +528,7 @@ fn dash_sample(ui: &mut egui::Ui, preset: usize) {
                 rect.center(),
                 egui::Align2::CENTER_CENTER,
                 "…",
-                egui::FontId::proportional(12.0),
+                theme::font_body(),
                 color,
             );
         }
@@ -661,7 +658,7 @@ impl FillDialog {
         } else {
             tr("Preenchimento", "Fill")
         };
-        let resp = egui::Modal::new(egui::Id::unique("janela-preenchimento")).show(ctx, |ui| {
+        let resp = crate::widgets::modal(ctx, egui::Id::unique("janela-preenchimento")).show(ctx, |ui| {
             ui.set_width(460.0);
             ui.heading(title);
             ui.separator();
@@ -686,7 +683,7 @@ impl FillDialog {
             });
             if self.other_kind && !self.changed {
                 ui.colored_label(
-                    Color32::from_rgb(0xd0, 0x8a, 0x00),
+                    theme::ACCENT_WARNING,
                     tr(
                         "O preenchimento atual (gradiente ou outro tipo) não é editável aqui; mudar algo o substitui por uniforme.",
                         "The current fill (gradient or other) is not editable here; changing anything replaces it with uniform.",
@@ -759,16 +756,16 @@ fn fill_sample(ui: &mut egui::Ui, fill: Option<&Fill>) {
     for i in 0..14 {
         for j in 0..14 {
             let c = if (i + j) % 2 == 0 {
-                Color32::from_gray(255)
+                theme::CHECKER_LIGHT
             } else {
-                Color32::from_gray(210)
+                theme::CHECKER_DARK
             };
             p.rect_filled(
                 egui::Rect::from_min_size(
                     rect.min + Vec2::new(i as f32 * cell, j as f32 * cell),
                     Vec2::splat(cell),
                 ),
-                0.0,
+                theme::RADIUS_NONE,
                 c,
             );
         }
@@ -780,21 +777,21 @@ fn fill_sample(ui: &mut egui::Ui, fill: Option<&Fill>) {
             let a = (opacity.clamp(0.0, 1.0) * 255.0).round() as u8;
             p.rect_filled(
                 inner,
-                4.0,
+                theme::RADIUS_SM,
                 Color32::from_rgba_unmultiplied(c.r(), c.g(), c.b(), a),
             );
         }
         _ => {
             p.line_segment(
                 [inner.left_bottom(), inner.right_top()],
-                egui::Stroke::new(2.0, Color32::from_rgb(0xe5, 0x39, 0x35)),
+                egui::Stroke::new(theme::FOCUS_WIDTH, theme::ACCENT_DANGER),
             );
         }
     }
     p.rect_stroke(
         inner,
-        4.0,
-        egui::Stroke::new(1.0, Color32::from_gray(90)),
+        theme::RADIUS_SM,
+        theme::border_default(ui),
         egui::StrokeKind::Middle,
     );
 }
@@ -843,11 +840,7 @@ fn indicator(ui: &mut egui::Ui) -> (egui::Rect, egui::Response) {
 }
 
 fn none_mark(p: &egui::Painter, rect: egui::Rect) {
-    p.rect_filled(rect, 2.0, Color32::WHITE);
-    p.line_segment(
-        [rect.left_bottom(), rect.right_top()],
-        egui::Stroke::new(1.5, Color32::from_rgb(0xe5, 0x39, 0x35)),
-    );
+    crate::widgets::no_color(p, rect);
 }
 
 fn fill_swatch(ui: &mut egui::Ui, fill: Option<&Fill>) -> egui::Response {
@@ -855,7 +848,7 @@ fn fill_swatch(ui: &mut egui::Ui, fill: Option<&Fill>) -> egui::Response {
     let p = ui.painter();
     match fill {
         Some(Fill::Solid { color, .. }) => {
-            p.rect_filled(rect, 2.0, to_color32(color));
+            p.rect_filled(rect, theme::RADIUS_XS, to_color32(color));
         }
         Some(Fill::Gradient(g)) => {
             // Duas metades com as cores das pontas, só como indicação.
@@ -863,22 +856,22 @@ fn fill_swatch(ui: &mut egui::Ui, fill: Option<&Fill>) -> egui::Response {
                 .stops
                 .first()
                 .map(|s| to_color32(&s.color))
-                .unwrap_or(Color32::GRAY);
+                .unwrap_or(theme::palette(ui).fg_muted);
             let b = g
                 .stops
                 .last()
                 .map(|s| to_color32(&s.color))
-                .unwrap_or(Color32::GRAY);
+                .unwrap_or(theme::palette(ui).fg_muted);
             let (l, r) = rect.split_left_right_at_fraction(0.5);
-            p.rect_filled(l, 0.0, a);
-            p.rect_filled(r, 0.0, b);
+            p.rect_filled(l, theme::RADIUS_NONE, a);
+            p.rect_filled(r, theme::RADIUS_NONE, b);
         }
         _ => none_mark(p, rect),
     }
     p.rect_stroke(
         rect,
-        2.0,
-        egui::Stroke::new(1.0, Color32::from_gray(120)),
+        theme::RADIUS_XS,
+        theme::border_default(ui),
         egui::StrokeKind::Inside,
     );
     resp
@@ -889,10 +882,10 @@ fn stroke_swatch(ui: &mut egui::Ui, stroke: Option<&Stroke>) -> egui::Response {
     let p = ui.painter();
     match stroke {
         Some(s) => {
-            p.rect_filled(rect, 2.0, Color32::WHITE);
+            p.rect_filled(rect, theme::RADIUS_XS, theme::PAGE_PAPER);
             p.rect_stroke(
-                rect.shrink(2.0),
-                1.0,
+                rect.shrink(theme::SPACE_050),
+                theme::RADIUS_XS,
                 egui::Stroke::new(3.0, to_color32(&s.color)),
                 egui::StrokeKind::Inside,
             );
@@ -901,8 +894,8 @@ fn stroke_swatch(ui: &mut egui::Ui, stroke: Option<&Stroke>) -> egui::Response {
     }
     p.rect_stroke(
         rect,
-        2.0,
-        egui::Stroke::new(1.0, Color32::from_gray(120)),
+        theme::RADIUS_XS,
+        theme::border_default(ui),
         egui::StrokeKind::Inside,
     );
     resp
@@ -946,7 +939,7 @@ mod tests {
     /// vertical fazia o conteúdo sair da tela).
     #[test]
     fn dialogs_fit_on_screen() {
-        let ctx = egui::Context::default();
+        let ctx = crate::theme::test_ctx();
         let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, Vec2::new(1366.0, 768.0));
         let mut doc = DocState::new_blank();
         // Cores RGB mostram o seletor de cor do egui, que estica até onde

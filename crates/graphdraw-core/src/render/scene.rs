@@ -157,6 +157,8 @@ pub struct Scene {
     pub width: f64,
     pub height: f64,
     pub background: Option<Color>,
+    /// Sangria da página em µm (a própria ou a do documento).
+    pub bleed: f64,
     pub items: Vec<Item>,
     /// Fontes ausentes substituídas (GD-FNT-02).
     pub missing_fonts: Vec<String>,
@@ -271,6 +273,7 @@ pub fn build_scene(doc: &Document, page: &Page, opts: SceneOptions, images: &Ima
         width: page.width,
         height: page.height,
         background: page.background.clone(),
+        bleed: page.bleed.unwrap_or(doc.data.settings.bleed).max(0.0),
         items: b.items,
         missing_fonts: missing,
         item_bounds: OnceLock::new(),

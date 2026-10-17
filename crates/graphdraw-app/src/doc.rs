@@ -4,8 +4,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use graphdraw_core::ImportReport;
+use graphdraw_core::edit::Editor;
 use graphdraw_core::edit::nodes::NodeRef;
-use graphdraw_core::edit::{Editor, MASTER};
 use graphdraw_core::model::{Color, Document, Layer, Object, Page, Stroke};
 use graphdraw_core::render::raster::{self, RasterOptions};
 use graphdraw_core::render::{ImageCache, Scene, SceneOptions, build_scene};
@@ -18,20 +18,14 @@ pub struct DocState {
     /// Origem não é `.gdr` (ex.: importado de `.cdr`): "Salvar" pede um nome.
     pub needs_save_as: bool,
     pub report: ImportReport,
-    /// Página em edição; `MASTER` = página mestra (GD-PGT-21).
+    /// Página em edição.
     pub page: usize,
-    /// Última página comum visitada: dá o tamanho da página mestra na tela.
-    pub last_page: usize,
     /// Seleção ordenada (GD-SEL-01); a seleção não entra no histórico (GD-UND-06).
     pub selection: Vec<String>,
     /// Nós selecionados na ferramenta Forma.
     pub nodes: Vec<NodeRef>,
     /// Camada ativa escolhida no painel (por ID, para sobreviver a desfazer).
     pub layer_id: Option<String>,
-    /// Cópia da página mestra como `Page`, para as consultas que pedem uma
-    /// página (acerto de clique, encaixe, camadas). Refeita a cada alteração.
-    master_view: Page,
-    master_rev: u64,
     scene: Option<(u64, usize, Arc<Scene>)>,
     images: ImageCache,
 }
@@ -55,12 +49,9 @@ impl DocState {
             needs_save_as,
             report,
             page: 0,
-            last_page: 0,
             selection: Vec::new(),
             nodes: Vec::new(),
             layer_id: None,
-            master_view: Page::new(1.0, 1.0),
-            master_rev: u64::MAX,
             scene: None,
             images: ImageCache::default(),
         };
@@ -72,16 +63,8 @@ impl DocState {
         &self.editor.doc
     }
 
-    pub fn is_master(&self) -> bool {
-        self.page == MASTER
-    }
-
     pub fn page(&self) -> &Page {
-        if self.page == MASTER {
-            &self.master_view
-        } else {
-            &self.editor.doc.data.pages[self.page]
-        }
+        &self.editor.doc.data.pages[self.page]
     }
 
     pub fn page_size(&self) -> (f64, f64) {
@@ -94,34 +77,14 @@ impl DocState {
         self.page().locked
     }
 
-    /// Mantém a página atual válida (após excluir ou desfazer páginas) e a
-    /// cópia da mestra em dia. Chamar uma vez por quadro.
+    /// Mantém a página atual válida (após excluir ou desfazer páginas).
+    /// Chamar uma vez por quadro.
     pub fn sync(&mut self) {
         let n = self.editor.doc.data.pages.len();
-        if self.page != MASTER && self.page >= n {
+        if self.page >= n {
             self.page = n.saturating_sub(1);
             self.selection.clear();
             self.nodes.clear();
-        }
-        if self.last_page >= n {
-            self.last_page = n.saturating_sub(1);
-        }
-        if self.page != MASTER {
-            self.last_page = self.page;
-        }
-        let rev = self.editor.revision();
-        let base = &self.editor.doc.data.pages[self.last_page];
-        let (w, h) = (base.width, base.height);
-        if self.master_rev != rev || self.master_view.width != w || self.master_view.height != h {
-            let mut v = Page::new(w, h);
-            v.id = graphdraw_core::edit::history::MASTER_KEY.into();
-            v.name = Some("Mestra".into());
-            // As camadas da mestra já são a própria página aqui; não desenhar duas vezes.
-            v.hide_master = true;
-            v.layers = self.editor.doc.data.master_page.layers.clone();
-            self.master_view = v;
-            self.master_rev = rev;
-            self.scene = None;
         }
     }
 
@@ -144,13 +107,9 @@ impl DocState {
         s
     }
 
-    /// Miniatura da página `index` (ou da mestra) com lado maior `max_px`.
+    /// Miniatura da página `index` com lado maior `max_px`.
     pub fn thumbnail(&self, index: usize, max_px: f64) -> eframe::egui::ColorImage {
-        let page = if index == MASTER {
-            &self.master_view
-        } else {
-            &self.editor.doc.data.pages[index]
-        };
+        let page = &self.editor.doc.data.pages[index];
         let scene = build_scene(
             self.doc(),
             page,
@@ -205,20 +164,19 @@ impl DocState {
             .or_else(|| layers.iter().rposition(usable))
     }
 
-    /// Camada para um objeto novo. A página mestra começa sem camadas: na
-    /// primeira vez, cria uma.
+    /// Camada para um objeto novo. Uma página sem camadas ganha uma.
     pub fn layer_for_new_object(&mut self) -> Option<usize> {
         if let Some(l) = self.active_layer() {
             return Some(l);
         }
-        if self.is_master() && self.page().layers.is_empty() {
-            let layer = Layer::new(crate::i18n::tr("Fundo (mestra)", "Background (master)"));
+        if !self.page_locked() && self.page().layers.is_empty() {
+            let layer = Layer::new(crate::i18n::tr("Camada 1", "Layer 1"));
             self.layer_id = Some(layer.id.clone());
-            self.editor.transaction(
-                crate::i18n::tr("Criar camada da mestra", "Create master layer"),
-                |ed| ed.insert_layer(MASTER, 0, layer),
-            );
-            self.sync();
+            let page = self.page;
+            self.editor
+                .transaction(crate::i18n::tr("Criar camada", "Create layer"), |ed| {
+                    ed.insert_layer(page, 0, layer)
+                });
             return Some(0);
         }
         None
@@ -260,8 +218,7 @@ impl DocState {
     }
 
     pub fn set_page(&mut self, page: usize) {
-        let valid = page == MASTER || page < self.doc().data.pages.len();
-        if valid && page != self.page {
+        if page < self.doc().data.pages.len() && page != self.page {
             self.page = page;
             self.selection.clear();
             self.nodes.clear();

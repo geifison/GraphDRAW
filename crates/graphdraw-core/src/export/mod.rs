@@ -45,6 +45,58 @@ impl ExportFormat {
     }
 }
 
+/// Condição de impressão do PDF/X (registrada no ICC, http://www.color.org).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PrintCondition {
+    /// Offset em papel couché (ISO 12647-2:2004) — padrão.
+    #[default]
+    Fogra39,
+    /// Offset em papel não couché.
+    Fogra47,
+    /// SWOP (publicações nos EUA).
+    Swop,
+}
+
+impl PrintCondition {
+    pub const ALL: [PrintCondition; 3] = [
+        PrintCondition::Fogra39,
+        PrintCondition::Fogra47,
+        PrintCondition::Swop,
+    ];
+    pub fn identifier(self) -> &'static str {
+        match self {
+            PrintCondition::Fogra39 => "FOGRA39",
+            PrintCondition::Fogra47 => "FOGRA47",
+            PrintCondition::Swop => "CGATS TR 001",
+        }
+    }
+    pub fn description(self) -> &'static str {
+        match self {
+            PrintCondition::Fogra39 => "Coated FOGRA39 (ISO 12647-2:2004)",
+            PrintCondition::Fogra47 => "Uncoated FOGRA47 (ISO 12647-2:2004)",
+            PrintCondition::Swop => "SWOP (CGATS TR 001)",
+        }
+    }
+    pub fn from_name(s: &str) -> Option<PrintCondition> {
+        match s.to_ascii_lowercase().replace([' ', '-', '_'], "").as_str() {
+            "fogra39" | "couche" | "coated" => Some(PrintCondition::Fogra39),
+            "fogra47" | "naocouche" | "uncoated" => Some(PrintCondition::Fogra47),
+            "swop" | "cgatstr001" => Some(PrintCondition::Swop),
+            _ => None,
+        }
+    }
+}
+
+/// Tipo de PDF (GD-EXP-07).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum PdfStandard {
+    /// PDF comum, para tela.
+    #[default]
+    Screen,
+    /// PDF/X-1a:2001, para gráfica.
+    X1a(PrintCondition),
+}
+
 #[derive(Debug, Clone)]
 pub struct ExportOptions {
     /// Páginas (índices base 0); vazio = todas (GD-EXP-01).
@@ -56,6 +108,8 @@ pub struct ExportOptions {
     pub antialias: bool,
     /// Fundo PNG (RGBA); `None` = transparente.
     pub background: Option<[u8; 4]>,
+    /// PDF comum ou PDF/X-1a.
+    pub pdf: PdfStandard,
 }
 
 impl Default for ExportOptions {
@@ -66,6 +120,7 @@ impl Default for ExportOptions {
             text_to_curves: false,
             antialias: true,
             background: None,
+            pdf: PdfStandard::Screen,
         }
     }
 }
@@ -137,6 +192,14 @@ pub fn png_page(doc: &Document, index: usize, opts: &ExportOptions) -> Result<Ve
 }
 
 pub fn pdf_document(doc: &Document, opts: &ExportOptions) -> Result<Vec<u8>, Error> {
+    pdf_document_report(doc, opts).map(|r| r.0)
+}
+
+/// PDF com o relatório do que foi convertido (PDF/X-1a; vazio no comum).
+pub fn pdf_document_report(
+    doc: &Document,
+    opts: &ExportOptions,
+) -> Result<(Vec<u8>, pdf::PdfReport), Error> {
     let cache = ImageCache::default();
     let scenes: Vec<Scene> = selected(doc, opts)
         .into_iter()
@@ -145,7 +208,11 @@ pub fn pdf_document(doc: &Document, opts: &ExportOptions) -> Result<Vec<u8>, Err
     if scenes.is_empty() {
         return Err(Error::Other("documento sem páginas".into()));
     }
-    Ok(pdf::write_pdf(&scenes, doc.metadata.title.as_deref(), opts))
+    Ok(pdf::write_pdf_report(
+        &scenes,
+        doc.metadata.title.as_deref(),
+        opts,
+    ))
 }
 
 /// Exporta para `out`. Formatos de página única com várias páginas
@@ -156,17 +223,28 @@ pub fn export(
     format: ExportFormat,
     opts: &ExportOptions,
 ) -> Result<Vec<PathBuf>, Error> {
+    export_with_report(doc, out, format, opts).map(|r| r.0)
+}
+
+/// Como [`export`], devolvendo também os avisos (conversões do PDF/X-1a).
+pub fn export_with_report(
+    doc: &Document,
+    out: &Path,
+    format: ExportFormat,
+    opts: &ExportOptions,
+) -> Result<(Vec<PathBuf>, Vec<String>), Error> {
     if doc.data.pages.is_empty() {
         return Err(Error::Other("documento sem páginas".into()));
     }
     match format {
         ExportFormat::Gdr => {
             crate::gdr::write_file(doc, out, &Default::default())?;
-            Ok(vec![out.to_path_buf()])
+            Ok((vec![out.to_path_buf()], Vec::new()))
         }
         ExportFormat::Pdf => {
-            crate::gdr::write_atomic(out, &pdf_document(doc, opts)?)?;
-            Ok(vec![out.to_path_buf()])
+            let (bytes, report) = pdf_document_report(doc, opts)?;
+            crate::gdr::write_atomic(out, &bytes)?;
+            Ok((vec![out.to_path_buf()], report.messages()))
         }
         ExportFormat::Svg | ExportFormat::Png => {
             let pages = selected(doc, opts);
@@ -184,7 +262,7 @@ pub fn export(
                 crate::gdr::write_atomic(&path, &bytes)?;
                 written.push(path);
             }
-            Ok(written)
+            Ok((written, Vec::new()))
         }
     }
 }

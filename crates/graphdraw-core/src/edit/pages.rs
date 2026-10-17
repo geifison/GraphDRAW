@@ -13,17 +13,37 @@ pub fn display_name(page: &Page, index: usize) -> String {
         .unwrap_or_else(|| format!("Página {}", index + 1))
 }
 
-/// Nova página logo depois de `after`, com o mesmo tamanho (GD-PGT-11).
+/// Tamanho único das páginas do documento (GD-PAG-01): o da primeira.
+pub fn doc_size(ed: &Editor) -> (f64, f64) {
+    ed.doc
+        .data
+        .pages
+        .first()
+        .map_or((210_000.0, 297_000.0), |p| (p.width, p.height))
+}
+
+/// Define o tamanho e a sangria de todas as páginas do documento, num passo
+/// do histórico (GD-PAG-01: um tamanho por documento).
+pub fn set_size_all(ed: &mut Editor, width: f64, height: f64, bleed: Option<f64>, name: &str) {
+    ed.transaction(name, |ed| {
+        for i in 0..ed.doc.data.pages.len() {
+            ed.edit_page(i, |p| {
+                p.width = width;
+                p.height = height;
+                p.bleed = bleed;
+            });
+        }
+    });
+}
+
+/// Nova página logo depois de `after`, com o tamanho do documento (GD-PGT-11).
 /// Devolve o índice dela.
 pub fn add_after(ed: &mut Editor, after: usize) -> usize {
     let n = ed.doc.data.pages.len();
-    let (w, h) = ed
-        .doc
-        .data
-        .pages
-        .get(after.min(n.saturating_sub(1)))
-        .map_or((210_000.0, 297_000.0), |p| (p.width, p.height));
+    let (w, h) = doc_size(ed);
+    let bleed = ed.doc.data.pages.first().and_then(|p| p.bleed);
     let mut p = Page::new(w, h);
+    p.bleed = bleed;
     p.name = Some(format!("Página {}", n + 1));
     let at = (after + 1).min(n);
     ed.transaction("Nova página", |ed| ed.insert_page(at, p));
@@ -203,6 +223,23 @@ mod tests {
         assert_eq!(ed.doc.data.pages[1].object_count(), 3);
         assert_eq!(delete(&mut ed, &[0, 1]), 1, "fica uma página");
         assert_eq!(ed.doc.data.pages.len(), 1);
+    }
+
+    /// GD-PAG-01: mudar o tamanho de uma página muda o de todas.
+    #[test]
+    fn one_size_per_document() {
+        let mut ed = doc(&["A", "B", "C"]);
+        set_size_all(&mut ed, 500.0, 300.0, Some(20.0), "Tamanho da página");
+        assert!(
+            ed.doc
+                .data
+                .pages
+                .iter()
+                .all(|p| p.width == 500.0 && p.height == 300.0 && p.bleed == Some(20.0))
+        );
+        assert_eq!(ed.history().len(), 1);
+        ed.undo();
+        assert!(ed.doc.data.pages.iter().all(|p| p.width == 100.0));
     }
 
     #[test]

@@ -25,6 +25,7 @@ zip = { version = "9.0.4", default-features = false, features = ["deflate"] }
 [dev-dependencies]
 jsonschema = { version = "0.58.6", default-features = false }
 kurbo = "0.13.1"
+lopdf = "0.45.0"
 roxmltree = "0.21.1"
 tempfile = "3.27.0"
 tiny-skia = "0.12.0"

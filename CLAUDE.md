@@ -11,6 +11,13 @@ GraphDraw é um editor de ilustração vetorial open source para gráficas, comu
 6. Dúvida sobre o formato `.cdr` → somente código/documentação da libcdr (open source) e arquivos de teste com licença livre.
 7. Só dependências com licença compatível com a licença do projeto; registrar cada uma em `THIRD_PARTY.md`.
 
+## Design (obrigatório)
+- **`docs/design/DESIGN-SYSTEM.md` é a fonte única de aparência e interação.** Ler antes de criar ou alterar qualquer tela, painel, janela, ícone, cursor ou controle, e seguir os tokens dele (cor, espaçamento, tipografia, raios, tamanhos de botão).
+- Valores visuais só no módulo de tema (`crates/graphdraw-app/src/theme.rs`), com os nomes dos tokens; nunca cor ou tamanho escrito direto em outro arquivo.
+- Se o caso não estiver coberto, atualizar o documento de design antes do código, no mesmo commit.
+- Ao corrigir um item da seção 8 (conformidade) do documento, atualizar a tabela no mesmo commit.
+- Antes de concluir, passar pelo checklist da seção 9.
+
 ## Rastreabilidade
 - Cada commit/PR cita os IDs de requisito implementados (ex.: `GD-GEO-01`).
 - Cada requisito implementado tem teste com o critério de aceitação da spec.
