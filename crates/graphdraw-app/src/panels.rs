@@ -165,6 +165,7 @@ impl App {
         theme::density_default(ui);
         ui.horizontal_wrapped(|ui| {
             for (tab, label) in [
+                (RightTab::Objects, tr("Objetos", "Objects")),
                 (RightTab::Transform, tr("Transformar", "Transform")),
                 (RightTab::Align, tr("Alinhar", "Align")),
                 (RightTab::Layers, tr("Camadas", "Layers")),
@@ -180,6 +181,11 @@ impl App {
         ui.separator();
         let Some(doc) = self.doc.as_mut() else { return };
         egui::ScrollArea::vertical().show(ui, |ui| match self.right_tab {
+            RightTab::Objects => {
+                if objects_panel(ui, doc) {
+                    self.canvas.fit_pending = true;
+                }
+            }
             RightTab::Transform => transform_panel(ui, doc, &mut self.xf),
             RightTab::Align => align_panel(ui, doc, &mut self.align),
             RightTab::Layers => layers_panel(ui, doc),
@@ -1393,6 +1399,205 @@ enum LayerAction {
 
 /// Camadas da página atual (GD-CAM-01, GD-CAM-03). O topo da lista é a
 /// camada da frente; a marcada recebe os objetos novos.
+/// O que o usuário fez numa linha do painel Objetos.
+enum ObjAction {
+    /// Selecionar (Shift soma/tira); com a página do objeto.
+    Select(usize, String, bool),
+    Visible(String, bool),
+    Locked(String, bool),
+}
+
+/// Ícone do tipo de objeto na árvore.
+fn kind_icon(k: &ObjectKind) -> &'static str {
+    match k {
+        ObjectKind::Path(_) => "tool-bezier",
+        ObjectKind::Rectangle(_) => "tool-rect",
+        ObjectKind::Ellipse(_) => "tool-ellipse",
+        ObjectKind::Group(_) => "group",
+        _ => "doc",
+    }
+}
+
+/// Linha de um objeto (e, num grupo, os filhos dentro de um recolhível).
+fn object_row(
+    ui: &mut egui::Ui,
+    o: &graphdraw_core::model::Object,
+    page: usize,
+    selection: &[String],
+    act: &mut Option<ObjAction>,
+) {
+    let row = |ui: &mut egui::Ui, act: &mut Option<ObjAction>| {
+        let (eye, eye_tip) = if o.visible {
+            (
+                "eye-on",
+                tr("Visível (clique para ocultar)", "Visible (click to hide)"),
+            )
+        } else {
+            (
+                "eye-off",
+                tr("Oculto (clique para mostrar)", "Hidden (click to show)"),
+            )
+        };
+        if icons::small_button(ui, eye, eye_tip, true).clicked() {
+            *act = Some(ObjAction::Visible(o.id.clone(), !o.visible));
+        }
+        let (lk, lk_tip) = if o.locked {
+            (
+                "lock-on",
+                tr(
+                    "Travado (clique para destravar)",
+                    "Locked (click to unlock)",
+                ),
+            )
+        } else {
+            (
+                "lock-off",
+                tr(
+                    "Destravado (clique para travar)",
+                    "Unlocked (click to lock)",
+                ),
+            )
+        };
+        if icons::small_button(ui, lk, lk_tip, true).clicked() {
+            *act = Some(ObjAction::Locked(o.id.clone(), !o.locked));
+        }
+        let (ir, _) = ui.allocate_exact_size(Vec2::splat(theme::ICON_MICRO), egui::Sense::hover());
+        egui::Image::new(icons::get_micro(kind_icon(&o.kind)))
+            .tint(theme::palette(ui).fg_muted)
+            .paint_at(ui, ir);
+        let label = o
+            .name
+            .clone()
+            .unwrap_or_else(|| crate::app::kind_label(&o.kind));
+        let text = if o.visible {
+            egui::RichText::new(label)
+        } else {
+            egui::RichText::new(label).weak()
+        };
+        let r = ui.selectable_label(selection.contains(&o.id), text);
+        if r.clicked() {
+            let add = ui.input(|i| i.modifiers.shift);
+            *act = Some(ObjAction::Select(page, o.id.clone(), add));
+        }
+    };
+    match &o.kind {
+        ObjectKind::Group(g) => {
+            let id = ui.make_persistent_id(("objetos-grupo", &o.id));
+            egui::collapsing_header::CollapsingState::load_with_default_open(ui.ctx(), id, false)
+                .show_header(ui, |ui| row(ui, act))
+                .body(|ui| {
+                    for c in g.children.iter().rev() {
+                        object_row(ui, c, page, selection, act);
+                    }
+                });
+        }
+        _ => {
+            ui.horizontal(|ui| {
+                // Mesmo recuo da seta dos grupos, para alinhar os ícones.
+                ui.add_space(ui.spacing().indent);
+                row(ui, act);
+            });
+        }
+    }
+}
+
+/// Painel Objetos (GD-UI-02): árvore páginas → camadas → objetos, de cima
+/// para baixo na ordem de empilhamento. Clique seleciona (Shift soma ou
+/// tira; numa página diferente, vai até ela); olho e cadeado por objeto.
+/// Devolve `true` ao trocar de página.
+fn objects_panel(ui: &mut egui::Ui, doc: &mut DocState) -> bool {
+    use graphdraw_core::edit::pages;
+    let mut act = None;
+    let current = doc.page;
+    for (p, page) in doc.doc().data.pages.iter().enumerate() {
+        let title = format!(
+            "{}  ({})",
+            pages::display_name(page, p),
+            page.object_count()
+        );
+        let title = if p == current {
+            egui::RichText::new(title).strong()
+        } else {
+            egui::RichText::new(title)
+        };
+        egui::CollapsingHeader::new(title)
+            .id_salt(("objetos-pagina", &page.id))
+            .default_open(p == current)
+            .show(ui, |ui| {
+                for layer in page.layers.iter().rev() {
+                    let head = format!("{}  ({})", layer.name, layer.objects.len());
+                    let head = if layer.visible {
+                        egui::RichText::new(head)
+                    } else {
+                        egui::RichText::new(head).weak()
+                    };
+                    egui::CollapsingHeader::new(head)
+                        .id_salt(("objetos-camada", &page.id, &layer.id))
+                        .default_open(true)
+                        .show(ui, |ui| {
+                            if layer.objects.is_empty() {
+                                ui.label(egui::RichText::new(tr("(vazia)", "(empty)")).weak());
+                            }
+                            for o in layer.objects.iter().rev() {
+                                object_row(ui, o, p, &doc.selection, &mut act);
+                            }
+                        });
+                }
+            });
+    }
+    act.is_some_and(|a| apply_obj_action(doc, a))
+}
+
+/// Aplica a ação de uma linha do painel Objetos. Devolve `true` ao trocar
+/// de página.
+fn apply_obj_action(doc: &mut DocState, act: ObjAction) -> bool {
+    let mut switched = false;
+    match act {
+        ObjAction::Select(p, id, add) => {
+            if p != doc.page {
+                doc.set_page(p);
+                switched = true;
+            }
+            if add {
+                if let Some(i) = doc.selection.iter().position(|s| *s == id) {
+                    doc.selection.remove(i);
+                } else {
+                    doc.selection.push(id);
+                }
+            } else {
+                doc.selection = vec![id];
+            }
+        }
+        ObjAction::Visible(id, v) => {
+            let name = if v {
+                tr("Mostrar objeto", "Show object")
+            } else {
+                tr("Ocultar objeto", "Hide object")
+            };
+            ops::modify(&mut doc.editor, &[id], name, |o| {
+                o.visible = v;
+                true
+            });
+        }
+        ObjAction::Locked(id, v) => {
+            let name = if v {
+                tr("Travar objeto", "Lock object")
+            } else {
+                tr("Destravar objeto", "Unlock object")
+            };
+            ops::modify(&mut doc.editor, std::slice::from_ref(&id), name, |o| {
+                o.locked = v;
+                true
+            });
+            // Objeto travado sai da seleção (não pode ser editado).
+            if v {
+                doc.selection.retain(|s| *s != id);
+            }
+        }
+    }
+    switched
+}
+
 fn layers_panel(ui: &mut egui::Ui, doc: &mut DocState) {
     let page = doc.page;
     let n = doc.page().layers.len();
@@ -1697,6 +1902,74 @@ mod tests {
         // Mudar o tamanho pela barra vale para todas as páginas.
         graphdraw_core::edit::pages::set_size_all(&mut doc.editor, 148_000.0, 210_000.0, None, "t");
         assert!(doc.doc().data.pages.iter().all(|p| p.width == 148_000.0));
+    }
+
+    /// GD-UI-02: a árvore desenha páginas, camadas, grupos e objetos; as
+    /// ações selecionam (indo à página certa), ocultam e travam, cada uma
+    /// num passo do histórico.
+    #[test]
+    fn objects_tree_selects_hides_and_locks() {
+        use graphdraw_core::model::{GroupData, Object, RectData};
+        let rect = || {
+            Object::new(ObjectKind::Rectangle(RectData {
+                width: 10_000.0,
+                height: 10_000.0,
+                corners: None,
+                extra: serde_json::Map::new(),
+            }))
+        };
+        let mut doc = DocState::new_blank();
+        graphdraw_core::edit::pages::add_after(&mut doc.editor, 0);
+        let (a, b) = (rect(), rect());
+        let child = a.id.clone();
+        let group = Object::new(ObjectKind::Group(GroupData {
+            children: vec![a, b],
+            extra: serde_json::Map::new(),
+        }));
+        let other = rect();
+        let other_id = other.id.clone();
+        let loc = |page, index| graphdraw_core::edit::ObjLoc {
+            page,
+            layer: 0,
+            index,
+        };
+        doc.editor.insert_object(loc(0, 0), group);
+        doc.editor.insert_object(loc(1, 0), other);
+        let ctx = crate::theme::test_ctx();
+        for _ in 0..2 {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::Vec2::new(1366.0, 768.0),
+                )),
+                ..Default::default()
+            };
+            let mut out = ctx.run_ui(input, |ui| {
+                egui::CentralPanel::default().show(ui, |ui| {
+                    assert!(!objects_panel(ui, &mut doc), "só desenhar não muda nada");
+                });
+            });
+            out.textures_delta.clear();
+        }
+        // Objeto de outra página: vai até ela e seleciona.
+        assert!(apply_obj_action(
+            &mut doc,
+            ObjAction::Select(1, other_id.clone(), false)
+        ));
+        assert_eq!((doc.page, doc.selection.clone()), (1, vec![other_id]));
+        // Filho dentro do grupo: ocultar e travar valem para ele.
+        doc.set_page(0);
+        apply_obj_action(&mut doc, ObjAction::Select(0, child.clone(), false));
+        apply_obj_action(&mut doc, ObjAction::Visible(child.clone(), false));
+        apply_obj_action(&mut doc, ObjAction::Locked(child.clone(), true));
+        let r = doc.editor.find(&child).unwrap();
+        let o = doc.editor.get(&r).unwrap();
+        assert!(!o.visible && o.locked);
+        assert!(doc.selection.is_empty(), "travado sai da seleção");
+        doc.editor.undo();
+        doc.editor.undo();
+        let r = doc.editor.find(&child).unwrap();
+        assert!(doc.editor.get(&r).unwrap().visible);
     }
 
     /// Desenha a barra de propriedades em 1366 × 768 e devolve a altura do

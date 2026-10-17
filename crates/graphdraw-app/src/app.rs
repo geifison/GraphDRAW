@@ -30,6 +30,7 @@ type OpenResult = Result<(Document, ImportReport), String>;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum RightTab {
+    Objects,
     Transform,
     Align,
     Layers,
@@ -2102,7 +2103,7 @@ fn cursor_position(ui: &mut egui::Ui, p: Option<kurbo::Point>) {
     }
 }
 
-fn kind_label(k: &ObjectKind) -> String {
+pub(crate) fn kind_label(k: &ObjectKind) -> String {
     match k {
         ObjectKind::Path(_) => tr("curva", "curve"),
         ObjectKind::Rectangle(_) => tr("retângulo", "rectangle"),
