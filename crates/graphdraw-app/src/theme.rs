@@ -34,6 +34,9 @@ pub const ACCENT_WARNING: Color32 = Color32::from_rgb(0xF5, 0x9E, 0x0B);
 pub const ACCENT_DANGER: Color32 = Color32::from_rgb(0xEF, 0x44, 0x44);
 pub const GUIDE_OBJECT: Color32 = Color32::from_rgb(0xEC, 0x48, 0x99);
 pub const GUIDE_PAGE: Color32 = Color32::from_rgb(0x06, 0xB6, 0xD4);
+/// Guias do usuário (GD-GUI-01); travadas ficam mais apagadas.
+pub const GUIDE_USER: Color32 = Color32::from_rgb(0x3B, 0x82, 0xF6);
+pub const GUIDE_LOCKED_ALPHA: u8 = 110;
 
 /// Sobreposições de seleção sobre a arte (5.1).
 pub const SELECTION_OBJECT: Color32 = Color32::from_rgba_unmultiplied_const(0x63, 0x66, 0xF1, 110);
@@ -280,6 +283,12 @@ pub const CORNER_CELL: f32 = 10.0;
 pub const CORNER_GAP: f32 = 4.0;
 /// Tipo de canto (Redondo/Chanfro/Recorte).
 pub const CORNER_KIND_WIDTH: f32 = 96.0;
+/// Réguas (GD-REG-01): largura da faixa, espaço mínimo entre números e
+/// comprimento das marcas.
+pub const RULER_SIZE: f32 = 20.0;
+pub const RULER_MAJOR_SPACING: f32 = 60.0;
+pub const RULER_TICK_MAJOR: f32 = 8.0;
+pub const RULER_TICK_MINOR: f32 = 4.0;
 /// Escolha de família de fonte na barra de propriedades (doc 06).
 pub const FONT_COMBO_WIDTH: f32 = 180.0;
 /// Estilo da fonte (Regular, Bold…) na barra de texto.

@@ -9,7 +9,8 @@ pub mod paint;
 
 pub use color::Color;
 pub use document::{
-    ColorsResource, Document, DocumentData, Layer, MasterPage, Metadata, NamedColor, Page, Settings,
+    ColorsResource, Document, DocumentData, Guide, Layer, MasterPage, Metadata, NamedColor, Page,
+    Settings,
 };
 pub use geom::{FillRule, Node, NodeKind, Subpath, SubpathBuilder, Transform};
 pub use object::{

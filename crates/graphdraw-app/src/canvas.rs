@@ -242,6 +242,18 @@ enum Drag {
     TextFrame {
         start: Point,
     },
+    /// Guia nova saindo da régua (horizontal = régua de cima).
+    GuideNew {
+        horizontal: bool,
+    },
+    /// Guia existente sendo arrastada.
+    GuideMove {
+        r: graphdraw_core::edit::guides::GuideRef,
+        original: graphdraw_core::model::Guide,
+        grab: Point,
+    },
+    /// Origem (zero) das réguas sendo arrastada do canto.
+    RulerOrigin,
     /// Prancheta: borda/canto da página sendo arrastado.
     Artboard {
         handle: Anchor,
@@ -293,6 +305,16 @@ pub struct CanvasState {
     artboard_pending: Option<(kurbo::Rect, Pos2)>,
     /// Objeto do menu de botão direito aberto no canvas.
     menu_target: Option<String>,
+    /// Réguas e guias (GD-REG-01, GD-GUI-01).
+    pub show_rulers: bool,
+    pub show_guides: bool,
+    pub guides_locked: bool,
+    /// Zero das réguas (µm na página).
+    pub ruler_origin: Point,
+    /// Guias que valem na página atual (cache do quadro).
+    guides: Vec<graphdraw_core::model::Guide>,
+    /// Guia do menu de botão direito.
+    guide_menu: Option<graphdraw_core::edit::guides::GuideRef>,
     /// Texto em edição (ferramenta Texto).
     pub text: Option<crate::textedit::TextEditing>,
     /// Retângulo e elipse no modo 3 pontos (GD-FER-30/31).
@@ -327,6 +349,12 @@ impl Default for CanvasState {
             artboard_pending: None,
             menu_target: None,
             text: None,
+            show_rulers: true,
+            show_guides: true,
+            guides_locked: false,
+            ruler_origin: Point::ORIGIN,
+            guides: Vec::new(),
+            guide_menu: None,
             three_point: false,
             poly_preview: (5, "polygon".into(), 0.5),
             three: None,
@@ -386,6 +414,81 @@ impl CanvasState {
 
     pub fn has_draft(&self) -> bool {
         self.bezier.is_some() || self.three.is_some()
+    }
+
+    /// Guia sob o ponto (até `handle-hit` px), com a referência dela.
+    fn guide_at(
+        &self,
+        doc: &DocState,
+        p: Point,
+    ) -> Option<(
+        graphdraw_core::edit::guides::GuideRef,
+        graphdraw_core::model::Guide,
+    )> {
+        let tol = theme::HANDLE_HIT as f64 / self.view.zoom.max(1e-12);
+        graphdraw_core::edit::guides::refs(&doc.editor, doc.page)
+            .into_iter()
+            .filter(|(_, g)| !g.locked)
+            .map(|(r, g)| (g.distance(p), r, g))
+            .filter(|(d, _, _)| *d <= tol)
+            .min_by(|a, b| a.0.total_cmp(&b.0))
+            .map(|(_, r, g)| (r, g))
+    }
+
+    /// Guias da página, mais a guia sendo criada ou movida.
+    fn paint_guides(&self, painter: &egui::Painter, rect: Rect, ph: f64) {
+        let view = self.view;
+        let to_page = |pos: Pos2| -> Point {
+            let l = pos - rect.min;
+            let (x, y) = view.screen_to_page(ph, l.x as f64, l.y as f64);
+            Point::new(x, y)
+        };
+        let area = kurbo::Rect::from_points(to_page(rect.left_bottom()), to_page(rect.right_top()));
+        let draw = |g: &graphdraw_core::model::Guide, active: bool| {
+            let Some((a, b)) = g.clip(area) else { return };
+            let mut c = g
+                .color
+                .as_ref()
+                .map(crate::widgets::to_color32)
+                .unwrap_or(theme::GUIDE_USER);
+            if g.locked {
+                c = Color32::from_rgba_unmultiplied(c.r(), c.g(), c.b(), theme::GUIDE_LOCKED_ALPHA);
+            }
+            let w = if active {
+                theme::FOCUS_WIDTH
+            } else {
+                theme::GUIDE_WIDTH
+            };
+            painter.line_segment(
+                [self.screen(rect, ph, a), self.screen(rect, ph, b)],
+                EStroke::new(w, c),
+            );
+        };
+        // Durante o arrasto, a guia movida aparece na posição nova.
+        let moving = match &self.drag {
+            Drag::GuideMove { original, grab, .. } => self
+                .cursor_page
+                .map(|c| (original.clone(), moved_guide(original, *grab, c))),
+            _ => None,
+        };
+        for g in &self.guides {
+            if moving.as_ref().is_some_and(|(o, _)| o == g) {
+                continue;
+            }
+            draw(g, false);
+        }
+        if let Some((_, g)) = &moving {
+            draw(g, true);
+        }
+        if let (Drag::GuideNew { horizontal }, Some(c)) = (&self.drag, self.cursor_page) {
+            let p = self.snap_hit.map_or(c, |s| s.point);
+            let g = if *horizontal {
+                graphdraw_core::model::Guide::horizontal(p.y)
+            } else {
+                graphdraw_core::model::Guide::vertical(p.x)
+            };
+            draw(&g, true);
+        }
     }
 
     /// Termina a edição de texto em andamento (um passo no histórico).
@@ -528,6 +631,11 @@ impl CanvasState {
         );
         let (rect, response) = ui.allocate_exact_size(ui.available_size(), Sense::click_and_drag());
         self.canvas_size = rect.size();
+        self.guides = if self.show_guides {
+            graphdraw_core::edit::snap::page_guides(doc.doc(), doc.page)
+        } else {
+            Vec::new()
+        };
         let painter = ui.painter_at(rect);
         painter.rect_filled(rect, theme::RADIUS_NONE, theme::palette(ui).bg_canvas);
 
@@ -593,7 +701,25 @@ impl CanvasState {
             let origin = ui
                 .input(|i| i.pointer.press_origin())
                 .unwrap_or(rect.center());
-            if panning_tool {
+            let (rtop, rleft, rcorner) = crate::rulers::areas(rect);
+            let on_ruler = self.show_rulers && (rtop.contains(origin) || rleft.contains(origin));
+            let guide_hit = (tool == Tool::Select && !self.guides_locked && self.show_guides)
+                .then(|| self.guide_at(doc, to_page(origin)))
+                .flatten()
+                .filter(|_| pick(doc, to_page(origin), tol, false).is_none());
+            if self.show_rulers && rcorner.contains(origin) {
+                self.drag = Drag::RulerOrigin;
+            } else if on_ruler && !blocked {
+                self.drag = Drag::GuideNew {
+                    horizontal: rtop.contains(origin),
+                };
+            } else if let Some((r, g)) = guide_hit.filter(|_| !blocked) {
+                self.drag = Drag::GuideMove {
+                    r,
+                    original: g,
+                    grab: to_page(origin),
+                };
+            } else if panning_tool {
                 self.drag = Drag::Pan;
             } else if blocked {
                 ev.status = Some(locked_msg());
@@ -643,10 +769,33 @@ impl CanvasState {
                 &mut ev,
             );
         }
+        // Botão direito numa guia (fora de objetos): menu da guia.
+        if response.secondary_clicked()
+            && self.show_guides
+            && !blocked
+            && let Some(pos) = response.interact_pointer_pos()
+            && pick(doc, to_page(pos), tol, false).is_none()
+            && let Some((r, _)) = self.guide_at(doc, to_page(pos))
+        {
+            self.guide_menu = Some(r);
+        }
+        if let Some(r) = self.guide_menu {
+            let mut close = false;
+            let open = response.context_menu(|ui| {
+                if crate::guideui::guide_menu(ui, doc, r) {
+                    close = true;
+                    ui.close();
+                }
+            });
+            if close || (open.is_none() && !response.secondary_clicked()) {
+                self.guide_menu = None;
+            }
+        }
         // Botão direito sobre um objeto: edições rápidas (travar, ocultar, nome).
         if response.secondary_clicked()
             && tool != Tool::Zoom
             && !blocked
+            && self.guide_menu.is_none()
             && let Some(pos) = response.interact_pointer_pos()
         {
             self.menu_target = pick(doc, to_page(pos), tol, mods.ctrl);
@@ -678,7 +827,14 @@ impl CanvasState {
             let l = pos - rect.min;
             self.view.zoom_at(0.5, (l.x as f64, l.y as f64));
         }
-        if response.double_clicked()
+        if self.show_rulers
+            && response.double_clicked()
+            && response
+                .interact_pointer_pos()
+                .is_some_and(|p| crate::rulers::areas(rect).2.contains(p))
+        {
+            self.ruler_origin = Point::ORIGIN;
+        } else if response.double_clicked()
             && !panning_tool
             && !blocked
             && let Some(pos) = response.interact_pointer_pos()
@@ -698,18 +854,40 @@ impl CanvasState {
             )
         {
             self.snap_hit = self.cursor_page.and_then(|p| {
-                let c = snap::candidates(doc.page(), &self.snap, &[]);
-                snap::snap(p, &c, &self.snap, snap_radius(&self.view))
+                let c = snap::candidates_doc(doc.doc(), doc.page, &self.snap, &[]);
+                snap::snap_guided_on(&self.guides, p, &c, &self.snap, snap_radius(&self.view))
             });
         }
 
         // ---- desenho ----
         self.paint_page(ui, &painter, doc, rect);
+        self.paint_guides(&painter, rect, ph);
         self.paint_overlays(ui, &painter, doc, rect, tool);
         if tool == Tool::Artboard {
             self.paint_page_handles(&painter, doc, rect);
         }
         self.artboard_choice(ui, doc);
+        if self.show_rulers {
+            let to_screen = |q: Point| self.screen(rect, ph, q);
+            let a = to_page(rect.left_bottom());
+            let b = to_page(rect.right_top());
+            let cursor = match &self.drag {
+                Drag::GuideNew { .. } | Drag::GuideMove { .. } | Drag::RulerOrigin => {
+                    self.cursor_page
+                }
+                _ => self.cursor_page,
+            };
+            crate::rulers::paint(
+                ui,
+                &painter,
+                rect,
+                &to_screen,
+                kurbo::Rect::from_points(a, b),
+                self.view.zoom,
+                self.ruler_origin,
+                cursor,
+            );
+        }
 
         // Cursor da ferramenta (desenhado por cima, no lugar do cursor do sistema).
         if response.hovered()
@@ -1476,9 +1654,15 @@ impl CanvasState {
                 self.drag = Drag::TextFrame { start: p };
             }
             Tool::Rect | Tool::Ellipse | Tool::Polygon => {
-                let cands = snap::candidates(doc.page(), &self.snap, &[]);
-                let start = snap::snap(p, &cands, &self.snap, snap_radius(&self.view))
-                    .map_or(p, |s| s.point);
+                let cands = snap::candidates_doc(doc.doc(), doc.page, &self.snap, &[]);
+                let start = snap::snap_guided_on(
+                    &self.guides,
+                    p,
+                    &cands,
+                    &self.snap,
+                    snap_radius(&self.view),
+                )
+                .map_or(p, |s| s.point);
                 // Com a base pronta, apertar o botão fecha a forma.
                 if let Some(t) = self.three.take() {
                     self.finish_three(doc, t, start, _defaults);
@@ -1623,7 +1807,7 @@ impl CanvasState {
                     }
                 }
                 let originals = originals(doc);
-                let cands = snap::candidates(doc.page(), &self.snap, &doc.selection);
+                let cands = snap::candidates_doc(doc.doc(), doc.page, &self.snap, &doc.selection);
                 // Ponto de pega: canto/centro mais próximo da seleção, para encaixar bordas.
                 let b = ops::selection_bounds(&doc.editor, &doc.selection, false)
                     .unwrap_or(kurbo::Rect::from_points(p, p));
@@ -1711,7 +1895,8 @@ impl CanvasState {
                 }
                 doc.nodes.push(r);
             }
-            let cands = snap::candidates(doc.page(), &self.snap, std::slice::from_ref(&o.id));
+            let cands =
+                snap::candidates_doc(doc.doc(), doc.page, &self.snap, std::slice::from_ref(&o.id));
             doc.editor.begin(format!(
                 "{} {}",
                 tr("Mover", "Move"),
@@ -1776,7 +1961,9 @@ impl CanvasState {
                         d.x = 0.0
                     }
                 }
-                if let Some(s) = snap::snap(*grab + d, cands, &self.snap, radius) {
+                if let Some(s) =
+                    snap::snap_guided_on(&self.guides, *grab + d, cands, &self.snap, radius)
+                {
                     d = s.point - *grab;
                     self.snap_hit = Some(s);
                 }
@@ -1874,8 +2061,13 @@ impl CanvasState {
                     && let Some(n) = nodes::node(p, *r)
                 {
                     let grabbed = m * pt(n.p);
-                    if let Some(s) = snap::snap(grabbed + (cur - *start), cands, &self.snap, radius)
-                    {
+                    if let Some(s) = snap::snap_guided_on(
+                        &self.guides,
+                        grabbed + (cur - *start),
+                        cands,
+                        &self.snap,
+                        radius,
+                    ) {
                         target = *start + (s.point - grabbed);
                         self.snap_hit = Some(s);
                     }
@@ -1959,7 +2151,11 @@ impl CanvasState {
                 };
             }
             Drag::DrawRect { cands, .. } => {
-                self.snap_hit = snap::snap(cur, cands, &self.snap, radius);
+                self.snap_hit = snap::snap_guided_on(&self.guides, cur, cands, &self.snap, radius);
+            }
+            Drag::GuideNew { .. } | Drag::RulerOrigin => {
+                let c = snap::candidates_doc(doc.doc(), doc.page, &self.snap, &[]);
+                self.snap_hit = snap::snap_guided_on(&[], cur, &c, &self.snap, radius);
             }
             Drag::BezierHandle => {
                 if let Some(d) = &mut self.bezier
@@ -2069,6 +2265,45 @@ impl CanvasState {
             | Drag::Segment { .. } => {
                 doc.editor.commit();
             }
+            Drag::GuideNew { horizontal } => {
+                let (rtop, rleft, _) = crate::rulers::areas(rect);
+                let p = self.snap_hit.map_or(cur, |s| s.point);
+                if rect.contains(end) && !rtop.contains(end) && !rleft.contains(end) {
+                    let g = if horizontal {
+                        graphdraw_core::model::Guide::horizontal(p.y)
+                    } else {
+                        graphdraw_core::model::Guide::vertical(p.x)
+                    };
+                    graphdraw_core::edit::guides::add(
+                        &mut doc.editor,
+                        doc.page,
+                        false,
+                        vec![g],
+                        tr("Nova guia", "New guide"),
+                    );
+                }
+            }
+            Drag::GuideMove { r, original, grab } => {
+                let (rtop, rleft, _) = crate::rulers::areas(rect);
+                if self.show_rulers && (rtop.contains(end) || rleft.contains(end)) {
+                    graphdraw_core::edit::guides::remove(&mut doc.editor, r);
+                } else {
+                    let g = moved_guide(&original, grab, cur);
+                    if g != original {
+                        graphdraw_core::edit::guides::set(
+                            &mut doc.editor,
+                            r,
+                            g,
+                            tr("Mover guia", "Move guide"),
+                        );
+                    }
+                }
+            }
+            Drag::RulerOrigin => {
+                if rect.contains(end) {
+                    self.ruler_origin = self.snap_hit.map_or(cur, |s| s.point);
+                }
+            }
             Drag::TextFrame { start } => {
                 let r = kurbo::Rect::from_points(start, cur);
                 if r.width() * self.view.zoom >= 8.0 && r.height() * self.view.zoom >= 8.0 {
@@ -2116,9 +2351,10 @@ impl CanvasState {
         rect: Rect,
         ph: f64,
     ) -> bool {
-        let p = snap::snap(
+        let p = snap::snap_guided_on(
+            &self.guides,
             p,
-            &snap::candidates(doc.page(), &self.snap, &[]),
+            &snap::candidates_doc(doc.doc(), doc.page, &self.snap, &[]),
             &self.snap,
             snap_radius(&self.view),
         )
@@ -2538,6 +2774,26 @@ fn add_shape(doc: &mut DocState, prim: Prim, w: f64, h: f64, m: Affine, defaults
     }
 }
 
+/// Guia arrastada de `grab` até `cur`: horizontal só muda y, vertical só
+/// x, inclinada desloca o ponto.
+fn moved_guide(
+    g: &graphdraw_core::model::Guide,
+    grab: Point,
+    cur: Point,
+) -> graphdraw_core::model::Guide {
+    let mut n = g.clone();
+    let d = cur - grab;
+    match g.kind.as_str() {
+        "horizontal" => n.position += d.y,
+        "vertical" => n.position += d.x,
+        _ => {
+            let p = g.point.unwrap_or([0.0, 0.0]);
+            n.point = Some([p[0] + d.x, p[1] + d.y]);
+        }
+    }
+    n
+}
+
 fn draw_rect(a: Point, b: Point, mods: egui::Modifiers) -> kurbo::Rect {
     let mut d = b - a;
     if mods.shift {
@@ -2652,6 +2908,65 @@ mod tests {
     /// Aceite de GD-DIM-24: arrastar o canto de uma A4 até perto de 148 × 210
     /// mm gruda em A5; sem objetos, o tamanho muda direto em todas as páginas
     /// (GD-PAG-01), num passo do histórico.
+    /// GD-GUI-01: arrastar da régua cria guia; arrastar a guia de volta
+    /// para a régua apaga.
+    #[test]
+    fn ruler_drag_creates_and_removes_guide() {
+        let ctx = crate::theme::test_ctx();
+        let mut cs = CanvasState::default();
+        cs.snap.grid = None;
+        cs.snap.enabled = false;
+        let mut doc = DocState::new_blank();
+        for _ in 0..2 {
+            canvas_frame(&ctx, &mut cs, &mut doc, Tool::Select, vec![]);
+        }
+        let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(1366.0, 768.0));
+        let (_, ph) = doc.page_size();
+        let btn = |pos, pressed| egui::Event::PointerButton {
+            pos,
+            button: PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        let drag = |cs: &mut CanvasState, doc: &mut DocState, a: Pos2, b: Pos2| {
+            canvas_frame(
+                &ctx,
+                cs,
+                doc,
+                Tool::Select,
+                vec![egui::Event::PointerMoved(a)],
+            );
+            canvas_frame(&ctx, cs, doc, Tool::Select, vec![btn(a, true)]);
+            for k in 1..=6 {
+                let pos = a + (b - a) * (k as f32 / 6.0);
+                canvas_frame(
+                    &ctx,
+                    cs,
+                    doc,
+                    Tool::Select,
+                    vec![egui::Event::PointerMoved(pos)],
+                );
+            }
+            canvas_frame(&ctx, cs, doc, Tool::Select, vec![btn(b, false)]);
+            canvas_frame(&ctx, cs, doc, Tool::Select, vec![]);
+        };
+        // Da régua de cima até y = 100 mm na página (fora dos objetos).
+        let target = cs.screen(rect, ph, Point::new(5_000.0, 100_000.0));
+        let from = egui::pos2(target.x, theme::RULER_SIZE / 2.0);
+        drag(&mut cs, &mut doc, from, target);
+        let g = &doc.page().guides;
+        assert_eq!(g.len(), 1, "guia criada");
+        assert_eq!(g[0].kind, "horizontal");
+        assert!(
+            (g[0].position - 100_000.0).abs() < 2.0 / cs.view.zoom,
+            "{}",
+            g[0].position
+        );
+        // De volta para a régua: apaga.
+        drag(&mut cs, &mut doc, target, from);
+        assert!(doc.page().guides.is_empty(), "guia removida");
+    }
+
     /// GD-FER-32: arrastar com a ferramenta Polígono cria o polígono com os
     /// parâmetros atuais, inscrito na caixa arrastada.
     #[test]

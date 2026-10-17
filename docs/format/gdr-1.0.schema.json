@@ -72,7 +72,8 @@
             "intent": { "enum": ["perceptual", "relative", "saturation", "absolute"] },
             "blackPoint": { "type": "boolean" }
           }
-        }
+        },
+        "guides": { "type": "array", "items": { "$ref": "#/$defs/guide" } }
       }
     },
     "color": {
@@ -344,6 +345,18 @@
         "objects": { "type": "array", "items": { "$ref": "#/$defs/object" } }
       }
     },
+    "guide": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": { "enum": ["horizontal", "vertical", "angled"] },
+        "position": { "$ref": "#/$defs/um" },
+        "point": { "$ref": "#/$defs/point" },
+        "angle": { "type": "number" },
+        "locked": { "type": "boolean" },
+        "color": { "$ref": "#/$defs/color" }
+      }
+    },
     "page": {
       "type": "object",
       "required": ["id", "width", "height"],
@@ -357,6 +370,7 @@
         "bleed": { "type": "number", "minimum": 0, "description": "Sangria própria em µm; ausente = settings.bleed." },
         "locked": { "type": "boolean", "description": "Página bloqueada para edição." },
         "tagColor": { "$ref": "#/$defs/color", "description": "Etiqueta de cor da aba (organização)." },
+        "guides": { "type": "array", "items": { "$ref": "#/$defs/guide" } },
         "layers": { "type": "array", "items": { "$ref": "#/$defs/layer" } }
       }
     },

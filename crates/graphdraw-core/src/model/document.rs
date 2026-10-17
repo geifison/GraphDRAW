@@ -44,6 +44,9 @@ pub struct Settings {
     /// Resolução padrão de rasterização (ppp).
     #[serde(default = "dpi")]
     pub resolution: f64,
+    /// Guias de todas as páginas (GD-GUI-01).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub guides: Vec<Guide>,
     /// Gerenciamento de cor do documento (GD-CMS-02).
     #[serde(default, skip_serializing_if = "is_default_color")]
     pub color: crate::cms::ColorManagement,
@@ -64,6 +67,7 @@ impl Default for Settings {
             drawing_scale: unit_scale(),
             resolution: dpi(),
             color: Default::default(),
+            guides: Vec::new(),
             extra: Map::new(),
         }
     }
@@ -75,6 +79,117 @@ pub struct MasterPage {
     pub layers: Vec<Layer>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
+}
+
+/// Guia (GD-GUI-01): horizontal (`position` = y), vertical (`position` =
+/// x) ou inclinada (passa por `point` com `angle` graus a partir de +X).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Guide {
+    /// `horizontal`, `vertical` ou `angled`.
+    pub kind: String,
+    #[serde(default)]
+    pub position: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub point: Option<[f64; 2]>,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub angle: f64,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub locked: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color: Option<Color>,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+fn is_zero(v: &f64) -> bool {
+    *v == 0.0
+}
+
+impl Guide {
+    pub fn horizontal(y: f64) -> Guide {
+        Guide::new("horizontal", y, None, 0.0)
+    }
+    pub fn vertical(x: f64) -> Guide {
+        Guide::new("vertical", x, None, 0.0)
+    }
+    /// Guia inclinada por `p` com `angle` graus.
+    pub fn angled(p: kurbo::Point, angle: f64) -> Guide {
+        Guide::new("angled", 0.0, Some([p.x, p.y]), angle)
+    }
+    fn new(kind: &str, position: f64, point: Option<[f64; 2]>, angle: f64) -> Guide {
+        Guide {
+            kind: kind.into(),
+            position,
+            point,
+            angle,
+            locked: false,
+            color: None,
+            extra: Map::new(),
+        }
+    }
+
+    /// Um ponto da guia e a direção unitária dela.
+    pub fn line(&self) -> (kurbo::Point, kurbo::Vec2) {
+        match self.kind.as_str() {
+            "horizontal" => (
+                kurbo::Point::new(0.0, self.position),
+                kurbo::Vec2::new(1.0, 0.0),
+            ),
+            "vertical" => (
+                kurbo::Point::new(self.position, 0.0),
+                kurbo::Vec2::new(0.0, 1.0),
+            ),
+            _ => {
+                let p = self.point.unwrap_or([0.0, 0.0]);
+                let a = self.angle.to_radians();
+                (
+                    kurbo::Point::new(p[0], p[1]),
+                    kurbo::Vec2::new(a.cos(), a.sin()),
+                )
+            }
+        }
+    }
+
+    /// Ponto da guia mais próximo de `p`.
+    pub fn project(&self, p: kurbo::Point) -> kurbo::Point {
+        let (o, d) = self.line();
+        o + d * (p - o).dot(d)
+    }
+
+    pub fn distance(&self, p: kurbo::Point) -> f64 {
+        (self.project(p) - p).hypot()
+    }
+
+    /// Cruzamento com outra guia (`None` se paralelas).
+    pub fn intersect(&self, other: &Guide) -> Option<kurbo::Point> {
+        let (p, r) = self.line();
+        let (q, s) = other.line();
+        let den = r.cross(s);
+        if den.abs() < 1e-12 {
+            return None;
+        }
+        let t = (q - p).cross(s) / den;
+        Some(p + r * t)
+    }
+
+    /// Trecho visível da guia dentro de `area` (para desenhar).
+    pub fn clip(&self, area: kurbo::Rect) -> Option<(kurbo::Point, kurbo::Point)> {
+        let (o, d) = self.line();
+        let (mut t0, mut t1) = (f64::NEG_INFINITY, f64::INFINITY);
+        for (oc, dc, lo, hi) in [(o.x, d.x, area.x0, area.x1), (o.y, d.y, area.y0, area.y1)] {
+            if dc.abs() < 1e-12 {
+                if oc < lo || oc > hi {
+                    return None;
+                }
+            } else {
+                let (a, b) = ((lo - oc) / dc, (hi - oc) / dc);
+                t0 = t0.max(a.min(b));
+                t1 = t1.min(a.max(b));
+            }
+        }
+        (t0 <= t1).then(|| (o + d * t0, o + d * t1))
+    }
 }
 
 /// Página (GD-PAG-01, GD-PAG-05). Tamanho em µm.
@@ -100,6 +215,9 @@ pub struct Page {
     /// Etiqueta de cor da aba (GD-PGT-20).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tag_color: Option<Color>,
+    /// Guias só desta página (GD-GUI-01).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub guides: Vec<Guide>,
     #[serde(default)]
     pub layers: Vec<Layer>,
     #[serde(flatten)]
@@ -119,6 +237,7 @@ impl Page {
             bleed: self.bleed,
             locked: self.locked,
             tag_color: self.tag_color.clone(),
+            guides: self.guides.clone(),
             layers: Vec::new(),
             extra: self.extra.clone(),
         }
@@ -140,6 +259,7 @@ impl Page {
             bleed: None,
             locked: false,
             tag_color: None,
+            guides: Vec::new(),
             layers: vec![Layer::new("Camada 1")],
             extra: Map::new(),
         }

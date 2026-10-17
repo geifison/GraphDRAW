@@ -138,6 +138,8 @@ pub struct App {
     cut_line_dlg: Option<crate::cutui::CutLineDialog>,
     /// Janela de gerenciamento de cor (GD-CMS-02).
     color_dlg: Option<crate::colorui::ColorDialog>,
+    /// Guias predefinidas (GD-GUI-02).
+    preset_dlg: Option<crate::guideui::PresetDialog>,
     /// Janela "Novo documento" aberta (GD-DIM-10).
     new_doc: Option<crate::newdoc::NewDocDialog>,
     /// Condição de impressão escolhida para o PDF/X-1a (GD-EXP-07).
@@ -200,6 +202,7 @@ impl App {
             cut_export: None,
             cut_line_dlg: None,
             color_dlg: None,
+            preset_dlg: None,
             new_doc: None,
             print_condition: export::PrintCondition::Fogra39,
             pdf_standard: export::PdfStandard::Screen,
@@ -1692,6 +1695,36 @@ impl App {
                     });
                 }
                 ui.separator();
+                ui.separator();
+                ui.checkbox(&mut self.canvas.show_rulers, tr("Réguas", "Rulers"));
+                ui.checkbox(&mut self.canvas.show_guides, tr("Guias", "Guides"));
+                ui.checkbox(
+                    &mut self.canvas.guides_locked,
+                    tr("Travar guias", "Lock guides"),
+                );
+                ui.checkbox(
+                    &mut self.canvas.snap.guides,
+                    tr("Encaixar nas guias", "Snap to guides"),
+                );
+                if ui
+                    .button(tr("Guias predefinidas…", "Guide presets…"))
+                    .clicked()
+                {
+                    self.preset_dlg = Some(Default::default());
+                    ui.close();
+                }
+                if ui
+                    .add_enabled(
+                        self.doc.is_some(),
+                        egui::Button::new(tr("Remover guias da página", "Remove page guides")),
+                    )
+                    .clicked()
+                    && let Some(d) = &mut self.doc
+                {
+                    graphdraw_core::edit::guides::clear(&mut d.editor, d.page, false);
+                    ui.close();
+                }
+                ui.separator();
                 ui.checkbox(&mut self.show_right, tr("Painéis", "Panels"));
                 ui.menu_button(tr("Densidade dos painéis", "Panel density"), |ui| {
                     let cur = theme::density(ui.ctx());
@@ -2188,6 +2221,23 @@ impl App {
         }
         self.offset_window(ctx);
         self.cut_windows(ctx);
+        if let Some(dlg) = &mut self.preset_dlg
+            && let Some(ok) = dlg.show(ctx)
+        {
+            let (presets, all) = (dlg.presets(), dlg.all_pages);
+            self.preset_dlg = None;
+            if ok && let Some(d) = &mut self.doc {
+                let (w, h) = d.page_size();
+                let g = graphdraw_core::edit::guides::presets(w, h, &presets);
+                graphdraw_core::edit::guides::add(
+                    &mut d.editor,
+                    d.page,
+                    all,
+                    g,
+                    tr("Guias predefinidas", "Guide presets"),
+                );
+            }
+        }
         if let Some(dlg) = &mut self.color_dlg
             && let Some(ok) = dlg.show(ctx)
         {

@@ -36,6 +36,12 @@ Membros desconhecidos devem ser preservados por quem regrava o arquivo.
 
 ## `document.json`
 
+Guias (GD-GUI-01): `settings.guides` valem em todas as páginas e
+`page.guides` só na página. Cada uma tem `kind` (`horizontal`, `vertical`,
+`angled`), `position` (y da horizontal ou x da vertical, µm), `point` +
+`angle` (inclinada: ponto por onde passa e graus a partir de +X), `locked?`
+e `color?`. Listas vazias não são gravadas.
+
 `settings.color` (opcional; ausente = padrão) guarda o gerenciamento de cor do
 documento (GD-CMS-02): `rgbProfile` e `cmykProfile` (caminho de um arquivo
 ICC; ausente = sRGB embutido / conversão por fórmula), `intent`

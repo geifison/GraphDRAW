@@ -471,3 +471,22 @@ fn gd_pri_03_polygon_round_trip() {
         doc.data.pages[0].layers[0].objects[0].kind
     );
 }
+
+/// GD-GUI-01: guias da página e do documento gravam e seguem o schema.
+#[test]
+fn gd_gui_01_guides_round_trip() {
+    use graphdraw_core::model::{Guide, Page};
+    let mut doc = Document::new();
+    let mut p = Page::new(100_000.0, 100_000.0);
+    p.guides.push(Guide::vertical(10_000.0));
+    let mut a = Guide::angled(kurbo::Point::new(5_000.0, 5_000.0), 30.0);
+    a.locked = true;
+    p.guides.push(a);
+    doc.data.pages.push(p);
+    doc.data.settings.guides.push(Guide::horizontal(50_000.0));
+    let saved = gdr::write_bytes(&doc, &WriteOptions::default()).unwrap();
+    assert_valid(&schema_validator(), &document_with_pages(&saved), "guias");
+    let (back, _) = gdr::read_bytes(&saved).unwrap();
+    assert_eq!(back.data.pages[0].guides, doc.data.pages[0].guides);
+    assert_eq!(back.data.settings.guides, doc.data.settings.guides);
+}
