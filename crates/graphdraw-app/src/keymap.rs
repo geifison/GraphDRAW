@@ -127,6 +127,9 @@ commands! {
 
     Undo = "edit.undo", "Desfazer", "Undo", Edit, NotText, true;
     Redo = "edit.redo", "Refazer", "Redo", Edit, NotText, true;
+    Copy = "edit.copy", "Copiar", "Copy", Edit, Selection, true;
+    Cut = "edit.cut", "Recortar", "Cut", Edit, Selection, true;
+    Paste = "edit.paste", "Colar", "Paste", Edit, NotText, true;
     Duplicate = "edit.duplicate", "Duplicar", "Duplicate", Edit, Selection, true;
     PasteInPlace = "edit.paste_in_place", "Copiar no mesmo lugar", "Copy in place", Edit, Selection, true;
     Repeat = "edit.repeat", "Repetir a última ação", "Repeat last action", Edit, NotText, true;
@@ -154,6 +157,16 @@ commands! {
     CutLine = "cut.line", "Gerar linha de corte", "Create cut line", Object, Selection, true;
     RegistrationMarks = "cut.registration_marks", "Marcas de registro", "Registration marks", Object, NotText, true;
     Ungroup = "obj.ungroup", "Desagrupar", "Ungroup", Object, Selection, true;
+    UngroupAll = "obj.ungroup_all", "Desagrupar tudo", "Ungroup all", Object, Selection, true;
+    LockSelection = "obj.lock", "Bloquear", "Lock", Object, Selection, true;
+    UnlockSelection = "obj.unlock", "Desbloquear", "Unlock", Object, Selection, true;
+    HideSelection = "obj.hide", "Ocultar", "Hide", Object, Selection, true;
+    ShowAll = "obj.show_all", "Mostrar todos", "Show all", Object, NotText, true;
+    UnlockAll = "obj.unlock_all", "Desbloquear todos", "Unlock all", Object, NotText, true;
+    InFrontOf = "obj.in_front_of", "À frente de…", "In front of…", Object, Selection, true;
+    BehindOf = "obj.behind", "Atrás de…", "Behind…", Object, Selection, true;
+    FocusMode = "view.focus", "Modo foco", "Focus mode", View, NotText, true;
+    ExportSelection = "file.export_selection", "Exportar seleção…", "Export selection…", File, Selection, true;
     FitTextToPath = "text.fit_to_path", "Ajustar texto ao caminho", "Fit text to path", Object, Multi, true;
     DetachTextPath = "text.detach_path", "Separar texto do caminho", "Detach text from path", Object, Selection, true;
     ConvertTextKind = "text.convert_kind", "Converter texto artístico/parágrafo", "Convert artistic/paragraph text", Object, Selection, true;
@@ -380,6 +393,9 @@ impl Keymap {
                 (Undo, "Ctrl+Z"),
                 (Redo, "Ctrl+Y"),
                 (Redo, "Ctrl+Shift+Z"),
+                (Copy, "Ctrl+C"),
+                (Cut, "Ctrl+X"),
+                (Paste, "Ctrl+V"),
                 (Duplicate, "Ctrl+D"),
                 (PasteInPlace, "Ctrl+Shift+D"),
                 (Repeat, "Ctrl+Shift+R"),

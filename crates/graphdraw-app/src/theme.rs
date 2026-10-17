@@ -333,6 +333,10 @@ pub const TOOL_DRAWER_HIT: f32 = 9.0;
 pub const SPREAD_GAP: f32 = 24.0;
 /// Véu sobre as páginas vizinhas (só para ver).
 pub const SPREAD_DIM: Color32 = Color32::from_rgba_premultiplied(0, 0, 0, 40);
+/// Largura mínima do menu do botão direito.
+pub const CONTEXT_MENU_WIDTH: f32 = 200.0;
+/// Realce do alvo no arrasto com o botão direito.
+pub const DROP_TARGET_WIDTH: f32 = 2.0;
 /// Lista de modos de mesclagem (painel Camadas, Aparência).
 pub const BLEND_COMBO_WIDTH: f32 = 150.0;
 /// Lista de formas de ponta de seta (janela de contorno).

@@ -241,8 +241,47 @@ impl Prim {
     }
 }
 
+/// Botão direito pressionado (GD-BDR-01).
+#[derive(Clone)]
+struct RightPress {
+    start: Pos2,
+    time: f64,
+    /// Objeto sob o cursor ao pressionar.
+    over: Option<String>,
+    dragging: bool,
+}
+
+/// Arrasto direito menor que isto (px de tela) é clique (GD-BDR-01).
+const RIGHT_DRAG_PX: f32 = 4.0;
+/// Parado mais que isto (s) é toque longo, não clique (GD-BDR-01).
+const LONG_PRESS_S: f64 = 0.5;
+
+#[derive(Clone)]
+enum MenuTarget {
+    Ctx(crate::ctxmenu::Target),
+    Guide(graphdraw_core::edit::guides::GuideRef),
+}
+
+/// Menu do botão direito aberto: ponto da tela, alvo, ponto da página e
+/// quadro em que abriu.
+#[derive(Clone)]
+struct Menu {
+    pos: Pos2,
+    target: MenuTarget,
+    at: Point,
+    opened: u64,
+}
+
 enum Drag {
     None,
+    /// Arrasto com o botão direito (GD-BDR-20): a seleção não se move até a
+    /// escolha no menu; `over` é o alvo sob o cursor.
+    RightMove {
+        ids: Vec<String>,
+        start: Point,
+        cur: Point,
+        over: Option<String>,
+    },
     /// Alça ou parada do gradiente sendo arrastada (matriz local → página).
     GradHandle {
         handle: graphdraw_core::edit::gradtool::Handle,
@@ -385,6 +424,20 @@ pub struct CanvasState {
     pub snap_hit: Option<Snapped>,
     pub snap: SnapSettings,
     pub show_grid: bool,
+    right: Option<RightPress>,
+    menu: Option<Menu>,
+    /// Tipo do nó e se há dois extremos escolhidos (menu de nó).
+    menu_node: Option<(NodeKind, bool)>,
+    /// Cópias deixadas no mover atual (GD-BDR-70).
+    stamped: usize,
+    /// Há o que colar (a área de transferência fica no App).
+    pub can_paste: bool,
+    /// Modo foco (GD-BDR-82): só estes objetos (e o que há dentro deles)
+    /// aparecem e respondem a cliques; não muda o documento.
+    pub focus: Option<Vec<String>>,
+    /// "À frente de…" (`true`) / "Atrás de…" esperando o clique na
+    /// referência (GD-BDR-41).
+    pub pick_reference: Option<bool>,
     /// Páginas vizinhas lado a lado (GD-PAG-04): a anterior à esquerda e a
     /// seguinte à direita, só para ver; clicar numa delas vai para ela.
     pub spread: bool,
@@ -400,8 +453,6 @@ pub struct CanvasState {
     /// Prancheta solta com objetos na página: falta escolher manter ou
     /// escalar (GD-DIM-25). Novo retângulo da página e onde abrir a escolha.
     artboard_pending: Option<(kurbo::Rect, Pos2)>,
-    /// Objeto do menu de botão direito aberto no canvas.
-    menu_target: Option<String>,
     /// Guias inteligentes ao mover (GD-ALI-05).
     pub smart_guides: bool,
     smart: Option<(kurbo::Rect, graphdraw_core::edit::smart::Targets)>,
@@ -426,8 +477,6 @@ pub struct CanvasState {
     pub ruler_origin: Point,
     /// Guias que valem na página atual (cache do quadro).
     guides: Vec<graphdraw_core::model::Guide>,
-    /// Guia do menu de botão direito.
-    guide_menu: Option<graphdraw_core::edit::guides::GuideRef>,
     /// Texto em edição (ferramenta Texto).
     pub text: Option<crate::textedit::TextEditing>,
     /// Retângulo e elipse no modo 3 pontos (GD-FER-30/31).
@@ -459,6 +508,13 @@ impl Default for CanvasState {
                 ..Default::default()
             },
             show_grid: false,
+            right: None,
+            menu: None,
+            menu_node: None,
+            stamped: 0,
+            can_paste: false,
+            focus: None,
+            pick_reference: None,
             spread: false,
             spread_tex: Vec::new(),
             spread_rects: Vec::new(),
@@ -466,7 +522,6 @@ impl Default for CanvasState {
             canvas_size: Vec2::new(800.0, 600.0),
             space_pans: true,
             artboard_pending: None,
-            menu_target: None,
             text: None,
             smart_guides: true,
             smart: None,
@@ -480,7 +535,6 @@ impl Default for CanvasState {
             guides_locked: false,
             ruler_origin: Point::ORIGIN,
             guides: Vec::new(),
-            guide_menu: None,
             three_point: false,
             poly_preview: (5, "polygon".into(), 0.5),
             shape_preview: Defaults::default(),
@@ -523,6 +577,10 @@ fn snap_radius(view: &View) -> f64 {
 #[derive(Default)]
 pub struct CanvasEvents {
     pub switch_tool: Option<Tool>,
+    /// Comando escolhido num menu do botão direito (o App executa).
+    pub command: Option<crate::keymap::Command>,
+    /// "Colar" do menu da área vazia: no ponto clicado (página).
+    pub paste_at: Option<Point>,
     pub status: Option<String>,
     /// Abrir a janela de preenchimento em cor sólida (ferramenta
     /// Preenchimento uniforme).
@@ -739,6 +797,675 @@ impl CanvasState {
         }
     }
 
+    /// Entra no modo foco com a seleção, ou sai dele (GD-BDR-82).
+    pub fn toggle_focus(&mut self, doc: &DocState) {
+        self.focus = match self.focus {
+            Some(_) => None,
+            None if !doc.selection.is_empty() => Some(doc.selection.clone()),
+            None => None,
+        };
+        self.rendered = None;
+    }
+
+    /// Espera o clique no objeto de referência de "À frente de…/Atrás de…".
+    pub fn start_pick_reference(&mut self, above: bool) {
+        self.pick_reference = Some(above);
+    }
+
+    /// IDs visíveis no modo foco (os escolhidos e tudo o que há dentro).
+    fn focus_ids(&self, doc: &DocState) -> Option<std::collections::HashSet<String>> {
+        let ids = self.focus.as_ref()?;
+        let mut out = std::collections::HashSet::new();
+        for id in ids {
+            if let Some(o) = doc.editor.find(id).and_then(|r| doc.editor.get(&r)) {
+                o.walk(&mut |c| {
+                    out.insert(c.id.clone());
+                });
+            }
+        }
+        Some(out)
+    }
+
+    // ---- botão direito (doc 26) ---------------------------------------------
+
+    /// Ponto da página sob a posição de tela.
+    fn page_at(&self, rect: Rect, ph: f64, pos: Pos2) -> Point {
+        let l = pos - rect.min;
+        let (x, y) = self.view.screen_to_page(ph, l.x as f64, l.y as f64);
+        Point::new(x, y)
+    }
+
+    /// Gestos do botão direito (GD-BDR-01/02): clique (< 4 px e < 500 ms)
+    /// abre o menu do alvo; arrasto (≥ 4 px) a partir de um objeto leva a
+    /// prévia fantasma e abre o menu ao soltar; com o esquerdo pressionado,
+    /// carimba cópia (mover) ou cancela a ação (GD-BDR-70/71).
+    #[allow(clippy::too_many_arguments)]
+    fn right_button(
+        &mut self,
+        ui: &egui::Ui,
+        doc: &mut DocState,
+        tool: Tool,
+        rect: Rect,
+        tol: f64,
+        mods: egui::Modifiers,
+        blocked: bool,
+        ev: &mut CanvasEvents,
+    ) {
+        let ph = doc.page_size().1;
+        let (pressed, released, down, primary_down, pos, now) = ui.input(|i| {
+            (
+                i.pointer.button_pressed(PointerButton::Secondary),
+                i.pointer.button_released(PointerButton::Secondary),
+                i.pointer.button_down(PointerButton::Secondary),
+                i.pointer.primary_down(),
+                i.pointer.interact_pos().or(i.pointer.hover_pos()),
+                i.time,
+            )
+        });
+        let Some(pos) = pos else { return };
+        if pressed && rect.contains(pos) {
+            if primary_down || self.is_dragging() && !matches!(self.drag, Drag::RightMove { .. }) {
+                // GD-BDR-02: com ação em curso, nunca abre menu.
+                self.right_during_left(doc, ev);
+                self.right = None;
+                return;
+            }
+            self.menu = None;
+            let p = self.page_at(rect, ph, pos);
+            let over = if blocked || matches!(tool, Tool::Zoom | Tool::Pan) {
+                None
+            } else {
+                self.pick_focus(doc, p, tol, mods.ctrl)
+            };
+            self.right = Some(RightPress {
+                start: pos,
+                time: now,
+                over,
+                dragging: false,
+            });
+        }
+        let Some(rp) = self.right.clone() else { return };
+        if down && !rp.dragging && (pos - rp.start).length() >= RIGHT_DRAG_PX {
+            if let Some(id) = rp.over.clone() {
+                if !doc.selection.contains(&id) {
+                    doc.selection = vec![id];
+                }
+                let ids: Vec<String> = doc
+                    .selection
+                    .iter()
+                    .filter(|i| {
+                        doc.editor
+                            .find(i)
+                            .and_then(|r| doc.editor.get(&r))
+                            .is_some_and(|o| !o.locked)
+                    })
+                    .cloned()
+                    .collect();
+                if !ids.is_empty() {
+                    let start = self.page_at(rect, ph, rp.start);
+                    self.drag = Drag::RightMove {
+                        ids,
+                        start,
+                        cur: start,
+                        over: None,
+                    };
+                }
+            }
+            if let Some(r) = &mut self.right {
+                r.dragging = true;
+            }
+        }
+        let here = self.page_at(rect, ph, pos);
+        if let Drag::RightMove { ids, cur, over, .. } = &mut self.drag {
+            *cur = here;
+            // Alvo: o objeto mais acima sob o cursor, fora da seleção.
+            *over = pick(doc, here, tol, mods.ctrl).filter(|id| !ids.contains(id));
+        }
+        if released {
+            self.right = None;
+            if rp.dragging {
+                if let Drag::RightMove {
+                    start, cur, over, ..
+                } = std::mem::replace(&mut self.drag, Drag::None)
+                {
+                    let target = crate::ctxmenu::Target::Drop {
+                        over,
+                        delta: cur - start,
+                    };
+                    self.open_menu(pos, MenuTarget::Ctx(target), cur, ui.ctx());
+                }
+                return;
+            }
+            let quick = (pos - rp.start).length() < RIGHT_DRAG_PX && now - rp.time < LONG_PRESS_S;
+            if quick {
+                self.right_click(ui, doc, tool, rect, pos, tol, mods, blocked);
+            }
+        }
+    }
+
+    /// Clique direito: menu do que está sob o cursor (GD-BDR-40..51).
+    #[allow(clippy::too_many_arguments)]
+    fn right_click(
+        &mut self,
+        ui: &egui::Ui,
+        doc: &mut DocState,
+        tool: Tool,
+        rect: Rect,
+        pos: Pos2,
+        tol: f64,
+        mods: egui::Modifiers,
+        blocked: bool,
+    ) {
+        let ph = doc.page_size().1;
+        let p = self.page_at(rect, ph, pos);
+        // GD-BDR-03: Zoom afasta.
+        if tool == Tool::Zoom {
+            let l = pos - rect.min;
+            self.view.zoom_at(0.5, (l.x as f64, l.y as f64));
+            return;
+        }
+        if blocked {
+            return;
+        }
+        // Ferramenta Forma: nó ou segmento da curva selecionada (GD-BDR-50/51).
+        if tool == Tool::Shape
+            && let Some(ps) = single_path(doc)
+        {
+            let (m, path) = (ps.m, ps.path.clone());
+            let hit_node = nodes::all_nodes(&path).into_iter().find(|r| {
+                nodes::node(&path, *r).is_some_and(|n| {
+                    (self.screen(rect, ph, m * pt(n.p)) - pos).length() <= theme::HANDLE_HIT
+                })
+            });
+            if let Some(r) = hit_node {
+                // GD-BDR-52: fora da seleção de nós, age só nele.
+                if !doc.nodes.contains(&r) {
+                    doc.nodes = vec![r];
+                }
+                let kind = nodes::node(&path, r).map(|n| n.kind).unwrap_or_default();
+                let ends =
+                    doc.nodes.len() == 2 && doc.nodes.iter().all(|n| nodes::is_endpoint(&path, *n));
+                self.open_menu(
+                    pos,
+                    MenuTarget::Ctx(crate::ctxmenu::Target::Node(r)),
+                    p,
+                    ui.ctx(),
+                );
+                self.menu_node = Some((kind, ends));
+                return;
+            }
+            let scale = m.determinant().abs().sqrt().max(1e-12);
+            if let Some(n) =
+                geometry::nearest(&path, m.inverse() * p).filter(|n| n.distance * scale <= tol)
+            {
+                self.open_menu(
+                    pos,
+                    MenuTarget::Ctx(crate::ctxmenu::Target::Segment(n.seg, n.t)),
+                    p,
+                    ui.ctx(),
+                );
+                return;
+            }
+        }
+        if let Some(id) = self.pick_focus(doc, p, tol, mods.ctrl) {
+            // Clique direito sobre objeto fora da seleção: seleciona só ele.
+            if !doc.selection.contains(&id) {
+                doc.selection = vec![id.clone()];
+            }
+            self.open_menu(
+                pos,
+                MenuTarget::Ctx(crate::ctxmenu::Target::Object(id)),
+                p,
+                ui.ctx(),
+            );
+            return;
+        }
+        if self.show_guides
+            && let Some((r, _)) = self.guide_at(doc, p)
+        {
+            self.open_menu(pos, MenuTarget::Guide(r), p, ui.ctx());
+            return;
+        }
+        self.open_menu(
+            pos,
+            MenuTarget::Ctx(crate::ctxmenu::Target::Empty),
+            p,
+            ui.ctx(),
+        );
+    }
+
+    fn open_menu(&mut self, pos: Pos2, target: MenuTarget, at: Point, ctx: &egui::Context) {
+        self.menu = Some(Menu {
+            pos,
+            target,
+            at,
+            opened: ctx.cumulative_frame_nr(),
+        });
+    }
+
+    /// Objeto sob o cursor respeitando o modo foco.
+    fn pick_focus(&self, doc: &DocState, p: Point, tol: f64, deep: bool) -> Option<String> {
+        let id = pick(doc, p, tol, deep)?;
+        match self.focus_ids(doc) {
+            Some(f) if !f.contains(&id) => None,
+            _ => Some(id),
+        }
+    }
+
+    /// Botão direito durante ação com o esquerdo: mover carimba cópia
+    /// (GD-BDR-70); o resto cancela (GD-BDR-71).
+    fn right_during_left(&mut self, doc: &mut DocState, ev: &mut CanvasEvents) {
+        match &self.drag {
+            Drag::Move { .. } => {
+                let sel = doc.selection.clone();
+                ops::transform_copies(&mut doc.editor, &sel, Affine::IDENTITY, 1);
+                self.stamped += 1;
+                doc.editor.rename_open(format!(
+                    "{} {}",
+                    tr("Mover e copiar", "Move and copy"),
+                    self.stamped
+                ));
+                ev.status = Some(format!(
+                    "{} {}",
+                    self.stamped,
+                    tr("cópia(s) deixada(s)", "copy(ies) left")
+                ));
+            }
+            Drag::None => {}
+            _ => self.cancel_action(doc),
+        }
+    }
+
+    /// Cancela a ação em curso (GD-BDR-71/72): volta ao estado de antes de
+    /// pressionar o esquerdo; nada entra no histórico.
+    pub fn cancel_action(&mut self, doc: &mut DocState) {
+        if matches!(self.drag, Drag::BezierHandle) {
+            // Desenhando com Bézier: só o nó que estava sendo posto sai.
+            if let Some(b) = &mut self.bezier {
+                b.nodes.pop();
+                if b.nodes.is_empty() {
+                    self.bezier = None;
+                }
+            }
+            self.drag = Drag::None;
+            return;
+        }
+        if doc.editor.in_transaction() {
+            doc.editor.cancel();
+        }
+        self.drag = Drag::None;
+        self.smart_lines.clear();
+        self.snap_hit = None;
+    }
+
+    /// Esc: fecha menu, cancela arrasto direito ou escolha de referência, sai
+    /// do modo foco (GD-BDR-04/20/41/82). `true` se usou o Esc.
+    pub fn escape(&mut self, doc: &mut DocState) -> bool {
+        if self.menu.take().is_some() {
+            return true;
+        }
+        if matches!(self.drag, Drag::RightMove { .. }) {
+            self.drag = Drag::None;
+            self.right = None;
+            return true;
+        }
+        if self.pick_reference.take().is_some() {
+            return true;
+        }
+        if self.focus.take().is_some() {
+            self.rendered = None;
+            let _ = doc;
+            return true;
+        }
+        false
+    }
+
+    /// Menu aberto, no ponto do cursor e dentro da tela (GD-BDR-04).
+    fn context_menu_ui(&mut self, ctx: &egui::Context, doc: &mut DocState, ev: &mut CanvasEvents) {
+        use crate::ctxmenu::{self, Target};
+        let Some(m) = self.menu.clone() else { return };
+        let mut chosen = None;
+        let mut close = false;
+        let focus = self.focus.is_some();
+        let area = egui::Area::new(egui::Id::unique("menu-botao-direito"))
+            .order(egui::Order::Foreground)
+            .fixed_pos(m.pos)
+            .constrain(true)
+            .show(ctx, |ui| {
+                egui::Frame::menu(ui.style()).show(ui, |ui| {
+                    theme::menu_density(ui);
+                    ui.set_min_width(theme::CONTEXT_MENU_WIDTH);
+                    match &m.target {
+                        MenuTarget::Guide(r) => {
+                            if crate::guideui::guide_menu(ui, doc, *r) {
+                                close = true;
+                            }
+                        }
+                        MenuTarget::Ctx(t) => {
+                            let entries = match t {
+                                Target::Object(id) => {
+                                    if let Some(o) = doc
+                                        .editor
+                                        .find(id)
+                                        .and_then(|r| doc.editor.get(&r))
+                                        .cloned()
+                                        && !o.locked
+                                    {
+                                        if let Some(a) = crate::layertree::name_field(ui, &o) {
+                                            crate::layertree::apply(doc, a);
+                                            close = true;
+                                        }
+                                        ui.separator();
+                                    }
+                                    ctxmenu::object_entries(doc, id, focus)
+                                }
+                                Target::Empty => ctxmenu::empty_entries(self.can_paste, focus),
+                                Target::Node(_) => {
+                                    let (k, ends) =
+                                        self.menu_node.unwrap_or((NodeKind::Corner, false));
+                                    ctxmenu::node_entries(k, ends)
+                                }
+                                Target::Segment(..) => ctxmenu::segment_entries(),
+                                Target::Drop { over, .. } => ctxmenu::drop_entries(over.is_some()),
+                            };
+                            chosen = ctxmenu::show(ui, &entries);
+                        }
+                    }
+                });
+            });
+        // Fora: nem no menu nem num submenu (camadas da frente).
+        let on_popup = ctx
+            .pointer_interact_pos()
+            .and_then(|p| ctx.layer_id_at(p))
+            .is_some_and(|l| matches!(l.order, egui::Order::Foreground | egui::Order::Tooltip));
+        let outside = ctx.input(|i| i.pointer.any_pressed())
+            && !area.response.contains_pointer()
+            && !on_popup
+            && ctx.cumulative_frame_nr() > m.opened + 1;
+        if let Some(c) = chosen {
+            self.menu = None;
+            self.exec_menu(c, &m, doc, ev);
+        } else if close || outside {
+            self.menu = None;
+        }
+    }
+
+    /// Executa o item escolhido (cada um uma transação, GD-BDR-05).
+    fn exec_menu(
+        &mut self,
+        c: crate::ctxmenu::Cmd,
+        m: &Menu,
+        doc: &mut DocState,
+        ev: &mut CanvasEvents,
+    ) {
+        use crate::ctxmenu::{Cmd, Target};
+        use graphdraw_core::edit::shapeops::{self, BoolOp, BoolOptions};
+        let target = match &m.target {
+            MenuTarget::Ctx(t) => t.clone(),
+            MenuTarget::Guide(_) => return,
+        };
+        let sel = doc.selection.clone();
+        match c {
+            Cmd::Run(crate::keymap::Command::Paste) => ev.paste_at = Some(m.at),
+            Cmd::Run(cmd) => ev.command = Some(cmd),
+            Cmd::Cancel => {}
+            Cmd::ExitFocus => {
+                self.focus = None;
+                self.rendered = None;
+            }
+            Cmd::NodeKind(k) => self.edit_path(
+                doc,
+                tr("Alterar tipo de nó", "Change node type"),
+                |p, s| {
+                    for r in s.iter() {
+                        nodes::set_kind(p, *r, k);
+                    }
+                },
+            ),
+            Cmd::BreakNode => self.edit_path(doc, tr("Quebrar no nó", "Break at node"), |p, s| {
+                let mut s = s.clone();
+                s.sort();
+                for r in s.into_iter().rev() {
+                    nodes::break_at(p, r);
+                }
+            }),
+            Cmd::JoinEnds => self.edit_path(doc, tr("Unir extremos", "Join ends"), |p, s| {
+                if let [a, b] = s.as_slice() {
+                    nodes::join(p, *a, *b, true);
+                }
+            }),
+            Cmd::DeleteNode => self.edit_path(doc, tr("Excluir nó", "Delete node"), |p, s| {
+                nodes::delete_nodes(p, s);
+            }),
+            Cmd::SegToCurve | Cmd::SegToLine | Cmd::AddNodeHere | Cmd::Reverse => {
+                let Target::Segment(seg, t) = target else {
+                    return;
+                };
+                let name = match c {
+                    Cmd::SegToCurve => tr("Converter em curva", "To curve"),
+                    Cmd::SegToLine => tr("Converter em reta", "To line"),
+                    Cmd::AddNodeHere => tr("Adicionar nó", "Add node"),
+                    _ => tr("Inverter direção", "Reverse direction"),
+                };
+                self.edit_path(doc, name, |p, _| match c {
+                    Cmd::SegToCurve => nodes::to_curve(p, seg),
+                    Cmd::SegToLine => nodes::to_line(p, seg),
+                    Cmd::AddNodeHere => {
+                        nodes::add_node(p, seg, t);
+                    }
+                    _ => nodes::reverse(p, seg.subpath),
+                });
+            }
+            Cmd::SampleText => {
+                let Target::Object(id) = target else { return };
+                ops::modify(
+                    &mut doc.editor,
+                    &[id],
+                    tr("Texto de exemplo", "Sample text"),
+                    |o| match &mut o.kind {
+                        ObjectKind::Text(t) => {
+                            fill_sample_text(t);
+                            true
+                        }
+                        _ => false,
+                    },
+                );
+            }
+            Cmd::UseAsTextFrame => {
+                let Target::Object(id) = target else { return };
+                let Some(b) = doc
+                    .editor
+                    .find(&id)
+                    .and_then(|r| ops::object_bounds(&doc.editor, &r, false))
+                else {
+                    return;
+                };
+                let Some(layer) = doc.layer_for_new_object() else {
+                    return;
+                };
+                let t = graphdraw_core::edit::text::new_text(
+                    b.x0,
+                    b.y1,
+                    Some([b.width(), b.height()]),
+                    &crate::textedit::default_family(),
+                    graphdraw_core::edit::text::DEFAULT_SIZE / 2.0,
+                );
+                let tid = ops::add_object(
+                    &mut doc.editor,
+                    doc.page,
+                    layer,
+                    t,
+                    tr("Quadro de texto", "Text frame"),
+                );
+                doc.selection = vec![tid.clone()];
+                ev.switch_tool = Some(Tool::Text);
+                self.edit_text(doc, tid, None);
+            }
+            Cmd::MoveHere | Cmd::CopyHere => {
+                let Target::Drop { delta, .. } = target else {
+                    return;
+                };
+                if c == Cmd::MoveHere {
+                    ops::transform(
+                        &mut doc.editor,
+                        &sel,
+                        Affine::translate(delta),
+                        tr("Mover para cá", "Move here"),
+                    );
+                } else {
+                    let copies =
+                        ops::transform_copies(&mut doc.editor, &sel, Affine::translate(delta), 1);
+                    doc.selection = copies;
+                }
+            }
+            Cmd::CopyAll
+            | Cmd::CopyStroke
+            | Cmd::CopyFill
+            | Cmd::CenterOnTarget
+            | Cmd::Weld
+            | Cmd::Trim
+            | Cmd::Intersect => {
+                let Target::Drop {
+                    over: Some(over), ..
+                } = target
+                else {
+                    return;
+                };
+                let Some(src) = sel.first().cloned() else {
+                    return;
+                };
+                match c {
+                    Cmd::CopyAll => {
+                        ops::copy_properties(
+                            &mut doc.editor,
+                            &src,
+                            std::slice::from_ref(&over),
+                            ops::CopyProps::ALL,
+                        );
+                    }
+                    Cmd::CopyStroke => {
+                        ops::copy_properties(
+                            &mut doc.editor,
+                            &src,
+                            std::slice::from_ref(&over),
+                            ops::CopyProps::STROKE,
+                        );
+                    }
+                    Cmd::CopyFill => {
+                        ops::copy_properties(
+                            &mut doc.editor,
+                            &src,
+                            std::slice::from_ref(&over),
+                            ops::CopyProps::FILL,
+                        );
+                    }
+                    Cmd::CenterOnTarget => {
+                        ops::center_on(&mut doc.editor, &sel, &over);
+                    }
+                    _ => {
+                        // GD-BDR-35: o alvo é o último; o resultado herda dele e
+                        // os originais saem.
+                        let op = match c {
+                            Cmd::Weld => BoolOp::Weld,
+                            Cmd::Trim => BoolOp::Trim,
+                            _ => BoolOp::Intersect,
+                        };
+                        let mut ids = sel.clone();
+                        ids.push(over);
+                        let opts = BoolOptions {
+                            keep_sources: false,
+                            keep_target: false,
+                        };
+                        match shapeops::boolean(&mut doc.editor, &ids, op, opts) {
+                            Some(n) => doc.selection = n,
+                            None => {
+                                ev.status = Some(
+                                    tr(
+                                        "Nada a fazer: os objetos não se sobrepõem",
+                                        "Nothing to do: the objects do not overlap",
+                                    )
+                                    .into(),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Aplica uma edição à curva selecionada sozinha (nós escolhidos em `s`).
+    fn edit_path(
+        &mut self,
+        doc: &mut DocState,
+        name: &str,
+        f: impl FnOnce(&mut PathData, &mut Vec<NodeRef>),
+    ) {
+        let Some((loc, o)) = single_path(doc).map(|s| (s.r, s.obj.clone())) else {
+            return;
+        };
+        let mut no = o;
+        let mut s = doc.nodes.clone();
+        let ObjectKind::Path(p) = &mut no.kind else {
+            return;
+        };
+        f(p, &mut s);
+        let empty = p.subpaths.is_empty();
+        doc.editor.transaction(name, |ed| {
+            if empty {
+                ed.remove_at(&loc);
+            } else {
+                ed.replace_at(&loc, no);
+            }
+        });
+        if empty {
+            doc.selection.clear();
+            doc.nodes.clear();
+        } else {
+            doc.nodes = s;
+        }
+    }
+
+    /// Prévia fantasma do arrasto direito e realce do alvo (GD-BDR-20/21).
+    fn paint_right_drag(&self, painter: &egui::Painter, doc: &DocState, rect: Rect, ph: f64) {
+        let Drag::RightMove {
+            ids,
+            start,
+            cur,
+            over,
+        } = &self.drag
+        else {
+            return;
+        };
+        let d = *cur - *start;
+        let ghost = EStroke::new(theme::GUIDE_WIDTH, theme::ACCENT_PRIMARY);
+        for id in ids {
+            if let Some(b) = doc
+                .editor
+                .find(id)
+                .and_then(|r| ops::object_bounds(&doc.editor, &r, false))
+            {
+                let r = self.screen_rect(rect, ph, b + d);
+                painter.rect_filled(r, theme::RADIUS_NONE, theme::SELECTION_FILL);
+                painter.rect_stroke(r, theme::RADIUS_NONE, ghost, egui::StrokeKind::Middle);
+            }
+        }
+        if let Some(t) = over
+            && let Some(b) = doc
+                .editor
+                .find(t)
+                .and_then(|r| ops::object_bounds(&doc.editor, &r, false))
+        {
+            let r = self.screen_rect(rect, ph, b);
+            painter.rect_stroke(
+                r,
+                theme::RADIUS_NONE,
+                EStroke::new(theme::DROP_TARGET_WIDTH, theme::ACCENT_PRIMARY),
+                egui::StrokeKind::Outside,
+            );
+        }
+    }
+
     pub fn cancel(&mut self, doc: &mut DocState) {
         if doc.editor.in_transaction() {
             doc.editor.cancel();
@@ -881,15 +1608,27 @@ impl CanvasState {
                 );
             }
         }
-        if response.dragged_by(PointerButton::Primary)
+        // Arrasto com o esquerdo pelo estado do botão: o egui encerra o
+        // arrasto quando o direito é tocado no meio (GD-BDR-70).
+        let (left_down, left_up, ptr) = ui.input(|i| {
+            (
+                i.pointer.primary_down(),
+                i.pointer.primary_released(),
+                i.pointer.interact_pos().or(i.pointer.hover_pos()),
+            )
+        });
+        let left_drag =
+            self.is_dragging() && !matches!(self.drag, Drag::Pan | Drag::RightMove { .. });
+        if (response.dragged_by(PointerButton::Primary) || (left_drag && left_down))
             && !matches!(self.drag, Drag::Pan)
-            && let Some(cur) = response.interact_pointer_pos()
+            && let Some(cur) = response.interact_pointer_pos().or(ptr)
         {
             self.update_drag(doc, to_page(cur), mods, tol);
         }
-        if response.drag_stopped() {
+        if response.drag_stopped_by(PointerButton::Primary) || (left_drag && left_up) {
             let end = response
                 .interact_pointer_pos()
+                .or(ptr)
                 .or(hover)
                 .unwrap_or(rect.center());
             self.end_drag(doc, to_page(end), end, mods, rect, ph, defaults);
@@ -941,64 +1680,9 @@ impl CanvasState {
         {
             ops::set_fill(&mut doc.editor, &[id], Some(Fill::solid(drop.0.clone())));
         }
-        // Botão direito numa guia (fora de objetos): menu da guia.
-        if response.secondary_clicked()
-            && self.show_guides
-            && !blocked
-            && let Some(pos) = response.interact_pointer_pos()
-            && pick(doc, to_page(pos), tol, false).is_none()
-            && let Some((r, _)) = self.guide_at(doc, to_page(pos))
-        {
-            self.guide_menu = Some(r);
-        }
-        if let Some(r) = self.guide_menu {
-            let mut close = false;
-            let open = response.context_menu(|ui| {
-                if crate::guideui::guide_menu(ui, doc, r) {
-                    close = true;
-                    ui.close();
-                }
-            });
-            if close || (open.is_none() && !response.secondary_clicked()) {
-                self.guide_menu = None;
-            }
-        }
-        // Botão direito sobre um objeto: edições rápidas (travar, ocultar, nome).
-        if response.secondary_clicked()
-            && tool != Tool::Zoom
-            && !blocked
-            && self.guide_menu.is_none()
-            && let Some(pos) = response.interact_pointer_pos()
-        {
-            self.menu_target = pick(doc, to_page(pos), tol, mods.ctrl);
-            if let Some(id) = &self.menu_target
-                && !doc.selection.contains(id)
-            {
-                doc.selection = vec![id.clone()];
-            }
-        }
-        if let Some(id) = self.menu_target.clone() {
-            let mut menu_act = None;
-            let open = response.context_menu(|ui| {
-                match doc.editor.find(&id).and_then(|r| doc.editor.get(&r)) {
-                    Some(o) => menu_act = crate::layertree::object_menu(ui, o),
-                    None => ui.close(),
-                }
-            });
-            if open.is_none() && !response.secondary_clicked() {
-                self.menu_target = None;
-            }
-            if let Some(a) = menu_act {
-                crate::layertree::apply(doc, a);
-            }
-        }
-        if response.secondary_clicked()
-            && tool == Tool::Zoom
-            && let Some(pos) = response.interact_pointer_pos()
-        {
-            let l = pos - rect.min;
-            self.view.zoom_at(0.5, (l.x as f64, l.y as f64));
-        }
+        // Botão direito (doc 26): gestos, menus e arrasto direito.
+        self.right_button(ui, doc, tool, rect, tol, mods, blocked, &mut ev);
+        self.context_menu_ui(ui.ctx(), doc, &mut ev);
         if self.show_rulers
             && response.double_clicked()
             && response
@@ -1084,6 +1768,7 @@ impl CanvasState {
             }
         }
         self.paint_overlays(ui, &painter, doc, rect, tool);
+        self.paint_right_drag(&painter, doc, rect, ph);
         self.stop_popup(ui.ctx(), doc, tool);
         if tool == Tool::Artboard {
             self.paint_page_handles(&painter, doc, rect);
@@ -1265,7 +1950,30 @@ impl CanvasState {
                 r.view.zoom == v.zoom && r.size == px && r.rev == key.rev && r.page == key.page
             });
         if self.rendered != Some(key) && !panning {
-            let scene = doc.scene();
+            let mut scene = doc.scene();
+            // Modo foco (GD-BDR-82): só os objetos do foco aparecem.
+            if let Some(ids) = self.focus_ids(doc) {
+                let mut items = Vec::new();
+                let mut blends = std::collections::HashMap::new();
+                for it in &scene.items {
+                    if ids.contains(it.object_id()) {
+                        items.push(it.clone());
+                    }
+                }
+                for (k, v) in &scene.blends {
+                    blends.insert(k.clone(), *v);
+                }
+                scene = std::sync::Arc::new(graphdraw_core::render::Scene {
+                    width: scene.width,
+                    height: scene.height,
+                    background: scene.background.clone(),
+                    bleed: scene.bleed,
+                    items,
+                    missing_fonts: Vec::new(),
+                    blends,
+                    item_bounds: Default::default(),
+                });
+            }
             if let Some(pm) = raster::render(
                 &scene,
                 v.raster_affine(ph, ppp as f64),
@@ -2532,7 +3240,7 @@ impl CanvasState {
                 }
             }
         }
-        match pick(doc, p, tol, mods.ctrl) {
+        match self.pick_focus(doc, p, tol, mods.ctrl) {
             Some(id) => {
                 if !doc.selection.contains(&id) {
                     if mods.shift {
@@ -2568,6 +3276,7 @@ impl CanvasState {
                     graphdraw_core::edit::smart::targets(doc.page(), &doc.selection),
                 ));
                 self.smart_lines.clear();
+                self.stamped = 0;
                 self.drag = Drag::Move {
                     grab,
                     start: p,
@@ -3104,6 +3813,8 @@ impl CanvasState {
         self.smart_lines.clear();
         self.smart_point = None;
         match drag {
+            // O arrasto direito termina no próprio tratamento do botão direito.
+            d @ Drag::RightMove { .. } => self.drag = d,
             Drag::Rubber { start, lasso } => {
                 let hits = match lasso {
                     Some(mut pts) => {
@@ -3330,6 +4041,18 @@ impl CanvasState {
         ev: &mut CanvasEvents,
     ) {
         let ph = doc.page_size().1;
+        // "À frente de…/Atrás de…": este clique escolhe a referência; área
+        // vazia cancela (GD-BDR-41).
+        if let Some(above) = self.pick_reference.take() {
+            match self.pick_focus(doc, p, tol, true) {
+                Some(id) if !doc.selection.contains(&id) => {
+                    let sel = doc.selection.clone();
+                    ops::place_relative(&mut doc.editor, &sel, &id, above);
+                }
+                _ => ev.status = Some(tr("Cancelado", "Cancelled").into()),
+            }
+            return;
+        }
         match tool {
             Tool::Gradient => self.gradient_click(doc, p, pos, tol, rect),
             Tool::SolidFill => {
@@ -3339,7 +4062,7 @@ impl CanvasState {
                 }
             }
             Tool::Eyedropper => self.eyedropper(doc, p, tol, ev),
-            Tool::Select => match pick(doc, p, tol, mods.ctrl) {
+            Tool::Select => match self.pick_focus(doc, p, tol, mods.ctrl) {
                 Some(id) => {
                     if mods.shift {
                         if let Some(i) = doc.selection.iter().position(|s| *s == id) {
@@ -3976,6 +4699,31 @@ pub fn zoom_to_rect(cs: &mut CanvasState, r: kurbo::Rect) {
     cs.zoom_to = Some(r.inflate(r.width() * 0.05, r.height() * 0.05));
 }
 
+/// Texto de exemplo (GD-BDR-60): frases neutras do projeto, até encher o
+/// quadro sem passar dele.
+fn fill_sample_text(t: &mut graphdraw_core::model::TextData) {
+    use graphdraw_core::edit::text;
+    let sentence = tr(
+        "Este é um texto de exemplo para ver a fonte, o corpo e o espaço do quadro. ",
+        "This is sample text to preview the font, the size and the frame space. ",
+    );
+    let n = text::len(t);
+    text::delete(t, 0, n);
+    for _ in 0..200 {
+        let before = text::len(t);
+        text::insert(t, before, sentence);
+        if graphdraw_core::render::text::layout_text(t).overflow {
+            let after = text::len(t);
+            text::delete(t, before, after);
+            break;
+        }
+    }
+    let end = text::len(t);
+    if end > 0 && graphdraw_core::render::text::plain_text(t).ends_with(' ') {
+        text::delete(t, end - 1, end);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -4531,6 +5279,312 @@ mod tests {
         canvas_frame(&ctx, &mut cs, &mut doc, t, vec![esc]);
         assert!(cs.grad_popup.is_none());
         assert!(!doc.editor.in_transaction(), "passo fechado");
+    }
+
+    fn bdr_setup() -> (egui::Context, CanvasState, DocState, String, Rect, f64) {
+        let ctx = crate::theme::test_ctx();
+        let mut cs = CanvasState::default();
+        cs.snap.enabled = false;
+        cs.smart_guides = false;
+        let mut doc = DocState::new_blank();
+        let mut o = Object::new(ObjectKind::Rectangle(RectData {
+            width: 20_000.0,
+            height: 20_000.0,
+            corners: None,
+            extra: Map::new(),
+        }));
+        o.transform = graphdraw_core::model::Transform::translate(50_000.0, 100_000.0);
+        o.fill = Some(Fill::solid(graphdraw_core::model::Color::black()));
+        let id = o.id.clone();
+        doc.editor.insert_object(
+            graphdraw_core::edit::ObjLoc {
+                page: 0,
+                layer: 0,
+                index: 0,
+            },
+            o,
+        );
+        for _ in 0..2 {
+            canvas_frame(&ctx, &mut cs, &mut doc, Tool::Select, vec![]);
+        }
+        let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(1366.0, 768.0));
+        let (_, ph) = doc.page_size();
+        (ctx, cs, doc, id, rect, ph)
+    }
+
+    fn button(pos: Pos2, b: PointerButton, pressed: bool) -> egui::Event {
+        egui::Event::PointerButton {
+            pos,
+            button: b,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        }
+    }
+
+    fn x_of(doc: &DocState, id: &str) -> f64 {
+        ops::object_bounds(&doc.editor, &doc.editor.find(id).unwrap(), false)
+            .unwrap()
+            .x0
+    }
+
+    /// GD-BDR-01: 3 px ainda é clique (abre o menu); 5 px é arrasto (não abre).
+    #[test]
+    fn gd_bdr_01_click_vs_drag_threshold() {
+        let (ctx, mut cs, mut doc, _id, rect, ph) = bdr_setup();
+        let at = cs.screen(rect, ph, Point::new(150_000.0, 200_000.0)); // área vazia
+        for (dx, opens) in [(3.0, true), (5.0, false)] {
+            cs.menu = None;
+            let to = at + Vec2::new(dx, 0.0);
+            canvas_frame(
+                &ctx,
+                &mut cs,
+                &mut doc,
+                Tool::Select,
+                vec![egui::Event::PointerMoved(at)],
+            );
+            canvas_frame(
+                &ctx,
+                &mut cs,
+                &mut doc,
+                Tool::Select,
+                vec![button(at, PointerButton::Secondary, true)],
+            );
+            canvas_frame(
+                &ctx,
+                &mut cs,
+                &mut doc,
+                Tool::Select,
+                vec![egui::Event::PointerMoved(to)],
+            );
+            canvas_frame(
+                &ctx,
+                &mut cs,
+                &mut doc,
+                Tool::Select,
+                vec![button(to, PointerButton::Secondary, false)],
+            );
+            assert_eq!(cs.menu.is_some(), opens, "{dx} px");
+        }
+    }
+
+    /// GD-BDR-20/22/25: arrastar com o direito não move até escolher;
+    /// Cancelar não muda nada nem o histórico; Mover para cá translada.
+    #[test]
+    fn gd_bdr_25_right_drag_cancel_and_move() {
+        let (ctx, mut cs, mut doc, id, rect, ph) = bdr_setup();
+        let a = cs.screen(rect, ph, Point::new(60_000.0, 110_000.0));
+        let b = cs.screen(rect, ph, Point::new(110_000.0, 110_000.0));
+        let undo0 = doc.editor.undo_len();
+        let drag = |cs: &mut CanvasState, doc: &mut DocState| {
+            canvas_frame(
+                &ctx,
+                cs,
+                doc,
+                Tool::Select,
+                vec![egui::Event::PointerMoved(a)],
+            );
+            canvas_frame(
+                &ctx,
+                cs,
+                doc,
+                Tool::Select,
+                vec![button(a, PointerButton::Secondary, true)],
+            );
+            for k in 1..=5 {
+                let p = a + (b - a) * (k as f32 / 5.0);
+                canvas_frame(
+                    &ctx,
+                    cs,
+                    doc,
+                    Tool::Select,
+                    vec![egui::Event::PointerMoved(p)],
+                );
+            }
+            assert!(
+                (x_of(doc, &id) - 50_000.0).abs() < 1e-6,
+                "não se move durante o arrasto"
+            );
+            canvas_frame(
+                &ctx,
+                cs,
+                doc,
+                Tool::Select,
+                vec![button(b, PointerButton::Secondary, false)],
+            );
+        };
+        drag(&mut cs, &mut doc);
+        let m = cs.menu.clone().expect("menu ao soltar");
+        assert!(matches!(
+            m.target,
+            MenuTarget::Ctx(crate::ctxmenu::Target::Drop { over: None, .. })
+        ));
+        let mut ev = CanvasEvents::default();
+        cs.exec_menu(crate::ctxmenu::Cmd::Cancel, &m, &mut doc, &mut ev);
+        assert!((x_of(&doc, &id) - 50_000.0).abs() < 1e-6);
+        assert_eq!(
+            doc.editor.undo_len(),
+            undo0,
+            "Cancelar não entra no histórico"
+        );
+        drag(&mut cs, &mut doc);
+        let m = cs.menu.clone().unwrap();
+        cs.exec_menu(crate::ctxmenu::Cmd::MoveHere, &m, &mut doc, &mut ev);
+        let moved = x_of(&doc, &id) - 50_000.0;
+        assert!((moved - 50_000.0).abs() < 200.0, "50 mm: {moved}");
+    }
+
+    /// GD-BDR-70: mover com o esquerdo, tocar o direito no meio deixa uma
+    /// cópia; tudo é um passo de desfazer.
+    #[test]
+    fn gd_bdr_70_stamp_copy_while_moving() {
+        let (ctx, mut cs, mut doc, id, rect, ph) = bdr_setup();
+        doc.selection = vec![id.clone()];
+        let p = |x: f64| cs.screen(rect, ph, Point::new(x, 110_000.0));
+        let (p0, p30, p60) = (p(60_000.0), p(90_000.0), p(120_000.0));
+        let undo0 = doc.editor.undo_len();
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::Select,
+            vec![egui::Event::PointerMoved(p0)],
+        );
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::Select,
+            vec![button(p0, PointerButton::Primary, true)],
+        );
+        for k in 1..=4 {
+            let q = p0 + (p30 - p0) * (k as f32 / 4.0);
+            canvas_frame(
+                &ctx,
+                &mut cs,
+                &mut doc,
+                Tool::Select,
+                vec![egui::Event::PointerMoved(q)],
+            );
+        }
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::Select,
+            vec![button(p30, PointerButton::Secondary, true)],
+        );
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::Select,
+            vec![button(p30, PointerButton::Secondary, false)],
+        );
+        for k in 1..=4 {
+            let q = p30 + (p60 - p30) * (k as f32 / 4.0);
+            canvas_frame(
+                &ctx,
+                &mut cs,
+                &mut doc,
+                Tool::Select,
+                vec![egui::Event::PointerMoved(q)],
+            );
+        }
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::Select,
+            vec![button(p60, PointerButton::Primary, false)],
+        );
+        let xs: Vec<f64> = doc.page().layers[0]
+            .objects
+            .iter()
+            .map(|o| {
+                ops::object_bounds(&doc.editor, &doc.editor.find(&o.id).unwrap(), false)
+                    .unwrap()
+                    .x0
+            })
+            .collect();
+        assert_eq!(xs.len(), 2, "original + 1 cópia");
+        let tol = 3.0 / cs.view.zoom;
+        assert!(
+            xs.iter().any(|x| (x - 80_000.0).abs() < tol),
+            "cópia a 30 mm: {xs:?}"
+        );
+        assert!(
+            xs.iter().any(|x| (x - 110_000.0).abs() < tol),
+            "original a 60 mm: {xs:?}"
+        );
+        assert_eq!(doc.editor.undo_len(), undo0 + 1, "uma transação");
+        doc.editor.undo();
+        assert_eq!(doc.page().layers[0].objects.len(), 1);
+        assert!((x_of(&doc, &id) - 50_000.0).abs() < 1e-6);
+    }
+
+    /// GD-BDR-71: durante outra ação (escalar), tocar o direito cancela tudo.
+    #[test]
+    fn gd_bdr_71_right_cancels_other_actions() {
+        let (ctx, mut cs, mut doc, id, rect, ph) = bdr_setup();
+        doc.selection = vec![id.clone()];
+        for _ in 0..2 {
+            canvas_frame(&ctx, &mut cs, &mut doc, Tool::Select, vec![]);
+        }
+        let undo0 = doc.editor.undo_len();
+        // Alça do canto superior direito (70, 120) arrastada para (90, 140).
+        let h = cs.screen(rect, ph, Point::new(70_000.0, 120_000.0));
+        let to = cs.screen(rect, ph, Point::new(90_000.0, 140_000.0));
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::Select,
+            vec![egui::Event::PointerMoved(h)],
+        );
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::Select,
+            vec![button(h, PointerButton::Primary, true)],
+        );
+        for k in 1..=4 {
+            let q = h + (to - h) * (k as f32 / 4.0);
+            canvas_frame(
+                &ctx,
+                &mut cs,
+                &mut doc,
+                Tool::Select,
+                vec![egui::Event::PointerMoved(q)],
+            );
+        }
+        let b = ops::object_bounds(&doc.editor, &doc.editor.find(&id).unwrap(), false).unwrap();
+        assert!(b.width() > 25_000.0, "escalou durante o arrasto: {b:?}");
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::Select,
+            vec![button(to, PointerButton::Secondary, true)],
+        );
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::Select,
+            vec![button(to, PointerButton::Secondary, false)],
+        );
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::Select,
+            vec![button(to, PointerButton::Primary, false)],
+        );
+        let b = ops::object_bounds(&doc.editor, &doc.editor.find(&id).unwrap(), false).unwrap();
+        assert!((b.width() - 20_000.0).abs() < 1e-6, "voltou: {b:?}");
+        assert_eq!(doc.editor.undo_len(), undo0, "histórico inalterado");
+        assert!(cs.menu.is_none(), "GD-BDR-02: sem menu");
     }
 
     /// Conta-gotas: com seleção, clicar noutro objeto copia o preenchimento

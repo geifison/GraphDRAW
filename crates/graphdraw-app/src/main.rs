@@ -7,6 +7,7 @@
 mod app;
 mod canvas;
 mod colorui;
+mod ctxmenu;
 mod cutui;
 mod dialogs;
 mod doc;

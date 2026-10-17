@@ -154,6 +154,10 @@ pub struct App {
     export_choice: bool,
     /// Janela do contorno de deslocamento (GD-OFS-01) aberta.
     offset_dlg: Option<OffsetDialog>,
+    /// Área de transferência interna: objetos com a matriz completa (página).
+    clipboard: Vec<graphdraw_core::model::Object>,
+    /// Último formato exportado (exportar seleção usa o mesmo).
+    last_export: ExportFormat,
     /// Última escolha de cada grupo da caixa de ferramentas.
     tool_group_last: std::collections::HashMap<&'static str, usize>,
     /// Gaveta aberta: grupo, variantes, posição e quadro em que abriu.
@@ -231,6 +235,8 @@ impl App {
             last_action: None,
             export_choice: false,
             offset_dlg: None,
+            clipboard: Vec::new(),
+            last_export: ExportFormat::Pdf,
             tool_group_last: Default::default(),
             tool_drawer: None,
             bitmap_dlg: None,
@@ -546,7 +552,81 @@ impl App {
     }
 
     /// Exporta a página atual (formatos de uma página) ou o documento (PDF).
+    /// Cola a área de transferência interna (na mesma posição ou com o
+    /// centro em `at`, coordenadas da página), na camada atual.
+    pub(crate) fn paste_at(&mut self, at: Option<kurbo::Point>) {
+        let Some(d) = &mut self.doc else { return };
+        if self.clipboard.is_empty() {
+            self.status = tr("Nada para colar", "Nothing to paste").into();
+            return;
+        }
+        let Some(layer) = d.layer_for_new_object() else {
+            return;
+        };
+        let mut objs: Vec<graphdraw_core::model::Object> = self.clipboard.clone();
+        for o in &mut objs {
+            ops::renew_ids(o);
+        }
+        if let Some(p) = at {
+            let b = objs
+                .iter()
+                .filter_map(|o| {
+                    graphdraw_core::edit::query::bounds(o, kurbo::Affine::IDENTITY, false)
+                })
+                .reduce(|a, b| a.union(b));
+            if let Some(b) = b {
+                let m = kurbo::Affine::translate(p - b.center());
+                for o in &mut objs {
+                    o.transform =
+                        graphdraw_core::model::Transform::from_affine(m * o.transform.affine());
+                }
+            }
+        }
+        let page = d.page;
+        let ids: Vec<String> = objs.iter().map(|o| o.id.clone()).collect();
+        d.editor.transaction(tr("Colar", "Paste"), |ed| {
+            for o in objs {
+                let index = ed.objects(page, layer).len();
+                ed.insert_object(graphdraw_core::edit::ObjLoc { page, layer, index }, o);
+            }
+        });
+        d.selection = ids;
+    }
+
+    /// Exportar seleção (GD-BDR-81): só os objetos selecionados, numa página
+    /// do tamanho deles, no último formato usado (PNG com fundo
+    /// transparente).
+    fn export_selection(&mut self) {
+        let Some(d) = &self.doc else { return };
+        let Some(sel_doc) = ops::selection_document(&d.editor, &d.selection) else {
+            return;
+        };
+        let format = self.last_export;
+        let ext = format.extension();
+        let Some(out) = rfd::FileDialog::new()
+            .set_file_name(format!("{}.{ext}", tr("selecao", "selection")))
+            .add_filter(ext.to_uppercase(), &[ext])
+            .save_file()
+        else {
+            return;
+        };
+        let opts = ExportOptions {
+            dpi: d.doc().data.settings.resolution,
+            text_to_curves: self.text_curves,
+            ..Default::default()
+        };
+        self.status = match export::export_with_report(&sel_doc, &out, format, &opts) {
+            Ok(_) => format!(
+                "{} {}",
+                tr("Seleção exportada para", "Selection exported to"),
+                out.display()
+            ),
+            Err(e) => format!("{} {e}", tr("Falha ao exportar:", "Export failed:")),
+        };
+    }
+
     fn export(&mut self, format: ExportFormat) {
+        self.last_export = format;
         let Some(doc) = &self.doc else { return };
         let pages = if format.single_page() {
             vec![doc.page]
@@ -961,7 +1041,9 @@ impl App {
         if pressed(Key::Escape)
             && let Some(d) = &mut self.doc
         {
-            if self.canvas.is_dragging() || self.canvas.has_draft() {
+            if self.canvas.escape(d) {
+                // Menu, arrasto direito, escolha de referência ou modo foco.
+            } else if self.canvas.is_dragging() || self.canvas.has_draft() {
                 self.canvas.cancel(d);
             } else {
                 d.selection.clear();
@@ -1117,6 +1199,69 @@ impl App {
                 let off = self.nudge.1 / 2.0;
                 self.with_selection(|ed, s| Some(ops::duplicate(ed, s, Vec2::new(off, -off))));
             }
+            C::Copy | C::Cut => {
+                if let Some(d) = &mut self.doc {
+                    let refs = ops::refs(&d.editor, &d.selection);
+                    self.clipboard = refs
+                        .iter()
+                        .filter_map(|r| {
+                            let mut o = d.editor.get(r)?.clone();
+                            o.transform = graphdraw_core::model::Transform::from_affine(
+                                d.editor.parent_affine(r) * o.transform.affine(),
+                            );
+                            Some(o)
+                        })
+                        .collect();
+                    let n = self.clipboard.len();
+                    if c == C::Cut {
+                        let sel = std::mem::take(&mut d.selection);
+                        ops::delete(&mut d.editor, &sel);
+                    }
+                    self.status = format!("{n} {}", tr("objeto(s) copiado(s)", "object(s) copied"));
+                }
+            }
+            C::Paste => self.paste_at(None),
+            C::UngroupAll => self.with_selection(|ed, s| Some(ops::ungroup_all(ed, s))),
+            C::LockSelection | C::UnlockSelection | C::HideSelection => {
+                if let Some(d) = &mut self.doc {
+                    let sel = d.selection.clone();
+                    match c {
+                        C::LockSelection => ops::set_locked(&mut d.editor, &sel, true),
+                        C::UnlockSelection => ops::set_locked(&mut d.editor, &sel, false),
+                        _ => {
+                            ops::set_visible(&mut d.editor, &sel, false);
+                            d.selection.clear();
+                        }
+                    }
+                }
+            }
+            C::ShowAll | C::UnlockAll => {
+                if let Some(d) = &mut self.doc {
+                    let page = d.page;
+                    let ids = if c == C::ShowAll {
+                        ops::show_all(&mut d.editor, page)
+                    } else {
+                        ops::unlock_all(&mut d.editor, page)
+                    };
+                    self.status = format!("{} {}", ids.len(), tr("objeto(s)", "object(s)"));
+                }
+            }
+            C::InFrontOf | C::BehindOf => {
+                if self.doc.as_ref().is_some_and(|d| !d.selection.is_empty()) {
+                    self.canvas.start_pick_reference(c == C::InFrontOf);
+                    self.status = tr(
+                        "Clique no objeto de referência (Esc cancela)",
+                        "Click the reference object (Esc cancels)",
+                    )
+                    .into();
+                }
+            }
+            C::FocusMode => {
+                if let Some(d) = &mut self.doc {
+                    self.canvas.toggle_focus(d);
+                }
+            }
+            C::ExportSelection => self.export_selection(),
             C::PasteInPlace => {
                 self.with_selection(|ed, s| Some(ops::duplicate(ed, s, Vec2::ZERO)));
             }
@@ -1531,6 +1676,19 @@ impl App {
                 {
                     self.run_command(Command::Export, &ctx);
                 }
+                let has_sel_file = self.doc.as_ref().is_some_and(|d| !d.selection.is_empty());
+                if ui
+                    .add_enabled(
+                        has_sel_file,
+                        egui::Button::new(keymap::menu(
+                            tr("Exportar seleção…", "Export selection…"),
+                            Command::ExportSelection,
+                        )),
+                    )
+                    .clicked()
+                {
+                    self.run_command(Command::ExportSelection, &ctx);
+                }
                 if ui
                     .add_enabled(
                         has,
@@ -1629,6 +1787,21 @@ impl App {
                     .clicked()
                 {
                     self.redo();
+                }
+                ui.separator();
+                let has_sel_edit = self.doc.as_ref().is_some_and(|d| !d.selection.is_empty());
+                let can_paste = !self.clipboard.is_empty();
+                for (label, cmd, on) in [
+                    (tr("Recortar", "Cut"), Command::Cut, has_sel_edit),
+                    (tr("Copiar", "Copy"), Command::Copy, has_sel_edit),
+                    (tr("Colar", "Paste"), Command::Paste, can_paste),
+                ] {
+                    if ui
+                        .add_enabled(on, egui::Button::new(keymap::menu(label, cmd)))
+                        .clicked()
+                    {
+                        self.run_command(cmd, &ctx);
+                    }
                 }
                 ui.separator();
                 if ui
@@ -1887,6 +2060,23 @@ impl App {
                 {
                     self.with_selection(|ed, s| Some(ops::ungroup(ed, s)));
                 }
+                for (label, cmd, on) in [
+                    (tr("Desagrupar tudo", "Ungroup all"), Command::UngroupAll, has_sel),
+                    (tr("À frente de…", "In front of…"), Command::InFrontOf, has_sel),
+                    (tr("Atrás de…", "Behind…"), Command::BehindOf, has_sel),
+                    (tr("Bloquear", "Lock"), Command::LockSelection, has_sel),
+                    (tr("Desbloquear", "Unlock"), Command::UnlockSelection, has_sel),
+                    (tr("Ocultar", "Hide"), Command::HideSelection, has_sel),
+                    (tr("Mostrar todos", "Show all"), Command::ShowAll, true),
+                    (tr("Desbloquear todos", "Unlock all"), Command::UnlockAll, true),
+                ] {
+                    if ui
+                        .add_enabled(on, egui::Button::new(keymap::menu(label, cmd)))
+                        .clicked()
+                    {
+                        self.run_command(cmd, &ctx);
+                    }
+                }
                 if ui
                     .add_enabled(
                         has_sel,
@@ -2067,6 +2257,17 @@ impl App {
                 }
                 ui.separator();
                 ui.separator();
+                let focus_label = if self.canvas.focus.is_some() {
+                    tr("Sair do modo foco", "Leave focus mode")
+                } else {
+                    tr("Modo foco (só a seleção)", "Focus mode (selection only)")
+                };
+                if ui
+                    .add(egui::Button::new(keymap::menu(focus_label, Command::FocusMode)))
+                    .clicked()
+                {
+                    self.run_command(Command::FocusMode, &ctx);
+                }
                 ui.checkbox(&mut self.canvas.show_rulers, tr("Réguas", "Rulers"));
                 ui.checkbox(
                     &mut self.canvas.spread,
@@ -2446,6 +2647,15 @@ impl App {
 
     fn status_bar(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
+            // Modo foco (GD-BDR-82): indicador; clicar sai.
+            if self.canvas.focus.is_some()
+                && ui
+                    .button(tr("◉ Modo foco — sair", "◉ Focus mode — leave"))
+                    .clicked()
+                && let Some(d) = &mut self.doc
+            {
+                self.canvas.toggle_focus(d);
+            }
             if self.loading.is_some() {
                 ui.spinner();
             }
@@ -3318,6 +3528,8 @@ impl App {
                 self.ws.width = r.response.rect.width().round();
             }
         }
+        let mut pending_cmd = None;
+        let mut pending_paste = None;
         egui::CentralPanel::no_frame().show(ui, |ui| {
             // Abas de documento no topo da área de trabalho; as páginas do
             // documento ativo ficam logo abaixo do desenho (GD-UI-01, doc 21).
@@ -3344,9 +3556,16 @@ impl App {
             });
             if let Some(doc) = &mut self.doc {
                 // Backspace na ferramenta Bézier remove o último nó do traçado.
+                self.canvas.can_paste = !self.clipboard.is_empty();
                 let ev = self.canvas.show(ui, doc, self.tool, &self.defaults);
                 if let Some(t) = ev.switch_tool {
                     self.tool = t;
+                }
+                if let Some(c) = ev.command {
+                    pending_cmd = Some(c);
+                }
+                if let Some(p) = ev.paste_at {
+                    pending_paste = Some(p);
                 }
                 if let Some((fill, stroke)) = ev.sampled {
                     self.defaults.fill = fill;
@@ -3365,6 +3584,13 @@ impl App {
                 doc.prune_selection();
             }
         });
+        // Menu do botão direito: o comando escolhido roda como no menu principal.
+        if let Some(c) = pending_cmd {
+            self.run_command(c, &ctx);
+        }
+        if let Some(p) = pending_paste {
+            self.paste_at(Some(p));
+        }
         // Arrasto em rótulo de campo numérico: o arrasto inteiro vira um passo
         // só de desfazer (DESIGN-SYSTEM 4.2).
         let dragging = crate::widgets::field_dragging(&ctx);

@@ -325,6 +325,17 @@ impl LayerTree {
 /// Menu de edição rápida do objeto (botão direito no painel ou no canvas):
 /// travar/destravar, mostrar/ocultar e o nome (Enter confirma).
 pub fn object_menu(ui: &mut egui::Ui, o: &Object) -> Option<TreeAction> {
+    let mut act = name_field(ui, o);
+    if act.is_some() {
+        return act;
+    }
+    ui.separator();
+    object_menu_rest(ui, o, &mut act);
+    act
+}
+
+/// Campo Nome do menu de objeto (Enter confirma).
+pub fn name_field(ui: &mut egui::Ui, o: &Object) -> Option<TreeAction> {
     let mut act = None;
     let key = egui::Id::unique(("menu-nome-objeto", &o.id));
     let mut buf: String = ui
@@ -348,14 +359,17 @@ pub fn object_menu(ui: &mut egui::Ui, o: &Object) -> Option<TreeAction> {
             ui.close();
         }
     });
-    ui.separator();
+    act
+}
+
+fn object_menu_rest(ui: &mut egui::Ui, o: &Object, act: &mut Option<TreeAction>) {
     let lock = if o.locked {
         tr("Destravar", "Unlock")
     } else {
         tr("Travar", "Lock")
     };
     if ui.button(lock).clicked() {
-        act = Some(TreeAction::Locked(o.id.clone(), !o.locked));
+        *act = Some(TreeAction::Locked(o.id.clone(), !o.locked));
         ui.close();
     }
     let vis = if o.visible {
@@ -364,10 +378,9 @@ pub fn object_menu(ui: &mut egui::Ui, o: &Object) -> Option<TreeAction> {
         tr("Mostrar", "Show")
     };
     if ui.button(vis).clicked() {
-        act = Some(TreeAction::Visible(o.id.clone(), !o.visible));
+        *act = Some(TreeAction::Visible(o.id.clone(), !o.visible));
         ui.close();
     }
-    act
 }
 
 /// Aplica a ação de uma linha de objeto.

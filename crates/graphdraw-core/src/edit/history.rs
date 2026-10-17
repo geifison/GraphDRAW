@@ -235,6 +235,13 @@ impl Editor {
 
     /// Muda a cada alteração do documento (inclusive desfazer/refazer);
     /// usado pela interface para invalidar caches.
+    /// Troca o nome da transação aberta (ex.: "Mover" vira "Mover e copiar 2").
+    pub fn rename_open(&mut self, name: impl Into<String>) {
+        if let Some(t) = &mut self.open {
+            t.name = name.into();
+        }
+    }
+
     pub fn revision(&self) -> u64 {
         self.revision
     }

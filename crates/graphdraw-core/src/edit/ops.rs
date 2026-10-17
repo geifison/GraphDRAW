@@ -1626,6 +1626,26 @@ pub fn center_on(ed: &mut Editor, sel: &[String], target: &str) -> bool {
     true
 }
 
+/// Documento só com a seleção (GD-BDR-81, exportar seleção): uma página do
+/// tamanho da caixa visual da seleção, com os objetos na mesma aparência,
+/// sem página mestra nem fundo.
+pub fn selection_document(ed: &Editor, sel: &[String]) -> Option<crate::model::Document> {
+    let mut refs = refs(ed, sel);
+    refs.sort();
+    let b = selection_bounds(ed, sel, true)?;
+    let mut d = ed.doc.clone();
+    d.data.master_page.layers.clear();
+    let mut page = crate::model::Page::new(b.width().max(1.0), b.height().max(1.0));
+    let shift = Affine::translate((-b.x0, -b.y0));
+    for r in &refs {
+        let mut o = ed.get(r)?.clone();
+        o.transform = Transform::from_affine(shift * ed.parent_affine(r) * o.transform.affine());
+        page.layers[0].objects.push(o);
+    }
+    d.data.pages = vec![page];
+    Some(d)
+}
+
 /// Primeiro objeto acima de `at` (na mesma camada) que não está em
 /// `removed`: os resultados que substituem os removidos entram logo abaixo
 /// dele, mantendo o lugar na pilha mesmo com removidos espalhados.
@@ -2563,5 +2583,20 @@ mod tests {
         assert_eq!(show_all(&mut ed, 0), vec![a.clone()]);
         assert_eq!(unlock_all(&mut ed, 0), vec![b.clone()]);
         assert!(ed.objects(0, 0).iter().all(|o| o.visible && !o.locked));
+    }
+
+    /// GD-BDR-81: o documento da seleção tem uma página do tamanho dela, com
+    /// os objetos encostados na origem.
+    #[test]
+    fn gd_bdr_81_selection_document() {
+        let mut ed = bdr_editor();
+        let a = bdr_rect(&mut ed, 20_000.0, 30_000.0, 10_000.0, 5_000.0);
+        let _b = bdr_rect(&mut ed, 200_000.0, 200_000.0, 10_000.0, 5_000.0);
+        let d = selection_document(&ed, std::slice::from_ref(&a)).unwrap();
+        let p = &d.data.pages[0];
+        assert_eq!((p.width, p.height), (10_000.0, 5_000.0));
+        assert_eq!(p.layers[0].objects.len(), 1);
+        let t = p.layers[0].objects[0].transform.affine().as_coeffs();
+        assert!(t[4].abs() < 1e-9 && t[5].abs() < 1e-9);
     }
 }
