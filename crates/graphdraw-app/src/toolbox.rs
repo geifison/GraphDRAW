@@ -62,7 +62,10 @@ pub fn slots() -> Vec<Slot> {
         shape: Some((family, mode)),
     };
     vec![
-        Slot::One(Tool::Select),
+        Slot::Group(
+            "selecao",
+            vec![Variant::of(Tool::Select), Variant::of(Tool::FreeTransform)],
+        ),
         Slot::One(Tool::Shape),
         Slot::Group(
             "corte",

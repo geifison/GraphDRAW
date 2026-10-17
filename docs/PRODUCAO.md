@@ -34,7 +34,7 @@ Prioridade:
 - [x] Linha 2 pontos (GD-FER-21).
 - [x] Curva 3 pontos (GD-FER-26).
 - [x] Caneta com prévia do próximo segmento (GD-FER-23): a Bézier já faz isso.
-- [ ] Transformação livre: girar, refletir, escalar e inclinar em torno
+- [x] Transformação livre: girar, refletir, escalar e inclinar em torno
   de um ponto (GD-FER-03).
 - [ ] Cotas: horizontal, vertical, paralela e angular, ligadas aos nós,
   no formato da escala de desenho (GD-FER-40, GD-COT-01..03).

@@ -66,6 +66,9 @@ pub enum Tool {
     Line2,
     /// Curva 3 pontos (GD-FER-26): início e fim arrastando; clique dá a curvatura.
     Curve3,
+    /// Transformação livre (GD-FER-03): o arrasto gira, reflete, escala ou
+    /// inclina a seleção em torno do ponto onde começa.
+    FreeTransform,
 }
 
 /// Modo da linha 2 pontos (GD-FER-21).
@@ -186,6 +189,17 @@ impl Tool {
                 ),
                 "",
             ),
+            Tool::FreeTransform => (
+                "tool-free-transform",
+                crate::keymap::hint(
+                    tr(
+                        "Transformação livre — arraste a partir do pivô para girar, refletir, escalar ou inclinar a seleção",
+                        "Free transform — drag from the pivot to rotate, reflect, scale or skew the selection",
+                    ),
+                    crate::keymap::Command::ToolFreeTransform,
+                ),
+                "",
+            ),
             Tool::Freehand => (
                 "tool-freehand",
                 crate::keymap::hint(
@@ -276,7 +290,7 @@ impl Tool {
             ),
         }
     }
-    pub const ALL: [Tool; 21] = [
+    pub const ALL: [Tool; 22] = [
         Tool::Select,
         Tool::Shape,
         Tool::Zoom,
@@ -298,6 +312,7 @@ impl Tool {
         Tool::Polyline,
         Tool::Line2,
         Tool::Curve3,
+        Tool::FreeTransform,
     ];
 }
 
@@ -422,6 +437,13 @@ enum Drag {
         start: Point,
         cur: Point,
         normal: Option<kurbo::Vec2>,
+    },
+    /// Transformação livre: pivô, cursor, caixa da seleção e originais.
+    FreeXf {
+        pivot: Point,
+        cur: Point,
+        bounds: kurbo::Rect,
+        originals: Vec<(ObjRef, Object)>,
     },
     /// Base da curva 3 pontos sendo puxada.
     Curve3Base {
@@ -598,6 +620,8 @@ pub struct CanvasState {
     pub line_mode: LineMode,
     /// Base da curva 3 pontos, esperando o clique da curvatura.
     curve3: Option<(Point, Point)>,
+    /// Modo da transformação livre.
+    pub free_mode: graphdraw_core::edit::freexf::Mode,
     /// Conta-gotas (doc 27).
     pub eyedrop: crate::eyedrop::Eyedrop,
     /// Último quadro renderizado (RGBA pré-multiplicado), guardado só com o
@@ -691,6 +715,7 @@ impl Default for CanvasState {
             freehand_smooth: 50.0,
             line_mode: LineMode::Free,
             curve3: None,
+            free_mode: Default::default(),
             eyedrop: Default::default(),
             pixels: None,
             focus: None,
@@ -2422,6 +2447,9 @@ impl CanvasState {
             Tool::SolidFill => Glyph::Cross {
                 badge: "tool-fill-solid",
             },
+            Tool::FreeTransform => Glyph::Cross {
+                badge: "tool-free-transform",
+            },
             Tool::Freehand => Glyph::Cross {
                 badge: "tool-freehand",
             },
@@ -3128,6 +3156,33 @@ impl CanvasState {
                     normal,
                 };
             }
+            Tool::FreeTransform => {
+                let Some(bounds) = ops::selection_bounds(&doc.editor, &doc.selection, false) else {
+                    self.note =
+                        Some(tr("Selecione o que transformar", "Select what to transform").into());
+                    return;
+                };
+                let pivot = snap::snap_guided_on(
+                    &self.guides,
+                    p,
+                    &snap::candidates_doc(doc.doc(), doc.page, &self.snap, &doc.selection),
+                    &self.snap,
+                    snap_radius(&self.view),
+                )
+                .map_or(p, |s| s.point);
+                let originals = originals(doc);
+                doc.editor.begin(format!(
+                    "{} {}",
+                    tr("Transformação livre", "Free transform"),
+                    count(originals.len())
+                ));
+                self.drag = Drag::FreeXf {
+                    pivot,
+                    cur: pivot,
+                    bounds,
+                    originals,
+                };
+            }
             Tool::Curve3 => {
                 if self.curve3.is_none() {
                     self.drag = Drag::Curve3Base { start: p, cur: p };
@@ -3559,6 +3614,11 @@ impl CanvasState {
         match &self.drag {
             Drag::Freehand { pts, .. } => {
                 painter.add(egui::Shape::line(line(pts), thin));
+            }
+            Drag::FreeXf { pivot, cur, .. } => {
+                let (a, b) = (self.screen(rect, ph, *pivot), self.screen(rect, ph, *cur));
+                painter.line_segment([a, b], thin);
+                painter.circle_stroke(a, theme::HANDLE_SIZE, thin);
             }
             Drag::Line2 { start, cur, .. } | Drag::Curve3Base { start, cur } => {
                 painter.line_segment(
@@ -4326,6 +4386,25 @@ impl CanvasState {
                 *c = cur;
                 return;
             }
+            Drag::FreeXf {
+                pivot,
+                cur: c,
+                bounds,
+                originals,
+            } => {
+                *c = cur;
+                let m = graphdraw_core::edit::freexf::matrix(
+                    self.free_mode,
+                    *pivot,
+                    cur,
+                    *bounds,
+                    mods.shift,
+                    3.0 / zoom,
+                );
+                let originals = originals.clone();
+                apply_live(doc, &originals, m);
+                return;
+            }
             Drag::Knife { pts, free: true } | Drag::Erase { pts } => {
                 if pts.last().is_none_or(|l| (cur - *l).hypot() > px) {
                     pts.push(cur);
@@ -4764,6 +4843,13 @@ impl CanvasState {
                         extra: Map::new(),
                     };
                     self.add_drawn(doc, sp, defaults, tr("Desenhar linha", "Draw line"));
+                }
+            }
+            Drag::FreeXf { pivot, cur, .. } => {
+                if (cur - pivot).hypot() * self.view.zoom < 3.0 {
+                    doc.editor.cancel();
+                } else {
+                    doc.editor.commit();
                 }
             }
             Drag::Curve3Base { start, cur: end } => {
@@ -6421,6 +6507,85 @@ mod tests {
         assert_eq!(ev.command, Some(crate::keymap::Command::UnlockSelection));
     }
 
+    /// GD-FER-03: escalar pela metade a partir do canto inferior esquerdo e
+    /// girar 90° em volta dele; cada arrasto é um passo de desfazer.
+    #[test]
+    fn free_transform_on_canvas() {
+        let (ctx, mut cs, mut doc, id, rect, ph) = bdr_setup();
+        doc.selection = vec![id.clone()];
+        let view = cs.view;
+        let at = |x: f64, y: f64| {
+            let (a, b) = view.page_to_screen(ph, x, y);
+            rect.min + Vec2::new(a as f32, b as f32)
+        };
+        let drag = |cs: &mut CanvasState, doc: &mut DocState, a: Pos2, b: Pos2| {
+            canvas_frame(
+                &ctx,
+                cs,
+                doc,
+                Tool::FreeTransform,
+                vec![egui::Event::PointerMoved(a)],
+            );
+            canvas_frame(
+                &ctx,
+                cs,
+                doc,
+                Tool::FreeTransform,
+                vec![button(a, PointerButton::Primary, true)],
+            );
+            for k in 1..=5 {
+                let q = a + (b - a) * (k as f32 / 5.0);
+                canvas_frame(
+                    &ctx,
+                    cs,
+                    doc,
+                    Tool::FreeTransform,
+                    vec![egui::Event::PointerMoved(q)],
+                );
+            }
+            canvas_frame(
+                &ctx,
+                cs,
+                doc,
+                Tool::FreeTransform,
+                vec![button(b, PointerButton::Primary, false)],
+            );
+        };
+        let bounds = |doc: &DocState| {
+            ops::object_bounds(&doc.editor, &doc.editor.find(&id).unwrap(), false).unwrap()
+        };
+        let undo = doc.editor.undo_len();
+        cs.free_mode = graphdraw_core::edit::freexf::Mode::Scale;
+        drag(
+            &mut cs,
+            &mut doc,
+            at(50_000.0, 100_000.0),
+            at(60_000.0, 110_000.0),
+        );
+        let b = bounds(&doc);
+        let tol = 4.0 / cs.view.zoom;
+        assert!(
+            (b.width() - 10_000.0).abs() < tol && (b.x0 - 50_000.0).abs() < tol,
+            "{b:?}"
+        );
+        assert_eq!(doc.editor.undo_len(), undo + 1);
+        cs.free_mode = graphdraw_core::edit::freexf::Mode::Rotate;
+        drag(
+            &mut cs,
+            &mut doc,
+            at(50_000.0, 100_000.0),
+            at(50_000.0, 130_000.0),
+        );
+        let b = bounds(&doc);
+        assert!(
+            (b.x1 - 50_000.0).abs() < tol && (b.y1 - 110_000.0).abs() < tol,
+            "{b:?}"
+        );
+        doc.editor.undo();
+        doc.editor.undo();
+        assert!((bounds(&doc).width() - 20_000.0).abs() < 1e-6);
+    }
+
     /// GD-FER-20/21/25/26 na tela: mão livre e linha 2 pontos (com
     /// perpendicular) criam caminhos; polilinha junta retas e trecho livre;
     /// curva 3 pontos passa pelo clique.
@@ -7560,7 +7725,8 @@ mod tests {
                 "mira+tool-freehand",
                 "mira+tool-polyline",
                 "mira+tool-line2",
-                "mira+tool-curve3"
+                "mira+tool-curve3",
+                "mira+tool-free-transform"
             ]
         );
         assert_eq!(

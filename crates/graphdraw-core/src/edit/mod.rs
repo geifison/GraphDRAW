@@ -8,6 +8,7 @@ pub mod cutting;
 pub mod drawing;
 pub mod eyedrop;
 pub mod fit;
+pub mod freexf;
 pub mod generate;
 pub mod gradtool;
 pub mod guides;

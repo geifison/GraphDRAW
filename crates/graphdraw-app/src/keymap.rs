@@ -218,6 +218,7 @@ commands! {
     ToolMeshFill = "tool.mesh_fill", "Preenchimento em malha", "Mesh fill", Tools, NotText, false;
     ToolEraser = "tool.eraser", "Ferramenta Borracha", "Eraser tool", Tools, NotText, true;
     ToolKnife = "tool.knife", "Ferramenta Faca", "Knife tool", Tools, NotText, true;
+    ToolFreeTransform = "tool.free_transform", "Transformação livre", "Free transform", Tools, NotText, true;
     ToolCrop = "tool.crop", "Ferramenta Recortar", "Crop tool", Tools, NotText, true;
     ToolVirtualDelete = "tool.virtual_delete", "Excluir segmento virtual", "Virtual segment delete", Tools, NotText, true;
 

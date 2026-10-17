@@ -108,6 +108,27 @@ impl App {
                     );
                 })
             }
+            Tool::FreeTransform => widgets::single_line_bar(ui, "barra-transf-livre", |ui| {
+                use graphdraw_core::edit::freexf::Mode;
+                for (m, icon, label) in [
+                    (Mode::Rotate, "rotate-ccw", tr("Girar", "Rotate")),
+                    (Mode::Reflect, "mirror-h", tr("Refletir", "Reflect")),
+                    (Mode::Scale, "fit-selection", tr("Escalar", "Scale")),
+                    (Mode::Skew, "clear-transform", tr("Inclinar", "Skew")),
+                ] {
+                    if icons::button(ui, icon, label, self.canvas.free_mode == m, true).clicked() {
+                        self.canvas.free_mode = m;
+                    }
+                }
+                ui.separator();
+                widgets::hint_line(
+                    ui,
+                    tr(
+                        "Arraste a partir do pivô · Shift: 15° (girar/refletir) ou x e y separados (escalar) · Esc cancela",
+                        "Drag from the pivot · Shift: 15° (rotate/reflect) or separate x and y (scale) · Esc cancels",
+                    ),
+                );
+            }),
             Tool::Line2 => widgets::single_line_bar(ui, "barra-linha2", |ui| {
                 use crate::canvas::LineMode;
                 for (m, label, tip) in [

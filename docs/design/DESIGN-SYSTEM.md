@@ -501,6 +501,10 @@ Aba **Verificação** (ícone `preflight`) no painel direito:
   ferramentas do grupo em linha, ao lado do botão, em `shadow-popover`.
   Escolher na gaveta usa e passa a mostrar aquela; clique fora ou Esc fecha.
 - Grupos:
+  - **Seleção**: seleção e transformação livre. A barra tem
+    Girar | Refletir | Escalar | Inclinar (ícones `rotate-ccw`, `mirror-h`,
+    `fit-selection`, `clear-transform`). A prévia é a reta pivô → cursor
+    com um círculo no pivô.
   - **Curvas** (no lugar da Bézier): Bézier, mão livre, polilinha,
     linha 2 pontos, curva 3 pontos. A barra tem suavização (mão
     livre/polilinha) e Livre | Tangente | Perpendicular (linha). A prévia
