@@ -103,3 +103,22 @@ na fonte substituta.
 (instalável ou editável), aceitando arquivos maiores; (b) subconjunto com
 mapa de caracteres próprio (só para ver/imprimir, sem editar letras novas);
 ou (c) outra regra?
+
+## P-12 — Conta-gotas: fora da janela e Alt no gradiente (doc 27)
+**Contexto:**
+- GD-CTG-04 pede para amostrar fora da janela do programa. Isso exige
+  captura de tela do sistema operacional (uma API por plataforma) e
+  permissão de gravação de tela no macOS.
+- Alt + clique tem dois sentidos: "alterna pipeta/balde" (GD-CTG-05) e
+  "clona a rampa" (GD-CTG-09).
+
+**Decisão provisória:**
+- GD-CTG-04 fica Beta. O botão "Fora da janela" aparece desabilitado.
+- Alt + clique:
+  - no balde, volta à pipeta;
+  - na pipeta sobre um gradiente (modo Cor), clona a rampa;
+  - na pipeta fora de gradiente com o balde cheio, volta ao balde.
+
+**Pergunta:**
+- Pode entrar uma dependência de captura de tela por plataforma?
+- A regra do Alt serve?

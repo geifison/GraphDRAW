@@ -323,6 +323,22 @@ pub const LAYER_COLORS: [[u8; 3]; 8] = [
 ];
 /// Escolha da paleta na barra de paleta.
 pub const PALETTE_SOURCE_WIDTH: f32 = 110.0;
+/// Conta-gotas (doc 27): célula da lupa (px por pixel físico; 10× a 100%).
+pub const EYEDROP_CELL: f32 = 10.0;
+/// Distância da lupa ao cursor.
+pub const EYEDROP_OFFSET: f32 = 24.0;
+/// Parado por este tempo, a lupa espera o cursor ir até ela.
+pub const EYEDROP_DWELL_S: f64 = 0.4;
+/// Folga em volta da lupa parada antes de ela voltar a seguir.
+pub const EYEDROP_RELEASE: f32 = 40.0;
+/// Círculos dos tons recentes e amostras da lupa.
+pub const EYEDROP_DOT: f32 = 14.0;
+/// Quantos tons recentes ficam na lupa.
+pub const EYEDROP_RECENT: usize = 5;
+/// Realce (ripple) de quem recebeu: duração, traço e quanto cresce.
+pub const EYEDROP_RIPPLE_S: f64 = 0.15;
+pub const EYEDROP_RIPPLE_WIDTH: f32 = 2.0;
+pub const EYEDROP_RIPPLE_GROW: f32 = 6.0;
 /// Largura do balão de cor da parada de gradiente.
 pub const STOP_POPUP_WIDTH: f32 = 240.0;
 /// Triângulo de gaveta no canto do botão de grupo da caixa de ferramentas.

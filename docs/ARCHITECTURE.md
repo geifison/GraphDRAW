@@ -275,6 +275,9 @@ Em Linux: `apt install libcdr-dev librevenge-dev pkg-config g++` e o mesmo
 | GD-BDR-01/02/20/22/25/70/71 (botão direito) | `canvas::tests::gd_bdr_*` (app) |
 | GD-BDR-10/11 | `app::tests::gd_bdr_10_11_palette_without_and_with_selection` |
 | GD-BDR-28/33/41/42/81 | `ops::tests::gd_bdr_*` |
+| GD-CTG-03/06/07/08/09 (conta-gotas, núcleo) | `eyedrop::tests::gd_ctg_*` (core) |
+| GD-CTG-03/11, lupa | `eyedrop::tests::*` (app) |
+| GD-CTG-05/06/12 (ciclo amostrar e despejar) | `canvas::tests::gd_ctg_05_pick_and_apply_cycle` (app) |
 | GD-BDR-43/45 (menus pelo alvo) | `ctxmenu::tests::*` (app) |
 | GD-BDR-50/51 | `nodes::tests::gd_bdr_50_symmetric_averages_handles`, `gd_bdr_51_segment_to_line` |
 | GD-OUT-06 | `scene::tests::gd_out_06_calligraphic_nib` |

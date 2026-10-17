@@ -152,8 +152,8 @@ impl Tool {
                 "tool-eyedropper",
                 crate::keymap::hint(
                     tr(
-                        "Conta-gotas — clique num objeto para copiar o preenchimento e a cor do contorno para a seleção (sem seleção: para os novos objetos)",
-                        "Eyedropper — click an object to copy its fill and outline color to the selection (no selection: to new objects)",
+                        "Conta-gotas — clique para amostrar a cor ou os atributos; o cursor vira balde: clique aplica (direito: contorno)",
+                        "Eyedropper — click to sample a color or attributes; the cursor becomes a bucket: click applies (right: outline)",
                     ),
                     crate::keymap::Command::ToolEyedropper,
                 ),
@@ -432,6 +432,11 @@ pub struct CanvasState {
     stamped: usize,
     /// Há o que colar (a área de transferência fica no App).
     pub can_paste: bool,
+    /// Conta-gotas (doc 27).
+    pub eyedrop: crate::eyedrop::Eyedrop,
+    /// Último quadro renderizado (RGBA pré-multiplicado), guardado só com o
+    /// conta-gotas ativo: a lupa e as médias leem dele.
+    pixels: Option<(RenderKey, std::sync::Arc<Vec<u8>>)>,
     /// Modo foco (GD-BDR-82): só estes objetos (e o que há dentro deles)
     /// aparecem e respondem a cliques; não muda o documento.
     pub focus: Option<Vec<String>>,
@@ -513,6 +518,8 @@ impl Default for CanvasState {
             menu_node: None,
             stamped: 0,
             can_paste: false,
+            eyedrop: Default::default(),
+            pixels: None,
             focus: None,
             pick_reference: None,
             spread: false,
@@ -585,8 +592,6 @@ pub struct CanvasEvents {
     /// Abrir a janela de preenchimento em cor sólida (ferramenta
     /// Preenchimento uniforme).
     pub open_solid_fill: bool,
-    /// Estilo copiado pelo conta-gotas para os novos objetos.
-    pub sampled: Option<(Option<Fill>, Option<Stroke>)>,
 }
 
 impl CanvasState {
@@ -863,6 +868,11 @@ impl CanvasState {
             )
         });
         let Some(pos) = pos else { return };
+        // Conta-gotas: o direito na lupa é dela (GD-CTG-10).
+        if pressed && tool == Tool::Eyedropper && self.eyedrop.over_hud(pos) {
+            self.right = None;
+            return;
+        }
         if pressed && rect.contains(pos) {
             if primary_down || self.is_dragging() && !matches!(self.drag, Drag::RightMove { .. }) {
                 // GD-BDR-02: com ação em curso, nunca abre menu.
@@ -872,7 +882,7 @@ impl CanvasState {
             }
             self.menu = None;
             let p = self.page_at(rect, ph, pos);
-            let over = if blocked || matches!(tool, Tool::Zoom | Tool::Pan) {
+            let over = if blocked || matches!(tool, Tool::Zoom | Tool::Pan | Tool::Eyedropper) {
                 None
             } else {
                 self.pick_focus(doc, p, tol, mods.ctrl)
@@ -937,7 +947,15 @@ impl CanvasState {
                 return;
             }
             let quick = (pos - rp.start).length() < RIGHT_DRAG_PX && now - rp.time < LONG_PRESS_S;
-            if quick {
+            if quick && tool == Tool::Eyedropper {
+                // Conta-gotas: o direito despeja no contorno (GD-CTG-06).
+                let p = self.page_at(rect, ph, pos);
+                if !blocked
+                    && let Some(msg) = self.eyedrop_click(doc, p, pos, mods, tol, rect, true)
+                {
+                    ev.status = Some(msg);
+                }
+            } else if quick {
                 self.right_click(ui, doc, tool, rect, pos, tol, mods, blocked);
             }
         }
@@ -1110,6 +1128,9 @@ impl CanvasState {
             return true;
         }
         if self.pick_reference.take().is_some() {
+            return true;
+        }
+        if self.eyedrop.active && self.eyedrop.empty() {
             return true;
         }
         if self.focus.take().is_some() {
@@ -1558,6 +1579,21 @@ impl CanvasState {
         }
         self.cursor_page = hover.filter(|p| rect.contains(*p)).map(to_page);
         let tol = 5.0 / self.view.zoom; // 5 px em µm
+        self.eyedrop.active = tool == Tool::Eyedropper;
+        self.eyedrop.shift = mods.shift;
+        self.eyedrop.now = ui.input(|i| i.time);
+        self.eyedrop.new_stroke = Some(
+            defaults
+                .stroke
+                .clone()
+                .unwrap_or_else(crate::doc::default_stroke),
+        );
+        let bg = theme::palette(ui).bg_canvas;
+        self.eyedrop.canvas_bg = [bg.r(), bg.g(), bg.b()];
+        if !self.eyedrop.active {
+            self.eyedrop.hud.rect = Rect::NOTHING;
+            self.pixels = None;
+        }
         // Página bloqueada (GD-PGT-18): só zoom e mão funcionam.
         let blocked = doc.page_locked() && !matches!(tool, Tool::Zoom | Tool::Pan);
         let locked_msg = || {
@@ -1769,6 +1805,7 @@ impl CanvasState {
         }
         self.paint_overlays(ui, &painter, doc, rect, tool);
         self.paint_right_drag(&painter, doc, rect, ph);
+        self.eyedrop_overlay(ui, &painter, doc, rect, ph, tol, &mut ev);
         self.stop_popup(ui.ctx(), doc, tool);
         if tool == Tool::Artboard {
             self.paint_page_handles(&painter, doc, rect);
@@ -1949,7 +1986,8 @@ impl CanvasState {
             && self.rendered.is_some_and(|r| {
                 r.view.zoom == v.zoom && r.size == px && r.rev == key.rev && r.page == key.page
             });
-        if self.rendered != Some(key) && !panning {
+        let want_pixels = self.eyedrop.active && self.pixels.as_ref().map(|p| p.0) != Some(key);
+        if (self.rendered != Some(key) || want_pixels) && !panning {
             let mut scene = doc.scene();
             // Modo foco (GD-BDR-82): só os objetos do foco aparecem.
             if let Some(ids) = self.focus_ids(doc) {
@@ -1981,6 +2019,9 @@ impl CanvasState {
                 px[1] as u32,
                 &RasterOptions::default(),
             ) {
+                if self.eyedrop.active {
+                    self.pixels = Some((key, std::sync::Arc::new(pm.data().to_vec())));
+                }
                 let image = egui::ColorImage::from_rgba_premultiplied(px, pm.data());
                 match &mut self.texture {
                     Some(t) => t.set(image, egui::TextureOptions::LINEAR),
@@ -2161,8 +2202,13 @@ impl CanvasState {
             Tool::SolidFill => Glyph::Cross {
                 badge: "tool-fill-solid",
             },
+            // Pipeta para amostrar; balde para despejar (GD-CTG-05).
             Tool::Eyedropper => Glyph::Cross {
-                badge: "tool-eyedropper",
+                badge: if self.eyedrop.sampling() {
+                    "tool-eyedropper"
+                } else {
+                    "tool-fill-solid"
+                },
             },
             Tool::Polygon => Glyph::Cross {
                 badge: "tool-polygon",
@@ -3059,62 +3105,368 @@ impl CanvasState {
         }
     }
 
-    /// Conta-gotas: com seleção (sem o objeto clicado), pinta a seleção com o
-    /// preenchimento e a cor do contorno dele; sem seleção, guarda para os
-    /// novos objetos.
-    fn eyedropper(&mut self, doc: &mut DocState, p: Point, tol: f64, ev: &mut CanvasEvents) {
-        let Some(src) = pick(doc, p, tol, true)
-            .and_then(|id| doc.editor.find(&id))
-            .and_then(|r| doc.editor.get(&r).cloned())
+    /// Conta-gotas (doc 27): clique esquerdo ou direito (`right`). Na pipeta
+    /// amostra e passa ao balde; no balde despeja nos destinos. Devolve a
+    /// mensagem da barra de status.
+    #[allow(clippy::too_many_arguments)]
+    fn eyedrop_click(
+        &mut self,
+        doc: &mut DocState,
+        p: Point,
+        pos: Pos2,
+        mods: egui::Modifiers,
+        tol: f64,
+        rect: Rect,
+        right: bool,
+    ) -> Option<String> {
+        use crate::eyedrop::{Bucket, Mode};
+        use graphdraw_core::edit::eyedrop::{self as ed, Paint};
+        // Alt alterna pipeta ↔ balde; na pipeta, sobre um gradiente, clona
+        // a rampa inteira (GD-CTG-05/09).
+        if mods.alt && !mods.shift {
+            if self.eyedrop.applying {
+                self.eyedrop.applying = false;
+                return Some(
+                    tr(
+                        "Pipeta: clique para amostrar",
+                        "Eyedropper: click to sample",
+                    )
+                    .into(),
+                );
+            }
+            if self.eyedrop.mode == Mode::Color
+                && let Some(s) = ed::sample_native(&doc.editor, doc.page(), p, tol)
+                && let Some((g, from)) = s.ramp
+            {
+                self.eyedrop.load(Bucket::Paint(Paint::Ramp(g, from)));
+                return Some(
+                    tr(
+                        "Rampa clonada: clique num objeto para aplicar",
+                        "Ramp cloned: click an object to apply",
+                    )
+                    .into(),
+                );
+            }
+            if self.eyedrop.bucket.is_some() {
+                self.eyedrop.applying = true;
+                return Some(tr("Balde: clique para aplicar", "Bucket: click to apply").into());
+            }
+        }
+        if self.eyedrop.sampling() {
+            return Some(self.eyedrop_sample(doc, p, pos, tol, rect));
+        }
+        let bucket = self.eyedrop.bucket.clone()?;
+        let ids = ed::targets(doc.page(), p, tol, mods.ctrl);
+        if ids.is_empty() {
+            return None;
+        }
+        let tpl = self
+            .eyedrop
+            .new_stroke
+            .clone()
+            .unwrap_or_else(crate::doc::default_stroke);
+        let done = match &bucket {
+            // Balde sobre uma parada: só ela muda (GD-CTG-09).
+            Bucket::Paint(Paint::Color(c)) if !right => match self
+                .stop_under(doc, p, pos, rect, tol)
+            {
+                Some((id, i)) => ed::replace_stop(&mut doc.editor, &id, i, c),
+                None => {
+                    ed::apply_paint(&mut doc.editor, &ids, &Paint::Color(c.clone()), false, &tpl)
+                }
+            },
+            Bucket::Paint(paint) => ed::apply_paint(&mut doc.editor, &ids, paint, right, &tpl),
+            Bucket::Attrs(src) => {
+                ed::apply_attributes(&mut doc.editor, src, &ids, &self.eyedrop.filter)
+            }
+        };
+        if done {
+            self.eyedrop.ripple = Some((ids, self.eyedrop.now));
+            None
+        } else if right && matches!(bucket, Bucket::Paint(Paint::Ramp(..))) {
+            Some(
+                tr(
+                    "A rampa vai no preenchimento (botão esquerdo)",
+                    "The ramp goes to the fill (left button)",
+                )
+                .into(),
+            )
+        } else {
+            None
+        }
+    }
+
+    /// Pipeta: cor (pelo raio escolhido) ou atributos do objeto sob o ponto.
+    fn eyedrop_sample(
+        &mut self,
+        doc: &DocState,
+        p: Point,
+        pos: Pos2,
+        tol: f64,
+        rect: Rect,
+    ) -> String {
+        use crate::eyedrop::{Bucket, Mode};
+        use graphdraw_core::edit::eyedrop::Paint;
+        let nothing = || tr("Nada para amostrar aqui", "Nothing to sample here").to_string();
+        if self.eyedrop.mode == Mode::Attributes {
+            let Some(o) = query::hit_test_deep(doc.page(), p, tol)
+                .and_then(|id| doc.editor.find(&id))
+                .and_then(|r| doc.editor.get(&r).cloned())
+            else {
+                return nothing();
+            };
+            self.eyedrop.load(Bucket::Attrs(Box::new(o)));
+            return tr(
+                "Atributos coletados: clique nos objetos de destino",
+                "Attributes picked: click the target objects",
+            )
+            .into();
+        }
+        let Some(c) = self.hover_color(doc, p, pos, rect, tol) else {
+            return nothing();
+        };
+        let hex = c.to_hex().to_uppercase();
+        self.eyedrop.load(Bucket::Paint(Paint::Color(c)));
+        format!(
+            "{} {hex} — {}",
+            tr("Amostrado", "Sampled"),
+            tr(
+                "clique para aplicar (direito: contorno)",
+                "click to apply (right: outline)"
+            )
+        )
+    }
+
+    /// Cor sob o cursor pelo raio de coleta: nativa do vetor (imagens e
+    /// vazio pela tela) ou a média dos pixels (GD-CTG-03).
+    fn hover_color(
+        &self,
+        doc: &DocState,
+        p: Point,
+        pos: Pos2,
+        rect: Rect,
+        tol: f64,
+    ) -> Option<graphdraw_core::model::Color> {
+        use crate::eyedrop::{GRID, Radius, average};
+        let grid = || self.pixel_grid(doc, rect, pos);
+        match self.eyedrop.radius {
+            Radius::Native => {
+                graphdraw_core::edit::eyedrop::sample_native(&doc.editor, doc.page(), p, tol)
+                    .map(|s| s.color)
+                    .or_else(|| grid().and_then(|g| average(&g, GRID, 1)))
+            }
+            r => grid().and_then(|g| average(&g, GRID, r.side())),
+        }
+    }
+
+    /// Pixels físicos em volta do cursor, do último quadro renderizado,
+    /// compostos sobre o papel (na folha) ou sobre o fundo do canvas.
+    fn pixel_grid(&self, doc: &DocState, rect: Rect, pos: Pos2) -> Option<Vec<[u8; 3]>> {
+        let (key, px) = self.pixels.as_ref()?;
+        if key.page != doc.page {
+            return None;
+        }
+        let ppp = key.ppp;
+        let shift = Vec2::new(
+            (self.view.pan.0 - key.view.pan.0) as f32,
+            (self.view.pan.1 - key.view.pan.1) as f32,
+        );
+        let local = (pos - rect.min - shift) * ppp;
+        let (pw, ph) = doc.page_size();
+        let v = key.view;
+        let s = |x: f64, y: f64| {
+            let (a, b) = v.page_to_screen(ph, x, y);
+            Pos2::new(a as f32 * ppp, b as f32 * ppp)
+        };
+        let sheet = Rect::from_two_pos(s(0.0, ph), s(pw, 0.0));
+        let paper = [
+            theme::PAGE_PAPER.r(),
+            theme::PAGE_PAPER.g(),
+            theme::PAGE_PAPER.b(),
+        ];
+        let canvas = self.eyedrop.canvas_bg;
+        Some(crate::eyedrop::grid_from(
+            px,
+            key.size,
+            local.x.floor() as i64,
+            local.y.floor() as i64,
+            crate::eyedrop::GRID,
+            |x, y| {
+                if sheet.contains(Pos2::new(x as f32 + 0.5, y as f32 + 0.5)) {
+                    paper
+                } else {
+                    canvas
+                }
+            },
+        ))
+    }
+
+    /// Parada de gradiente sob o cursor (objeto e índice).
+    fn stop_under(
+        &self,
+        doc: &DocState,
+        p: Point,
+        pos: Pos2,
+        rect: Rect,
+        tol: f64,
+    ) -> Option<(String, usize)> {
+        use graphdraw_core::edit::gradtool;
+        let id = query::hit_test_deep(doc.page(), p, tol)?;
+        let r = doc.editor.find(&id)?;
+        let o = doc.editor.get(&r)?;
+        let Some(Fill::Gradient(g)) = &o.fill else {
+            return None;
+        };
+        let m = doc.editor.parent_affine(&r) * o.transform.affine();
+        let ph = doc.page_size().1;
+        gradtool::handles(g).into_iter().find_map(|(h, q)| match h {
+            gradtool::Handle::Stop(i)
+                if (self.screen(rect, ph, m * q) - pos).length() <= theme::HANDLE_HIT =>
+            {
+                Some((id.clone(), i))
+            }
+            _ => None,
+        })
+    }
+
+    /// Lupa, paradas visíveis para o balde e o realce de quem recebeu
+    /// (doc 27).
+    #[allow(clippy::too_many_arguments)]
+    fn eyedrop_overlay(
+        &mut self,
+        ui: &egui::Ui,
+        painter: &egui::Painter,
+        doc: &mut DocState,
+        rect: Rect,
+        ph: f64,
+        tol: f64,
+        ev: &mut CanvasEvents,
+    ) {
+        use crate::eyedrop::{Bucket, HoverInfo, HudAction};
+        use graphdraw_core::edit::eyedrop::Paint;
+        // Realce de 150 ms (GD-CTG-12).
+        match self.eyedrop.ripple_phase() {
+            Some(k) => {
+                if let Some((ids, _)) = &self.eyedrop.ripple {
+                    let c = theme::ACCENT_PRIMARY.gamma_multiply((1.0 - k) as f32);
+                    for id in ids {
+                        if let Some(b) = doc
+                            .editor
+                            .find(id)
+                            .and_then(|r| ops::object_bounds(&doc.editor, &r, true))
+                        {
+                            let r = Rect::from_two_pos(
+                                self.screen(rect, ph, Point::new(b.x0, b.y0)),
+                                self.screen(rect, ph, Point::new(b.x1, b.y1)),
+                            );
+                            painter.rect_stroke(
+                                r.expand(theme::EYEDROP_RIPPLE_GROW * k as f32),
+                                theme::RADIUS_XS,
+                                egui::Stroke::new(theme::EYEDROP_RIPPLE_WIDTH, c),
+                                egui::StrokeKind::Outside,
+                            );
+                        }
+                    }
+                }
+                ui.ctx().request_repaint();
+            }
+            None => self.eyedrop.ripple = None,
+        }
+        if !self.eyedrop.active {
+            return;
+        }
+        let pointer = ui.input(|i| i.pointer.hover_pos());
+        let on_canvas = pointer
+            .filter(|q| rect.contains(*q) && !self.eyedrop.over_hud(*q) && self.menu.is_none());
+        if let Some(pos) = on_canvas {
+            let p = self.page_at(rect, ph, pos);
+            let size = if self.eyedrop.hud.rect.is_positive() {
+                self.eyedrop.hud.rect.size()
+            } else {
+                Vec2::new(150.0, 230.0)
+            };
+            self.eyedrop.follow(pos, self.eyedrop.now, size, rect);
+            // Parada: a lupa guarda a cor de onde o cursor parou.
+            if !self.eyedrop.hud.frozen {
+                if let Some(color) = self.hover_color(doc, p, pos, rect, tol) {
+                    let c = crate::widgets::to_color32(&color);
+                    let grid = self.pixel_grid(doc, rect, pos).unwrap_or_else(|| {
+                        vec![[c.r(), c.g(), c.b()]; crate::eyedrop::GRID.pow(2)]
+                    });
+                    let name = palette_name(doc, &color);
+                    self.eyedrop.info = Some(HoverInfo { color, grid, name });
+                }
+                ui.ctx()
+                    .request_repaint_after(std::time::Duration::from_secs_f64(
+                        theme::EYEDROP_DWELL_S,
+                    ));
+            }
+            // Paradas à vista para o balde de cor (GD-CTG-09).
+            if !self.eyedrop.sampling()
+                && matches!(self.eyedrop.bucket, Some(Bucket::Paint(Paint::Color(_))))
+            {
+                self.paint_hover_stops(painter, doc, p, rect, ph, tol);
+            }
+        }
+        let show = on_canvas.is_some() || pointer.is_some_and(|q| self.eyedrop.over_hud(q));
+        if !show {
+            self.eyedrop.hud.rect = Rect::NOTHING;
+            return;
+        }
+        let Some(info) = self.eyedrop.info.clone() else {
+            return;
+        };
+        match crate::eyedrop::hud_ui(ui.ctx(), &mut self.eyedrop, &info) {
+            Some(HudAction::AddToPalette(c)) => {
+                let hex = c.to_hex().to_uppercase();
+                graphdraw_core::edit::palette::add_named(&mut doc.editor, &hex, c);
+                ev.status = Some(format!(
+                    "{hex} {}",
+                    tr(
+                        "adicionada à paleta do documento",
+                        "added to the document palette"
+                    )
+                ));
+            }
+            Some(HudAction::Recent(c)) => self.eyedrop.load(Bucket::Paint(Paint::Color(c))),
+            None => {}
+        }
+    }
+
+    /// Paradas do gradiente do objeto sob o cursor, para o balde mirar.
+    fn paint_hover_stops(
+        &self,
+        painter: &egui::Painter,
+        doc: &DocState,
+        p: Point,
+        rect: Rect,
+        ph: f64,
+        tol: f64,
+    ) {
+        use graphdraw_core::edit::gradtool;
+        let Some(r) = query::hit_test_deep(doc.page(), p, tol).and_then(|id| doc.editor.find(&id))
         else {
             return;
         };
-        let targets: Vec<String> = doc
-            .selection
-            .iter()
-            .filter(|id| **id != src.id)
-            .cloned()
-            .collect();
-        if targets.is_empty() {
-            ev.sampled = Some((src.fill.clone(), src.stroke.clone()));
-            ev.status = Some(
-                tr(
-                    "Cor copiada para os novos objetos",
-                    "Color copied for new objects",
-                )
-                .into(),
-            );
+        let Some(o) = doc.editor.get(&r) else {
             return;
+        };
+        let Some(Fill::Gradient(g)) = &o.fill else {
+            return;
+        };
+        let m = doc.editor.parent_affine(&r) * o.transform.affine();
+        for (h, q) in gradtool::handles(g) {
+            if let gradtool::Handle::Stop(i) = h {
+                let at = self.screen(rect, ph, m * q);
+                let rad = theme::GRADIENT_MARK / 2.0;
+                painter.circle_filled(at, rad, crate::widgets::to_color32(&g.stops[i].color));
+                painter.circle_stroke(
+                    at,
+                    rad,
+                    egui::Stroke::new(theme::FOCUS_WIDTH, egui::Color32::WHITE),
+                );
+            }
         }
-        let (fill, stroke) = (src.fill.clone(), src.stroke.clone());
-        ops::modify(
-            &mut doc.editor,
-            &targets,
-            tr("Copiar cor", "Copy color"),
-            |o| {
-                if matches!(o.kind, ObjectKind::Image(_)) {
-                    return false;
-                }
-                o.fill = fill.clone();
-                match (&mut o.stroke, &stroke) {
-                    // Só a cor do contorno: a espessura do destino fica.
-                    (Some(dst), Some(s)) => {
-                        dst.color = s.color.clone();
-                        dst.opacity = s.opacity;
-                    }
-                    (dst @ None, Some(s)) => *dst = Some(s.clone()),
-                    (dst, None) => *dst = None,
-                }
-                true
-            },
-        );
-        ev.status = Some(
-            tr(
-                "Cor copiada para a seleção",
-                "Color copied to the selection",
-            )
-            .into(),
-        );
     }
 
     /// Tira a parada escolhida do gradiente (Delete); `false` se não havia.
@@ -4061,7 +4413,11 @@ impl CanvasState {
                     ev.open_solid_fill = true;
                 }
             }
-            Tool::Eyedropper => self.eyedropper(doc, p, tol, ev),
+            Tool::Eyedropper => {
+                if let Some(msg) = self.eyedrop_click(doc, p, pos, mods, tol, rect, false) {
+                    ev.status = Some(msg);
+                }
+            }
             Tool::Select => match self.pick_focus(doc, p, tol, mods.ctrl) {
                 Some(id) => {
                     if mods.shift {
@@ -4697,6 +5053,16 @@ fn fit_rect(r: kurbo::Rect, ph: f64, size: Vec2) -> View {
 /// Ajusta a vista para mostrar `r` (zoom para seleção/tudo, GD-FER-04).
 pub fn zoom_to_rect(cs: &mut CanvasState, r: kurbo::Rect) {
     cs.zoom_to = Some(r.inflate(r.width() * 0.05, r.height() * 0.05));
+}
+
+/// Nome da cor na paleta do documento quando é a mesma (GD-CTG-02).
+fn palette_name(doc: &DocState, c: &graphdraw_core::model::Color) -> Option<String> {
+    let hex = c.to_hex();
+    doc.doc().colors.colors.iter().find_map(|n| {
+        graphdraw_core::edit::palette::linked(&doc.editor, &n.id)
+            .filter(|l| l.to_hex() == hex)
+            .map(|_| n.name.clone())
+    })
 }
 
 /// Texto de exemplo (GD-BDR-60): frases neutras do projeto, até encher o
@@ -5587,15 +5953,17 @@ mod tests {
         assert!(cs.menu.is_none(), "GD-BDR-02: sem menu");
     }
 
-    /// Conta-gotas: com seleção, clicar noutro objeto copia o preenchimento
-    /// e a cor do contorno; sem seleção, devolve o estilo para os novos.
+    /// GD-CTG-05/06/12: clicar amostra e vira balde; clicar noutro aplica
+    /// no preenchimento, o direito no contorno; Shift reamostra, Alt
+    /// alterna, Esc esvazia; quem recebe ganha o realce.
     #[test]
-    fn eyedropper_copies_fill_and_outline_color() {
+    fn gd_ctg_05_pick_and_apply_cycle() {
         let ctx = crate::theme::test_ctx();
         let mut cs = CanvasState::default();
         cs.snap.enabled = false;
         let mut doc = DocState::new_blank();
-        let sq = |x: f64, hex: &str, w: f64| {
+        let hex = |h: &str| graphdraw_core::model::Color::from_hex(h).unwrap();
+        let sq = |x: f64, h: &str| {
             let mut o = Object::new(ObjectKind::Rectangle(RectData {
                 width: 20_000.0,
                 height: 20_000.0,
@@ -5603,19 +5971,16 @@ mod tests {
                 extra: Map::new(),
             }));
             o.transform = graphdraw_core::model::Transform::translate(x, 100_000.0);
-            o.fill = Some(Fill::solid(
-                graphdraw_core::model::Color::from_hex(hex).unwrap(),
-            ));
-            o.stroke = Some(Stroke::new(
-                w,
-                graphdraw_core::model::Color::from_hex(hex).unwrap(),
-            ));
+            o.fill = Some(Fill::solid(hex(h)));
             o
         };
-        let src = sq(30_000.0, "#ff0000", 1000.0);
-        let dst = sq(100_000.0, "#0000ff", 300.0);
-        let dst_id = dst.id.clone();
-        for (i, o) in [src, dst].into_iter().enumerate() {
+        let objs = [
+            sq(30_000.0, "#ff0000"),
+            sq(100_000.0, "#0000ff"),
+            sq(170_000.0, "#00ff00"),
+        ];
+        let ids: Vec<String> = objs.iter().map(|o| o.id.clone()).collect();
+        for (i, o) in objs.into_iter().enumerate() {
             doc.editor.insert_object(
                 graphdraw_core::edit::ObjLoc {
                     page: 0,
@@ -5630,36 +5995,89 @@ mod tests {
         }
         let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(1366.0, 768.0));
         let (_, ph) = doc.page_size();
-        let at = cs.screen(rect, ph, Point::new(40_000.0, 110_000.0));
-        let click = |cs: &mut CanvasState, doc: &mut DocState| {
+        let at = |x: f64| cs.screen(rect, ph, Point::new(x, 110_000.0));
+        let (red_at, blue_at, green_at) = (at(40_000.0), at(110_000.0), at(180_000.0));
+        let click = |cs: &mut CanvasState,
+                     doc: &mut DocState,
+                     pos: Pos2,
+                     b: PointerButton,
+                     m: egui::Modifiers| {
             let btn = |pressed| egui::Event::PointerButton {
-                pos: at,
-                button: PointerButton::Primary,
+                pos,
+                button: b,
                 pressed,
-                modifiers: egui::Modifiers::NONE,
+                modifiers: m,
             };
-            canvas_frame(
-                &ctx,
-                cs,
-                doc,
-                Tool::Eyedropper,
-                vec![egui::Event::PointerMoved(at)],
-            );
-            canvas_frame(&ctx, cs, doc, Tool::Eyedropper, vec![btn(true)]);
-            canvas_frame(&ctx, cs, doc, Tool::Eyedropper, vec![btn(false)]);
+            let frame = |cs: &mut CanvasState, doc: &mut DocState, e: egui::Event| {
+                let ev = vec![egui::Event::ModifiersChanged(m), e];
+                canvas_frame(&ctx, cs, doc, Tool::Eyedropper, ev);
+            };
+            frame(cs, doc, egui::Event::PointerMoved(pos));
+            frame(cs, doc, btn(true));
+            frame(cs, doc, btn(false));
         };
-        doc.selection = vec![dst_id.clone()];
-        click(&mut cs, &mut doc);
-        let o = doc
+        let fill = |doc: &DocState, id: &str| {
+            doc.editor
+                .get(&doc.editor.find(id).unwrap())
+                .unwrap()
+                .fill
+                .clone()
+        };
+        let none = egui::Modifiers::NONE;
+        // Pipeta no vermelho → balde; despeja no azul.
+        click(&mut cs, &mut doc, red_at, PointerButton::Primary, none);
+        assert!(cs.eyedrop.applying && !cs.eyedrop.sampling(), "virou balde");
+        click(&mut cs, &mut doc, blue_at, PointerButton::Primary, none);
+        assert_eq!(fill(&doc, &ids[1]), Some(Fill::solid(hex("#ff0000"))));
+        assert!(cs.eyedrop.ripple.is_some(), "realce");
+        // Direito no verde: contorno vermelho, preenchimento fica.
+        click(&mut cs, &mut doc, green_at, PointerButton::Secondary, none);
+        let g = doc
             .editor
-            .get(&doc.editor.find(&dst_id).unwrap())
+            .get(&doc.editor.find(&ids[2]).unwrap())
             .unwrap()
             .clone();
-        let red = graphdraw_core::model::Color::from_hex("#ff0000").unwrap();
-        assert_eq!(o.fill, Some(Fill::solid(red.clone())));
-        let st = o.stroke.unwrap();
-        assert_eq!(st.color, red);
-        assert_eq!(st.width, 300.0, "espessura do destino fica");
+        assert_eq!(g.fill, Some(Fill::solid(hex("#00ff00"))));
+        assert_eq!(g.stroke.unwrap().color, hex("#ff0000"));
+        assert!(cs.menu.is_none(), "direito do conta-gotas não abre menu");
+        // Shift + clique reamostra (verde) sem aplicar.
+        let undo = doc.editor.undo_len();
+        click(
+            &mut cs,
+            &mut doc,
+            green_at,
+            PointerButton::Primary,
+            egui::Modifiers::SHIFT,
+        );
+        assert_eq!(doc.editor.undo_len(), undo);
+        assert_eq!(
+            cs.eyedrop.bucket,
+            Some(crate::eyedrop::Bucket::Paint(
+                graphdraw_core::edit::eyedrop::Paint::Color(hex("#00ff00"))
+            ))
+        );
+        assert_eq!(cs.eyedrop.recent.len(), 2);
+        // Alt alterna para a pipeta e de volta ao balde.
+        click(
+            &mut cs,
+            &mut doc,
+            blue_at,
+            PointerButton::Primary,
+            egui::Modifiers::ALT,
+        );
+        assert!(cs.eyedrop.sampling());
+        click(
+            &mut cs,
+            &mut doc,
+            blue_at,
+            PointerButton::Primary,
+            egui::Modifiers::ALT,
+        );
+        assert!(!cs.eyedrop.sampling());
+        assert_eq!(doc.editor.undo_len(), undo, "alternar não aplica");
+        // Esc esvazia.
+        assert!(cs.escape(&mut doc));
+        assert!(cs.eyedrop.bucket.is_none() && cs.eyedrop.sampling());
     }
 
     /// GD-PAG-04: com lado a lado, as vizinhas aparecem e clicar numa

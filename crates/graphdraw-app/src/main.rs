@@ -12,6 +12,7 @@ mod cutui;
 mod dialogs;
 mod doc;
 mod doctabs;
+mod eyedrop;
 mod fontpicker;
 mod guideui;
 mod i18n;

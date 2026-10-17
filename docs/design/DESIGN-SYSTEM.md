@@ -497,6 +497,32 @@ preenchimento, booleanas, Centralizar no alvo, Cancelar).
 **Modo foco** (GD-BDR-82): só a seleção aparece no canvas; a barra de
 status mostra o botão “◉ Modo foco — sair”; Esc também sai.
 
+**Conta-gotas** (doc 27):
+- Cursor: pipeta (`tool-eyedropper`) para coletar; balde
+  (`tool-fill-solid`) para despejar. Com Shift, volta à pipeta.
+- **Lupa** em `shadow-popover`, a `eyedrop-offset` = 24 px do cursor, do
+  outro lado quando chega na borda. Conteúdo:
+  - grade de 11 × 11 pixels físicos em células de `eyedrop-cell` = 10 px,
+    com linhas de 1 px em preto 11%;
+  - retículo do tamanho do raio: traço branco de `focus-width` e borda
+    preta de 1 px;
+  - HEX em negrito; CMYK, RGB e o nome da paleta em `type-micro`;
+  - o balde e os últimos `eyedrop-recent` = 5 tons em círculos de
+    `eyedrop-dot` = 14 px.
+- A lupa para depois de `eyedrop-dwell` = 0,4 s parado e volta a seguir
+  quando o cursor sai de `eyedrop-release` = 40 px em volta dela.
+- **Realce de aplicação**: contorno `accent-primary` de
+  `eyedrop-ripple-width` = 2 px na caixa do destino. Ele cresce
+  `eyedrop-ripple-grow` = 6 px e some em `eyedrop-ripple` = 150 ms.
+- **Paradas para o balde**: círculos de `gradient-mark` com a cor da
+  parada e borda branca de `focus-width`.
+- **Barra**:
+  - Cor | Atributos;
+  - raio (Vetor nativo, 1×1, 3×3, 5×5) ou os filtros
+    (Preenchimento, Contorno, Efeitos — desabilitado, Tipografia,
+    Transformações);
+  - o balde, Esvaziar e a dica dos gestos.
+
 ### 5.2 Guias inteligentes e encaixe
 
 - Alinhamento a borda/centro de outro objeto: linha contínua de 1 px

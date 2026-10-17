@@ -3,6 +3,7 @@
 //! seleção.
 
 pub mod convert;
+pub mod eyedrop;
 pub mod fit;
 pub mod generate;
 pub mod gradtool;

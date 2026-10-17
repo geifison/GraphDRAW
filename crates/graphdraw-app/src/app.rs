@@ -3645,12 +3645,6 @@ impl App {
                 if let Some(p) = ev.paste_at {
                     pending_paste = Some(p);
                 }
-                if let Some((fill, stroke)) = ev.sampled {
-                    self.defaults.fill = fill;
-                    if stroke.is_some() {
-                        self.defaults.stroke = stroke;
-                    }
-                }
                 if ev.open_solid_fill {
                     let mut dlg = crate::dialogs::StyleDialog::fill(doc, &self.defaults);
                     dlg.force_solid();

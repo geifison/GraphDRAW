@@ -84,13 +84,9 @@ impl App {
                     "Click an object to choose its solid fill color",
                 ),
             ),
-            Tool::Eyedropper => hint(
-                ui,
-                tr(
-                    "Clique num objeto: com seleção, copia o preenchimento e a cor do contorno para ela; sem seleção, para os novos objetos",
-                    "Click an object: with a selection, copies its fill and outline color to it; without, to new objects",
-                ),
-            ),
+            Tool::Eyedropper => widgets::single_line_bar(ui, "barra-conta-gotas", |ui| {
+                eyedrop_bar(ui, &mut self.canvas.eyedrop)
+            }),
             Tool::Gradient => {
                 widgets::single_line_bar(ui, "barra-gradiente", |ui| gradient_bar(ui, doc))
             }
@@ -3327,6 +3323,86 @@ fn user_data_section(ui: &mut egui::Ui, doc: &mut DocState) {
     if let Some(m) = next {
         ops::set_user_data(&mut doc.editor, &id, m);
     }
+}
+
+/// Barra do conta-gotas (doc 27): modo, raio ou filtros, o balde e a
+/// dica dos gestos.
+fn eyedrop_bar(ui: &mut egui::Ui, e: &mut crate::eyedrop::Eyedrop) {
+    use crate::eyedrop::{Bucket, Mode, Radius};
+    use graphdraw_core::edit::eyedrop::Paint;
+    for (m, label) in [
+        (Mode::Color, tr("Cor", "Color")),
+        (Mode::Attributes, tr("Atributos", "Attributes")),
+    ] {
+        if ui.selectable_label(e.mode == m, label).clicked() && e.mode != m {
+            e.mode = m;
+            e.empty();
+        }
+    }
+    ui.separator();
+    match e.mode {
+        Mode::Color => {
+            egui::ComboBox::from_id_salt("conta-gotas-raio")
+                .selected_text(e.radius.label())
+                .show_ui(ui, |ui| {
+                    for r in Radius::ALL {
+                        ui.selectable_value(&mut e.radius, r, r.label());
+                    }
+                });
+            ui.add_enabled(
+                false,
+                egui::Button::new(tr("Fora da janela", "Outside the window")),
+            )
+            .on_disabled_hover_text(tr(
+                "Beta: amostrar fora da janela precisa de captura de tela do sistema",
+                "Beta: sampling outside the window needs system screen capture",
+            ));
+        }
+        Mode::Attributes => {
+            let f = &mut e.filter;
+            ui.toggle_value(&mut f.fill, tr("Preenchimento", "Fill"));
+            ui.toggle_value(&mut f.stroke, tr("Contorno", "Outline"));
+            ui.add_enabled(false, egui::Button::new(tr("Efeitos", "Effects")))
+                .on_disabled_hover_text(tr(
+                    "Beta: o documento ainda não tem efeitos (sombra, brilho, extrusão)",
+                    "Beta: the document has no effects yet (shadow, glow, extrude)",
+                ));
+            ui.toggle_value(&mut f.typography, tr("Tipografia", "Typography"));
+            ui.toggle_value(&mut f.transform, tr("Transformações", "Transformations"));
+        }
+    }
+    ui.separator();
+    match &e.bucket {
+        Some(Bucket::Paint(Paint::Color(c))) => {
+            widgets::swatch(ui, Some(c), theme::EYEDROP_DOT);
+        }
+        Some(Bucket::Paint(Paint::Ramp(..))) => {
+            ui.label(tr("Rampa", "Ramp"));
+        }
+        Some(Bucket::Attrs(o)) => {
+            ui.label(
+                o.name
+                    .clone()
+                    .unwrap_or_else(|| tr("Atributos", "Attributes").into()),
+            );
+        }
+        None => {}
+    }
+    if e.bucket.is_some()
+        && ui
+            .button(tr("Esvaziar", "Empty"))
+            .on_hover_text(tr("Esvaziar o balde (Esc)", "Empty the bucket (Esc)"))
+            .clicked()
+    {
+        e.empty();
+    }
+    widgets::hint_line(
+        ui,
+        tr(
+            "Clique amostra e vira balde · clique aplica (direito: contorno) · Shift reamostra · Alt alterna · Ctrl dentro de grupos · Alt+clique no gradiente clona a rampa · Esc esvazia",
+            "Click samples and becomes a bucket · click applies (right: outline) · Shift resamples · Alt toggles · Ctrl inside groups · Alt+click on a gradient clones the ramp · Esc empties",
+        ),
+    );
 }
 
 #[cfg(test)]
