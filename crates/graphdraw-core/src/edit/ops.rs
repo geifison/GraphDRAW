@@ -1457,6 +1457,175 @@ pub fn clear_transformations(ed: &mut Editor, sel: &[String]) {
     });
 }
 
+// ---- botão direito (doc 26) ------------------------------------------------------
+
+/// Desagrupar tudo (GD-BDR-42): desfaz todos os níveis de grupo da seleção.
+pub fn ungroup_all(ed: &mut Editor, sel: &[String]) -> Selection {
+    let mut cur = sel.to_vec();
+    ed.transaction("Desagrupar tudo", |ed| {
+        for _ in 0..64 {
+            let has_group = cur.iter().any(|id| {
+                matches!(
+                    ed.find(id).and_then(|r| ed.get(&r)).map(|o| &o.kind),
+                    Some(ObjectKind::Group(_))
+                )
+            });
+            if !has_group {
+                break;
+            }
+            cur = ungroup(ed, &cur);
+        }
+    });
+    cur
+}
+
+/// Travar/destravar ou ocultar/mostrar a seleção (GD-BDR-42).
+pub fn set_locked(ed: &mut Editor, sel: &[String], locked: bool) {
+    let name = if locked { "Bloquear" } else { "Desbloquear" };
+    modify(ed, sel, name, |o| {
+        let changed = o.locked != locked;
+        o.locked = locked;
+        changed
+    });
+}
+
+pub fn set_visible(ed: &mut Editor, sel: &[String], visible: bool) {
+    let name = if visible { "Mostrar" } else { "Ocultar" };
+    modify(ed, sel, name, |o| {
+        let changed = o.visible != visible;
+        o.visible = visible;
+        changed
+    });
+}
+
+/// IDs de todos os objetos da página (inclusive dentro de grupos) que
+/// satisfazem `f`.
+fn page_ids(ed: &Editor, page: usize, f: impl Fn(&Object) -> bool) -> Vec<String> {
+    let mut out = Vec::new();
+    if let Some(p) = ed.doc.data.pages.get(page) {
+        for l in &p.layers {
+            for o in &l.objects {
+                o.walk(&mut |o| {
+                    if f(o) {
+                        out.push(o.id.clone());
+                    }
+                });
+            }
+        }
+    }
+    out
+}
+
+/// Mostrar todos (GD-BDR-42/44): objetos ocultos da página voltam a
+/// aparecer. Devolve os que voltaram.
+pub fn show_all(ed: &mut Editor, page: usize) -> Vec<String> {
+    let ids = page_ids(ed, page, |o| !o.visible);
+    set_visible(ed, &ids, true);
+    ids
+}
+
+/// Desbloquear todos (GD-BDR-44).
+pub fn unlock_all(ed: &mut Editor, page: usize) -> Vec<String> {
+    let ids = page_ids(ed, page, |o| o.locked);
+    set_locked(ed, &ids, false);
+    ids
+}
+
+/// "À frente de…" / "Atrás de…" (GD-BDR-41): a seleção vai logo acima
+/// (ou abaixo) de `reference`, mantendo a ordem entre os selecionados.
+pub fn place_relative(ed: &mut Editor, sel: &[String], reference: &str, above: bool) {
+    let mut refs: Vec<ObjRef> = refs(ed, sel)
+        .into_iter()
+        .filter(|r| ed.get(r).is_some_and(|o| o.id != reference))
+        .collect();
+    refs.sort();
+    let ids: Vec<String> = refs.iter().map(|r| ed.get(r).unwrap().id.clone()).collect();
+    let name = if above { "À frente de" } else { "Atrás de" };
+    ed.transaction(name, |ed| {
+        if above {
+            // De cima para baixo: o último inserido fica logo acima da referência.
+            for id in ids.iter().rev() {
+                move_to(ed, id, &DropAt::Above(reference.to_string()));
+            }
+        } else {
+            for id in &ids {
+                move_to(ed, id, &DropAt::Below(reference.to_string()));
+            }
+        }
+    });
+}
+
+/// O que "Copiar propriedades" leva (GD-BDR-27..29).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CopyProps {
+    pub fill: bool,
+    pub stroke: bool,
+    /// Opacidade e modo de mesclagem do objeto.
+    pub look: bool,
+}
+
+impl CopyProps {
+    pub const ALL: CopyProps = CopyProps {
+        fill: true,
+        stroke: true,
+        look: true,
+    };
+    pub const FILL: CopyProps = CopyProps {
+        fill: true,
+        stroke: false,
+        look: false,
+    };
+    pub const STROKE: CopyProps = CopyProps {
+        fill: false,
+        stroke: true,
+        look: false,
+    };
+}
+
+/// Copia propriedades de `src` para `targets` (GD-BDR-35: da seleção
+/// arrastada para o alvo); a geometria dos alvos fica.
+pub fn copy_properties(ed: &mut Editor, src: &str, targets: &[String], what: CopyProps) -> bool {
+    let Some(s) = ed.find(src).and_then(|r| ed.get(&r)).cloned() else {
+        return false;
+    };
+    let name = match (what.fill, what.stroke) {
+        (true, false) => "Copiar preenchimento",
+        (false, true) => "Copiar contorno",
+        _ => "Copiar propriedades",
+    };
+    modify(ed, targets, name, |o| {
+        if o.id == s.id || matches!(o.kind, ObjectKind::Image(_)) {
+            return false;
+        }
+        if what.fill {
+            o.fill = s.fill.clone();
+        }
+        if what.stroke {
+            o.stroke = s.stroke.clone();
+        }
+        if what.look {
+            o.opacity = s.opacity;
+            o.blend = s.blend;
+        }
+        true
+    });
+    true
+}
+
+/// Centralizar no alvo (GD-BDR-33): o centro da caixa geométrica da seleção
+/// vai para o centro da do alvo.
+pub fn center_on(ed: &mut Editor, sel: &[String], target: &str) -> bool {
+    let (Some(b), Some(t)) = (
+        selection_bounds(ed, sel, false),
+        ed.find(target).and_then(|r| object_bounds(ed, &r, false)),
+    ) else {
+        return false;
+    };
+    let d = t.center() - b.center();
+    transform(ed, sel, Affine::translate(d), "Centralizar no alvo");
+    true
+}
+
 /// Primeiro objeto acima de `at` (na mesma camada) que não está em
 /// `removed`: os resultados que substituem os removidos entram logo abaixo
 /// dele, mantendo o lugar na pilha mesmo com removidos espalhados.
@@ -2281,5 +2450,118 @@ mod tests {
 
     fn ed_doc(ed: &Editor) -> &crate::model::Document {
         &ed.doc
+    }
+    fn bdr_rect(ed: &mut Editor, x: f64, y: f64, w: f64, h: f64) -> String {
+        let mut o = Object::new(ObjectKind::Rectangle(crate::model::RectData {
+            width: w,
+            height: h,
+            corners: None,
+            extra: Default::default(),
+        }));
+        o.transform = Transform::translate(x, y);
+        add_object(ed, 0, 0, o, "r")
+    }
+
+    fn bdr_editor() -> Editor {
+        let mut d = crate::model::Document::new();
+        d.data
+            .pages
+            .push(crate::model::Page::new(300_000.0, 300_000.0));
+        Editor::new(d)
+    }
+
+    /// GD-BDR-28 (aceite): copiar só contorno de A para B; preenchimento de
+    /// B e todo o A ficam.
+    #[test]
+    fn gd_bdr_28_copy_only_stroke() {
+        use crate::model::Color;
+        let mut ed = bdr_editor();
+        let a = bdr_rect(&mut ed, 0.0, 0.0, 10_000.0, 10_000.0);
+        let b = bdr_rect(&mut ed, 50_000.0, 0.0, 10_000.0, 10_000.0);
+        let mut red = Stroke::new(705.6, Color::from_hex("#ff0000").unwrap());
+        red.dash = Some(vec![2000.0, 1000.0]);
+        let blue = Some(Fill::solid(Color::from_hex("#0000ff").unwrap()));
+        let yellow = Some(Fill::solid(Color::from_hex("#ffff00").unwrap()));
+        modify(&mut ed, std::slice::from_ref(&a), "x", |o| {
+            o.stroke = Some(red.clone());
+            o.fill = blue.clone();
+            true
+        });
+        modify(&mut ed, std::slice::from_ref(&b), "x", |o| {
+            o.stroke = Some(Stroke::new(352.8, Color::black()));
+            o.fill = yellow.clone();
+            true
+        });
+        assert!(copy_properties(
+            &mut ed,
+            &a,
+            std::slice::from_ref(&b),
+            CopyProps::STROKE
+        ));
+        let get = |ed: &Editor, id: &str| ed.get(&ed.find(id).unwrap()).unwrap().clone();
+        assert_eq!(get(&ed, &b).stroke, Some(red.clone()));
+        assert_eq!(get(&ed, &b).fill, yellow);
+        assert_eq!(get(&ed, &a).fill, blue, "A inalterado");
+        ed.undo();
+        assert_eq!(get(&ed, &b).stroke.unwrap().width, 352.8, "um passo");
+    }
+
+    /// GD-BDR-33 (aceite): A 10×10 mm em (0,0) centraliza no centro de B
+    /// 40×20 mm com centro em (100,50).
+    #[test]
+    fn gd_bdr_33_center_on_target() {
+        let mut ed = bdr_editor();
+        let a = bdr_rect(&mut ed, 0.0, 0.0, 10_000.0, 10_000.0);
+        let b = bdr_rect(&mut ed, 80_000.0, 40_000.0, 40_000.0, 20_000.0);
+        assert!(center_on(&mut ed, std::slice::from_ref(&a), &b));
+        let c = object_bounds(&ed, &ed.find(&a).unwrap(), false)
+            .unwrap()
+            .center();
+        assert!(
+            (c.x - 100_000.0).abs() <= 1.0 && (c.y - 50_000.0).abs() <= 1.0,
+            "{c:?}"
+        );
+    }
+
+    /// GD-BDR-41/42: à frente de / atrás de, desagrupar tudo, mostrar e
+    /// desbloquear todos.
+    #[test]
+    fn gd_bdr_41_42_order_and_organize() {
+        let mut ed = bdr_editor();
+        let a = bdr_rect(&mut ed, 0.0, 0.0, 1000.0, 1000.0);
+        let b = bdr_rect(&mut ed, 0.0, 0.0, 1000.0, 1000.0);
+        let c = bdr_rect(&mut ed, 0.0, 0.0, 1000.0, 1000.0);
+        let order = |ed: &Editor| {
+            ed.objects(0, 0)
+                .iter()
+                .map(|o| o.id.clone())
+                .collect::<Vec<_>>()
+        };
+        place_relative(&mut ed, std::slice::from_ref(&c), &a, false);
+        assert_eq!(
+            order(&ed),
+            vec![c.clone(), a.clone(), b.clone()],
+            "atrás de A"
+        );
+        place_relative(&mut ed, &[c.clone(), a.clone()], &b, true);
+        assert_eq!(
+            order(&ed),
+            vec![b.clone(), c.clone(), a.clone()],
+            "à frente de B, ordem mantida"
+        );
+        // Grupo dentro de grupo: desagrupar tudo chega às folhas.
+        let g1 = group(&mut ed, &[a.clone(), c.clone()]).unwrap();
+        let g2 = group(&mut ed, &[g1, b.clone()]).unwrap();
+        let leaves = ungroup_all(&mut ed, &[g2]);
+        let mut l = leaves.clone();
+        l.sort();
+        let mut want = vec![a.clone(), b.clone(), c.clone()];
+        want.sort();
+        assert_eq!(l, want);
+        set_visible(&mut ed, std::slice::from_ref(&a), false);
+        set_locked(&mut ed, std::slice::from_ref(&b), true);
+        assert_eq!(show_all(&mut ed, 0), vec![a.clone()]);
+        assert_eq!(unlock_all(&mut ed, 0), vec![b.clone()]);
+        assert!(ed.objects(0, 0).iter().all(|o| o.visible && !o.locked));
     }
 }
