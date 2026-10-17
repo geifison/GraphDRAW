@@ -27,6 +27,7 @@ pub const VALID_GDR: &[&str] = &[
     "unknown-fields.gdr",
     "split-pages.gdr",
     "prepress.gdr",
+    "patterns.gdr",
 ];
 
 /// Lê um membro de um pacote ZIP.

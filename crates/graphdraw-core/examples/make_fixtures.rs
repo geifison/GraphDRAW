@@ -749,6 +749,68 @@ fn m1_editing() -> Document {
 }
 
 /// Reescreve um membro de um `.gdr` (para simular corrupção, GD-GDR-10).
+/// GD-FIL-04..06/10: os três tipos de padrão (vetorial com um círculo,
+/// imagem, duas cores com deslocamento e espelhamento, um preso à página).
+fn patterns() -> Document {
+    let mut ids = Ids::new(12);
+    let mut p = page(&mut ids, 200.0 * MM, 80.0 * MM);
+    let mut d = doc_with(vec![], "Padrões");
+    let src = d.add_image(checker_png(), "png");
+    let mut dot = obj(
+        &mut ids,
+        ObjectKind::Ellipse(EllipseData {
+            rx: 2.0 * MM,
+            ry: 2.0 * MM,
+            mode: "ellipse".into(),
+            start_angle: 0.0,
+            end_angle: 360.0,
+            extra: Map::new(),
+        }),
+    );
+    dot.transform = Transform::translate(3.0 * MM, 3.0 * MM);
+    dot.fill = Some(Fill::solid(Color::cmyk(1.0, 0.0, 0.0, 0.0)));
+    let vector = Pattern {
+        kind: "vector".into(),
+        tile: vec![dot],
+        width: 6.0 * MM,
+        height: 6.0 * MM,
+        ..Pattern::default()
+    };
+    let bitmap = Pattern {
+        kind: "bitmap".into(),
+        src: Some(src),
+        width: 10.0 * MM,
+        height: 10.0 * MM,
+        rotation: 15.0,
+        ..Pattern::default()
+    };
+    let two = Pattern {
+        kind: "two-color".into(),
+        cells: vec!["1100".into(), "1100".into(), "0011".into(), "0011".into()],
+        fg: Some(Color::cmyk(0.0, 0.0, 0.0, 1.0)),
+        bg: Some(Color::cmyk(0.0, 0.0, 0.2, 0.0)),
+        width: 8.0 * MM,
+        height: 8.0 * MM,
+        row_offset: 0.5,
+        mirror: true,
+        transform_with_object: false,
+        ..Pattern::default()
+    };
+    for (i, pat) in [vector, bitmap, two].into_iter().enumerate() {
+        let x = 5.0 + 65.0 * i as f64;
+        p.layers[0].objects.push(rect(
+            &mut ids,
+            x * MM,
+            10.0 * MM,
+            60.0 * MM,
+            60.0 * MM,
+            Fill::Pattern(Box::new(pat)),
+        ));
+    }
+    d.data.pages.push(p);
+    d
+}
+
 /// Doc 28 e GD-COT-01..03: sangria, limites da verificação prévia,
 /// sobreimpressão no contorno e uma cota ligada aos nós de um retângulo.
 fn prepress() -> Document {
@@ -841,6 +903,7 @@ fn main() {
         ("unknown-fields", unknown_fields()),
         ("m1-editing", m1_editing()),
         ("prepress", prepress()),
+        ("patterns", patterns()),
     ];
     for (name, doc) in &docs {
         let path = dir.join(format!("{name}.gdr"));

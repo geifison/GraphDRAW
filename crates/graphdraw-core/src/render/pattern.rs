@@ -116,9 +116,15 @@ fn base_tile(
                 }
             }
             let ip = sk::PixmapRef::from_bytes(&rgba, img.width, img.height)?;
-            let t = sk::Transform::from_scale(
-                w as f32 / img.width as f32,
-                h as f32 / img.height as f32,
+            // 1 px a mais de cada lado: a borda filtrada não deixa alfa
+            // parcial (emenda) na repetição.
+            let t = sk::Transform::from_row(
+                (w + 2) as f32 / img.width as f32,
+                0.0,
+                0.0,
+                (h + 2) as f32 / img.height as f32,
+                -1.0,
+                -1.0,
             );
             pm.draw_pixmap(
                 0,
@@ -190,8 +196,8 @@ fn render_tile(doc: &Document, p: &Pattern, images: &ImageCache) -> Option<Patte
     let base = base_tile(doc, p, images, w, h)?;
     let mut sup = sk::Pixmap::new(2 * w, 2 * h)?;
     let (wf, hf) = (w as f32, h as f32);
-    let ro = (p.row_offset.rem_euclid(1.0) as f32) * wf;
-    let co = (p.column_offset.rem_euclid(1.0) as f32) * hf;
+    let ro = ((p.row_offset.rem_euclid(1.0) as f32) * wf).round();
+    let co = ((p.column_offset.rem_euclid(1.0) as f32) * hf).round();
     let paint = sk::PixmapPaint::default();
     // Cada célula (coluna, linha): deslocamento da linha ímpar em x, da
     // coluna ímpar em y; espelhamento alternado (xadrez).

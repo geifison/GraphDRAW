@@ -73,7 +73,9 @@ Prioridade:
 - [ ] Rodada de uso real com arquivos de clientes. O relatório de
   fidelidade fica privado (GD-FID-31); no repositório só números
   agregados.
-- [ ] Benchmark GD-NF-01/02 sem regressão depois das ferramentas novas.
+- [x] Benchmark GD-NF-01/02 sem regressão depois das ferramentas novas
+  (2026-10-17: abrir 100 mil objetos 1,3 s; redesenho 15,6 ms/quadro, 26,4 ms
+  com recursos pesados).
 
 ## P0 — Pré-impressão e manufatura (avaliação de 2026-10-17)
 Proposta de arquitetura trazida pelo responsável pelo produto, avaliada em
