@@ -285,6 +285,12 @@ de texto.
 - Itens com 26 px de altura: ícone à esquerda, rótulo alinhado à esquerda,
   atalho em `type-micro` alinhado à direita.
 
+**Menu Texto** (barra de menus, entre Objeto e Exibir): Ferramenta Texto;
+Negrito, Itálico, Aumentar/Diminuir a fonte; os quatro alinhamentos;
+Converter artístico ↔ parágrafo, Ajustar texto ao caminho, Separar do
+caminho, Converter texto em curvas. Comandos de texto não ficam no menu
+Objeto.
+
 ### 4.4 Janelas (modais)
 
 - Raio `radius-lg`; margens `space-600`; título em `type-display`.

@@ -747,6 +747,31 @@ impl App {
         }
     }
 
+    /// Negrito e itálico do texto alvo (no ponto do cursor, na edição).
+    pub(crate) fn text_flags(&self) -> (bool, bool) {
+        let Some(d) = &self.doc else {
+            return (false, false);
+        };
+        let Some(id) = self.text_targets().into_iter().next() else {
+            return (false, false);
+        };
+        match d
+            .editor
+            .find(&id)
+            .and_then(|r| d.editor.get(&r))
+            .map(|o| &o.kind)
+        {
+            Some(ObjectKind::Text(t)) => {
+                let st = match self.text_style_index() {
+                    Some(i) => graphdraw_core::edit::text::style_at(t, i),
+                    None => graphdraw_core::edit::text::current_style(t),
+                };
+                (st.2, st.3)
+            }
+            _ => (false, false),
+        }
+    }
+
     /// Trecho selecionado no texto em edição: objeto e `[início, fim)`.
     pub(crate) fn text_range(&self) -> Option<(String, usize, usize)> {
         let t = self.canvas.text.as_ref()?;
@@ -1105,6 +1130,29 @@ impl App {
                 ops::convert_to_curves(ed, s);
                 None
             }),
+            C::TextBold | C::TextItalic => {
+                // Liga/desliga pelo estado do texto (ou do trecho em edição).
+                let (bold, italic) = self.text_flags();
+                let st = if c == C::TextBold {
+                    graphdraw_core::edit::text::TextStyle {
+                        bold: Some(!bold),
+                        ..Default::default()
+                    }
+                } else {
+                    graphdraw_core::edit::text::TextStyle {
+                        italic: Some(!italic),
+                        ..Default::default()
+                    }
+                };
+                self.text_style(st);
+            }
+            C::TextToCurves => {
+                let ids = self.text_targets();
+                if let Some(d) = &mut self.doc {
+                    self.canvas.end_text(d);
+                    ops::convert_to_curves(&mut d.editor, &ids);
+                }
+            }
             C::FitTextToPath => {
                 // GD-TXT-09: um texto e um objeto com contorno selecionados.
                 if let Some(d) = &mut self.doc {
@@ -1696,34 +1744,6 @@ impl App {
                 {
                     self.run_command(Command::OutlineToObject, &ctx);
                 }
-                let has_text = !self.text_targets().is_empty();
-                let two = self.doc.as_ref().is_some_and(|d| d.selection.len() == 2);
-                for (label, cmd, on) in [
-                    (tr("Ajustar texto ao caminho", "Fit text to path"), Command::FitTextToPath, two),
-                    (tr("Separar texto do caminho", "Detach text from path"), Command::DetachTextPath, has_text),
-                ] {
-                    if ui
-                        .add_enabled(on, egui::Button::new(keymap::menu(label, cmd)))
-                        .clicked()
-                    {
-                        self.run_command(cmd, &ctx);
-                    }
-                }
-                if ui
-                    .add_enabled(
-                        has_text,
-                        egui::Button::new(keymap::menu(
-                            tr(
-                                "Converter texto artístico ↔ parágrafo",
-                                "Convert artistic ↔ paragraph text",
-                            ),
-                            Command::ConvertTextKind,
-                        )),
-                    )
-                    .clicked()
-                {
-                    self.run_command(Command::ConvertTextKind, &ctx);
-                }
                 ui.separator();
                 let multi = self.doc.as_ref().is_some_and(|d| d.selection.len() >= 2);
                 for (label, cmd, enabled) in [
@@ -1921,6 +1941,59 @@ impl App {
                             None
                         });
                     }
+                }
+            });
+            // Menu Texto: tudo o que é de texto num lugar só.
+            ui.menu_button(tr("Texto", "Text"), |ui| {
+                theme::menu_density(ui);
+                let has_text = !self.text_targets().is_empty();
+                let two = self.doc.as_ref().is_some_and(|d| d.selection.len() == 2);
+                let item = |ui: &mut egui::Ui, label: &str, cmd: Command, on: bool| {
+                    ui.add_enabled(on, egui::Button::new(keymap::menu(label, cmd))).clicked()
+                };
+                let mut run = None;
+                if item(ui, tr("Ferramenta Texto", "Text tool"), Command::ToolText, true) {
+                    run = Some(Command::ToolText);
+                }
+                ui.separator();
+                for (label, cmd) in [
+                    (tr("Negrito", "Bold"), Command::TextBold),
+                    (tr("Itálico", "Italic"), Command::TextItalic),
+                    (tr("Aumentar a fonte", "Increase font size"), Command::TextBigger),
+                    (tr("Diminuir a fonte", "Decrease font size"), Command::TextSmaller),
+                ] {
+                    if item(ui, label, cmd, has_text) {
+                        run = Some(cmd);
+                    }
+                }
+                ui.separator();
+                for (label, cmd) in [
+                    (tr("Alinhar à esquerda", "Align left"), Command::TextAlignLeft),
+                    (tr("Centralizar", "Center"), Command::TextAlignCenter),
+                    (tr("Alinhar à direita", "Align right"), Command::TextAlignRight),
+                    (tr("Justificar", "Justify"), Command::TextJustify),
+                ] {
+                    if item(ui, label, cmd, has_text) {
+                        run = Some(cmd);
+                    }
+                }
+                ui.separator();
+                for (label, cmd, on) in [
+                    (
+                        tr("Converter artístico ↔ parágrafo", "Convert artistic ↔ paragraph"),
+                        Command::ConvertTextKind,
+                        has_text,
+                    ),
+                    (tr("Ajustar texto ao caminho", "Fit text to path"), Command::FitTextToPath, two),
+                    (tr("Separar texto do caminho", "Detach text from path"), Command::DetachTextPath, has_text),
+                    (tr("Converter texto em curvas", "Convert text to curves"), Command::TextToCurves, has_text),
+                ] {
+                    if item(ui, label, cmd, on) {
+                        run = Some(cmd);
+                    }
+                }
+                if let Some(cmd) = run {
+                    self.run_command(cmd, &ctx);
                 }
             });
             ui.menu_button(tr("Exibir", "View"), |ui| {
@@ -3238,6 +3311,41 @@ mod tests {
             "{size:?}"
         );
         assert!(app.bitmap_dlg.is_some());
+    }
+
+    /// Menu Texto: negrito liga e desliga; converter em curvas tira o texto.
+    #[test]
+    fn text_menu_commands() {
+        use graphdraw_core::edit::text::{insert, new_text};
+        let ctx = crate::theme::test_ctx();
+        let mut app = App::with_ctx(&ctx, None);
+        let id = {
+            let d = app.doc.as_mut().unwrap();
+            let mut o = new_text(10_000.0, 10_000.0, None, "Arial", 5_000.0);
+            if let ObjectKind::Text(t) = &mut o.kind {
+                insert(t, 0, "abc");
+            }
+            let id = ops::add_object(&mut d.editor, 0, 0, o, "t");
+            d.selection = vec![id.clone()];
+            id
+        };
+        let weight = |app: &App| {
+            let d = app.doc.as_ref().unwrap();
+            match &d.editor.get(&d.editor.find(&id).unwrap()).unwrap().kind {
+                ObjectKind::Text(t) => t.paragraphs[0].spans[0].font.weight,
+                _ => 0,
+            }
+        };
+        app.run_command(Command::TextBold, &ctx);
+        assert_eq!(weight(&app), 700);
+        app.run_command(Command::TextBold, &ctx);
+        assert_eq!(weight(&app), 400);
+        app.run_command(Command::TextToCurves, &ctx);
+        let d = app.doc.as_ref().unwrap();
+        assert!(!matches!(
+            d.page().layers[0].objects[0].kind,
+            ObjectKind::Text(_)
+        ));
     }
 
     /// Doc 06: com um trecho selecionado na edição, estilo e cor da paleta

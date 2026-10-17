@@ -215,6 +215,9 @@ commands! {
     TextAlignCenter = "text.align_center", "Centralizar texto", "Center text", Text, Text, true;
     TextAlignRight = "text.align_right", "Texto à direita", "Align text right", Text, Text, true;
     TextJustify = "text.justify", "Justificar texto", "Justify text", Text, Text, true;
+    TextBold = "text.bold", "Negrito", "Bold", Text, Always, true;
+    TextItalic = "text.italic", "Itálico", "Italic", Text, Always, true;
+    TextToCurves = "text.to_curves", "Converter texto em curvas", "Convert text to curves", Text, Selection, true;
 }
 
 /// Combinação de teclas.
