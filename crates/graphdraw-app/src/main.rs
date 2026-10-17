@@ -6,6 +6,7 @@
 
 mod app;
 mod canvas;
+mod cutui;
 mod dialogs;
 mod doc;
 mod doctabs;

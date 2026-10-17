@@ -128,6 +128,9 @@ pub struct App {
     export_choice: bool,
     /// Janela do contorno de deslocamento (GD-OFS-01) aberta.
     offset_dlg: Option<OffsetDialog>,
+    /// Exportar para corte (PLT/DXF) e gerar linha de corte (doc 17).
+    cut_export: Option<crate::cutui::CutExport>,
+    cut_line_dlg: Option<crate::cutui::CutLineDialog>,
     /// Janela "Novo documento" aberta (GD-DIM-10).
     new_doc: Option<crate::newdoc::NewDocDialog>,
     /// Condição de impressão escolhida para o PDF/X-1a (GD-EXP-07).
@@ -182,6 +185,8 @@ impl App {
             last_action: None,
             export_choice: false,
             offset_dlg: None,
+            cut_export: None,
+            cut_line_dlg: None,
             new_doc: None,
             print_condition: export::PrintCondition::Fogra39,
             pdf_standard: export::PdfStandard::Screen,
@@ -966,6 +971,33 @@ impl App {
                 }
                 (!out.is_empty()).then_some(out)
             }),
+            C::CutLine => {
+                if self.doc.as_ref().is_some_and(|d| !d.selection.is_empty()) {
+                    self.cut_line_dlg = Some(Default::default());
+                }
+            }
+            C::RegistrationMarks => {
+                if let Some(d) = &mut self.doc {
+                    let page = d.page;
+                    match graphdraw_core::edit::shapeops::registration_marks(
+                        &mut d.editor,
+                        page,
+                        5_000.0,
+                        5_000.0,
+                        3,
+                        graphdraw_core::export::cut::CUT_NAME,
+                    ) {
+                        Some(ids) => d.selection = ids,
+                        None => {
+                            self.status = tr(
+                                "Página sem arte: nada para marcar",
+                                "Empty page: nothing to mark",
+                            )
+                            .into()
+                        }
+                    }
+                }
+            }
             C::Offset => {
                 if self.doc.as_ref().is_some_and(|d| !d.selection.is_empty()) {
                     self.offset_dlg = Some(OffsetDialog::default());
@@ -1368,6 +1400,16 @@ impl App {
                         tr("Contorno de deslocamento…", "Offset path…"),
                         Command::Offset,
                         has_sel,
+                    ),
+                    (
+                        tr("Gerar linha de corte…", "Create cut line…"),
+                        Command::CutLine,
+                        has_sel,
+                    ),
+                    (
+                        tr("Marcas de registro", "Registration marks"),
+                        Command::RegistrationMarks,
+                        self.doc.is_some(),
                     ),
                 ] {
                     if ui
@@ -1899,6 +1941,7 @@ impl App {
         if self.export_choice {
             let mut pick = None;
             let mut pdfx = false;
+            let mut cut_pick = None;
             let mut close = false;
             crate::widgets::modal(ctx, egui::Id::unique("escolher-exportacao")).show(ctx, |ui| {
                 ui.set_width(320.0);
@@ -1959,6 +2002,23 @@ impl App {
                         });
                 });
                 ui.add_space(theme::SPACE_300);
+                ui.separator();
+                ui.label(egui::RichText::new(tr("Para corte", "For cutting")).strong());
+                for (label, f) in [
+                    (
+                        tr("PLT (HPGL) — plotter de recorte", "PLT (HPGL) — cutting plotter"),
+                        crate::cutui::CutFormat::Plt,
+                    ),
+                    (tr("DXF — laser e CNC", "DXF — laser and CNC"), crate::cutui::CutFormat::Dxf),
+                ] {
+                    if ui
+                        .add(egui::Button::new(label).min_size(egui::Vec2::new(300.0, theme::BUTTON_DEFAULT)))
+                        .clicked()
+                    {
+                        cut_pick = Some(f);
+                    }
+                }
+                ui.add_space(theme::SPACE_300);
                 crate::widgets::footer(ui, |ui| {
                     if ui
                         .add(crate::widgets::secondary_button(tr("Cancelar", "Cancel")))
@@ -1969,7 +2029,10 @@ impl App {
                     }
                 });
             });
-            if let Some(f) = pick {
+            if let Some(f) = cut_pick {
+                self.export_choice = false;
+                self.cut_export = Some(crate::cutui::CutExport::new(f));
+            } else if let Some(f) = pick {
                 self.export_choice = false;
                 self.export(f);
             } else if pdfx {
@@ -1983,6 +2046,88 @@ impl App {
             self.keys_window(ctx);
         }
         self.offset_window(ctx);
+        self.cut_windows(ctx);
+    }
+
+    /// Janelas da saída para corte (doc 17).
+    fn cut_windows(&mut self, ctx: &egui::Context) {
+        use crate::cutui::Outcome;
+        if let (Some(dlg), Some(doc)) = (&mut self.cut_export, &self.doc) {
+            match dlg.show(ctx, doc) {
+                Outcome::Open => {}
+                Outcome::Cancel => self.cut_export = None,
+                Outcome::Save(format, opts) => {
+                    self.cut_export = None;
+                    self.save_cut(format, &opts);
+                }
+            }
+        }
+        if let Some(dlg) = &mut self.cut_line_dlg
+            && let Some(ok) = dlg.show(ctx)
+        {
+            let (d, round, holes) = (dlg.distance, dlg.round, dlg.remove_holes);
+            self.cut_line_dlg = None;
+            if ok && let Some(doc) = &mut self.doc {
+                let sel = doc.selection.clone();
+                let page = doc.page;
+                match graphdraw_core::edit::shapeops::cut_line(
+                    &mut doc.editor,
+                    &sel,
+                    page,
+                    d,
+                    round,
+                    holes,
+                    graphdraw_core::export::cut::CUT_NAME,
+                ) {
+                    Some(id) => doc.selection = vec![id],
+                    None => {
+                        self.status = tr(
+                            "A seleção não tem área para contornar",
+                            "The selection has no area to outline",
+                        )
+                        .into()
+                    }
+                }
+            }
+        }
+    }
+
+    /// Grava o arquivo de corte da página atual.
+    fn save_cut(
+        &mut self,
+        format: crate::cutui::CutFormat,
+        opts: &graphdraw_core::export::cut::CutOptions,
+    ) {
+        use graphdraw_core::export::cut;
+        let Some(doc) = &self.doc else { return };
+        let ext = format.extension();
+        let stem = doc
+            .path
+            .as_ref()
+            .and_then(|p| p.file_stem())
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_else(|| tr("corte", "cut").into());
+        let Some(out) = rfd::FileDialog::new()
+            .set_file_name(format!("{stem}.{ext}"))
+            .add_filter(ext.to_uppercase(), &[ext])
+            .save_file()
+        else {
+            return;
+        };
+        let (pw, _) = doc.page_size();
+        let strokes = cut::cut_strokes(doc.doc(), doc.page, opts);
+        let text = match format {
+            crate::cutui::CutFormat::Plt => cut::hpgl(&strokes, pw, opts),
+            crate::cutui::CutFormat::Dxf => cut::dxf(&strokes, opts, pw),
+        };
+        self.status = match std::fs::write(&out, text) {
+            Ok(()) => format!(
+                "{} {}",
+                tr("Corte exportado:", "Cut exported:"),
+                out.display()
+            ),
+            Err(e) => format!("{} {e}", tr("Falha ao exportar:", "Export failed:")),
+        };
     }
 
     /// Janela do contorno de deslocamento (GD-OFS-01).

@@ -145,6 +145,8 @@ commands! {
     Combine = "obj.combine", "Combinar", "Combine", Object, Multi, true;
     BreakApart = "obj.break_apart", "Separar", "Break apart", Object, Selection, true;
     Offset = "obj.offset", "Contorno de deslocamento", "Offset path", Object, Selection, true;
+    CutLine = "cut.line", "Gerar linha de corte", "Create cut line", Object, Selection, true;
+    RegistrationMarks = "cut.registration_marks", "Marcas de registro", "Registration marks", Object, NotText, true;
     Ungroup = "obj.ungroup", "Desagrupar", "Ungroup", Object, Selection, true;
     TransformPosition = "panel.transform_position", "Transformar: posição", "Transform: position", Object, Always, true;
     TransformRotate = "panel.transform_rotate", "Transformar: girar", "Transform: rotate", Object, Always, true;

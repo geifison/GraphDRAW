@@ -1,6 +1,7 @@
 //! Exportação SVG/PDF/PNG (doc 15) e conversão usada pela CLI (GD-EXP-06,
 //! GD-CDR-07).
 
+pub mod cut;
 pub mod pdf;
 pub mod svg;
 

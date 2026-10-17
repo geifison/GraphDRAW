@@ -268,6 +268,9 @@ pub const PANEL_MIN_WIDTH: f32 = 200.0;
 pub const PANEL_MAX_WIDTH: f32 = 520.0;
 /// Janela de painel solto: tamanho inicial (6).
 pub const PANEL_FLOAT_SIZE: [f32; 2] = [260.0, 360.0];
+/// Prévia do percurso de corte (doc 17, GD-CRT-06): tamanho e duração.
+pub const CUT_PREVIEW: [f32; 2] = [420.0, 240.0];
+pub const CUT_PREVIEW_SECONDS: f32 = 4.0;
 /// Amostras de cor (paleta e indicadores).
 pub const SWATCH: f32 = 18.0;
 

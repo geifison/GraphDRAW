@@ -298,6 +298,13 @@ Do M2 (em andamento):
   (`i_overlay`) e o resultado volta a Bézier por ajuste próprio com erro
   de 2 µm (`edit/fit.rs`); simplificar, XOR, dividir e limite
   (GD-BOO-04..08) ainda não existem.
+- Corte (doc 17): marcação por cor especial ou camada "CutContour",
+  gerar linha de corte (união + deslocamento), marcas de registro, ordem
+  (furos primeiro, vizinho mais próximo, sentido), sobreposição,
+  compensação de lâmina, caixa de descasque, prévia animada e saída
+  PLT/HPGL e DXF R12 da página atual (`export/cut.rs`). No PDF a linha
+  de corte sai como Separation "CutContour"; o SVG ainda não separa a
+  camada de corte (GD-CRT-12) e o envio direto ao plotter é pós-MVP.
 
 Do M1:
 

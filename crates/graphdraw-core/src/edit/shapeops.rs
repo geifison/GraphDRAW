@@ -486,6 +486,145 @@ pub fn offset(ed: &mut Editor, sel: &[String], d: f64, join: Join) -> Vec<String
     ids
 }
 
+/// Cor especial da linha de corte: tinta `name` com prévia magenta.
+pub fn cut_color(name: &str) -> crate::model::Color {
+    let mut c = crate::model::Color::new("spot", vec![1.0]);
+    c.name = Some(name.into());
+    c.alternate = Some(Box::new(crate::model::Color::cmyk(0.0, 1.0, 0.0, 0.0)));
+    c
+}
+
+/// Gera a linha de corte ao redor da seleção (GD-CRT-02): silhueta (união)
+/// deslocada `d` µm para fora, cantos arredondados opcionais, furos
+/// internos removidos opcionalmente. Vai para a camada `name` (criada no
+/// topo se faltar), com contorno fio de cabelo na cor especial `name`.
+pub fn cut_line(
+    ed: &mut Editor,
+    sel: &[String],
+    page: usize,
+    d: f64,
+    round: bool,
+    remove_holes: bool,
+    name: &str,
+) -> Option<String> {
+    let refs: Vec<ObjRef> = sel.iter().filter_map(|id| ed.find(id)).collect();
+    if refs.is_empty() {
+        return None;
+    }
+    let silhouette = union_all(
+        refs.iter()
+            .map(|r| region(ed.get(r).unwrap(), ed.parent_affine(r))),
+    );
+    let join = if round { Join::Round } else { Join::Miter };
+    let mut shapes = offset_region(&silhouette, d, join);
+    if remove_holes {
+        shapes = shapes
+            .into_iter()
+            .map(|s| s.into_iter().take(1).collect())
+            .collect();
+    }
+    if area(&shapes) <= 0.0 {
+        return None;
+    }
+    let mut o = Object::new(ObjectKind::Path(PathData {
+        subpaths: bez_to_subpaths(&shapes_to_path(&shapes)),
+        fill_rule: FillRule::Nonzero,
+        extra: Default::default(),
+    }));
+    o.name = Some(format!("Linha de corte ({name})"));
+    o.stroke = Some(Stroke::new(0.0, cut_color(name)));
+    let id = o.id.clone();
+    ed.transaction("Gerar linha de corte", |ed| {
+        let layer = match ed.layers(page).iter().position(|l| l.name == name) {
+            Some(i) => i,
+            None => {
+                let n = ed.layers(page).len();
+                ed.insert_layer(page, n, crate::model::Layer::new(name));
+                n
+            }
+        };
+        let index = ed.objects(page, layer).len();
+        ed.insert_object(ObjLoc { page, layer, index }, o);
+    });
+    Some(id)
+}
+
+/// Nome da camada das marcas de registro.
+pub const REGISTRATION_LAYER: &str = "Registro";
+
+/// Marcas de registro para impressão e corte (GD-CRT-03): círculos cheios
+/// de `diameter` µm na cor de registro, a `margin` µm fora da arte (todos
+/// os objetos visíveis, menos as camadas de corte e de registro). Com
+/// `corners` = 3, o canto inferior direito fica sem marca, para o leitor
+/// do plotter achar a orientação. Vão para a camada "Registro".
+pub fn registration_marks(
+    ed: &mut Editor,
+    page: usize,
+    margin: f64,
+    diameter: f64,
+    corners: usize,
+    cut_name: &str,
+) -> Option<Vec<String>> {
+    let art = ed
+        .layers(page)
+        .iter()
+        .filter(|l| l.visible && l.name != cut_name && l.name != REGISTRATION_LAYER)
+        .flat_map(|l| l.objects.iter())
+        .filter(|o| o.visible)
+        .filter_map(|o| super::query::bounds(o, Affine::IDENTITY, true))
+        .reduce(|a, b| a.union(b))?;
+    let r = diameter / 2.0;
+    let off = margin + r;
+    let mut spots = vec![
+        Point::new(art.x0 - off, art.y1 + off),
+        Point::new(art.x1 + off, art.y1 + off),
+        Point::new(art.x0 - off, art.y0 - off),
+    ];
+    if corners >= 4 {
+        spots.push(Point::new(art.x1 + off, art.y0 - off));
+    }
+    let marks: Vec<Object> = spots
+        .iter()
+        .map(|c| {
+            let mut o = Object::new(ObjectKind::Ellipse(crate::model::EllipseData {
+                rx: r,
+                ry: r,
+                mode: "ellipse".into(),
+                start_angle: 0.0,
+                end_angle: 360.0,
+                extra: Default::default(),
+            }));
+            o.name = Some("Marca de registro".into());
+            o.transform = Transform::translate(c.x, c.y);
+            o.fill = Some(crate::model::Fill::solid(crate::model::Color::new(
+                "registration",
+                vec![1.0],
+            )));
+            o
+        })
+        .collect();
+    let ids: Vec<String> = marks.iter().map(|o| o.id.clone()).collect();
+    ed.transaction("Marcas de registro", |ed| {
+        let layer = match ed
+            .layers(page)
+            .iter()
+            .position(|l| l.name == REGISTRATION_LAYER)
+        {
+            Some(i) => i,
+            None => {
+                let n = ed.layers(page).len();
+                ed.insert_layer(page, n, crate::model::Layer::new(REGISTRATION_LAYER));
+                n
+            }
+        };
+        for o in marks {
+            let index = ed.objects(page, layer).len();
+            ed.insert_object(ObjLoc { page, layer, index }, o);
+        }
+    });
+    Some(ids)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -653,5 +792,54 @@ mod tests {
             Join::Miter,
         );
         assert!((area(&inner) - 144e6).abs() < 1e4, "{}", area(&inner));
+    }
+
+    /// GD-CRT-02: linha 2 mm fora da união, sem furos, na camada de corte.
+    #[test]
+    fn gd_crt_02_cut_line_around_selection() {
+        let mut ed = editor();
+        let a = rect(&mut ed, 0.0, 0.0, 20_000.0, 20_000.0);
+        let b = rect(&mut ed, 10_000.0, 0.0, 20_000.0, 20_000.0);
+        let id = cut_line(&mut ed, &[a, b], 0, 2_000.0, false, true, "CutContour").unwrap();
+        let li = ed
+            .layers(0)
+            .iter()
+            .position(|l| l.name == "CutContour")
+            .unwrap();
+        assert_eq!(ed.objects(0, li).len(), 1);
+        let r = ed.find(&id).unwrap();
+        let o = ed.get(&r).unwrap();
+        let bb = page_path(o, Affine::IDENTITY).bounding_box();
+        assert!(
+            (bb.width() - 34_000.0).abs() < 5.0 && (bb.height() - 24_000.0).abs() < 5.0,
+            "{bb:?}"
+        );
+        let s = o.stroke.as_ref().unwrap();
+        assert_eq!(
+            (s.width, s.color.name.as_deref()),
+            (0.0, Some("CutContour"))
+        );
+        ed.undo();
+        assert!(
+            ed.layers(0).iter().all(|l| l.name != "CutContour"),
+            "desfazer tira a camada criada"
+        );
+    }
+
+    #[test]
+    fn gd_crt_03_registration_marks_outside_art() {
+        let mut ed = editor();
+        rect(&mut ed, 10_000.0, 10_000.0, 50_000.0, 30_000.0);
+        let ids = registration_marks(&mut ed, 0, 5_000.0, 5_000.0, 3, "CutContour").unwrap();
+        assert_eq!(ids.len(), 3);
+        for id in &ids {
+            let r = ed.find(id).unwrap();
+            let b =
+                super::super::query::bounds(ed.get(&r).unwrap(), Affine::IDENTITY, false).unwrap();
+            // Fora da arte (10..60 × 10..40 mm) com 5 mm de folga.
+            let clear = b.x1 <= 5_000.0 + 1.0 || b.x0 >= 65_000.0 - 1.0;
+            assert!(clear, "{b:?}");
+        }
+        assert!(ed.layers(0).iter().any(|l| l.name == REGISTRATION_LAYER));
     }
 }
