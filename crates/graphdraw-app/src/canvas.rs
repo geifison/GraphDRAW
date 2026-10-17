@@ -358,6 +358,8 @@ pub struct Defaults {
     /// Papel gráfico (GD-PRI-06): colunas e linhas.
     pub grid_cols: u32,
     pub grid_rows: u32,
+    /// Forma da família "Formas básicas" (GD-PRI-07).
+    pub basic_shape: String,
 }
 
 impl Default for Defaults {
@@ -374,6 +376,7 @@ impl Default for Defaults {
             spiral_expansion: 1.5,
             grid_cols: 4,
             grid_rows: 3,
+            basic_shape: "arrow".into(),
         }
     }
 }
@@ -386,6 +389,8 @@ pub enum Prim {
     Polygon,
     Spiral,
     Grid,
+    /// Forma básica (GD-PRI-07).
+    Basic,
 }
 
 impl Prim {
@@ -395,6 +400,7 @@ impl Prim {
             Tool::Polygon => match d.shape_family.as_str() {
                 "spiral" => Prim::Spiral,
                 "graph" => Prim::Grid,
+                "basic" => Prim::Basic,
                 _ => Prim::Polygon,
             },
             _ => Prim::Rect,
@@ -561,6 +567,12 @@ enum Drag {
     /// muda tamanho e giro de todas as pontas, o interno a nitidez.
     PolyVertex {
         inner: bool,
+        r: ObjRef,
+        original: Object,
+    },
+    /// Alça de ajuste da forma básica (GD-PRI-07).
+    BasicHandle {
+        index: usize,
         r: ObjRef,
         original: Object,
     },
@@ -1783,6 +1795,7 @@ impl CanvasState {
             || self.shape_preview.spiral_expansion != defaults.spiral_expansion
             || (self.shape_preview.grid_cols, self.shape_preview.grid_rows)
                 != (defaults.grid_cols, defaults.grid_rows)
+            || self.shape_preview.basic_shape != defaults.basic_shape
         {
             self.shape_preview = Defaults {
                 fill: None,
@@ -2852,6 +2865,15 @@ impl CanvasState {
                                 egui::StrokeKind::Middle,
                             );
                         }
+                        Prim::Basic => {
+                            let mut path = graphdraw_core::render::basic::path(&basic_data(
+                                &self.shape_preview.basic_shape,
+                                r.width(),
+                                r.height(),
+                            ));
+                            path.apply_affine(Affine::translate((r.x0, r.y0)));
+                            self.preview_lines(painter, rect, ph, &path, thin);
+                        }
                         Prim::Spiral | Prim::Grid => {
                             let mut path = generated_outline(
                                 *prim,
@@ -3091,6 +3113,24 @@ impl CanvasState {
     }
 
     fn paint_nodes(&self, painter: &egui::Painter, doc: &DocState, rect: Rect, ph: f64) {
+        // Alças de ajuste da forma básica: losangos (GD-PRI-07).
+        if let Some((_, _, b, m)) = single_basic(doc) {
+            for q in graphdraw_core::render::basic::handles(&b) {
+                let c = self.screen(rect, ph, m * q);
+                let s = theme::HANDLE_SIZE * 0.75;
+                let pts = vec![
+                    c + Vec2::new(0.0, -s),
+                    c + Vec2::new(s, 0.0),
+                    c + Vec2::new(0.0, s),
+                    c + Vec2::new(-s, 0.0),
+                ];
+                painter.add(egui::Shape::convex_polygon(
+                    pts,
+                    theme::ACCENT_WARNING,
+                    handle_stroke(),
+                ));
+            }
+        }
         if let Some((_, _, p, m)) = single_polygon(doc) {
             for (_, q) in polygon_handles(&p) {
                 let c = self.screen(rect, ph, m * q);
@@ -4439,6 +4479,26 @@ impl CanvasState {
         rect: Rect,
         ph: f64,
     ) {
+        // Forma básica: as alças de ajuste (GD-PRI-07).
+        if let Some((r, o, bd, m)) = single_basic(doc) {
+            if let Some(index) = graphdraw_core::render::basic::handles(&bd)
+                .into_iter()
+                .position(|q| (self.screen(rect, ph, m * q) - origin).length() <= theme::HANDLE_HIT)
+            {
+                doc.editor.begin(tr("Ajustar forma", "Adjust shape"));
+                self.drag = Drag::BasicHandle {
+                    index,
+                    r,
+                    original: o,
+                };
+                return;
+            }
+            self.drag = Drag::Rubber {
+                start: origin,
+                lasso: None,
+            };
+            return;
+        }
         // Polígono: arrastar um vértice repete a mudança em todas as pontas.
         if let Some((r, o, pd, m)) = single_polygon(doc) {
             if let Some((inner, _)) = polygon_handles(&pd).into_iter().find(|(_, q)| {
@@ -4949,6 +5009,14 @@ impl CanvasState {
                 }
                 doc.editor.replace_at(r, o);
             }
+            Drag::BasicHandle { index, r, original } => {
+                let m = doc.editor.parent_affine(r) * original.transform.affine();
+                let mut o = original.clone();
+                if let ObjectKind::Basic(b) = &mut o.kind {
+                    graphdraw_core::render::basic::set_handle(b, *index, m.inverse() * cur);
+                }
+                doc.editor.replace_at(r, o);
+            }
             Drag::PolyVertex { inner, r, original } => {
                 if let ObjectKind::Polygon(p0) = &original.kind {
                     let m = doc.editor.parent_affine(r) * original.transform.affine();
@@ -5134,7 +5202,8 @@ impl CanvasState {
             | Drag::Nodes { .. }
             | Drag::NodeHandle { .. }
             | Drag::Segment { .. }
-            | Drag::PolyVertex { .. } => {
+            | Drag::PolyVertex { .. }
+            | Drag::BasicHandle { .. } => {
                 doc.editor.commit();
             }
             Drag::GradHandle { r, .. } => {
@@ -5701,7 +5770,7 @@ fn shape_outline_with(
         Prim::Ellipse => {
             kurbo::Ellipse::new((w / 2.0, h / 2.0), (w / 2.0, h / 2.0), 0.0).to_path(0.1)
         }
-        Prim::Rect | Prim::Grid => kurbo::Rect::new(0.0, 0.0, w, h).to_path(0.1),
+        Prim::Rect | Prim::Grid | Prim::Basic => kurbo::Rect::new(0.0, 0.0, w, h).to_path(0.1),
         Prim::Spiral => BezPath::new(),
         Prim::Polygon => {
             let mut p =
@@ -5740,6 +5809,7 @@ fn add_shape(doc: &mut DocState, prim: Prim, w: f64, h: f64, m: Affine, defaults
             sharpness: defaults.polygon_sharpness,
             extra: Map::new(),
         }),
+        Prim::Basic => ObjectKind::Basic(basic_data(&defaults.basic_shape, w, h)),
         Prim::Rect | Prim::Spiral | Prim::Grid => ObjectKind::Rectangle(RectData {
             width: w,
             height: h,
@@ -5749,7 +5819,7 @@ fn add_shape(doc: &mut DocState, prim: Prim, w: f64, h: f64, m: Affine, defaults
     };
     let mut o = Object::new(kind);
     // Elipse e polígono têm a origem no centro.
-    let m = if prim == Prim::Rect {
+    let m = if matches!(prim, Prim::Rect | Prim::Basic) {
         m
     } else {
         m * Affine::translate((w / 2.0, h / 2.0))
@@ -5766,6 +5836,7 @@ fn add_shape(doc: &mut DocState, prim: Prim, w: f64, h: f64, m: Affine, defaults
         let name = match prim {
             Prim::Ellipse => tr("Criar elipse", "Create ellipse"),
             Prim::Polygon => tr("Criar polígono", "Create polygon"),
+            Prim::Basic => tr("Criar forma básica", "Create basic shape"),
             _ => tr("Criar retângulo", "Create rectangle"),
         };
         let id = ops::add_object(&mut doc.editor, doc.page, layer, o, name);
@@ -5836,6 +5907,38 @@ fn moved_guide(
 
 /// Polígono selecionado sozinho: referência, objeto, dados e matriz local →
 /// página.
+/// Forma básica selecionada sozinha (referência, objeto, dados, matriz).
+fn single_basic(
+    doc: &DocState,
+) -> Option<(
+    ObjRef,
+    Object,
+    graphdraw_core::model::BasicShapeData,
+    Affine,
+)> {
+    let [id] = doc.selection.as_slice() else {
+        return None;
+    };
+    let r = doc.editor.find(id)?;
+    let o = doc.editor.get(&r)?.clone();
+    let ObjectKind::Basic(b) = &o.kind else {
+        return None;
+    };
+    let m = doc.editor.parent_affine(&r) * o.transform.affine();
+    Some((r, o.clone(), b.clone(), m))
+}
+
+/// Dados de uma forma básica nova com os parâmetros padrão.
+pub fn basic_data(shape: &str, w: f64, h: f64) -> graphdraw_core::model::BasicShapeData {
+    graphdraw_core::model::BasicShapeData {
+        shape: shape.into(),
+        width: w,
+        height: h,
+        params: graphdraw_core::render::basic::default_params(shape),
+        extra: Map::new(),
+    }
+}
+
 fn single_polygon(
     doc: &DocState,
 ) -> Option<(ObjRef, Object, graphdraw_core::model::PolygonData, Affine)> {
@@ -6723,6 +6826,105 @@ mod tests {
         );
         assert_eq!(doc.selection, vec![id]);
         assert_eq!(ev.command, Some(crate::keymap::Command::UnlockSelection));
+    }
+
+    /// GD-PRI-07/GD-FER-42: a família "Formas básicas" desenha um balão; na
+    /// ferramenta Forma, arrastar a alça leva a ponta da chamada.
+    #[test]
+    fn basic_shape_draw_and_adjust() {
+        let (ctx, mut cs, mut doc, _id, rect, ph) = bdr_setup();
+        let view = cs.view;
+        let at = |x: f64, y: f64| {
+            let (a, b) = view.page_to_screen(ph, x, y);
+            rect.min + Vec2::new(a as f32, b as f32)
+        };
+        let mut defaults = Defaults {
+            shape_family: "basic".into(),
+            basic_shape: "speech".into(),
+            ..Defaults::default()
+        };
+        let frame = |cs: &mut CanvasState,
+                     doc: &mut DocState,
+                     tool: Tool,
+                     d: &Defaults,
+                     ev: Vec<egui::Event>| {
+            let input = egui::RawInput {
+                screen_rect: Some(rect),
+                events: ev,
+                ..Default::default()
+            };
+            let mut out = ctx.run_ui(input, |ui| {
+                egui::CentralPanel::no_frame().show(ui, |ui| {
+                    cs.show(ui, doc, tool, d);
+                });
+            });
+            out.textures_delta.clear();
+        };
+        let drag = |cs: &mut CanvasState,
+                    doc: &mut DocState,
+                    tool: Tool,
+                    d: &Defaults,
+                    a: Pos2,
+                    b: Pos2| {
+            frame(cs, doc, tool, d, vec![egui::Event::PointerMoved(a)]);
+            frame(
+                cs,
+                doc,
+                tool,
+                d,
+                vec![button(a, PointerButton::Primary, true)],
+            );
+            for k in 1..=5 {
+                frame(
+                    cs,
+                    doc,
+                    tool,
+                    d,
+                    vec![egui::Event::PointerMoved(a + (b - a) * (k as f32 / 5.0))],
+                );
+            }
+            frame(
+                cs,
+                doc,
+                tool,
+                d,
+                vec![button(b, PointerButton::Primary, false)],
+            );
+        };
+        drag(
+            &mut cs,
+            &mut doc,
+            Tool::Polygon,
+            &defaults,
+            at(120_000.0, 180_000.0),
+            at(170_000.0, 150_000.0),
+        );
+        let o = doc.page().layers[0].objects.last().unwrap().clone();
+        let ObjectKind::Basic(b) = &o.kind else {
+            panic!("{:?}", o.kind)
+        };
+        assert_eq!(b.shape, "speech");
+        assert!((b.width - 50_000.0).abs() < 600.0 && (b.height - 30_000.0).abs() < 600.0);
+        doc.selection = vec![o.id.clone()];
+        // Ponta padrão em (0,25·w, −0,35·h) local; leva para baixo à direita.
+        let tip = o.transform.affine() * kurbo::Point::new(0.25 * b.width, -0.35 * b.height);
+        let to = kurbo::Point::new(190_000.0, 120_000.0);
+        defaults.shape_family = "polygon".into();
+        drag(
+            &mut cs,
+            &mut doc,
+            Tool::Shape,
+            &defaults,
+            at(tip.x, tip.y),
+            at(to.x, to.y),
+        );
+        let o = doc.page().layers[0].objects.last().unwrap();
+        let ObjectKind::Basic(b) = &o.kind else {
+            panic!()
+        };
+        let now =
+            o.transform.affine() * kurbo::Point::new(b.params[0] * b.width, b.params[1] * b.height);
+        assert!((now - to).hypot() < 3.0 / cs.view.zoom, "{now:?}");
     }
 
     /// GD-SEP-01 na tela: com a prévia de uma chapa, a página é desenhada

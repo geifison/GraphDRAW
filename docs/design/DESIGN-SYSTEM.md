@@ -550,7 +550,15 @@ Aba **Verificação** (ícone `preflight`) no painel direito:
   - **Corte**, logo após Forma e antes do separador: faca, recortar,
     borracha, excluir segmento virtual;
   - **Formas**: polígono, estrela, estrela complexa, espiral, papel
-    gráfico; a família sai da barra de propriedades;
+    gráfico e formas básicas (ícone `shape-basic`); a família sai da
+    barra de propriedades;
+  - **Formas básicas**:
+    - a barra tem a lista (seta, seta dupla, divisa, processo, decisão,
+      terminal, dados, documento, faixa, balão de fala, balão de
+      pensamento, cruz, coração);
+    - na ferramenta Forma, as alças de ajuste são losangos em
+      `accent-warning` com borda de alça;
+    - a ponta do balão de fala é a chamada (GD-FER-42);
   - **Preenchimento**: interativo/gradiente, uniforme, conta-gotas (o
     ciclo do conta-gotas está no doc 27 e na seção 5).
 - Ferramentas de corte (prévia na tela):

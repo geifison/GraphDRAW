@@ -1,6 +1,7 @@
 //! Renderização: cena achatada (`scene`), texto (`text`) e raster (`raster`).
 
 pub mod arrows;
+pub mod basic;
 pub mod gradient;
 pub mod pattern;
 pub mod raster;

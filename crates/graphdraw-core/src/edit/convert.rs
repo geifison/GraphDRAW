@@ -64,6 +64,7 @@ pub fn to_curves(o: &Object) -> Option<Object> {
     let bez = match &o.kind {
         ObjectKind::Rectangle(r) => rect_path(r),
         ObjectKind::Ellipse(e) => ellipse_path(e),
+        ObjectKind::Basic(b) => crate::render::basic::path(b),
         ObjectKind::Polygon(p) => {
             let mut out = o.clone();
             out.kind = ObjectKind::Path(PathData {

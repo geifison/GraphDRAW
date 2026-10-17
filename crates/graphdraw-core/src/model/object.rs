@@ -91,6 +91,8 @@ pub enum ObjectKind {
     Image(ImageData),
     /// Cota (GD-COT-01..03, doc 08).
     Dimension(DimensionData),
+    /// Forma básica paramétrica (GD-PRI-07).
+    Basic(BasicShapeData),
     /// Tipo desconhecido ou objeto inválido: JSON original preservado.
     Unknown {
         raw: Value,
@@ -301,6 +303,21 @@ pub struct DimensionData {
     pub extra: Map<String, Value>,
 }
 
+/// Forma básica (GD-PRI-07): `shape` da biblioteca (`render::basic`), caixa
+/// local `[0,width]×[0,height]` e parâmetros de ajuste (0–1; a ponta dos
+/// balões pode sair da faixa).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BasicShapeData {
+    pub shape: String,
+    pub width: f64,
+    pub height: f64,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub params: Vec<f64>,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
 /// Nó (ou segmento) de outro objeto a que a cota está ligada.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -420,6 +437,7 @@ impl Object {
             ObjectKind::Text(_) => "text",
             ObjectKind::Image(_) => "image",
             ObjectKind::Dimension(_) => "dimension",
+            ObjectKind::Basic(_) => "basic",
             ObjectKind::Unknown { raw, .. } => {
                 raw.get("type").and_then(Value::as_str).unwrap_or("?")
             }
@@ -513,6 +531,7 @@ impl Object {
             "text" => ObjectKind::Text(parse(rest, ty)?),
             "image" => ObjectKind::Image(parse(rest, ty)?),
             "dimension" => ObjectKind::Dimension(parse(rest, ty)?),
+            "basic" => ObjectKind::Basic(parse(rest, ty)?),
             _ => ObjectKind::Unknown {
                 raw: v.clone(),
                 error: None,
@@ -580,6 +599,7 @@ impl Object {
             ObjectKind::Text(d) => serde_json::to_value(d),
             ObjectKind::Image(d) => serde_json::to_value(d),
             ObjectKind::Dimension(d) => serde_json::to_value(d),
+            ObjectKind::Basic(d) => serde_json::to_value(d),
             ObjectKind::Unknown { .. } => unreachable!(),
         };
         if let Ok(Value::Object(k)) = kind {

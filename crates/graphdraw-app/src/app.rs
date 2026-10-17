@@ -4062,6 +4062,7 @@ pub(crate) fn kind_label(k: &ObjectKind) -> String {
         ObjectKind::Text(_) => tr("texto", "text"),
         ObjectKind::Image(_) => tr("imagem", "image"),
         ObjectKind::Dimension(_) => tr("cota", "dimension"),
+        ObjectKind::Basic(_) => tr("forma básica", "basic shape"),
         ObjectKind::Unknown { .. } => tr("objeto desconhecido", "unknown object"),
     }
     .into()

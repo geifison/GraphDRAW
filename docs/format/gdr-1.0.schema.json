@@ -400,6 +400,18 @@
           }
         },
         {
+          "if": { "properties": { "type": { "const": "basic" } } },
+          "then": {
+            "required": ["shape", "width", "height"],
+            "properties": {
+              "shape": { "enum": ["arrow", "double-arrow", "chevron", "flow-process", "flow-decision", "flow-terminator", "flow-data", "flow-document", "banner", "speech", "thought", "plus", "heart"] },
+              "width": { "$ref": "#/$defs/um" },
+              "height": { "$ref": "#/$defs/um" },
+              "params": { "type": "array", "items": { "type": "number" } }
+            }
+          }
+        },
+        {
           "if": { "properties": { "type": { "const": "dimension" } } },
           "then": {
             "required": ["dimKind", "points"],

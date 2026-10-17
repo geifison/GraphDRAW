@@ -408,6 +408,7 @@ impl Builder<'_> {
             ObjectKind::Rectangle(r) => Some((rect_path(r), FillRule::Nonzero)),
             ObjectKind::Ellipse(e) => Some((ellipse_path(e), FillRule::Nonzero)),
             ObjectKind::Polygon(p) => Some((polygon_path(p), polygon_fill_rule(p))),
+            ObjectKind::Basic(b) => Some((super::basic::path(b), FillRule::Nonzero)),
             ObjectKind::Group(g) => {
                 for c in &g.children {
                     self.object(c, m, alpha);

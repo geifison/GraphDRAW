@@ -27,6 +27,7 @@ pub fn local_outline(o: &Object) -> Option<BezPath> {
             all
         }
         ObjectKind::Dimension(d) => super::dimension::outline(d),
+        ObjectKind::Basic(b) => crate::render::basic::path(b),
         _ => return None,
     })
 }

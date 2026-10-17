@@ -127,8 +127,8 @@ Para depois da 1.0, cada um com o motivo:
 ## P1
 - [ ] Conector reto, em ângulo e curvo, que segue os objetos (GD-FER-41,
   GD-CON-01).
-- [ ] Chamada (balão com seta, GD-FER-42).
-- [ ] Formas básicas: setas, fluxograma, balões (GD-PRI-07).
+- [x] Chamada (balão com seta, GD-FER-42): balão de fala das formas básicas.
+- [x] Formas básicas: setas, fluxograma, balões (GD-PRI-07).
 - [ ] Preenchimento inteligente: área entre objetos vira objeto
   (GD-FER-52).
 - [ ] Simetria ao vivo (GD-FER-33).

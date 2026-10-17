@@ -318,6 +318,7 @@ impl App {
                     // escolhida na gaveta da caixa de ferramentas (DS 4.8).
                     match defaults.shape_family.as_str() {
                         "spiral" => spiral_controls(ui, defaults),
+                        "basic" => basic_controls(ui, defaults),
                         "graph" => graph_controls(ui, defaults),
                         _ => {
                             if let Some((n, m, k)) = polygon_controls(
@@ -1097,6 +1098,45 @@ fn selection_angle(doc: &DocState, sel: &[String]) -> f64 {
 /// Lados/pontas, modo (polígono, estrela, estrela complexa) e nitidez
 /// (GD-PRI-03/04). Devolve os novos valores quando algum muda.
 /// Espiral (GD-PRI-05): voltas, simétrica ou logarítmica e expansão.
+/// Nome da forma básica na interface (GD-PRI-07).
+pub(crate) fn basic_label(s: &str) -> &'static str {
+    match s {
+        "arrow" => tr("Seta", "Arrow"),
+        "double-arrow" => tr("Seta dupla", "Double arrow"),
+        "chevron" => tr("Divisa", "Chevron"),
+        "flow-process" => tr("Processo", "Process"),
+        "flow-decision" => tr("Decisão", "Decision"),
+        "flow-terminator" => tr("Terminal", "Terminator"),
+        "flow-data" => tr("Dados", "Data"),
+        "flow-document" => tr("Documento", "Document"),
+        "banner" => tr("Faixa", "Banner"),
+        "speech" => tr("Balão de fala (chamada)", "Speech balloon (callout)"),
+        "thought" => tr("Balão de pensamento", "Thought balloon"),
+        "plus" => tr("Cruz", "Plus"),
+        "heart" => tr("Coração", "Heart"),
+        _ => tr("Forma", "Shape"),
+    }
+}
+
+/// Escolha da forma básica (GD-PRI-07); ajuste pelas alças na ferramenta Forma.
+fn basic_controls(ui: &mut egui::Ui, d: &mut crate::canvas::Defaults) {
+    egui::ComboBox::from_id_salt("forma-basica")
+        .selected_text(basic_label(&d.basic_shape))
+        .show_ui(ui, |ui| {
+            for s in graphdraw_core::render::basic::SHAPES {
+                ui.selectable_value(&mut d.basic_shape, s.to_string(), basic_label(s));
+            }
+        });
+    ui.separator();
+    widgets::hint_line(
+        ui,
+        tr(
+            "Arraste para desenhar · na ferramenta Forma, as alças em losango ajustam (a ponta do balão aponta a chamada)",
+            "Drag to draw · with the Shape tool, the diamond handles adjust it (the balloon tip points the callout)",
+        ),
+    );
+}
+
 fn spiral_controls(ui: &mut egui::Ui, d: &mut crate::canvas::Defaults) {
     widgets::stack(ui, |ui, row| {
         if row == 0 {

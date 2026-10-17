@@ -108,6 +108,12 @@ pub fn slots() -> Vec<Slot> {
                 ),
                 shape("tool-spiral", tr("Espiral", "Spiral"), "spiral", ""),
                 shape(
+                    "shape-basic",
+                    tr("Formas básicas", "Basic shapes"),
+                    "basic",
+                    "",
+                ),
+                shape(
                     "tool-graph",
                     tr("Papel gráfico", "Graph paper"),
                     "graph",
