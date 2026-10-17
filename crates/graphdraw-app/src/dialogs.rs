@@ -947,6 +947,7 @@ mod tests {
         let mut defaults = Defaults {
             fill: Some(Fill::solid(Color::rgb(0.8, 0.7, 0.1))),
             stroke: Some(Stroke::new(3000.0, Color::rgb(0.8, 0.1, 0.1))),
+            ..Default::default()
         };
         let mut dlgs = [
             StyleDialog::stroke(&doc, &defaults),

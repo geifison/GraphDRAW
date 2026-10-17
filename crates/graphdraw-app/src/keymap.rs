@@ -181,7 +181,7 @@ commands! {
     ToolArtboard = "tool.artboard", "Ferramenta Prancheta (tamanho da página)", "Artboard tool (page size)", Tools, NotText, true;
     ToolFreehand = "tool.freehand", "Ferramenta Mão Livre", "Freehand tool", Tools, NotText, false;
     ToolArtistic = "tool.artistic", "Ferramenta Mídia Artística", "Artistic media tool", Tools, NotText, false;
-    ToolPolygon = "tool.polygon", "Ferramenta Polígono", "Polygon tool", Tools, NotText, false;
+    ToolPolygon = "tool.polygon", "Ferramenta Polígono", "Polygon tool", Tools, NotText, true;
     ToolText = "tool.text", "Ferramenta Texto", "Text tool", Tools, NotText, true;
     ToolInteractiveFill = "tool.interactive_fill", "Preenchimento interativo", "Interactive fill", Tools, NotText, false;
     ToolMeshFill = "tool.mesh_fill", "Preenchimento em malha", "Mesh fill", Tools, NotText, false;
@@ -394,6 +394,7 @@ impl Keymap {
                 (ToolEllipse, "E"),
                 (ToolArtboard, "Shift+P"),
                 (ToolText, "T"),
+                (ToolPolygon, "Y"),
                 (PageNext, "PageDown"),
                 (PagePrev, "PageUp"),
                 (PageFirst, "Home"),

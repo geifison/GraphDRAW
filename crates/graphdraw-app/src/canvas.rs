@@ -35,6 +35,8 @@ pub enum Tool {
     Bezier,
     Rect,
     Ellipse,
+    /// Polígono, estrela e estrela complexa (GD-PRI-03/04, GD-FER-32).
+    Polygon,
     /// Texto artístico (clique) e de parágrafo (arrastar um quadro), doc 06.
     Text,
     /// Prancheta: redimensiona a página pelas bordas (doc 22, GD-DIM-23).
@@ -88,6 +90,14 @@ impl Tool {
                 crate::keymap::hint(tr("Elipse", "Ellipse"), crate::keymap::Command::ToolEllipse),
                 "E",
             ),
+            Tool::Polygon => (
+                "tool-polygon",
+                crate::keymap::hint(
+                    tr("Polígono e estrela", "Polygon and star"),
+                    crate::keymap::Command::ToolPolygon,
+                ),
+                "Y",
+            ),
             Tool::Text => (
                 "tool-text",
                 crate::keymap::hint(
@@ -109,7 +119,7 @@ impl Tool {
             ),
         }
     }
-    pub const ALL: [Tool; 9] = [
+    pub const ALL: [Tool; 10] = [
         Tool::Select,
         Tool::Shape,
         Tool::Zoom,
@@ -117,6 +127,7 @@ impl Tool {
         Tool::Bezier,
         Tool::Rect,
         Tool::Ellipse,
+        Tool::Polygon,
         Tool::Text,
         Tool::Artboard,
     ];
@@ -127,6 +138,40 @@ impl Tool {
 pub struct Defaults {
     pub fill: Option<Fill>,
     pub stroke: Option<Stroke>,
+    /// Próximo polígono: lados, modo e nitidez.
+    pub polygon_sides: u32,
+    pub polygon_mode: String,
+    pub polygon_sharpness: f64,
+}
+
+impl Default for Defaults {
+    fn default() -> Self {
+        Defaults {
+            fill: None,
+            stroke: None,
+            polygon_sides: 5,
+            polygon_mode: "polygon".into(),
+            polygon_sharpness: 0.5,
+        }
+    }
+}
+
+/// Primitiva desenhada pelo arrasto (ou pelos 3 pontos).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Prim {
+    Rect,
+    Ellipse,
+    Polygon,
+}
+
+impl Prim {
+    fn of(tool: Tool) -> Prim {
+        match tool {
+            Tool::Ellipse => Prim::Ellipse,
+            Tool::Polygon => Prim::Polygon,
+            _ => Prim::Rect,
+        }
+    }
 }
 
 enum Drag {
@@ -189,7 +234,7 @@ enum Drag {
     },
     DrawRect {
         start: Point,
-        ellipse: bool,
+        prim: Prim,
         cands: Vec<(Point, SnapKind)>,
     },
     BezierHandle,
@@ -209,7 +254,7 @@ enum Drag {
 struct ThreeDraft {
     a: Point,
     b: Point,
-    ellipse: bool,
+    prim: Prim,
 }
 
 struct BezierDraft {
@@ -252,6 +297,8 @@ pub struct CanvasState {
     pub text: Option<crate::textedit::TextEditing>,
     /// Retângulo e elipse no modo 3 pontos (GD-FER-30/31).
     pub three_point: bool,
+    /// Parâmetros do próximo polígono (para a prévia do arrasto).
+    poly_preview: (u32, String, f64),
     three: Option<ThreeDraft>,
 }
 
@@ -281,6 +328,7 @@ impl Default for CanvasState {
             menu_target: None,
             text: None,
             three_point: false,
+            poly_preview: (5, "polygon".into(), 0.5),
             three: None,
         }
     }
@@ -410,7 +458,7 @@ impl CanvasState {
         if let Some((w, h, m)) = three_point_frame(t.a, t.b, c)
             && h * self.view.zoom >= 2.0
         {
-            add_shape(doc, t.ellipse, w, h, m, defaults);
+            add_shape(doc, t.prim, w, h, m, defaults);
         }
     }
 
@@ -473,6 +521,11 @@ impl CanvasState {
         defaults: &Defaults,
     ) -> CanvasEvents {
         let mut ev = CanvasEvents::default();
+        self.poly_preview = (
+            defaults.polygon_sides,
+            defaults.polygon_mode.clone(),
+            defaults.polygon_sharpness,
+        );
         let (rect, response) = ui.allocate_exact_size(ui.available_size(), Sense::click_and_drag());
         self.canvas_size = rect.size();
         let painter = ui.painter_at(rect);
@@ -638,7 +691,12 @@ impl CanvasState {
             ui.ctx().request_repaint();
         }
         // Encaixe sob o cursor (indicação visual, GD-SNP-02) nas ferramentas de desenho.
-        if !self.is_dragging() && matches!(tool, Tool::Rect | Tool::Ellipse | Tool::Bezier) {
+        if !self.is_dragging()
+            && matches!(
+                tool,
+                Tool::Rect | Tool::Ellipse | Tool::Polygon | Tool::Bezier
+            )
+        {
             self.snap_hit = self.cursor_page.and_then(|p| {
                 let c = snap::candidates(doc.page(), &self.snap, &[]);
                 snap::snap(p, &c, &self.snap, snap_radius(&self.view))
@@ -899,6 +957,9 @@ impl CanvasState {
                 badge: "tool-ellipse",
             },
             Tool::Text => Glyph::Cross { badge: "tool-text" },
+            Tool::Polygon => Glyph::Cross {
+                badge: "tool-polygon",
+            },
             Tool::Artboard => {
                 let (pw, ph) = doc.page_size();
                 match self.page_handle_at(rect, ph, kurbo::Rect::new(0.0, 0.0, pw, ph), pos) {
@@ -1178,19 +1239,43 @@ impl CanvasState {
                     );
                 }
             }
-            Drag::DrawRect { start, ellipse, .. } => {
+            Drag::DrawRect { start, prim, .. } => {
                 if let Some(cur) = self.cursor_page {
                     let mods = ui.input(|i| i.modifiers);
                     let r = draw_rect(*start, self.snap_hit.map_or(cur, |s| s.point), mods);
                     let sr = self.screen_rect(rect, ph, r);
-                    if *ellipse {
-                        painter.add(egui::Shape::ellipse_stroke(
-                            sr.center(),
-                            sr.size() / 2.0,
-                            thin,
-                        ));
-                    } else {
-                        painter.rect_stroke(sr, theme::RADIUS_NONE, thin, egui::StrokeKind::Middle);
+                    match prim {
+                        Prim::Ellipse => {
+                            painter.add(egui::Shape::ellipse_stroke(
+                                sr.center(),
+                                sr.size() / 2.0,
+                                thin,
+                            ));
+                        }
+                        Prim::Rect => {
+                            painter.rect_stroke(
+                                sr,
+                                theme::RADIUS_NONE,
+                                thin,
+                                egui::StrokeKind::Middle,
+                            );
+                        }
+                        Prim::Polygon => {
+                            let mut path = shape_outline_with(
+                                *prim,
+                                r.width(),
+                                r.height(),
+                                _defaults_view(&self.poly_preview),
+                            );
+                            path.apply_affine(Affine::translate((r.x0, r.y0)));
+                            let mut line = Vec::new();
+                            kurbo::flatten(path, 0.5 / self.view.zoom.max(1e-9), |el| {
+                                if let kurbo::PathEl::MoveTo(q) | kurbo::PathEl::LineTo(q) = el {
+                                    line.push(self.screen(rect, ph, q));
+                                }
+                            });
+                            painter.add(egui::Shape::closed_line(line, thin));
+                        }
                     }
                 }
             }
@@ -1231,7 +1316,7 @@ impl CanvasState {
         if let (Some(t), Some(cur)) = (&self.three, self.cursor_page) {
             let c = self.snap_hit.map_or(cur, |s| s.point);
             if let Some((w, h, m)) = three_point_frame(t.a, t.b, c) {
-                let mut path = shape_outline(t.ellipse, w, h);
+                let mut path = shape_outline_with(t.prim, w, h, _defaults_view(&self.poly_preview));
                 path.apply_affine(m);
                 let mut line = Vec::new();
                 kurbo::flatten(path, 0.5 / self.view.zoom.max(1e-9), |el| {
@@ -1390,7 +1475,7 @@ impl CanvasState {
                 self.end_text(doc);
                 self.drag = Drag::TextFrame { start: p };
             }
-            Tool::Rect | Tool::Ellipse => {
+            Tool::Rect | Tool::Ellipse | Tool::Polygon => {
                 let cands = snap::candidates(doc.page(), &self.snap, &[]);
                 let start = snap::snap(p, &cands, &self.snap, snap_radius(&self.view))
                     .map_or(p, |s| s.point);
@@ -1401,7 +1486,7 @@ impl CanvasState {
                 }
                 self.drag = Drag::DrawRect {
                     start,
-                    ellipse: tool == Tool::Ellipse,
+                    prim: Prim::of(tool),
                     cands,
                 };
             }
@@ -1956,23 +2041,23 @@ impl CanvasState {
                     self.view.zoom_at(2.0, (l.x as f64, l.y as f64));
                 }
             }
-            Drag::DrawRect { start, ellipse, .. } if self.three_point => {
+            Drag::DrawRect { start, prim, .. } if self.three_point => {
                 // 3 pontos: o arrasto define a base; a altura vem a seguir.
                 let endp = base_end(start, self.snap_hit.map_or(cur, |s| s.point), mods);
                 if (endp - start).hypot() * self.view.zoom >= 2.0 {
                     self.three = Some(ThreeDraft {
                         a: start,
                         b: endp,
-                        ellipse,
+                        prim,
                     });
                 }
             }
-            Drag::DrawRect { start, ellipse, .. } => {
+            Drag::DrawRect { start, prim, .. } => {
                 let endp = self.snap_hit.map_or(cur, |s| s.point);
                 let r = draw_rect(start, endp, mods);
                 if r.width() * self.view.zoom >= 2.0 && r.height() * self.view.zoom >= 2.0 {
                     let m = Affine::translate((r.x0, r.y0));
-                    add_shape(doc, ellipse, r.width(), r.height(), m, defaults);
+                    add_shape(doc, prim, r.width(), r.height(), m, defaults);
                 }
             }
             Drag::Move { .. }
@@ -2132,7 +2217,7 @@ impl CanvasState {
                 if self.bezier_press(doc, p, pos, rect, ph) => {
                     self.finish_bezier(doc, defaults, true);
                 }
-            Tool::Rect | Tool::Ellipse => {
+            Tool::Rect | Tool::Ellipse | Tool::Polygon => {
                 if let Some(t) = self.three.take() {
                     let c = self.snap_hit.map_or(p, |s| s.point);
                     self.finish_three(doc, t, c, defaults);
@@ -2362,42 +2447,77 @@ fn three_point_frame(a: Point, b: Point, c: Point) -> Option<(f64, f64, Affine)>
     Some((w, h.abs(), m))
 }
 
+/// Parâmetros do polígono como dados do modelo (raios definidos depois).
+fn _defaults_view(p: &(u32, String, f64)) -> graphdraw_core::model::PolygonData {
+    graphdraw_core::model::PolygonData {
+        rx: 1.0,
+        ry: 1.0,
+        sides: p.0,
+        mode: p.1.clone(),
+        sharpness: p.2,
+        extra: Map::new(),
+    }
+}
+
 /// Contorno local da forma (0, 0)–(w, h), para a prévia.
-fn shape_outline(ellipse: bool, w: f64, h: f64) -> BezPath {
+fn shape_outline_with(
+    prim: Prim,
+    w: f64,
+    h: f64,
+    poly: graphdraw_core::model::PolygonData,
+) -> BezPath {
     use kurbo::Shape;
-    if ellipse {
-        kurbo::Ellipse::new((w / 2.0, h / 2.0), (w / 2.0, h / 2.0), 0.0).to_path(0.1)
-    } else {
-        kurbo::Rect::new(0.0, 0.0, w, h).to_path(0.1)
+    match prim {
+        Prim::Ellipse => {
+            kurbo::Ellipse::new((w / 2.0, h / 2.0), (w / 2.0, h / 2.0), 0.0).to_path(0.1)
+        }
+        Prim::Rect => kurbo::Rect::new(0.0, 0.0, w, h).to_path(0.1),
+        Prim::Polygon => {
+            let mut p =
+                graphdraw_core::render::scene::polygon_path(&graphdraw_core::model::PolygonData {
+                    rx: w / 2.0,
+                    ry: h / 2.0,
+                    ..poly
+                });
+            p.apply_affine(Affine::translate((w / 2.0, h / 2.0)));
+            p
+        }
     }
 }
 
 /// Cria um retângulo ou elipse com o quadro (0, 0)–(w, h) levado à página
 /// por `m`, com os atributos padrão, e o seleciona.
-fn add_shape(doc: &mut DocState, ellipse: bool, w: f64, h: f64, m: Affine, defaults: &Defaults) {
-    let kind = if ellipse {
-        ObjectKind::Ellipse(EllipseData {
+fn add_shape(doc: &mut DocState, prim: Prim, w: f64, h: f64, m: Affine, defaults: &Defaults) {
+    let kind = match prim {
+        Prim::Ellipse => ObjectKind::Ellipse(EllipseData {
             rx: w / 2.0,
             ry: h / 2.0,
             mode: "ellipse".into(),
             start_angle: 0.0,
             end_angle: 360.0,
             extra: Map::new(),
-        })
-    } else {
-        ObjectKind::Rectangle(RectData {
+        }),
+        Prim::Polygon => ObjectKind::Polygon(graphdraw_core::model::PolygonData {
+            rx: w / 2.0,
+            ry: h / 2.0,
+            sides: defaults.polygon_sides,
+            mode: defaults.polygon_mode.clone(),
+            sharpness: defaults.polygon_sharpness,
+            extra: Map::new(),
+        }),
+        Prim::Rect => ObjectKind::Rectangle(RectData {
             width: w,
             height: h,
             corners: None,
             extra: Map::new(),
-        })
+        }),
     };
     let mut o = Object::new(kind);
-    // A elipse tem a origem no centro.
-    let m = if ellipse {
-        m * Affine::translate((w / 2.0, h / 2.0))
-    } else {
+    // Elipse e polígono têm a origem no centro.
+    let m = if prim == Prim::Rect {
         m
+    } else {
+        m * Affine::translate((w / 2.0, h / 2.0))
     };
     let c = m.as_coeffs();
     o.transform = if c[0] == 1.0 && c[1] == 0.0 && c[2] == 0.0 && c[3] == 1.0 {
@@ -2408,10 +2528,10 @@ fn add_shape(doc: &mut DocState, ellipse: bool, w: f64, h: f64, m: Affine, defau
     o.fill = defaults.fill.clone();
     o.stroke = defaults.stroke.clone();
     if let Some(layer) = doc.layer_for_new_object() {
-        let name = if ellipse {
-            tr("Criar elipse", "Create ellipse")
-        } else {
-            tr("Criar retângulo", "Create rectangle")
+        let name = match prim {
+            Prim::Ellipse => tr("Criar elipse", "Create ellipse"),
+            Prim::Polygon => tr("Criar polígono", "Create polygon"),
+            Prim::Rect => tr("Criar retângulo", "Create rectangle"),
         };
         let id = ops::add_object(&mut doc.editor, doc.page, layer, o, name);
         doc.selection = vec![id];
@@ -2520,10 +2640,7 @@ mod tests {
             events,
             ..Default::default()
         };
-        let defaults = Defaults {
-            fill: None,
-            stroke: None,
-        };
+        let defaults = Defaults::default();
         let mut out = ctx.run_ui(input, |ui| {
             egui::CentralPanel::no_frame().show(ui, |ui| {
                 cs.show(ui, doc, tool, &defaults);
@@ -2535,6 +2652,57 @@ mod tests {
     /// Aceite de GD-DIM-24: arrastar o canto de uma A4 até perto de 148 × 210
     /// mm gruda em A5; sem objetos, o tamanho muda direto em todas as páginas
     /// (GD-PAG-01), num passo do histórico.
+    /// GD-FER-32: arrastar com a ferramenta Polígono cria o polígono com os
+    /// parâmetros atuais, inscrito na caixa arrastada.
+    #[test]
+    fn polygon_tool_drag_creates_polygon() {
+        let ctx = crate::theme::test_ctx();
+        let mut cs = CanvasState::default();
+        cs.snap.grid = None;
+        let mut doc = DocState::new_blank();
+        for _ in 0..2 {
+            canvas_frame(&ctx, &mut cs, &mut doc, Tool::Polygon, vec![]);
+        }
+        let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(1366.0, 768.0));
+        let (_, ph) = doc.page_size();
+        let (s0, s1) = (
+            cs.screen(rect, ph, Point::new(20_000.0, 100_000.0)),
+            cs.screen(rect, ph, Point::new(60_000.0, 140_000.0)),
+        );
+        let btn = |pos, pressed| egui::Event::PointerButton {
+            pos,
+            button: PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::Polygon,
+            vec![egui::Event::PointerMoved(s0)],
+        );
+        canvas_frame(&ctx, &mut cs, &mut doc, Tool::Polygon, vec![btn(s0, true)]);
+        for k in 1..=6 {
+            let pos = s0 + (s1 - s0) * (k as f32 / 6.0);
+            canvas_frame(
+                &ctx,
+                &mut cs,
+                &mut doc,
+                Tool::Polygon,
+                vec![egui::Event::PointerMoved(pos)],
+            );
+        }
+        canvas_frame(&ctx, &mut cs, &mut doc, Tool::Polygon, vec![btn(s1, false)]);
+        let o = &doc.page().layers[0].objects[0];
+        let ObjectKind::Polygon(p) = &o.kind else {
+            panic!("polígono")
+        };
+        let tol = 2.0 / cs.view.zoom;
+        assert_eq!((p.sides, p.mode.as_str()), (5, "polygon"));
+        assert!((p.rx - 20_000.0).abs() < tol && (p.ry - 20_000.0).abs() < tol);
+    }
+
     /// Ferramenta Texto: clique cria texto artístico já em edição; arrastar
     /// cria texto de parágrafo com o quadro desenhado.
     #[test]
@@ -2897,6 +3065,7 @@ mod tests {
                 "mira+tool-bezier",
                 "mira+tool-rect",
                 "mira+tool-ellipse",
+                "mira+tool-polygon",
                 "mira+tool-text",
                 "cur-select"
             ]

@@ -12,7 +12,7 @@ use super::text::{TextLayout, layout_text};
 use crate::model::geom::subpaths_to_bez;
 use crate::model::{
     Color, Corner, Document, EllipseData, Fill, FillRule, Gradient, Object, ObjectKind, Page,
-    RectData, Stroke,
+    PolygonData, RectData, Stroke,
 };
 
 /// Tinta resolvida.
@@ -312,6 +312,7 @@ impl Builder<'_> {
             ObjectKind::Path(p) => Some((subpaths_to_bez(&p.subpaths), p.fill_rule)),
             ObjectKind::Rectangle(r) => Some((rect_path(r), FillRule::Nonzero)),
             ObjectKind::Ellipse(e) => Some((ellipse_path(e), FillRule::Nonzero)),
+            ObjectKind::Polygon(p) => Some((polygon_path(p), polygon_fill_rule(p))),
             ObjectKind::Group(g) => {
                 for c in &g.children {
                     self.object(c, m, alpha);
@@ -460,6 +461,75 @@ fn resolve_stroke(s: &Stroke, m: Affine, alpha: f64) -> StrokeStyle {
 /// Constante para aproximar quarto de círculo com Bézier cúbica: valor de
 /// menor erro radial máximo (≈0,02%), em vez do que acerta só o ponto médio.
 const KAPPA: f64 = 0.551_915_024_493_510_6;
+
+/// Contorno do polígono/estrela (GD-PRI-03/04).
+pub fn polygon_path(p: &PolygonData) -> BezPath {
+    let n = p.sides.clamp(3, 500) as usize;
+    let s = p.sharpness.clamp(0.0, 1.0);
+    let at = |i: usize, count: usize, k: f64| {
+        let a = std::f64::consts::FRAC_PI_2 + i as f64 * std::f64::consts::TAU / count as f64;
+        Point::new(p.rx * k * a.cos(), p.ry * k * a.sin())
+    };
+    let mut path = BezPath::new();
+    match p.mode.as_str() {
+        "star" => {
+            // Raio interno: de quase o externo (s = 0) até 5% dele (s = 1).
+            let inner = 1.0 - 0.95 * s;
+            for i in 0..2 * n {
+                let q = at(i, 2 * n, if i % 2 == 0 { 1.0 } else { inner });
+                if i == 0 {
+                    path.move_to(q);
+                } else {
+                    path.line_to(q);
+                }
+            }
+            path.close_path();
+        }
+        "complex" if n >= 5 => {
+            // Estrela {n/k}: cada linha liga um vértice ao k-ésimo seguinte.
+            let max_k = (n - 1) / 2;
+            let k = (2.0 + s * (max_k as f64 - 2.0))
+                .round()
+                .clamp(2.0, max_k as f64) as usize;
+            let g = gcd(n, k);
+            for start in 0..g {
+                let mut i = start;
+                path.move_to(at(i, n, 1.0));
+                for _ in 0..n / g - 1 {
+                    i = (i + k) % n;
+                    path.line_to(at(i, n, 1.0));
+                }
+                path.close_path();
+            }
+        }
+        _ => {
+            for i in 0..n {
+                let q = at(i, n, 1.0);
+                if i == 0 {
+                    path.move_to(q);
+                } else {
+                    path.line_to(q);
+                }
+            }
+            path.close_path();
+        }
+    }
+    path
+}
+
+fn gcd(a: usize, b: usize) -> usize {
+    if b == 0 { a } else { gcd(b, a % b) }
+}
+
+/// Regra de preenchimento do polígono: a estrela complexa usa par-ímpar
+/// (o miolo cruzado fica vazado).
+pub fn polygon_fill_rule(p: &PolygonData) -> FillRule {
+    if p.mode == "complex" {
+        FillRule::Evenodd
+    } else {
+        FillRule::Nonzero
+    }
+}
 
 pub fn rect_path(r: &RectData) -> BezPath {
     let (w, h) = (r.width, r.height);

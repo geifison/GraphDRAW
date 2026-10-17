@@ -441,3 +441,33 @@ fn gd_cms_settings_and_hsb_round_trip() {
     let plain = gdr::write_bytes(&Document::new(), &WriteOptions::default()).unwrap();
     assert!(document_json(&plain)["settings"].get("color").is_none());
 }
+
+/// GD-PRI-03/04: polígono grava, segue o schema e volta igual.
+#[test]
+fn gd_pri_03_polygon_round_trip() {
+    use graphdraw_core::model::{Page, PolygonData};
+    let mut doc = Document::new();
+    let mut p = Page::new(100_000.0, 100_000.0);
+    p.layers[0]
+        .objects
+        .push(Object::new(ObjectKind::Polygon(PolygonData {
+            rx: 10_000.0,
+            ry: 8_000.0,
+            sides: 7,
+            mode: "complex".into(),
+            sharpness: 0.3,
+            extra: Default::default(),
+        })));
+    doc.data.pages.push(p);
+    let saved = gdr::write_bytes(&doc, &WriteOptions::default()).unwrap();
+    assert_valid(
+        &schema_validator(),
+        &document_with_pages(&saved),
+        "polígono",
+    );
+    let (back, _) = gdr::read_bytes(&saved).unwrap();
+    assert_eq!(
+        back.data.pages[0].layers[0].objects[0].kind,
+        doc.data.pages[0].layers[0].objects[0].kind
+    );
+}

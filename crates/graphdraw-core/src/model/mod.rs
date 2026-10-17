@@ -14,6 +14,6 @@ pub use document::{
 pub use geom::{FillRule, Node, NodeKind, Subpath, SubpathBuilder, Transform};
 pub use object::{
     Corner, EllipseData, FontSpec, GroupData, ImageData, Object, ObjectKind, Paragraph, PathData,
-    RectData, TextData, TextSpan, new_id,
+    PolygonData, RectData, TextData, TextSpan, new_id,
 };
 pub use paint::{Fill, Gradient, GradientStop, Stroke};

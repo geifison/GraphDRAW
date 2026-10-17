@@ -64,6 +64,15 @@ pub fn to_curves(o: &Object) -> Option<Object> {
     let bez = match &o.kind {
         ObjectKind::Rectangle(r) => rect_path(r),
         ObjectKind::Ellipse(e) => ellipse_path(e),
+        ObjectKind::Polygon(p) => {
+            let mut out = o.clone();
+            out.kind = ObjectKind::Path(PathData {
+                subpaths: bez_to_subpaths(&crate::render::scene::polygon_path(p)),
+                fill_rule: crate::render::scene::polygon_fill_rule(p),
+                extra: Map::new(),
+            });
+            return Some(out);
+        }
         ObjectKind::Text(t) => return text_to_curves(o, t),
         _ => return None,
     };
@@ -120,6 +129,59 @@ fn text_to_curves(o: &Object, t: &crate::model::TextData) -> Option<Object> {
         extra: Map::new(),
     });
     Some(out)
+}
+
+#[cfg(test)]
+mod polygon_tests {
+    use super::*;
+    use crate::model::PolygonData;
+    use crate::render::scene::polygon_path;
+    use kurbo::Shape;
+
+    fn poly(sides: u32, mode: &str, sharpness: f64) -> PolygonData {
+        PolygonData {
+            rx: 10.0,
+            ry: 10.0,
+            sides,
+            mode: mode.into(),
+            sharpness,
+            extra: Map::new(),
+        }
+    }
+
+    #[test]
+    fn gd_pri_03_04_polygon_star_and_complex() {
+        // Hexágono regular de raio 10: área 3√3/2·r².
+        let hex = polygon_path(&poly(6, "polygon", 0.5));
+        let want = 3.0 * 3f64.sqrt() / 2.0 * 100.0;
+        assert!((hex.area().abs() - want).abs() < 1e-9);
+        // Primeiro vértice em cima.
+        assert!(matches!(hex.elements()[0], PathEl::MoveTo(p) if (p.y - 10.0).abs() < 1e-9));
+        // Estrela de 5 pontas: 10 vértices; mais nitidez = menos área.
+        let soft = polygon_path(&poly(5, "star", 0.2));
+        let sharp = polygon_path(&poly(5, "star", 0.8));
+        assert_eq!(soft.elements().len(), 11);
+        assert!(sharp.area().abs() < soft.area().abs());
+        // Complexa {7/3}: um traçado só de 7 linhas; {8/2}... k=2 com 8 → 2 traçados.
+        let c7 = polygon_path(&poly(7, "complex", 1.0));
+        assert_eq!(
+            c7.elements()
+                .iter()
+                .filter(|e| matches!(e, PathEl::MoveTo(_)))
+                .count(),
+            1
+        );
+        let c8 = polygon_path(&poly(8, "complex", 0.0));
+        assert_eq!(
+            c8.elements()
+                .iter()
+                .filter(|e| matches!(e, PathEl::MoveTo(_)))
+                .count(),
+            2
+        );
+        // Lados fora da faixa ficam em 3–500.
+        assert_eq!(polygon_path(&poly(1, "polygon", 0.5)).elements().len(), 4);
+    }
 }
 
 #[cfg(test)]

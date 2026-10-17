@@ -64,6 +64,7 @@ impl App {
     pub fn property_bar(&mut self, ui: &mut egui::Ui) {
         let text_targets = self.text_targets();
         let picker = &mut self.font_picker;
+        let defaults = &mut self.defaults;
         let Some(doc) = self.doc.as_mut() else {
             ui.label(tr("Nenhum documento aberto", "No document open"));
             return;
@@ -138,6 +139,28 @@ impl App {
             }
             // Prancheta: dados da página; arrastar as alças muda o tamanho
             // (GD-DIM-23). Vale para todas as páginas (GD-PAG-01).
+            Tool::Polygon => {
+                widgets::single_line_bar(ui, "barra-poligono", |ui| {
+                    if let Some((n, m, k)) = polygon_controls(
+                        ui,
+                        defaults.polygon_sides,
+                        &defaults.polygon_mode,
+                        defaults.polygon_sharpness,
+                    ) {
+                        defaults.polygon_sides = n;
+                        defaults.polygon_mode = m;
+                        defaults.polygon_sharpness = k;
+                    }
+                    ui.separator();
+                    widgets::hint_line(
+                        ui,
+                        tr(
+                            "Arraste para desenhar · Shift = proporcional · Ctrl = a partir do centro",
+                            "Drag to draw · Shift = proportional · Ctrl = from center",
+                        ),
+                    );
+                });
+            }
             Tool::Text => {
                 widgets::single_line_bar(ui, "barra-texto", |ui| {
                     if let Some(st) = text_bar(ui, doc, &text_targets, picker) {
@@ -788,6 +811,72 @@ fn selection_angle(doc: &DocState, sel: &[String]) -> f64 {
     if a <= -180.0 { a + 360.0 } else { a }
 }
 
+/// Lados/pontas, modo (polígono, estrela, estrela complexa) e nitidez
+/// (GD-PRI-03/04). Devolve os novos valores quando algum muda.
+pub fn polygon_controls(
+    ui: &mut egui::Ui,
+    sides: u32,
+    mode: &str,
+    sharpness: f64,
+) -> Option<(u32, String, f64)> {
+    let mut out = None;
+    let (mut n, mut m, mut k) = (sides, mode.to_string(), sharpness);
+    widgets::stack(ui, |ui, row| {
+        if row == 0 {
+            for (key, icon, tip) in [
+                ("polygon", "tool-polygon", tr("Polígono", "Polygon")),
+                ("star", "poly-star", tr("Estrela", "Star")),
+                (
+                    "complex",
+                    "poly-complex",
+                    tr(
+                        "Estrela complexa (linhas cruzadas)",
+                        "Complex star (crossing lines)",
+                    ),
+                ),
+            ] {
+                if icons::button(ui, icon, tip, m == key, true).clicked() && m != key {
+                    m = key.to_string();
+                    out = Some(());
+                }
+            }
+        } else {
+            let label = if m == "polygon" {
+                tr("Lados", "Sides")
+            } else {
+                tr("Pontas", "Points")
+            };
+            ui.label(label);
+            let min = if m == "complex" { 5 } else { 3 };
+            if ui
+                .add(egui::DragValue::new(&mut n).range(min..=500).speed(0.1))
+                .changed()
+            {
+                out = Some(());
+            }
+            if m != "polygon" {
+                ui.label(tr("Nitidez", "Sharpness"));
+                let mut pct = (k * 100.0).round();
+                if ui
+                    .add(
+                        egui::DragValue::new(&mut pct)
+                            .range(0.0..=100.0)
+                            .suffix("%"),
+                    )
+                    .changed()
+                {
+                    k = pct / 100.0;
+                    out = Some(());
+                }
+            }
+        }
+    });
+    if m == "complex" {
+        n = n.max(5);
+    }
+    out.map(|_| (n, m, k))
+}
+
 /// Seletor dos cantos do retângulo (2 × 2, como na tela): cada célula
 /// mostra o canto arredondado e alterna se aquele canto entra na
 /// alteração. Índices do modelo: 0 inf.-esq., 1 inf.-dir., 2 sup.-dir.,
@@ -1153,9 +1242,12 @@ fn select_bar(
     }
     // Primitivas (GD-PRI-01/02): parâmetros editáveis até converter em curvas.
     let objs = doc.selected_objects();
-    let has_primitive = objs
-        .iter()
-        .any(|o| matches!(o.kind, ObjectKind::Rectangle(_) | ObjectKind::Ellipse(_)));
+    let has_primitive = objs.iter().any(|o| {
+        matches!(
+            o.kind,
+            ObjectKind::Rectangle(_) | ObjectKind::Ellipse(_) | ObjectKind::Polygon(_)
+        )
+    });
     let single = (objs.len() == 1).then(|| objs[0].clone());
     if has_primitive
         && icons::button(
@@ -1231,6 +1323,25 @@ fn select_bar(
                         |o| {
                             if let ObjectKind::Rectangle(r) = &mut o.kind {
                                 set_corners(&mut r.corners, &which, &kind, radius);
+                                return true;
+                            }
+                            false
+                        },
+                    );
+                }
+            }
+            ObjectKind::Polygon(pd) => {
+                ui.separator();
+                if let Some((n, m, k)) = polygon_controls(ui, pd.sides, &pd.mode, pd.sharpness) {
+                    ops::modify(
+                        &mut doc.editor,
+                        &sel,
+                        tr("Alterar polígono", "Change polygon"),
+                        |o| {
+                            if let ObjectKind::Polygon(p) = &mut o.kind {
+                                p.sides = n;
+                                p.mode = m.clone();
+                                p.sharpness = k;
                                 return true;
                             }
                             false

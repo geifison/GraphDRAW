@@ -39,6 +39,7 @@ pub enum ObjectKind {
     Path(PathData),
     Rectangle(RectData),
     Ellipse(EllipseData),
+    Polygon(PolygonData),
     Group(GroupData),
     Text(TextData),
     Image(ImageData),
@@ -95,6 +96,36 @@ pub struct EllipseData {
     pub end_angle: f64,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
+}
+
+/// Polígono ou estrela paramétricos (GD-PRI-03/04), centrados na origem
+/// local e inscritos na elipse de raios `rx`, `ry`; o primeiro vértice fica
+/// em cima.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PolygonData {
+    pub rx: f64,
+    pub ry: f64,
+    /// Lados (polígono) ou pontas (estrelas), 3–500.
+    pub sides: u32,
+    /// `polygon`, `star` (pontas alternando raio externo e interno) ou
+    /// `complex` (estrela de linhas cruzadas, com auto-interseção).
+    #[serde(default = "polygon_mode")]
+    pub mode: String,
+    /// Nitidez da ponta, 0–1: na estrela, quanto o raio interno encolhe;
+    /// na complexa, quantos vértices cada linha pula.
+    #[serde(default = "half")]
+    pub sharpness: f64,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+fn polygon_mode() -> String {
+    "polygon".into()
+}
+
+fn half() -> f64 {
+    0.5
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -223,6 +254,7 @@ impl Object {
             ObjectKind::Path(_) => "path",
             ObjectKind::Rectangle(_) => "rectangle",
             ObjectKind::Ellipse(_) => "ellipse",
+            ObjectKind::Polygon(_) => "polygon",
             ObjectKind::Group(_) => "group",
             ObjectKind::Text(_) => "text",
             ObjectKind::Image(_) => "image",
@@ -310,6 +342,7 @@ impl Object {
             "path" => ObjectKind::Path(parse(rest, ty)?),
             "rectangle" => ObjectKind::Rectangle(parse(rest, ty)?),
             "ellipse" => ObjectKind::Ellipse(parse(rest, ty)?),
+            "polygon" => ObjectKind::Polygon(parse(rest, ty)?),
             "group" => ObjectKind::Group(parse(rest, ty)?),
             "text" => ObjectKind::Text(parse(rest, ty)?),
             "image" => ObjectKind::Image(parse(rest, ty)?),
@@ -368,6 +401,7 @@ impl Object {
             ObjectKind::Path(d) => serde_json::to_value(d),
             ObjectKind::Rectangle(d) => serde_json::to_value(d),
             ObjectKind::Ellipse(d) => serde_json::to_value(d),
+            ObjectKind::Polygon(d) => serde_json::to_value(d),
             ObjectKind::Group(d) => serde_json::to_value(d),
             ObjectKind::Text(d) => serde_json::to_value(d),
             ObjectKind::Image(d) => serde_json::to_value(d),

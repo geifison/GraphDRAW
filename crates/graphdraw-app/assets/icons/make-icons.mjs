@@ -25,6 +25,9 @@ const icons = {
   "tool-rect": `<rect x="4" y="6" width="16" height="12" rx="1"/>`,
   "tool-artboard": `<rect x="6.5" y="6.5" width="11" height="11" rx="1"/><path d="M3.5 7 V3.5 H7 M17 3.5 H20.5 V7 M20.5 17 V20.5 H17 M7 20.5 H3.5 V17"/>`,
   "tool-ellipse": `<ellipse cx="12" cy="12" rx="8.5" ry="6.5"/>`,
+  "tool-polygon": `<path d="M12 3.5 L20.1 9.4 L17 18.9 H7 L3.9 9.4 Z"/>`,
+  "poly-star": `<path d="M12 3.5 L14.2 9.3 L20.3 9.4 L15.5 13.2 L17.2 19.2 L12 15.7 L6.8 19.2 L8.5 13.2 L3.7 9.4 L9.8 9.3 Z"/>`,
+  "poly-complex": `<path d="M12 3.5 L17.2 19.2 L3.7 9.4 H20.3 L6.8 19.2 Z"/>`,
   "tool-text": `<path d="M5 6.5 V4.5 H19 V6.5 M12 4.5 V19.5 M9 19.5 H15"/>`,
   // ---- texto (doc 06) ----
   "text-bold": `<path d="M7.5 4.5 H13 a3.75 3.75 0 0 1 0 7.5 H7.5 Z M7.5 12 H14 a3.75 3.75 0 0 1 0 7.5 H7.5 Z" stroke-width="2.2"/>`,

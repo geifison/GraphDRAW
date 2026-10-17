@@ -164,6 +164,7 @@ impl App {
             defaults: Defaults {
                 fill: None,
                 stroke: Some(default_stroke()),
+                ..Default::default()
             },
             right_tab: RightTab::Transform,
             layer_tree: Default::default(),
@@ -1140,6 +1141,7 @@ impl App {
             C::ToolRect => self.set_tool(Tool::Rect),
             C::ToolEllipse => self.set_tool(Tool::Ellipse),
             C::ToolText => self.set_tool(Tool::Text),
+            C::ToolPolygon => self.set_tool(Tool::Polygon),
             C::TextAlignLeft | C::TextAlignCenter | C::TextAlignRight | C::TextJustify => {
                 let align = match c {
                     C::TextAlignLeft => "left",
@@ -2605,6 +2607,11 @@ pub(crate) fn kind_label(k: &ObjectKind) -> String {
         ObjectKind::Path(_) => tr("curva", "curve"),
         ObjectKind::Rectangle(_) => tr("retângulo", "rectangle"),
         ObjectKind::Ellipse(_) => tr("elipse", "ellipse"),
+        ObjectKind::Polygon(p) => match p.mode.as_str() {
+            "star" => tr("estrela", "star"),
+            "complex" => tr("estrela complexa", "complex star"),
+            _ => tr("polígono", "polygon"),
+        },
         ObjectKind::Group(_) => tr("grupo", "group"),
         ObjectKind::Text(_) => tr("texto", "text"),
         ObjectKind::Image(_) => tr("imagem", "image"),

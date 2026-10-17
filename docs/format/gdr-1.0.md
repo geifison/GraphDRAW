@@ -77,6 +77,7 @@ camada), `userData?` (texto → texto).
 | `path` | `subpaths [{closed, nodes [{p, in?, out?, kind}]}]`, `fillRule` (`evenodd` padrão / `nonzero`) | coordenadas dos nós |
 | `rectangle` | `width`, `height`, `corners?` (4 × `{kind: round\|chamfer\|scallop, radius}`) | `[0,width]×[0,height]`; cantos: inf.-esq., inf.-dir., sup.-dir., sup.-esq. |
 | `ellipse` | `rx`, `ry`, `mode` (`ellipse`/`arc`/`pie`), `startAngle`, `endAngle` (graus, anti-horário a partir de +X) | centrada em (0,0) |
+| `polygon` | `rx`, `ry`, `sides` (3–500), `mode` (`polygon`/`star`/`complex`), `sharpness` (0–1) | centrado em (0,0), primeiro vértice em cima; `complex` = estrela {n/k} com par-ímpar |
 | `group` | `children [objeto]` | — |
 | `text` | `textKind` (`artistic`/`paragraph`), `frame? [w,h]`, `lineSpacing` (múltiplo do corpo, padrão 1,2), `paragraphs [{align, spans [{text, font {family, size, weight, italic}, fill?}]}]` | origem no canto superior esquerdo do bloco; linhas descem (−Y) |
 | `image` | `width`, `height`, `src` (`resources/images/<sha256>.<ext>`) | `[0,width]×[0,height]`, topo da imagem em `y = height` |

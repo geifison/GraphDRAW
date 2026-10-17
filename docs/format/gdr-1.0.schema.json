@@ -284,6 +284,19 @@
           }
         },
         {
+          "if": { "properties": { "type": { "const": "polygon" } } },
+          "then": {
+            "required": ["rx", "ry", "sides"],
+            "properties": {
+              "rx": { "$ref": "#/$defs/um" },
+              "ry": { "$ref": "#/$defs/um" },
+              "sides": { "type": "integer", "minimum": 3, "maximum": 500 },
+              "mode": { "enum": ["polygon", "star", "complex"] },
+              "sharpness": { "type": "number", "minimum": 0, "maximum": 1 }
+            }
+          }
+        },
+        {
           "if": { "properties": { "type": { "const": "group" } } },
           "then": {
             "required": ["children"],
