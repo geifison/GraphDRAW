@@ -55,6 +55,8 @@ pub struct PdfReport {
     pub images_flattened: usize,
     /// Imagens abaixo de 300 ppp: (página base 1, ppp efetivo).
     pub low_res: Vec<(usize, f64)>,
+    /// Perfil CMYK usado nas conversões (`None` = fórmula).
+    pub cmyk_profile: Option<String>,
 }
 
 impl PdfReport {
@@ -62,10 +64,16 @@ impl PdfReport {
     pub fn messages(&self) -> Vec<String> {
         let mut m = Vec::new();
         if self.colors_converted > 0 {
-            m.push(format!(
-                "{} cor(es) RGB convertida(s) para CMYK por fórmula (sem perfil ICC); confira cores vivas.",
-                self.colors_converted
-            ));
+            m.push(match &self.cmyk_profile {
+                Some(p) => format!(
+                    "{} cor(es) RGB convertida(s) para CMYK com o perfil {p}.",
+                    self.colors_converted
+                ),
+                None => format!(
+                    "{} cor(es) RGB convertida(s) para CMYK por fórmula (sem perfil ICC); confira cores vivas.",
+                    self.colors_converted
+                ),
+            });
         }
         if self.gradients_converted > 0 {
             m.push(format!(
@@ -196,8 +204,24 @@ impl W {
     }
 }
 
-/// RGB (0–1) → CMYK por fórmula (remoção de cinza total). Sem perfil ICC.
-pub fn rgb_to_cmyk([r, g, b]: [f64; 3]) -> Color {
+thread_local! {
+    /// Motor de cor da exportação em andamento (só nesta thread).
+    static EXPORT_CMS: std::cell::RefCell<Option<std::sync::Arc<crate::cms::Cms>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// RGB (0–1) → CMYK: pelo perfil CMYK do documento quando há (LittleCMS,
+/// GD-CMS-01); senão por fórmula (remoção de cinza total).
+pub fn rgb_to_cmyk(rgb: [f64; 3]) -> Color {
+    let by_profile = EXPORT_CMS.with(|c| c.borrow().as_ref().and_then(|c| c.rgb_to_cmyk(rgb)));
+    if let Some([c, m, y, k]) = by_profile {
+        return Color::cmyk(c, m, y, k);
+    }
+    formula_cmyk(rgb)
+}
+
+/// RGB (0–1) → CMYK por fórmula. Sem perfil ICC.
+pub fn formula_cmyk([r, g, b]: [f64; 3]) -> Color {
     let k = 1.0 - r.max(g).max(b);
     if k >= 1.0 - 1e-9 {
         return Color::cmyk(0.0, 0.0, 0.0, 1.0);
@@ -216,12 +240,45 @@ pub fn write_pdf_report(
     title: Option<&str>,
     opts: &ExportOptions,
 ) -> (Vec<u8>, PdfReport) {
+    write_pdf_report_cms(scenes, title, opts, None)
+}
+
+/// Como [`write_pdf_report`], com o gerenciamento de cor do documento:
+/// conversões para CMYK pelo perfil e o perfil no OutputIntent do PDF/X.
+pub fn write_pdf_report_cms(
+    scenes: &[Scene],
+    title: Option<&str>,
+    opts: &ExportOptions,
+    cms: Option<&crate::cms::Cms>,
+) -> (Vec<u8>, PdfReport) {
+    let shared = cms
+        .filter(|c| c.has_cmyk_profile())
+        .map(|c| std::sync::Arc::new(crate::cms::Cms::new(&c.settings)));
+    EXPORT_CMS.with(|c| *c.borrow_mut() = shared.clone());
+    let out = write_pdf_inner(scenes, title, opts, shared.as_deref());
+    EXPORT_CMS.with(|c| *c.borrow_mut() = None);
+    out
+}
+
+fn write_pdf_inner(
+    scenes: &[Scene],
+    title: Option<&str>,
+    opts: &ExportOptions,
+    cms: Option<&crate::cms::Cms>,
+) -> (Vec<u8>, PdfReport) {
     let x1a = matches!(opts.pdf, PdfStandard::X1a(_));
     let mut w = W {
         pdf: Pdf::new(),
         next: 1,
         x1a,
-        report: PdfReport::default(),
+        report: PdfReport {
+            cmyk_profile: cms.map(|c| {
+                c.cmyk_name
+                    .clone()
+                    .unwrap_or_else(|| "perfil CMYK do documento".into())
+            }),
+            ..Default::default()
+        },
         page_no: 0,
         text_curves: opts.text_to_curves,
         fonts: Vec::new(),
@@ -231,6 +288,16 @@ pub fn write_pdf_report(
     }
     let catalog_id = w.alloc();
     let tree_id = w.alloc();
+    // Perfil de saída (DestOutputProfile) quando o documento tem perfil CMYK.
+    let icc_id = cms.and_then(|c| c.cmyk_icc()).map(|data| {
+        let id = w.alloc();
+        let packed = miniz_oxide::deflate::compress_to_vec_zlib(data, 6);
+        w.pdf
+            .icc_profile(id, &packed)
+            .n(4)
+            .filter(Filter::FlateDecode);
+        id
+    });
     let info_id = w.alloc();
     let page_ids: Vec<Ref> = scenes.iter().map(|_| w.alloc()).collect();
 
@@ -239,13 +306,15 @@ pub fn write_pdf_report(
         cat.pages(tree_id);
         if let PdfStandard::X1a(cond) = opts.pdf {
             let mut intents = cat.output_intents();
-            intents
-                .push()
-                .subtype(OutputIntentSubtype::PDFX)
+            let mut oi = intents.push();
+            oi.subtype(OutputIntentSubtype::PDFX)
                 .output_condition_identifier(TextStr(cond.identifier()))
                 .output_condition(TextStr(cond.description()))
                 .registry_name(TextStr("http://www.color.org"))
                 .info(TextStr(cond.description()));
+            if let Some(id) = icc_id {
+                oi.dest_output_profile(id);
+            }
         }
     }
     w.pdf

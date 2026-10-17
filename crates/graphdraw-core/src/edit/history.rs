@@ -72,6 +72,8 @@ enum Change {
     /// Propriedades da página (nome, tamanho, sangria, bloqueio, etiqueta);
     /// as camadas não entram na troca.
     PageProps(usize, Page, Page),
+    /// Configurações do documento (cor, unidade, resolução…).
+    Settings(Box<crate::model::Settings>, Box<crate::model::Settings>),
 }
 
 /// A página sem as camadas (o que `PageProps` guarda).
@@ -264,6 +266,7 @@ impl Editor {
             Change::InsertLayer(p, _, _)
             | Change::RemoveLayer(p, _, _)
             | Change::LayerProps(p, _, _, _) => self.page_key(*p),
+            Change::Settings(..) => None,
         };
         let auto = self.open.is_none();
         if auto {
@@ -405,6 +408,18 @@ impl Editor {
         self.record(Change::PageProps(index, old, new));
     }
 
+    /// Altera as configurações do documento (um passo no histórico).
+    pub fn edit_settings(&mut self, f: impl FnOnce(&mut crate::model::Settings)) {
+        let old = self.doc.data.settings.clone();
+        let mut new = old.clone();
+        f(&mut new);
+        if new == old {
+            return;
+        }
+        self.doc.data.settings = new.clone();
+        self.record(Change::Settings(Box::new(old), Box::new(new)));
+    }
+
     pub fn replace_page(&mut self, index: usize, page: Page) {
         if self.doc.data.pages[index] == page {
             return;
@@ -480,6 +495,7 @@ impl Editor {
             Change::RemoveLayer(p, i, l) => layers_mut(doc, *p).insert(*i, l.clone()),
             Change::LayerProps(p, i, old, _) => copy_layer_props(&mut layers_mut(doc, *p)[*i], old),
             Change::PageProps(i, old, _) => copy_page_props(&mut doc.data.pages[*i], old),
+            Change::Settings(old, _) => doc.data.settings = (**old).clone(),
         }
     }
 
@@ -507,6 +523,7 @@ impl Editor {
             }
             Change::LayerProps(p, i, _, new) => copy_layer_props(&mut layers_mut(doc, *p)[*i], new),
             Change::PageProps(i, _, new) => copy_page_props(&mut doc.data.pages[*i], new),
+            Change::Settings(_, new) => doc.data.settings = (**new).clone(),
         }
     }
 

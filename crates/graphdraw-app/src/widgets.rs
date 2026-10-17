@@ -310,17 +310,21 @@ pub fn no_color(p: &egui::Painter, rect: egui::Rect) {
     );
 }
 
-/// Editor de cor que mantém o modelo escolhido (RGB, CMYK, cinza).
-/// Devolve a nova cor quando alterada.
+/// Editor de cor que mantém o modelo escolhido (GD-COR-01/02): RGB, CMYK,
+/// cinza, HSB, HLS e Lab, mais hexadecimal. Devolve a nova cor quando
+/// alterada.
 pub fn color_editor(ui: &mut egui::Ui, color: &Color) -> Option<Color> {
     let mut c = color.clone();
     let mut changed = false;
-    ui.horizontal(|ui| {
+    ui.horizontal_wrapped(|ui| {
         ui.label(tr("Modelo:", "Model:"));
         for (m, label) in [
             ("rgb", "RGB"),
             ("cmyk", "CMYK"),
             ("gray", tr("Cinza", "Gray")),
+            ("hsb", "HSB"),
+            ("hls", "HLS"),
+            ("lab", "Lab"),
         ] {
             if ui.selectable_label(c.model == m, label).clicked() && c.model != m {
                 c = convert_model(&c, m);
@@ -328,13 +332,42 @@ pub fn color_editor(ui: &mut egui::Ui, color: &Color) -> Option<Color> {
             }
         }
     });
+    // Lab é editado nos valores CIE (L 0–100, a/b −128–127).
+    if c.model == "lab" {
+        c.values.resize(3, 0.0);
+        for (i, (name, lo, hi)) in [
+            ("L", 0.0, 100.0),
+            ("a", -128.0, 127.0),
+            ("b", -128.0, 127.0),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let mut v = c.values[i];
+            if ui
+                .add(
+                    egui::Slider::new(&mut v, lo..=hi)
+                        .text(name)
+                        .fixed_decimals(0),
+                )
+                .changed()
+            {
+                c.values[i] = v;
+                changed = true;
+            }
+        }
+    }
     let comps: &[(&str, f64)] = match c.model.as_str() {
         "rgb" => &[("R", 255.0), ("G", 255.0), ("B", 255.0)],
         "cmyk" => &[("C", 100.0), ("M", 100.0), ("Y", 100.0), ("K", 100.0)],
         "gray" => &[("K", 100.0)],
+        "hsb" => &[("H", 360.0), ("S", 100.0), ("B", 100.0)],
+        "hls" => &[("H", 360.0), ("L", 100.0), ("S", 100.0)],
+        "lab" => &[("", 0.0)],
         _ => &[],
     };
-    if comps.is_empty() {
+    let comps: &[(&str, f64)] = if c.model == "lab" { &[] } else { comps };
+    if comps.is_empty() && c.model != "lab" {
         ui.label(format!(
             "{} '{}' — {}",
             tr("Modelo", "Model"),
@@ -362,6 +395,23 @@ pub fn color_editor(ui: &mut egui::Ui, color: &Color) -> Option<Color> {
             changed = true;
         }
     }
+    // Hexadecimal (o modelo continua o escolhido; RGB recebe o valor exato).
+    ui.horizontal(|ui| {
+        ui.label(tr("Hex", "Hex"));
+        let mut hex = c.to_hex();
+        let r = ui.add(egui::TextEdit::singleline(&mut hex).desired_width(theme::HEX_FIELD_WIDTH));
+        if r.lost_focus()
+            && hex != c.to_hex()
+            && let Some(rgb) = Color::from_hex(&hex)
+        {
+            c = if c.model == "rgb" {
+                rgb
+            } else {
+                convert_model(&rgb, &c.model)
+            };
+            changed = true;
+        }
+    });
     if c.model == "rgb" {
         let mut rgb = to_color32(&c);
         if egui::color_picker::color_picker_color32(ui, &mut rgb, egui::color_picker::Alpha::Opaque)
@@ -377,12 +427,22 @@ pub fn color_editor(ui: &mut egui::Ui, color: &Color) -> Option<Color> {
     changed.then_some(c)
 }
 
-/// Converte só quando o usuário troca o modelo explicitamente.
+/// Converte só quando o usuário troca o modelo explicitamente. Para CMYK,
+/// usa o perfil do documento quando há (GD-CMS-01).
 fn convert_model(c: &Color, model: &str) -> Color {
+    use graphdraw_core::model::color as cc;
     let [r, g, b] = c.to_srgb();
     match model {
         "rgb" => Color::rgb(r, g, b),
         "gray" => Color::gray(0.299 * r + 0.587 * g + 0.114 * b),
+        "hsb" => Color::new("hsb", cc::rgb_to_hsb([r, g, b]).to_vec()),
+        "hls" => Color::new("hls", cc::rgb_to_hls([r, g, b]).to_vec()),
+        "lab" => Color::new("lab", cc::srgb_to_lab([r, g, b]).to_vec()),
+        _ if let Some([cy, m, y, k]) =
+            graphdraw_core::cms::current().and_then(|cms| cms.rgb_to_cmyk([r, g, b])) =>
+        {
+            Color::cmyk(cy, m, y, k)
+        }
         _ => {
             let k = 1.0 - r.max(g).max(b);
             if k >= 1.0 - 1e-9 {

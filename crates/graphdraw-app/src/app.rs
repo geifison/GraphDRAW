@@ -131,6 +131,8 @@ pub struct App {
     /// Exportar para corte (PLT/DXF) e gerar linha de corte (doc 17).
     cut_export: Option<crate::cutui::CutExport>,
     cut_line_dlg: Option<crate::cutui::CutLineDialog>,
+    /// Janela de gerenciamento de cor (GD-CMS-02).
+    color_dlg: Option<crate::colorui::ColorDialog>,
     /// Janela "Novo documento" aberta (GD-DIM-10).
     new_doc: Option<crate::newdoc::NewDocDialog>,
     /// Condição de impressão escolhida para o PDF/X-1a (GD-EXP-07).
@@ -189,6 +191,7 @@ impl App {
             offset_dlg: None,
             cut_export: None,
             cut_line_dlg: None,
+            color_dlg: None,
             new_doc: None,
             print_condition: export::PrintCondition::Fogra39,
             pdf_standard: export::PdfStandard::Screen,
@@ -1291,6 +1294,19 @@ impl App {
                 if ui
                     .add_enabled(
                         has,
+                        egui::Button::new(tr("Gerenciamento de cor…", "Color management…")),
+                    )
+                    .clicked()
+                    && let Some(d) = &self.doc
+                {
+                    self.color_dlg = Some(crate::colorui::ColorDialog::new(
+                        &d.doc().data.settings.color,
+                    ));
+                    ui.close();
+                }
+                if ui
+                    .add_enabled(
+                        has,
                         egui::Button::new(tr("Exportar página como SVG…", "Export page as SVG…")),
                     )
                     .clicked()
@@ -2163,6 +2179,18 @@ impl App {
         }
         self.offset_window(ctx);
         self.cut_windows(ctx);
+        if let Some(dlg) = &mut self.color_dlg
+            && let Some(ok) = dlg.show(ctx)
+        {
+            let cm = dlg.cm.clone();
+            self.color_dlg = None;
+            if ok && let Some(d) = &mut self.doc {
+                d.editor
+                    .transaction(tr("Gerenciamento de cor", "Color management"), |ed| {
+                        ed.edit_settings(|s| s.color = cm);
+                    });
+            }
+        }
     }
 
     /// Janelas da saída para corte (doc 17).
@@ -2609,6 +2637,8 @@ impl eframe::App for App {
         self.shortcuts(&ctx);
         if let Some(d) = &mut self.doc {
             d.sync();
+            // Perfis do documento ativo valem para a tela (GD-CMS-01).
+            graphdraw_core::cms::activate(&d.doc().data.settings.color);
         }
         self.canvas.space_pans = self.keys.space_is_free();
 

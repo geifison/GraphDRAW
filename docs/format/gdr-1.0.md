@@ -36,6 +36,13 @@ Membros desconhecidos devem ser preservados por quem regrava o arquivo.
 
 ## `document.json`
 
+`settings.color` (opcional; ausente = padrão) guarda o gerenciamento de cor do
+documento (GD-CMS-02): `rgbProfile` e `cmykProfile` (caminho de um arquivo
+ICC; ausente = sRGB embutido / conversão por fórmula), `intent`
+(`perceptual`, `relative`, `saturation`, `absolute`; padrão `relative`) e
+`blackPoint` (compensação de ponto preto, padrão `true`). Os perfis não vão
+dentro do `.gdr`; perfil ausente ao abrir cai no padrão com aviso.
+
 ```json
 {
   "formatVersion": "1.0",
@@ -94,6 +101,8 @@ Tipos desconhecidos são preservados e não exibidos.
 | `cmyk` | 4 componentes 0–1 |
 | `gray` | 1 componente 0–1 (0 = preto) |
 | `lab` | L* 0–100, a* e b* −128–127 (CIE, D50) |
+| `hsb` | matiz, saturação, brilho, 0–1 (matiz 1 = 360°) |
+| `hls` | matiz, luminosidade, saturação, 0–1 |
 | `spot` | tinta 0–1; `name` obrigatório (nome da tinta); `alternate` = cor de prévia/saída alternativa |
 | `registration` | tinta 0–1 (100% em todas as chapas) |
 

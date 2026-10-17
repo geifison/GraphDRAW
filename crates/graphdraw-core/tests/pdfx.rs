@@ -277,3 +277,31 @@ fn print_conditions_are_registered_names() {
         assert_eq!(PrintCondition::from_name(c.identifier()), Some(c));
     }
 }
+
+/// GD-CMS-01/02: com perfil CMYK no documento, as conversões usam o
+/// LittleCMS e o PDF/X leva o perfil no OutputIntent (DestOutputProfile).
+#[test]
+fn gd_cms_pdfx_uses_document_cmyk_profile() {
+    let path = std::env::var("GRAPHDRAW_CMYK_ICC").ok().or_else(|| {
+        let win = r"C:\Windows\System32\spool\drivers\color\RSWOP.icm";
+        std::path::Path::new(win).exists().then(|| win.to_string())
+    });
+    let Some(path) = path else {
+        return;
+    };
+    let mut d = sample();
+    d.data.settings.color.cmyk_profile = Some(path);
+    let (bytes, msgs) = export(&d, PdfStandard::X1a(PrintCondition::Fogra39));
+    let pdf = Pdf::load_mem(&bytes).unwrap();
+    let has_dest = all_names(&pdf).iter().any(|n| n == "DestOutputProfile");
+    assert!(has_dest, "OutputIntent com o perfil");
+    assert!(
+        msgs.iter().any(|m| m.contains("com o perfil")),
+        "relatório cita o perfil: {msgs:?}"
+    );
+    // Sem perfil: fórmula, sem DestOutputProfile.
+    let (bytes, msgs) = export(&sample(), PdfStandard::X1a(PrintCondition::Fogra39));
+    let pdf = Pdf::load_mem(&bytes).unwrap();
+    assert!(!all_names(&pdf).iter().any(|n| n == "DestOutputProfile"));
+    assert!(msgs.iter().any(|m| m.contains("por fórmula")));
+}

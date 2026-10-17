@@ -63,14 +63,23 @@
           "minItems": 2,
           "maxItems": 2
         },
-        "resolution": { "type": "number", "exclusiveMinimum": 0 }
+        "resolution": { "type": "number", "exclusiveMinimum": 0 },
+        "color": {
+          "type": "object",
+          "properties": {
+            "rgbProfile": { "type": "string" },
+            "cmykProfile": { "type": "string" },
+            "intent": { "enum": ["perceptual", "relative", "saturation", "absolute"] },
+            "blackPoint": { "type": "boolean" }
+          }
+        }
       }
     },
     "color": {
       "type": "object",
       "required": ["model", "values"],
       "properties": {
-        "model": { "enum": ["rgb", "cmyk", "gray", "lab", "spot", "registration"] },
+        "model": { "enum": ["rgb", "cmyk", "gray", "lab", "hsb", "hls", "spot", "registration"] },
         "values": { "type": "array", "items": { "type": "number" } },
         "name": { "type": "string" },
         "ref": { "type": "string", "description": "ID de cor global em resources/colors.json." },

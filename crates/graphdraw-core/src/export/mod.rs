@@ -209,10 +209,12 @@ pub fn pdf_document_report(
     if scenes.is_empty() {
         return Err(Error::Other("documento sem páginas".into()));
     }
-    Ok(pdf::write_pdf_report(
+    let cms = crate::cms::Cms::new(&doc.data.settings.color);
+    Ok(pdf::write_pdf_report_cms(
         &scenes,
         doc.metadata.title.as_deref(),
         opts,
+        Some(&cms),
     ))
 }
 

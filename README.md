@@ -71,6 +71,14 @@ $env:PATH = "$env:PATH;C:\msys64\mingw64\bin"
 
 Ajuste o caminho para onde o MSYS2 foi instalado. Para deixar a mudança permanente, inclua a pasta no `PATH` do usuário nas variáveis de ambiente do Windows.
 
+O gerenciamento de cor usa o LittleCMS 2, compilado do código C durante o build: o `gcc` do UCRT64 precisa estar acessível. No PowerShell, para a sessão atual:
+
+```powershell
+$env:PATH = "$env:PATH;C:\msys64\mingw64\bin;C:\msys64\ucrt64\bin"
+$env:CC_x86_64_pc_windows_gnu = "C:\msys64\ucrt64\bin\gcc.exe"
+$env:AR_x86_64_pc_windows_gnu = "C:\msys64\ucrt64\bin\ar.exe"
+```
+
 ## Design
 Aparência e interação seguem o [Design System](docs/design/DESIGN-SYSTEM.md), fonte única de cores, tipografia, ícones e componentes. Todo elemento novo de interface passa pelo checklist dele.
 

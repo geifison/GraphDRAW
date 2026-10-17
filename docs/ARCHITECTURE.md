@@ -19,8 +19,8 @@ cita os IDs que a motivam.
 | Raster/imagens | **png**, **image** (png, jpeg, bmp, tiff, webp, gif) | MIT/Apache-2.0 | libpng, libjpeg-turbo… | Puro Rust, sem DLLs nativas. |
 | Contêiner `.gdr` | **zip** (deflate), **serde_json**, **sha2**, **uuid** (v7) | MIT/Apache-2.0 | — | GD-GDR-01..04. |
 | Importação CDR | **libcdr 0.1.9 + librevenge 0.0.6** (via ponte C++) | MPL-2.0 | libcdr + librevenge | Exigência do doc 14. |
-| Interface | **egui/eframe** | MIT/Apache-2.0 | "Rust + egui/Slint" | Imediata, leve, sem licença copyleft. Mantida no M1: atende ferramentas, barras e painéis do editor. Os painéis ficam em abas numa coluna fixa à direita; painéis flutuantes e perfis de área de trabalho (GD-UI-03) ainda não existem. |
-| Gerenciamento de cor | LittleCMS 2 — **adiado para o M2** | MIT | LittleCMS 2 | GD-CMS-01 é do marco M2. No M0, CMYK→RGB só para exibição, por fórmula simples, e o PDF mantém CMYK original. |
+| Interface | **egui/eframe** | MIT/Apache-2.0 | "Rust + egui/Slint" | Imediata, leve, sem licença copyleft. Mantida no M1: atende ferramentas, barras e painéis do editor. Os painéis ficam em abas numa coluna fixa à direita; a coluna recolhe e os painéis podem flutuar (GD-UI-03). |
+| Gerenciamento de cor | **LittleCMS 2** (crate `lcms2`, fonte C compilada no build) | MIT | LittleCMS 2 | GD-CMS-01/02 (M2): perfis RGB/CMYK por documento, intenção e ponto preto; CMYK na tela e RGB→CMYK no PDF/X pelo perfil, que vai como DestOutputProfile. Sem perfil CMYK, fórmula simples. Escolhido pelo responsável pelo produto em vez de um motor em Rust puro, aceitando o compilador C no build. |
 
 Alternativa descartada: **C++ com Qt 6 + Skia**. Exigiria compilar Skia
 (cadeia de build pesada no Windows), cuidar da vinculação dinâmica do Qt
@@ -285,8 +285,10 @@ Do M0, ainda valem:
 - Texto no PDF sai vivo (Type0/CID, subconjunto da fonte com `subsetter`,
   ToUnicode); fontes OpenType/CFF ficam em curvas no PDF/X-1a (PDF 1.3).
   Contorno, gradiente ou transparência no texto também saem em curvas.
-- Sem gerenciamento ICC (M2): a conversão para CMYK do PDF/X-1a é a
-  fórmula simples, sem perfil.
+- Gerenciamento de cor: perfis RGB e CMYK por documento (arquivo ICC por
+  caminho, não embutido no `.gdr`); perfil de cinza, prova de cor na tela
+  e política ao abrir (GD-CMS-03/04) ainda não existem. Sem perfil CMYK, a
+  conversão do PDF/X-1a é a fórmula simples.
 - Gradientes: só linear e radial; repetir/espelhar não existe no PDF (sai como "estender").
 - Transparência de grupo é aproximada multiplicando a opacidade dos filhos.
 - Diagramação de texto: quebra no quadro, alinhamentos e justificado,

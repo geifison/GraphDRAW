@@ -44,8 +44,15 @@ pub struct Settings {
     /// Resolução padrão de rasterização (ppp).
     #[serde(default = "dpi")]
     pub resolution: f64,
+    /// Gerenciamento de cor do documento (GD-CMS-02).
+    #[serde(default, skip_serializing_if = "is_default_color")]
+    pub color: crate::cms::ColorManagement,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
+}
+
+fn is_default_color(c: &crate::cms::ColorManagement) -> bool {
+    *c == crate::cms::ColorManagement::default()
 }
 
 impl Default for Settings {
@@ -56,6 +63,7 @@ impl Default for Settings {
             bleed: 0.0,
             drawing_scale: unit_scale(),
             resolution: dpi(),
+            color: Default::default(),
             extra: Map::new(),
         }
     }

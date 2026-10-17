@@ -409,3 +409,35 @@ fn gd_doc_02_y_axis_up_origin_bottom_left() {
         "camada não imprimível no alto não deve sair"
     );
 }
+
+/// GD-CMS-02 e GD-COR-01: gerenciamento de cor do documento e cores HSB/HLS
+/// gravam, seguem o schema e voltam iguais; o padrão não é gravado.
+#[test]
+fn gd_cms_settings_and_hsb_round_trip() {
+    use graphdraw_core::model::{Color, Fill, Page, RectData};
+    let mut doc = Document::new();
+    doc.data.settings.color.cmyk_profile = Some("C:/perfis/Coated.icc".into());
+    doc.data.settings.color.intent = "perceptual".into();
+    let mut p = Page::new(100_000.0, 100_000.0);
+    let mut o = Object::new(ObjectKind::Rectangle(RectData {
+        width: 1_000.0,
+        height: 1_000.0,
+        corners: None,
+        extra: Default::default(),
+    }));
+    o.fill = Some(Fill::solid(Color::new("hsb", vec![0.5, 0.8, 0.6])));
+    let mut q = o.clone();
+    q.id = graphdraw_core::model::new_id();
+    q.fill = Some(Fill::solid(Color::new("hls", vec![0.1, 0.4, 0.9])));
+    p.layers[0].objects.extend([o, q]);
+    doc.data.pages.push(p);
+    let saved = gdr::write_bytes(&doc, &WriteOptions::default()).unwrap();
+    let json = document_json(&saved);
+    assert_eq!(json["settings"]["color"]["intent"], "perceptual");
+    assert_valid(&schema_validator(), &document_with_pages(&saved), "cor");
+    let (back, _) = gdr::read_bytes(&saved).unwrap();
+    assert_eq!(back.data.settings.color, doc.data.settings.color);
+    // Padrão: não grava a chave.
+    let plain = gdr::write_bytes(&Document::new(), &WriteOptions::default()).unwrap();
+    assert!(document_json(&plain)["settings"].get("color").is_none());
+}
