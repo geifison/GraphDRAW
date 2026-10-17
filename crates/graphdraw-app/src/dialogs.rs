@@ -740,11 +740,13 @@ enum FillMode {
     Elliptic,
     Conic,
     Rectangular,
+    /// Padrão (GD-FIL-04..06).
+    Pattern,
 }
 
 impl FillMode {
     fn gradient(self) -> bool {
-        !matches!(self, FillMode::None | FillMode::Solid)
+        !matches!(self, FillMode::None | FillMode::Solid | FillMode::Pattern)
     }
     fn kind(self) -> &'static str {
         match self {
@@ -757,9 +759,68 @@ impl FillMode {
     }
 }
 
+/// Objetos copiados (Ctrl+C) que viram o ladrilho do padrão vetorial.
+static TILE_SOURCE: std::sync::Mutex<Vec<Object>> = std::sync::Mutex::new(Vec::new());
+
+/// O app avisa o que foi copiado (fonte do ladrilho vetorial, GD-FIL-04).
+pub fn set_tile_source(objs: Vec<Object>) {
+    if let Ok(mut t) = TILE_SOURCE.lock() {
+        *t = objs;
+    }
+}
+
+/// Predefinições de duas cores (8 × 8, linha de cima primeiro).
+fn two_color_presets() -> Vec<(&'static str, Vec<String>)> {
+    let rows = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+    let diag: Vec<String> = (0..8)
+        .map(|i| {
+            (0..8)
+                .map(|j| if (j + 8 - i) % 8 < 2 { '1' } else { '0' })
+                .collect()
+        })
+        .collect();
+    vec![
+        (
+            tr("Listras verticais", "Vertical stripes"),
+            rows(&["11110000"; 8]),
+        ),
+        (
+            tr("Listras horizontais", "Horizontal stripes"),
+            rows(&[
+                "11111111", "11111111", "11111111", "11111111", "00000000", "00000000", "00000000",
+                "00000000",
+            ]),
+        ),
+        (
+            tr("Xadrez", "Checker"),
+            rows(&[
+                "11110000", "11110000", "11110000", "11110000", "00001111", "00001111", "00001111",
+                "00001111",
+            ]),
+        ),
+        (
+            tr("Pontos", "Dots"),
+            rows(&[
+                "00000000", "00000000", "00000000", "00011000", "00011000", "00000000", "00000000",
+                "00000000",
+            ]),
+        ),
+        (
+            tr("Grade", "Grid"),
+            rows(&[
+                "11111111", "10000000", "10000000", "10000000", "10000000", "10000000", "10000000",
+                "10000000",
+            ]),
+        ),
+        (tr("Diagonal", "Diagonal"), diag),
+    ]
+}
+
 pub struct FillDialog {
     initial: Option<Fill>,
     mode: FillMode,
+    /// Padrão em edição (GD-FIL-04..06).
+    pattern: graphdraw_core::model::Pattern,
     color: Color,
     opacity: f64,
     overprint: bool,
@@ -803,6 +864,12 @@ impl FillDialog {
             sel_stop: 0,
             angle: 0.0,
             spread: "pad".into(),
+            pattern: graphdraw_core::model::Pattern {
+                cells: two_color_presets().remove(2).1,
+                fg: Some(Color::cmyk(0.0, 0.0, 0.0, 1.0)),
+                bg: Some(Color::cmyk(0.0, 0.0, 0.0, 0.0)),
+                ..Default::default()
+            },
             other_kind: false,
             changed: false,
             for_defaults,
@@ -839,6 +906,10 @@ impl FillDialog {
                 d.spread = spec.spread;
                 d.color = d.stops[0].color.clone();
             }
+            Some(Fill::Pattern(p)) => {
+                d.mode = FillMode::Pattern;
+                d.pattern = (**p).clone();
+            }
             Some(_) => d.other_kind = true,
         }
         d
@@ -868,6 +939,7 @@ impl FillDialog {
                     _ => Map::new(),
                 },
             }),
+            FillMode::Pattern => Some(Fill::Pattern(Box::new(self.pattern.clone()))),
             _ => Some(Fill::Gradient(ops::gradient_for(&self.spec(), b))),
         }
     }
@@ -924,6 +996,7 @@ impl FillDialog {
                             FillMode::Rectangular,
                         ));
                     }
+                    modes.push(("fill-pattern", tr("Padrão", "Pattern"), FillMode::Pattern));
                     for (icon, tip, m) in &modes {
                         if icons::button(ui, icon, tip, self.mode == *m, true).clicked()
                             && self.mode != *m
@@ -960,10 +1033,11 @@ impl FillDialog {
                                 ui.weak(tr("Sem preenchimento", "No fill"));
                             }
                             FillMode::Solid => self.solid_ui(ui),
+                            FillMode::Pattern => self.pattern_ui(ui, doc),
                             _ => self.gradient_ui(ui),
                         }
                     });
-                    self.sample(ui);
+                    self.sample(ui, doc);
                 });
                 ui.separator();
                 buttons(ui)
@@ -1015,6 +1089,259 @@ impl FillDialog {
             ))
             .changed()
         {
+            self.changed = true;
+        }
+    }
+
+    /// Padrão (GD-FIL-04..06, GD-FIL-10): tipo, ladrilho e repetição.
+    fn pattern_ui(&mut self, ui: &mut egui::Ui, doc: &mut DocState) {
+        let p = &mut self.pattern;
+        let mut changed = false;
+        ui.horizontal(|ui| {
+            for (k, label) in [
+                ("two-color", tr("Duas cores", "Two colors")),
+                ("bitmap", tr("Imagem", "Image")),
+                ("vector", tr("Vetorial", "Vector")),
+            ] {
+                if ui.selectable_label(p.kind == k, label).clicked() && p.kind != k {
+                    p.kind = k.into();
+                    changed = true;
+                }
+            }
+        });
+        match p.kind.as_str() {
+            "bitmap" => {
+                ui.horizontal(|ui| {
+                    if ui.button(tr("Escolher imagem…", "Choose image…")).clicked()
+                        && let Some(path) = rfd::FileDialog::new()
+                            .add_filter(
+                                tr("Imagens", "Images"),
+                                &["png", "jpg", "jpeg", "tif", "tiff", "webp"],
+                            )
+                            .pick_file()
+                        && let Ok(bytes) = std::fs::read(&path)
+                    {
+                        let ext = path
+                            .extension()
+                            .map(|e| e.to_string_lossy().to_lowercase())
+                            .unwrap_or_else(|| "png".into());
+                        let ext = if ext == "jpeg" {
+                            "jpg".to_string()
+                        } else {
+                            ext
+                        };
+                        p.src = Some(doc.editor.doc.add_image(bytes, &ext));
+                        changed = true;
+                    }
+                    ui.weak(p.src.as_deref().map_or(tr("nenhuma", "none"), |_| {
+                        tr("imagem escolhida", "image chosen")
+                    }));
+                });
+            }
+            "vector" => {
+                let n = TILE_SOURCE.lock().map(|t| t.len()).unwrap_or(0);
+                ui.horizontal(|ui| {
+                    if ui
+                        .add_enabled(
+                            n > 0,
+                            egui::Button::new(tr("Usar objetos copiados", "Use copied objects")),
+                        )
+                        .on_disabled_hover_text(tr(
+                            "Copie (Ctrl+C) os objetos do ladrilho antes",
+                            "Copy (Ctrl+C) the tile objects first",
+                        ))
+                        .clicked()
+                        && let Ok(t) = TILE_SOURCE.lock()
+                        && let Some(b) = graphdraw_core::edit::query::union_bounds(t.iter(), true)
+                    {
+                        // O ladrilho é a caixa dos objetos, levada à origem.
+                        let m = kurbo::Affine::translate((-b.x0, -b.y0));
+                        p.tile = t
+                            .iter()
+                            .map(|o| {
+                                let mut o = o.clone();
+                                o.transform = graphdraw_core::model::Transform::from_affine(
+                                    m * o.transform.affine(),
+                                );
+                                o
+                            })
+                            .collect();
+                        p.width = b.width().max(1.0);
+                        p.height = b.height().max(1.0);
+                        changed = true;
+                    }
+                    ui.weak(format!(
+                        "{} {}",
+                        p.tile.len(),
+                        tr("objeto(s) no ladrilho", "object(s) in the tile")
+                    ));
+                });
+            }
+            _ => {
+                ui.horizontal_wrapped(|ui| {
+                    for (name, cells) in two_color_presets() {
+                        if ui.small_button(name).clicked() {
+                            p.cells = cells;
+                            changed = true;
+                        }
+                    }
+                });
+                // Grade de células: clique liga/desliga (cor da frente).
+                let rows = p.cells.len().max(1);
+                let cols = p.cells.iter().map(|r| r.len()).max().unwrap_or(8).max(1);
+                let cell = theme::PATTERN_CELL;
+                let (r, resp) = ui.allocate_exact_size(
+                    Vec2::new(cols as f32 * cell, rows as f32 * cell),
+                    egui::Sense::click(),
+                );
+                let fg =
+                    p.fg.as_ref()
+                        .map_or(egui::Color32::BLACK, crate::widgets::to_color32);
+                let bg =
+                    p.bg.as_ref()
+                        .map_or(egui::Color32::WHITE, crate::widgets::to_color32);
+                for (y, row) in p.cells.iter().enumerate() {
+                    for (x, c) in row.chars().enumerate() {
+                        let cr = egui::Rect::from_min_size(
+                            r.min + Vec2::new(x as f32 * cell, y as f32 * cell),
+                            Vec2::splat(cell),
+                        );
+                        ui.painter().rect_filled(
+                            cr.shrink(0.5),
+                            0.0,
+                            if c == '1' { fg } else { bg },
+                        );
+                    }
+                }
+                if resp.clicked()
+                    && let Some(pos) = resp.interact_pointer_pos()
+                {
+                    let (x, y) = (
+                        ((pos.x - r.min.x) / cell) as usize,
+                        ((pos.y - r.min.y) / cell) as usize,
+                    );
+                    if let Some(row) = p.cells.get_mut(y) {
+                        let mut chars: Vec<char> = row.chars().collect();
+                        if let Some(c) = chars.get_mut(x) {
+                            *c = if *c == '1' { '0' } else { '1' };
+                            *row = chars.into_iter().collect();
+                            changed = true;
+                        }
+                    }
+                }
+                ui.horizontal(|ui| {
+                    ui.label(tr("Frente", "Front"));
+                    if let Some(c) =
+                        crate::widgets::color_editor(ui, p.fg.as_ref().unwrap_or(&Color::black()))
+                    {
+                        p.fg = Some(c);
+                        changed = true;
+                    }
+                });
+                ui.horizontal(|ui| {
+                    ui.label(tr("Fundo", "Back"));
+                    if let Some(c) = crate::widgets::color_editor(
+                        ui,
+                        p.bg.as_ref().unwrap_or(&Color::rgb(1.0, 1.0, 1.0)),
+                    ) {
+                        p.bg = Some(c);
+                        changed = true;
+                    }
+                });
+            }
+        }
+        egui::Grid::new("padrao-grade")
+            .num_columns(2)
+            .show(ui, |ui| {
+                ui.label(tr("Ladrilho", "Tile"));
+                ui.horizontal(|ui| {
+                    if let Some(v) =
+                        crate::widgets::length_field(ui, "padrao-largura", p.width, None)
+                    {
+                        p.width = v.max(100.0);
+                        changed = true;
+                    }
+                    ui.label("×");
+                    if let Some(v) =
+                        crate::widgets::length_field(ui, "padrao-altura", p.height, None)
+                    {
+                        p.height = v.max(100.0);
+                        changed = true;
+                    }
+                });
+                ui.end_row();
+                let mut drag = |ui: &mut egui::Ui,
+                                label: &str,
+                                v: &mut f64,
+                                range: std::ops::RangeInclusive<f64>,
+                                suffix: &str,
+                                k: f64| {
+                    ui.label(label);
+                    let mut x = *v * k;
+                    if ui
+                        .add(egui::DragValue::new(&mut x).range(range).suffix(suffix))
+                        .changed()
+                    {
+                        *v = x / k;
+                        changed = true;
+                    }
+                    ui.end_row();
+                };
+                drag(
+                    ui,
+                    tr("Escala", "Scale"),
+                    &mut p.scale,
+                    1.0..=10_000.0,
+                    " %",
+                    100.0,
+                );
+                drag(
+                    ui,
+                    tr("Giro", "Rotation"),
+                    &mut p.rotation,
+                    -360.0..=360.0,
+                    "°",
+                    1.0,
+                );
+                drag(
+                    ui,
+                    tr("Deslocar linhas", "Row offset"),
+                    &mut p.row_offset,
+                    0.0..=100.0,
+                    " %",
+                    100.0,
+                );
+                drag(
+                    ui,
+                    tr("Deslocar colunas", "Column offset"),
+                    &mut p.column_offset,
+                    0.0..=100.0,
+                    " %",
+                    100.0,
+                );
+                drag(
+                    ui,
+                    tr("Resolução", "Resolution"),
+                    &mut p.resolution,
+                    36.0..=1200.0,
+                    " ppp",
+                    1.0,
+                );
+            });
+        changed |= ui
+            .checkbox(
+                &mut p.mirror,
+                tr("Espelhar ladrilhos alternados", "Mirror alternate tiles"),
+            )
+            .changed();
+        changed |= ui
+            .checkbox(&mut p.transform_with_object, tr("Transformar com o objeto", "Transform with object"))
+            .on_hover_text(tr(
+                "Ligado, o padrão acompanha escala e giro do objeto; desligado, fica preso à página",
+                "On, the pattern follows the object's scale and rotation; off, it stays fixed to the page",
+            ))
+            .changed();
+        if changed {
             self.changed = true;
         }
     }
@@ -1215,7 +1542,7 @@ impl FillDialog {
     }
 
     /// Amostra sobre xadrez (mostra a opacidade), pelo motor de desenho.
-    fn sample(&mut self, ui: &mut egui::Ui) {
+    fn sample(&mut self, ui: &mut egui::Ui, doc: &DocState) {
         let side = theme::FILL_SAMPLE;
         let (rect, _) = ui.allocate_exact_size(Vec2::splat(side), egui::Sense::hover());
         checker(ui.painter(), rect);
@@ -1235,7 +1562,7 @@ impl FillDialog {
                     .sample_tex
                     .as_ref()
                     .is_none_or(|(old, _)| old.as_ref() != Some(f))
-                    && let Some(rgba) = raster::fill_preview(f, px, px)
+                    && let Some(rgba) = raster::fill_preview_in(doc.doc(), f, px, px)
                 {
                     let img =
                         egui::ColorImage::from_rgba_unmultiplied([px as usize, px as usize], &rgba);
@@ -1516,6 +1843,38 @@ mod tests {
             "prévias desenhadas"
         );
         assert_eq!(f.spec().kind, "radial");
+    }
+
+    /// GD-FIL-04..06: a janela abre um padrão no modo Padrão, desenha a
+    /// amostra, cabe na tela; o vetorial usa os objetos copiados.
+    #[test]
+    fn pattern_fill_dialog() {
+        let ctx = crate::theme::test_ctx();
+        let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, Vec2::new(1366.0, 768.0));
+        let mut doc = DocState::new_blank();
+        let mut f = FillDialog::new(None, false);
+        f.mode = FillMode::Pattern;
+        let mut defaults = Defaults::default();
+        for _ in 0..3 {
+            let input = egui::RawInput {
+                screen_rect: Some(screen),
+                ..Default::default()
+            };
+            let mut out = ctx.run_ui(input, |ui| {
+                f.show(ui.ctx(), &mut doc, &mut defaults);
+            });
+            out.textures_delta.clear();
+        }
+        assert!(screen.contains_rect(f.rect), "{:?}", f.rect);
+        assert!(f.sample_tex.is_some(), "amostra do padrão");
+        let Some(Fill::Pattern(p)) = f.result() else {
+            panic!("padrão")
+        };
+        assert_eq!(p.kind, "two-color");
+        assert_eq!(p.cells.len(), 8);
+        let again = FillDialog::new(Some(Fill::Pattern(p.clone())), false);
+        assert_eq!(again.mode, FillMode::Pattern);
+        assert_eq!(again.pattern, *p);
     }
 
     #[test]

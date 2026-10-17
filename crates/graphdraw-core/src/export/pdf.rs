@@ -372,6 +372,7 @@ fn write_page(w: &mut W, scene: &Scene, page_id: Ref, tree_id: Ref) {
     // No PDF/X a página ganha a sangria em volta: o conteúdo é deslocado e a
     // área de corte (TrimBox) fica no meio.
     let bleed = if w.x1a { scene.bleed } else { 0.0 };
+    res.base = Affine::new([K, 0.0, 0.0, K, bleed * K, bleed * K]);
     c.transform([
         K as f32,
         0.0,
@@ -454,6 +455,12 @@ fn write_page(w: &mut W, scene: &Scene, page_id: Ref, tree_id: Ref) {
     if !res.gstates_list.is_empty() {
         let mut d = r.ext_g_states();
         for (name, id) in &res.gstates_list {
+            d.pair(Name(name.as_bytes()), *id);
+        }
+    }
+    if !res.patterns.is_empty() {
+        let mut d = r.patterns();
+        for (name, id) in &res.patterns {
             d.pair(Name(name.as_bytes()), *id);
         }
     }
@@ -670,11 +677,15 @@ fn paint_alpha(p: &Paint) -> f64 {
         Paint::Gradient {
             gradient, alpha, ..
         } => alpha * gradient.stops.iter().map(|s| s.opacity).fold(1.0, f64::min),
+        Paint::Pattern { alpha, .. } => *alpha,
     }
 }
 
 fn shape_transparent(s: &ShapeItem) -> bool {
-    s.fill.as_ref().is_some_and(|f| paint_alpha(f) < 1.0)
+    // Padrão é imagem RGB: no PDF/X-1a sai achatado em CMYK.
+    s.fill
+        .as_ref()
+        .is_some_and(|f| paint_alpha(f) < 1.0 || matches!(f, Paint::Pattern { .. }))
         || s.stroke
             .as_ref()
             .is_some_and(|st| paint_alpha(&st.paint) < 1.0)
@@ -881,6 +892,10 @@ struct Resources {
     spaces_list: Vec<(String, Ref)>,
     blends: HashMap<crate::model::BlendMode, String>,
     overprints: HashMap<(bool, bool), String>,
+    patterns: Vec<(String, Ref)>,
+    /// Matriz do espaço da página (µm) para o espaço padrão do PDF: os
+    /// padrões de ladrilho são relativos a este.
+    base: Affine,
 }
 
 fn path_ops(c: &mut Content, path: &BezPath) {
@@ -1278,6 +1293,11 @@ fn affine6(a: Affine) -> [f32; 6] {
 
 fn fill(c: &mut Content, s: &ShapeItem, p: &Paint, res: &mut Resources, w: &mut W) {
     match p {
+        Paint::Pattern {
+            tile,
+            transform,
+            alpha,
+        } => pattern_fill(c, s, tile, *transform, *alpha, res, w),
         Paint::Solid { color, alpha } => {
             c.save_state();
             let col = if w.x1a {
@@ -1329,9 +1349,91 @@ fn fill(c: &mut Content, s: &ShapeItem, p: &Paint, res: &mut Resources, w: &mut 
     }
 }
 
+/// Imagem RGBA (não pré-multiplicada) como XObject RGB com máscara suave.
+fn rgba_xobject(w: &mut W, rgba: &[u8], width: u32, height: u32) -> Ref {
+    let mut rgb = Vec::with_capacity(rgba.len() / 4 * 3);
+    let mut alpha = Vec::with_capacity(rgba.len() / 4);
+    for px in rgba.as_chunks::<4>().0 {
+        rgb.extend_from_slice(&px[..3]);
+        alpha.push(px[3]);
+    }
+    let mask = alpha.iter().any(|a| *a < 255).then(|| {
+        let id = w.alloc();
+        let data = miniz_oxide::deflate::compress_to_vec_zlib(&alpha, 6);
+        let mut m = w.pdf.image_xobject(id, &data);
+        m.filter(Filter::FlateDecode);
+        m.width(width as i32)
+            .height(height as i32)
+            .bits_per_component(8);
+        m.color_space().device_gray();
+        m.finish();
+        id
+    });
+    let id = w.alloc();
+    let data = miniz_oxide::deflate::compress_to_vec_zlib(&rgb, 6);
+    let mut x = w.pdf.image_xobject(id, &data);
+    x.filter(Filter::FlateDecode);
+    x.width(width as i32)
+        .height(height as i32)
+        .bits_per_component(8);
+    x.color_space().device_rgb();
+    if let Some(m) = mask {
+        x.s_mask(m);
+    }
+    x.interpolate(true);
+    x.finish();
+    id
+}
+
+/// Padrão de ladrilho (GD-FIL-04..06): o superladrilho como imagem, que o
+/// PDF repete no espaço do padrão.
+fn pattern_fill(
+    c: &mut Content,
+    s: &ShapeItem,
+    tile: &crate::render::pattern::PatternTile,
+    transform: Affine,
+    alpha: f64,
+    res: &mut Resources,
+    w: &mut W,
+) {
+    let img = rgba_xobject(w, &tile.straight_rgba(), tile.width, tile.height);
+    let (sw, sh) = (tile.size.0 as f32, tile.size.1 as f32);
+    let mut cell = Content::new();
+    cell.save_state();
+    cell.transform([sw, 0.0, 0.0, sh, 0.0, 0.0]);
+    cell.x_object(Name(b"Im0"));
+    cell.restore_state();
+    let bytes = cell.finish();
+    let id = w.alloc();
+    {
+        let mut p = w.pdf.tiling_pattern(id, &bytes);
+        p.paint_type(pdf_writer::types::PaintType::Colored)
+            .tiling_type(pdf_writer::types::TilingType::ConstantSpacing)
+            .bbox(Rect::new(0.0, 0.0, sw, sh))
+            .x_step(sw)
+            .y_step(sh)
+            .matrix(affine6(res.base * transform));
+        p.resources().x_objects().pair(Name(b"Im0"), img);
+    }
+    let name = format!("Pt{}", res.patterns.len());
+    res.patterns.push((name.clone(), id));
+    c.save_state();
+    gstate(c, alpha, 1.0, res, w);
+    c.set_fill_color_space(pdf_writer::types::ColorSpaceOperand::Pattern);
+    c.set_fill_pattern(None::<f32>, Name(name.as_bytes()));
+    path_ops(c, &s.path);
+    if s.fill_rule == FillRule::Evenodd {
+        c.fill_even_odd()
+    } else {
+        c.fill_nonzero()
+    };
+    c.restore_state();
+}
+
 fn stroke(c: &mut Content, s: &ShapeItem, st: &StrokeStyle, res: &mut Resources, w: &mut W) {
     let (color, alpha) = match &st.paint {
         Paint::Solid { color, alpha } => (color.clone(), *alpha),
+        Paint::Pattern { alpha, .. } => (Color::black(), *alpha),
         // Gradiente calculado: a cor do meio, igual à tela.
         Paint::Gradient {
             gradient, alpha, ..
@@ -1446,6 +1548,7 @@ fn non_cmyk_colors(item: &Item) -> usize {
             Paint::Gradient { gradient, .. } => {
                 gradient.stops.iter().filter(|s| bad(&s.color)).count()
             }
+            Paint::Pattern { .. } => 1,
         }
     }
     fn of_shape(s: &ShapeItem) -> usize {

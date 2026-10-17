@@ -156,6 +156,7 @@ pub fn get(name: &str) -> ImageSource<'static> {
         "fill-linear" => icon!("fill-linear"),
         "palette" => icon!("palette"),
         "fill-radial" => icon!("fill-radial"),
+        "fill-pattern" => icon!("fill-pattern"),
         "fill-elliptic" => icon!("fill-elliptic"),
         "fill-conic" => icon!("fill-conic"),
         "fill-rectangular" => icon!("fill-rectangular"),

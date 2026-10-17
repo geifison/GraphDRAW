@@ -2,6 +2,7 @@
 
 pub mod arrows;
 pub mod gradient;
+pub mod pattern;
 pub mod raster;
 pub mod scene;
 pub mod text;

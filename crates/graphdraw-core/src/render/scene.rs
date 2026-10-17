@@ -28,6 +28,13 @@ pub enum Paint {
         transform: Affine,
         alpha: f64,
     },
+    /// Padrão (GD-FIL-04..06): superladrilho rasterizado e a matriz do
+    /// espaço do padrão (µm) → página.
+    Pattern {
+        tile: Arc<super::pattern::PatternTile>,
+        transform: Affine,
+        alpha: f64,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -334,6 +341,20 @@ struct Builder<'a> {
 }
 
 impl Builder<'_> {
+    /// Tinta do preenchimento; padrões precisam do documento (ladrilho e
+    /// imagens).
+    fn fill_paint(&self, f: &Fill, m: Affine, alpha: f64) -> Option<Paint> {
+        if let Fill::Pattern(p) = f {
+            let tile = super::pattern::tile(self.doc, p, self.images)?;
+            return Some(Paint::Pattern {
+                tile,
+                transform: super::pattern::pattern_space(p, m),
+                alpha,
+            });
+        }
+        resolve_fill(f, m, alpha)
+    }
+
     fn layer(&mut self, layer: &crate::model::Layer) {
         if !layer.visible || (self.opts.print && !layer.printable) {
             return;
@@ -422,7 +443,7 @@ impl Builder<'_> {
                     for run in &line.runs {
                         let fill = run.fill.as_ref().or(o.fill.as_ref());
                         let paint = match fill {
-                            Some(f) => resolve_fill(f, m, alpha),
+                            Some(f) => self.fill_paint(f, m, alpha),
                             None => Some(Paint::Solid {
                                 color: Color::black(),
                                 alpha,
@@ -463,7 +484,14 @@ impl Builder<'_> {
             {
                 st.position = StrokePosition::Center;
             }
-            let fill = o.fill.as_ref().and_then(|f| resolve_fill(f, m, alpha));
+            let mut fill = o.fill.as_ref().and_then(|f| self.fill_paint(f, m, alpha));
+            // GD-FIL-12: sem preencher caminhos abertos, linha aberta não
+            // recebe preenchimento.
+            if !self.doc.data.settings.fill_open_paths
+                && matches!(&o.kind, ObjectKind::Path(p) if p.subpaths.iter().all(|s| !s.closed))
+            {
+                fill = None;
+            }
             // Caneta caligráfica (GD-OUT-06): o traço vira a área varrida pelo
             // bico elíptico, preenchida com a tinta do contorno.
             if let (Some(s), Some(st)) = (&o.stroke, &stroke)
@@ -598,7 +626,8 @@ fn wireframe(s: &mut ShapeItem) {
 
 pub fn resolve_fill(f: &Fill, m: Affine, alpha: f64) -> Option<Paint> {
     match f {
-        Fill::None | Fill::Unknown(_) => None,
+        // Padrões: pelo construtor da cena (`Builder::fill_paint`).
+        Fill::None | Fill::Unknown(_) | Fill::Pattern(_) => None,
         Fill::Solid { color, opacity, .. } => Some(Paint::Solid {
             color: color.clone(),
             alpha: alpha * opacity.clamp(0.0, 1.0),

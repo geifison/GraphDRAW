@@ -253,7 +253,7 @@ fn gradient_shader(
     }
 }
 
-fn make_paint(paint: &Paint, view: Affine, opts: &RasterOptions) -> Option<sk::Paint<'static>> {
+fn make_paint<'a>(paint: &'a Paint, view: Affine, opts: &RasterOptions) -> Option<sk::Paint<'a>> {
     let mut p = sk::Paint {
         anti_alias: opts.antialias,
         blend_mode: BLEND.with(|b| b.get()),
@@ -266,6 +266,20 @@ fn make_paint(paint: &Paint, view: Affine, opts: &RasterOptions) -> Option<sk::P
             transform,
             alpha,
         } => p.shader = gradient_shader(gradient, *transform, *alpha, view)?,
+        Paint::Pattern {
+            tile,
+            transform,
+            alpha,
+        } => {
+            let m = view * *transform * super::pattern::pixel_to_pattern(tile);
+            p.shader = sk::Pattern::new(
+                tile.pixmap()?,
+                sk::SpreadMode::Repeat,
+                sk::FilterQuality::Bilinear,
+                *alpha as f32,
+                sk_transform(m),
+            );
+        }
     }
     Some(p)
 }
@@ -486,13 +500,36 @@ fn draw_image(pm: &mut sk::Pixmap, img: &ImageItem, view: Affine, opts: &RasterO
 /// Prévia de um preenchimento num retângulo de `w` × `h` px (janela de
 /// preenchimento): RGBA sem pré-multiplicar.
 pub fn fill_preview(fill: &crate::model::Fill, w: u32, h: u32) -> Option<Vec<u8>> {
+    fill_preview_in(&crate::model::Document::new(), fill, w, h)
+}
+
+/// Prévia com o documento (imagens dos padrões); um padrão mostra três
+/// ladrilhos na largura.
+pub fn fill_preview_in(
+    doc: &crate::model::Document,
+    fill: &crate::model::Fill,
+    w: u32,
+    h: u32,
+) -> Option<Vec<u8>> {
     use kurbo::Shape;
     let mut pm = sk::Pixmap::new(w.max(1), h.max(1))?;
     let path = kurbo::Rect::new(0.0, 0.0, w as f64, h as f64).to_path(0.1);
+    let paint = match fill {
+        crate::model::Fill::Pattern(p) => {
+            let tile = super::pattern::tile(doc, p, &super::ImageCache::default())?;
+            let s = w as f64 / (3.0 * p.width.max(1.0));
+            Some(Paint::Pattern {
+                tile,
+                transform: Affine::scale(s) * Affine::rotate(p.rotation.to_radians()),
+                alpha: 1.0,
+            })
+        }
+        f => super::scene::resolve_fill(f, Affine::IDENTITY, 1.0),
+    };
     let item = Item::Shape(ShapeItem {
         object_id: String::new(),
         path,
-        fill: super::scene::resolve_fill(fill, Affine::IDENTITY, 1.0),
+        fill: paint,
         fill_rule: FillRule::Nonzero,
         stroke: None,
     });

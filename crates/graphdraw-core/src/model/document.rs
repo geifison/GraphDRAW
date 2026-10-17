@@ -50,11 +50,18 @@ pub struct Settings {
     /// Gerenciamento de cor do documento (GD-CMS-02).
     #[serde(default, skip_serializing_if = "is_default_color")]
     pub color: crate::cms::ColorManagement,
+    /// Caminhos abertos recebem preenchimento (GD-FIL-12).
+    #[serde(default = "yes", skip_serializing_if = "is_true")]
+    pub fill_open_paths: bool,
     /// Limites da verificação prévia (GD-PRE-02).
     #[serde(default, skip_serializing_if = "is_default_preflight")]
     pub preflight: crate::preflight::PreflightSettings,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
+}
+
+fn is_true(b: &bool) -> bool {
+    *b
 }
 
 fn is_default_preflight(p: &crate::preflight::PreflightSettings) -> bool {
@@ -75,6 +82,7 @@ impl Default for Settings {
             resolution: dpi(),
             color: Default::default(),
             preflight: Default::default(),
+            fill_open_paths: true,
             guides: Vec::new(),
             extra: Map::new(),
         }

@@ -449,6 +449,29 @@ barra (no máximo os 2–4 controles mais usados) e o que fica só na janela.
 | Aparência | — | painel Camadas: opacidade, mesclagem, dados do objeto |
 | Gradiente (ferramenta G) | linear/radial na barra da ferramenta | paradas: cor e opacidade no balão da parada |
 
+### 4.5.1 Janela de preenchimento: Padrão (GD-FIL-04..06)
+
+Botão `fill-pattern` depois dos gradientes. O conteúdo:
+- Duas cores | Imagem | Vetorial.
+- **Duas cores**:
+  - predefinições: listras verticais/horizontais, xadrez, pontos, grade,
+    diagonal;
+  - grade 8 × 8 de células de `pattern-cell` = 14 px; o clique troca
+    frente/fundo;
+  - editores de cor da frente e do fundo.
+- **Imagem**: "Escolher imagem…"; o arquivo entra nos recursos do documento.
+- **Vetorial**: "Usar objetos copiados" (o ladrilho é a caixa do que foi
+  copiado com Ctrl+C).
+- **Comum**:
+  - ladrilho L × A (mm), escala %, giro °, deslocar linhas/colunas %,
+    resolução ppp;
+  - Espelhar ladrilhos alternados;
+  - Transformar com o objeto.
+- A amostra mostra três ladrilhos na largura.
+
+Exibir → "Preencher caminhos abertos" (GD-FIL-12) é uma opção do
+documento.
+
 ### 4.6.1 Painel Verificação (doc 28)
 
 Aba **Verificação** (ícone `preflight`) no painel direito:

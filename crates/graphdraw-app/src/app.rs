@@ -1406,6 +1406,7 @@ impl App {
                         })
                         .collect();
                     let n = self.clipboard.len();
+                    crate::dialogs::set_tile_source(self.clipboard.clone());
                     // Texto na área de transferência do sistema: sem ela, o
                     // Ctrl+V seguinte não chega ao programa (área vazia).
                     ctx.copy_text(format!("GraphDraw: {n} {}", tr("objeto(s)", "object(s)")));
@@ -2546,6 +2547,20 @@ impl App {
                             d.editor.commit();
                         }
                     });
+                    // GD-FIL-12: opção do documento.
+                    let mut open = d.doc().data.settings.fill_open_paths;
+                    if ui
+                        .checkbox(&mut open, tr("Preencher caminhos abertos", "Fill open paths"))
+                        .on_hover_text(tr(
+                            "Desligado, linhas abertas mostram só o traço, mesmo com preenchimento",
+                            "Off, open lines show only the outline, even with a fill",
+                        ))
+                        .changed()
+                    {
+                        d.editor.transaction(tr("Preencher caminhos abertos", "Fill open paths"), |ed| {
+                            ed.edit_settings(|s| s.fill_open_paths = open)
+                        });
+                    }
                 }
                 ui.checkbox(&mut self.canvas.show_guides, tr("Guias", "Guides"));
                 ui.checkbox(

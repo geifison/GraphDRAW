@@ -274,6 +274,7 @@ Em Linux: `apt install libcdr-dev librevenge-dev pkg-config g++` e o mesmo
 | GD-CNV-03 | `ops::tests::gd_cnv_03_convert_to_bitmap`, `app::tests::bitmap_window_fits_small_screen` |
 | GD-PRE-01..10 (verificação prévia, sangria automática) | `preflight::tests::gd_pre_*` (core), `app::tests::gd_pre_preflight_panel_and_extend_command` |
 | GD-FER-20/21/25/26 (mão livre, linha 2 pontos, polilinha, curva 3 pontos) | `drawing::tests::gd_fer_*` (core), `canvas::tests::line_tools_on_canvas` (app) |
+| GD-FIL-04..06/10/12 (padrões, caminho aberto) | `pattern::tests::*` (core), `tests/patterns.rs`, `dialogs::tests::pattern_fill_dialog` (app) |
 | GD-FER-40, GD-COT-01..03, GD-DOC-03 (cotas) | `dimension::tests::*` (core), `tests/dimensions.rs`, fixture `prepress.gdr`, `canvas::tests::dimension_tool_on_canvas` (app) |
 | GD-FER-03 (transformação livre) | `freexf::tests::gd_fer_03_free_transform_modes` (core), `canvas::tests::free_transform_on_canvas` (app) |
 | GD-FER-23 (caneta) | coberta pela Bézier: a prévia do próximo segmento segue o cursor (`canvas.rs`, desenho do rascunho) |
@@ -381,6 +382,19 @@ Do M0, ainda valem:
   separadas são lidas na abertura.
 
 Do M3:
+
+- Padrões (GD-FIL-04..06):
+  - o ladrilho é rasterizado num superladrilho 2 × 2 na resolução do padrão
+    (padrão 300 ppp, até 1024 px por lado), já com deslocamentos e
+    espelhamento;
+  - na tela vai por shader de repetição; no PDF, por padrão de ladrilho
+    com o superladrilho como imagem RGB; no SVG, por `<pattern>` com PNG;
+  - padrão vetorial, portanto, sai rasterizado na saída;
+  - no PDF/X-1a, o objeto com padrão é achatado em CMYK como as
+    transparências;
+  - cores especiais do padrão de duas cores não viram chapa separada.
+- GD-FIL-10 vale para padrões; gradientes sempre acompanham o objeto.
+- GD-FIL-12: um caminho misto (aberto e fechado) mantém o preenchimento.
 
 - A ferramenta Polígono tem três famílias (GD-FER-32): polígono/estrelas,
   espiral (simétrica ou logarítmica, vira caminho aberto) e papel gráfico

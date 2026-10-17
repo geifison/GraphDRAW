@@ -46,6 +46,65 @@ pub struct Gradient {
     pub extra: Map<String, Value>,
 }
 
+/// Padrão de preenchimento (GD-FIL-04/05/06, GD-FIL-10). `kind`:
+/// `vector` (ladrilho de objetos em `[0,width]×[0,height]`), `bitmap`
+/// (`src` = imagem dos recursos) ou `two-color` (`cells`: linhas de `0`/`1`,
+/// a de cima primeiro, com `fg`/`bg`). `origin` e `width`/`height` em µm,
+/// `rotation` em graus; `rowOffset`/`columnOffset` em fração do ladrilho;
+/// `mirror` espelha ladrilhos alternados; `transformWithObject` faz o padrão
+/// acompanhar a matriz do objeto; `resolution` (ppp) é a da rasterização.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Pattern {
+    pub kind: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub tile: Vec<super::Object>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub src: Option<String>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub cells: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fg: Option<Color>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bg: Option<Color>,
+    pub width: f64,
+    pub height: f64,
+    pub origin: [f64; 2],
+    pub scale: f64,
+    pub rotation: f64,
+    pub row_offset: f64,
+    pub column_offset: f64,
+    pub mirror: bool,
+    pub transform_with_object: bool,
+    pub resolution: f64,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+impl Default for Pattern {
+    fn default() -> Self {
+        Pattern {
+            kind: "two-color".into(),
+            tile: Vec::new(),
+            src: None,
+            cells: Vec::new(),
+            fg: None,
+            bg: None,
+            width: 5_000.0,
+            height: 5_000.0,
+            origin: [0.0, 0.0],
+            scale: 1.0,
+            rotation: 0.0,
+            row_offset: 0.0,
+            column_offset: 0.0,
+            mirror: false,
+            transform_with_object: true,
+            resolution: 300.0,
+            extra: Map::new(),
+        }
+    }
+}
+
 /// Preenchimento. Tipos não reconhecidos são preservados como JSON bruto
 /// (GD-GDR-03) e tratados como "nenhum" na renderização.
 #[derive(Debug, Clone, PartialEq)]
@@ -59,6 +118,7 @@ pub enum Fill {
         extra: Map<String, Value>,
     },
     Gradient(Gradient),
+    Pattern(Box<Pattern>),
     Unknown(Value),
 }
 
@@ -113,6 +173,16 @@ impl Fill {
                     Err(_) => Fill::Unknown(v),
                 }
             }
+            "pattern" => {
+                let Value::Object(mut map) = v.clone() else {
+                    return Fill::Unknown(v);
+                };
+                map.remove("type");
+                match serde_json::from_value::<Pattern>(Value::Object(map)) {
+                    Ok(p) => Fill::Pattern(Box::new(p)),
+                    Err(_) => Fill::Unknown(v),
+                }
+            }
             _ => Fill::Unknown(v),
         }
     }
@@ -147,6 +217,13 @@ impl Fill {
                 let mut v = serde_json::to_value(g).unwrap_or(Value::Null);
                 if let Value::Object(m) = &mut v {
                     m.insert("type".into(), "gradient".into());
+                }
+                v
+            }
+            Fill::Pattern(p) => {
+                let mut v = serde_json::to_value(p).unwrap_or(Value::Null);
+                if let Value::Object(m) = &mut v {
+                    m.insert("type".into(), "pattern".into());
                 }
                 v
             }

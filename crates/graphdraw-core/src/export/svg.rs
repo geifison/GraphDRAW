@@ -290,7 +290,43 @@ impl SvgWriter {
                 let url = self.gradient(gradient, *transform, *alpha);
                 format!(r#" {attr}="{url}""#)
             }
+            Paint::Pattern {
+                tile,
+                transform,
+                alpha,
+            } => {
+                let url = self.pattern(tile, *transform);
+                let mut s = format!(r#" {attr}="{url}""#);
+                if *alpha < 1.0 {
+                    let _ = write!(s, r#" {attr}-opacity="{}""#, fmt6(*alpha));
+                }
+                s
+            }
         }
+    }
+
+    /// Padrão (GD-FIL-04..06): o superladrilho como imagem num <pattern>.
+    fn pattern(&mut self, tile: &crate::render::pattern::PatternTile, m: Affine) -> String {
+        let Some(pm) = tile.pixmap().map(|p| p.to_owned()) else {
+            return "none".into();
+        };
+        let Ok(png) = raster::encode_png(&pm, None) else {
+            return "none".into();
+        };
+        let data = base64::engine::general_purpose::STANDARD.encode(png);
+        let id = self.id("pt");
+        let (sw, sh) = tile.size;
+        let place = m * Affine::translate((0.0, sh)) * Affine::scale_non_uniform(1.0, -1.0);
+        let _ = writeln!(
+            self.defs,
+            r#"<pattern id="{id}" patternUnits="userSpaceOnUse" width="{}" height="{}" patternTransform="{}"><image width="{}" height="{}" preserveAspectRatio="none" xlink:href="data:image/png;base64,{data}"/></pattern>"#,
+            num(sw),
+            num(sh),
+            matrix(place),
+            num(sw),
+            num(sh)
+        );
+        format!("url(#{id})")
     }
 
     fn stroke_attrs(&mut self, s: &StrokeStyle) -> String {

@@ -180,6 +180,7 @@ const icons = {
   "fill-elliptic": `<rect x="4" y="4" width="16" height="16" rx="1.5"/><ellipse cx="12" cy="12" rx="2.5" ry="1.5"/><ellipse cx="12" cy="12" rx="6" ry="3.5" stroke-dasharray="1.5 1.5"/>`,
   "fill-conic": `<rect x="4" y="4" width="16" height="16" rx="1.5"/><path d="M12 12 L19 12 M12 12 L7 7 M12 12 L9 18.5"/>`,
   "fill-rectangular": `<rect x="4" y="4" width="16" height="16" rx="1.5"/><rect x="10" y="10" width="4" height="4"/><rect x="7" y="7" width="10" height="10" stroke-dasharray="1.5 1.5"/>`,
+  "fill-pattern": `<rect x="4" y="4" width="16" height="16" rx="1.5"/>${dot(8, 8, 1.4)}${dot(16, 8, 1.4)}${dot(12, 12, 1.4)}${dot(8, 16, 1.4)}${dot(16, 16, 1.4)}`,
   "fill-radial": `<rect x="4" y="4" width="16" height="16" rx="1.5"/><circle cx="12" cy="12" r="2.5"/><circle cx="12" cy="12" r="5.5" stroke-dasharray="1.5 1.5"/>`,
   // ---- distribuir (GD-ALI-03) ----
   "dist-left": `<path d="M4 3.5V20.5 M11 3.5V20.5 M18 3.5V20.5" stroke-dasharray="1.6 1.8"/><rect x="4" y="6" width="4" height="5" rx="0.8" fill="#fff"/><rect x="11" y="10" width="5" height="5" rx="0.8" fill="#fff"/><rect x="18" y="14" width="3" height="5" rx="0.8" fill="#fff"/>`,

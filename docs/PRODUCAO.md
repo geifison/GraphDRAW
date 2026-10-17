@@ -40,10 +40,10 @@ Prioridade:
   no formato da escala de desenho (GD-FER-40, GD-COT-01..03).
 
 ## P0 — Preenchimento e saída
-- [ ] Padrão vetorial, padrão bitmap e padrão de duas cores
+- [x] Padrão vetorial, padrão bitmap e padrão de duas cores
   (GD-FIL-04/05/06), com PDF e SVG.
-- [ ] O padrão acompanha a transformação do objeto (GD-FIL-10).
-- [ ] Opção de preencher caminho aberto (GD-FIL-12).
+- [x] O padrão acompanha a transformação do objeto (GD-FIL-10).
+- [x] Opção de preencher caminho aberto (GD-FIL-12).
 - [ ] Prévia de separações por chapa, com sobreimpressão simulada
   (GD-SEP-01).
 - [x] Preto 100% K com sobreimpressão automática em texto pequeno e linha

@@ -155,6 +155,20 @@ Tipos desconhecidos são preservados e não exibidos.
   (0 em `angle`, sentido anti-horário) ÷ 360°. Eixos u, v girados por `angle`. Tipo desconhecido de
   gradiente é desenhado como linear.
 
+- `{"type": "pattern", "kind": "vector|bitmap|two-color", "width", "height", ...}` — padrão
+  (GD-FIL-04..06):
+  - ladrilho: `tile` (objetos em `[0,width]×[0,height]`), `src` (imagem dos
+    recursos) ou `cells` (linhas de `0`/`1`, a de cima primeiro) com `fg`/`bg`;
+  - `origin`, `scale`, `rotation` (graus);
+  - `rowOffset`/`columnOffset` em fração do ladrilho;
+  - `mirror` espelha ladrilhos alternados (xadrez);
+  - `transformWithObject` (padrão `true`, GD-FIL-10) faz o padrão seguir a
+    matriz do objeto; com `false`, ele fica preso à página;
+  - `resolution` (ppp, padrão 300) é a da rasterização do ladrilho.
+
+`settings.fillOpenPaths` (padrão `true`, GD-FIL-12): com `false`, caminhos
+só com subcaminhos abertos não recebem preenchimento.
+
 Paradas: `{"offset": 0–1, "color": cor, "opacity?": 0–1}`. Coordenadas do
 gradiente no espaço local do objeto. Tipos desconhecidos são preservados e
 desenhados como "nenhum".

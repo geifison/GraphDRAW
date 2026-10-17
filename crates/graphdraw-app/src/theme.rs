@@ -323,6 +323,8 @@ pub const LAYER_COLORS: [[u8; 3]; 8] = [
 ];
 /// Escolha da paleta na barra de paleta.
 pub const PALETTE_SOURCE_WIDTH: f32 = 110.0;
+/// Célula da grade do padrão de duas cores (janela de preenchimento).
+pub const PATTERN_CELL: f32 = 14.0;
 /// Prévia da borracha (alfa do traço) e véu fora do recorte.
 pub const ERASER_PREVIEW_ALPHA: f32 = 0.35;
 pub const CROP_VEIL_ALPHA: u8 = 90;

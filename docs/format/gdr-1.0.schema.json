@@ -74,6 +74,7 @@
           }
         },
         "guides": { "type": "array", "items": { "$ref": "#/$defs/guide" } },
+        "fillOpenPaths": { "type": "boolean", "description": "Caminhos abertos recebem preenchimento (GD-FIL-12)." },
         "preflight": {
           "type": "object",
           "description": "Limites da verificação prévia (GD-PRE-02).",
@@ -145,6 +146,30 @@
               "color": { "$ref": "#/$defs/color" },
               "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
               "overprint": { "type": "boolean" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "pattern" } } },
+          "then": {
+            "required": ["kind", "width", "height"],
+            "properties": {
+              "kind": { "enum": ["vector", "bitmap", "two-color"] },
+              "tile": { "type": "array", "items": { "$ref": "#/$defs/object" } },
+              "src": { "type": "string", "pattern": "^resources/images/[0-9a-f]{64}\\.(png|jpg|jpeg|tif|tiff|webp)$" },
+              "cells": { "type": "array", "items": { "type": "string", "pattern": "^[01]*$" } },
+              "fg": { "$ref": "#/$defs/color" },
+              "bg": { "$ref": "#/$defs/color" },
+              "width": { "type": "number", "exclusiveMinimum": 0 },
+              "height": { "type": "number", "exclusiveMinimum": 0 },
+              "origin": { "$ref": "#/$defs/point" },
+              "scale": { "type": "number", "exclusiveMinimum": 0 },
+              "rotation": { "type": "number" },
+              "rowOffset": { "type": "number" },
+              "columnOffset": { "type": "number" },
+              "mirror": { "type": "boolean" },
+              "transformWithObject": { "type": "boolean" },
+              "resolution": { "type": "number", "exclusiveMinimum": 0 }
             }
           }
         },
