@@ -262,7 +262,8 @@
         "visible": { "type": "boolean" },
         "locked": { "type": "boolean" },
         "printable": { "type": "boolean" },
-        "userData": { "type": "object", "additionalProperties": { "type": "string" } }
+        "userData": { "type": "object", "additionalProperties": { "type": "string" } },
+        "blendMode": { "enum": ["normal", "multiply", "screen", "overlay", "darken", "lighten", "color-dodge", "color-burn", "hard-light", "soft-light", "difference", "exclusion", "hue", "saturation", "color", "luminosity"] }
       },
       "allOf": [
         {

@@ -76,7 +76,10 @@ de cor da aba, só para organização; não é impressa).
 
 Campos comuns: `id`, `type`, `name?`, `transform`, `fill?`, `stroke?`,
 `opacity?` (0–1), `visible`, `locked`, `printable?` (ausente = herda da
-camada), `userData?` (texto → texto).
+camada), `userData?` (texto → texto), `blendMode?` (`normal` se ausente; os 16 modos do PDF em
+kebab-case: `multiply`, `screen`, `overlay`, `darken`, `lighten`, `color-dodge`, `color-burn`,
+`hard-light`, `soft-light`, `difference`, `exclusion`, `hue`, `saturation`, `color`, `luminosity`;
+valor desconhecido é lido como `normal`; GD-TRA-02).
 
 | `type` | Campos | Geometria local |
 |---|---|---|

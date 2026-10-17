@@ -162,12 +162,36 @@ pub struct Scene {
     pub items: Vec<Item>,
     /// Fontes ausentes substituídas (GD-FNT-02).
     pub missing_fonts: Vec<String>,
+    /// Modo de mesclagem por objeto (GD-TRA-02); ausente = normal. Vale
+    /// para cada item do objeto (como o /BM do PDF).
+    pub blends: std::collections::HashMap<String, crate::model::BlendMode>,
     /// Caixas dos itens (coordenadas da página, já incluindo a espessura do
     /// contorno), calculadas uma vez sob demanda para descarte rápido.
     pub item_bounds: OnceLock<Vec<kurbo::Rect>>,
 }
 
+impl Item {
+    pub fn object_id(&self) -> &str {
+        match self {
+            Item::Shape(s) => &s.object_id,
+            Item::Image(i) => &i.object_id,
+            Item::Text(t) => &t.object_id,
+        }
+    }
+}
+
 impl Scene {
+    /// Modo de mesclagem do item.
+    pub fn blend_of(&self, item: &Item) -> crate::model::BlendMode {
+        if self.blends.is_empty() {
+            return crate::model::BlendMode::Normal;
+        }
+        self.blends
+            .get(item.object_id())
+            .copied()
+            .unwrap_or_default()
+    }
+
     pub fn bounds(&self) -> kurbo::Rect {
         kurbo::Rect::new(0.0, 0.0, self.width, self.height)
     }
@@ -257,6 +281,8 @@ pub fn build_scene(doc: &Document, page: &Page, opts: SceneOptions, images: &Ima
         items: Vec::new(),
         missing_fonts: Vec::new(),
         wireframe: false,
+        blend: crate::model::BlendMode::Normal,
+        blends: std::collections::HashMap::new(),
     };
     if !page.hide_master {
         for layer in &doc.data.master_page.layers {
@@ -276,6 +302,7 @@ pub fn build_scene(doc: &Document, page: &Page, opts: SceneOptions, images: &Ima
         bleed: page.bleed.unwrap_or(doc.data.settings.bleed).max(0.0),
         items: b.items,
         missing_fonts: missing,
+        blends: b.blends,
         item_bounds: OnceLock::new(),
     }
 }
@@ -288,6 +315,9 @@ struct Builder<'a> {
     missing_fonts: Vec<String>,
     /// Camada atual em modo esboço (só na tela; a impressão sai normal).
     wireframe: bool,
+    /// Modo de mesclagem herdado do grupo.
+    blend: crate::model::BlendMode,
+    blends: std::collections::HashMap<String, crate::model::BlendMode>,
 }
 
 impl Builder<'_> {
@@ -303,6 +333,19 @@ impl Builder<'_> {
     }
 
     fn object(&mut self, o: &Object, parent: Affine, parent_alpha: f64) {
+        use crate::model::BlendMode;
+        let saved = self.blend;
+        if o.blend != BlendMode::Normal {
+            self.blend = o.blend;
+        }
+        if self.blend != BlendMode::Normal {
+            self.blends.insert(o.id.clone(), self.blend);
+        }
+        self.object_items(o, parent, parent_alpha);
+        self.blend = saved;
+    }
+
+    fn object_items(&mut self, o: &Object, parent: Affine, parent_alpha: f64) {
         if !o.visible || (self.opts.print && o.printable == Some(false)) {
             return;
         }

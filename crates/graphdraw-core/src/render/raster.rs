@@ -101,9 +101,39 @@ fn render_band(
         if b.y1 < top || b.y0 > bottom || b.x1 < 0.0 || b.x0 > width as f64 {
             continue;
         }
+        BLEND.with(|b| b.set(sk_blend(scene.blend_of(item))));
         draw_item(&mut pm, item, band_view, opts);
     }
+    BLEND.with(|b| b.set(sk::BlendMode::SourceOver));
     Some(pm)
+}
+
+thread_local! {
+    /// Modo de mesclagem do item sendo desenhado nesta linha de execução
+    /// (cada faixa da renderização tem a sua).
+    static BLEND: std::cell::Cell<sk::BlendMode> = const { std::cell::Cell::new(sk::BlendMode::SourceOver) };
+}
+
+pub fn sk_blend(b: crate::model::BlendMode) -> sk::BlendMode {
+    use crate::model::BlendMode as B;
+    match b {
+        B::Normal => sk::BlendMode::SourceOver,
+        B::Multiply => sk::BlendMode::Multiply,
+        B::Screen => sk::BlendMode::Screen,
+        B::Overlay => sk::BlendMode::Overlay,
+        B::Darken => sk::BlendMode::Darken,
+        B::Lighten => sk::BlendMode::Lighten,
+        B::ColorDodge => sk::BlendMode::ColorDodge,
+        B::ColorBurn => sk::BlendMode::ColorBurn,
+        B::HardLight => sk::BlendMode::HardLight,
+        B::SoftLight => sk::BlendMode::SoftLight,
+        B::Difference => sk::BlendMode::Difference,
+        B::Exclusion => sk::BlendMode::Exclusion,
+        B::Hue => sk::BlendMode::Hue,
+        B::Saturation => sk::BlendMode::Saturation,
+        B::Color => sk::BlendMode::Color,
+        B::Luminosity => sk::BlendMode::Luminosity,
+    }
 }
 
 fn draw_item(pm: &mut sk::Pixmap, item: &Item, view: Affine, opts: &RasterOptions) {
@@ -221,6 +251,7 @@ fn gradient_shader(
 fn make_paint(paint: &Paint, view: Affine, opts: &RasterOptions) -> Option<sk::Paint<'static>> {
     let mut p = sk::Paint {
         anti_alias: opts.antialias,
+        blend_mode: BLEND.with(|b| b.get()),
         ..Default::default()
     };
     match paint {
@@ -364,6 +395,7 @@ fn draw_image(pm: &mut sk::Pixmap, img: &ImageItem, view: Affine, opts: &RasterO
     let paint = sk::Paint {
         shader,
         anti_alias: opts.antialias,
+        blend_mode: BLEND.with(|b| b.get()),
         ..Default::default()
     };
     pm.fill_path(

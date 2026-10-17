@@ -31,7 +31,53 @@ pub struct Object {
     /// `None` = herda da camada (GD-OBJ-04).
     pub printable: Option<bool>,
     pub user_data: Option<BTreeMap<String, String>>,
+    /// Modo de mesclagem com o que está embaixo (GD-TRA-02).
+    pub blend: BlendMode,
     pub kind: ObjectKind,
+}
+
+/// Modos de mesclagem (GD-TRA-02): os 16 do PDF.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum BlendMode {
+    #[default]
+    Normal,
+    Multiply,
+    Screen,
+    Overlay,
+    Darken,
+    Lighten,
+    ColorDodge,
+    ColorBurn,
+    HardLight,
+    SoftLight,
+    Difference,
+    Exclusion,
+    Hue,
+    Saturation,
+    Color,
+    Luminosity,
+}
+
+impl BlendMode {
+    pub const ALL: [BlendMode; 16] = [
+        BlendMode::Normal,
+        BlendMode::Multiply,
+        BlendMode::Screen,
+        BlendMode::Overlay,
+        BlendMode::Darken,
+        BlendMode::Lighten,
+        BlendMode::ColorDodge,
+        BlendMode::ColorBurn,
+        BlendMode::HardLight,
+        BlendMode::SoftLight,
+        BlendMode::Difference,
+        BlendMode::Exclusion,
+        BlendMode::Hue,
+        BlendMode::Saturation,
+        BlendMode::Color,
+        BlendMode::Luminosity,
+    ];
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -230,6 +276,7 @@ const COMMON_KEYS: &[&str] = &[
     "locked",
     "printable",
     "userData",
+    "blendMode",
 ];
 
 impl Object {
@@ -245,6 +292,7 @@ impl Object {
             locked: false,
             printable: None,
             user_data: None,
+            blend: BlendMode::Normal,
             kind,
         }
     }
@@ -329,6 +377,10 @@ impl Object {
             None => None,
         };
         let name = map.get("name").and_then(Value::as_str).map(String::from);
+        // Modo desconhecido (versão futura) cai para normal.
+        let blend = de("blendMode")?
+            .and_then(|b| serde_json::from_value(b).ok())
+            .unwrap_or_default();
 
         let mut rest = map.clone();
         for k in COMMON_KEYS {
@@ -362,6 +414,7 @@ impl Object {
             locked,
             printable,
             user_data,
+            blend,
             kind,
         })
     }
@@ -396,6 +449,12 @@ impl Object {
         }
         if let Some(u) = &self.user_data {
             m.insert("userData".into(), serde_json::to_value(u).unwrap());
+        }
+        if self.blend != BlendMode::Normal {
+            m.insert(
+                "blendMode".into(),
+                serde_json::to_value(self.blend).unwrap(),
+            );
         }
         let kind = match &self.kind {
             ObjectKind::Path(d) => serde_json::to_value(d),

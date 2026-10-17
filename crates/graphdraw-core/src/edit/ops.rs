@@ -1258,6 +1258,26 @@ pub fn convert_to_curves(ed: &mut Editor, sel: &[String]) {
     });
 }
 
+/// Modo de mesclagem da seleção (GD-TRA-02).
+pub fn set_blend(ed: &mut Editor, sel: &[String], mode: crate::model::BlendMode) {
+    modify(ed, sel, "Modo de mesclagem", |o| {
+        let changed = o.blend != mode;
+        o.blend = mode;
+        changed
+    });
+}
+
+/// Opacidade do objeto inteiro (0–1); 1 tira o campo.
+pub fn set_opacity(ed: &mut Editor, sel: &[String], opacity: f64) {
+    let v = opacity.clamp(0.0, 1.0);
+    let new = (v < 1.0).then_some(v);
+    modify(ed, sel, "Opacidade do objeto", |o| {
+        let changed = o.opacity != new;
+        o.opacity = new;
+        changed
+    });
+}
+
 /// Dados de usuário do objeto (GD-OBJ-05); mapa vazio tira o campo.
 pub fn set_user_data(ed: &mut Editor, id: &str, data: BTreeMap<String, String>) {
     let ids = [id.to_string()];

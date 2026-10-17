@@ -415,6 +415,7 @@ impl App {
             RightTab::Align => align_panel(ui, doc, &mut self.align),
             RightTab::Layers => {
                 layers_panel(ui, doc, &mut self.layer_tree);
+                look_section(ui, doc);
                 user_data_section(ui, doc);
             }
             RightTab::History => history_panel(ui, doc),
@@ -2892,6 +2893,70 @@ fn gradient_bar(ui: &mut egui::Ui, doc: &mut DocState) {
             "Drag over the object to create · drag handles and stops · double-click the line to add a stop · Delete removes the stop · Ctrl = 15° angle steps",
         ),
     );
+}
+
+/// Nome do modo de mesclagem na interface.
+fn blend_label(b: graphdraw_core::model::BlendMode) -> &'static str {
+    use graphdraw_core::model::BlendMode as B;
+    match b {
+        B::Normal => tr("Normal", "Normal"),
+        B::Multiply => tr("Multiplicar", "Multiply"),
+        B::Screen => tr("Tela", "Screen"),
+        B::Overlay => tr("Sobrepor", "Overlay"),
+        B::Darken => tr("Escurecer", "Darken"),
+        B::Lighten => tr("Clarear", "Lighten"),
+        B::ColorDodge => tr("Subexposição de cor", "Color dodge"),
+        B::ColorBurn => tr("Superexposição de cor", "Color burn"),
+        B::HardLight => tr("Luz forte", "Hard light"),
+        B::SoftLight => tr("Luz suave", "Soft light"),
+        B::Difference => tr("Diferença", "Difference"),
+        B::Exclusion => tr("Exclusão", "Exclusion"),
+        B::Hue => tr("Matiz", "Hue"),
+        B::Saturation => tr("Saturação", "Saturation"),
+        B::Color => tr("Cor", "Color"),
+        B::Luminosity => tr("Luminosidade", "Luminosity"),
+    }
+}
+
+/// Aparência dos objetos selecionados: opacidade do objeto inteiro e modo
+/// de mesclagem (GD-TRA-02). Cada mudança é um passo de desfazer.
+fn look_section(ui: &mut egui::Ui, doc: &mut DocState) {
+    let sel = doc.selection.clone();
+    let Some((opacity, blend)) = doc.selected_objects().first().map(|o| (o.opacity, o.blend))
+    else {
+        return;
+    };
+    ui.separator();
+    egui::CollapsingHeader::new(tr("Aparência", "Appearance"))
+        .id_salt("aparencia-objeto")
+        .default_open(true)
+        .show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(tr("Opacidade", "Opacity"));
+                let mut pct = (opacity.unwrap_or(1.0) * 100.0).round();
+                let r = ui.add(
+                    egui::DragValue::new(&mut pct)
+                        .range(0.0..=100.0)
+                        .suffix("%"),
+                );
+                if r.changed() {
+                    ops::set_opacity(&mut doc.editor, &sel, pct / 100.0);
+                }
+            });
+            ui.horizontal(|ui| {
+                ui.label(tr("Mesclagem", "Blend"));
+                egui::ComboBox::from_id_salt("modo-mesclagem")
+                    .selected_text(blend_label(blend))
+                    .width(theme::BLEND_COMBO_WIDTH)
+                    .show_ui(ui, |ui| {
+                        for b in graphdraw_core::model::BlendMode::ALL {
+                            if ui.selectable_label(blend == b, blend_label(b)).clicked() {
+                                ops::set_blend(&mut doc.editor, &sel, b);
+                            }
+                        }
+                    });
+            });
+        });
 }
 
 /// Dados do objeto (GD-OBJ-05): pares chave/valor do objeto selecionado

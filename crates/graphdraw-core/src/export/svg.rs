@@ -34,6 +34,16 @@ pub fn write_svg(scene: &Scene, opts: &ExportOptions) -> String {
         );
     }
     for item in &scene.items {
+        // Modo de mesclagem (GD-TRA-02) em volta do item.
+        let blend = scene.blend_of(item);
+        let blended = blend != crate::model::BlendMode::Normal;
+        if blended {
+            let css = serde_json::to_value(blend)
+                .ok()
+                .and_then(|v| v.as_str().map(String::from))
+                .unwrap_or_default();
+            let _ = writeln!(w.body, r#"<g style="mix-blend-mode:{css}">"#);
+        }
         match item {
             Item::Shape(s) => w.shape(s),
             Item::Image(i) => w.image(i),
@@ -46,6 +56,9 @@ pub fn write_svg(scene: &Scene, opts: &ExportOptions) -> String {
                     w.text(t);
                 }
             }
+        }
+        if blended {
+            let _ = writeln!(w.body, "</g>");
         }
     }
     let mut out = String::new();

@@ -398,14 +398,24 @@ fn write_page(w: &mut W, scene: &Scene, page_id: Ref, tree_id: Ref) {
     for (i, item) in scene.items.iter().enumerate() {
         // PDF/X-1a: objeto com transparência vira imagem CMYK da composição
         // (tudo o que está embaixo + ele), recortada pelo contorno vetorial.
-        if w.x1a && is_transparent(item) {
+        let blend = scene.blend_of(item);
+        if w.x1a && (is_transparent(item) || blend != crate::model::BlendMode::Normal) {
             flatten_item(&mut c, scene, i, &mut res, w);
             continue;
+        }
+        // Modo de mesclagem (GD-TRA-02): /BM no estado gráfico do item.
+        let blended = blend != crate::model::BlendMode::Normal;
+        if blended {
+            c.save_state();
+            blend_state(&mut c, blend, &mut res, w);
         }
         match item {
             Item::Shape(s) => shape(&mut c, s, &mut res, w),
             Item::Image(i) => image(&mut c, i, &mut res, w),
             Item::Text(t) => text_item(&mut c, t, &mut res, w),
+        }
+        if blended {
+            c.restore_state();
         }
     }
     let content_id = w.alloc();
@@ -756,6 +766,7 @@ fn flatten_item(c: &mut Content, scene: &Scene, index: usize, res: &mut Resource
         bleed: scene.bleed,
         items: scene.items[..=index].to_vec(),
         missing_fonts: Vec::new(),
+        blends: scene.blends.clone(),
         item_bounds: Default::default(),
     };
     // Pixel (u, v) ← página: x = b.x0 + u/s, y = b.y1 − v/s.
@@ -857,6 +868,7 @@ struct Resources {
     fonts: Vec<(String, Ref)>,
     spaces: HashMap<String, String>,
     spaces_list: Vec<(String, Ref)>,
+    blends: HashMap<crate::model::BlendMode, String>,
 }
 
 fn path_ops(c: &mut Content, path: &BezPath) {
@@ -911,6 +923,42 @@ fn last_point(path: &BezPath, target: &PathEl) -> kurbo::Point {
         }
     }
     last
+}
+
+/// Estado gráfico com o modo de mesclagem (GD-TRA-02).
+fn blend_state(c: &mut Content, b: crate::model::BlendMode, res: &mut Resources, w: &mut W) {
+    use crate::model::BlendMode as B;
+    use pdf_writer::types::BlendMode as P;
+    let name = match res.blends.get(&b) {
+        Some(n) => n.clone(),
+        None => {
+            let mode = match b {
+                B::Normal => P::Normal,
+                B::Multiply => P::Multiply,
+                B::Screen => P::Screen,
+                B::Overlay => P::Overlay,
+                B::Darken => P::Darken,
+                B::Lighten => P::Lighten,
+                B::ColorDodge => P::ColorDodge,
+                B::ColorBurn => P::ColorBurn,
+                B::HardLight => P::HardLight,
+                B::SoftLight => P::SoftLight,
+                B::Difference => P::Difference,
+                B::Exclusion => P::Exclusion,
+                B::Hue => P::Hue,
+                B::Saturation => P::Saturation,
+                B::Color => P::Color,
+                B::Luminosity => P::Luminosity,
+            };
+            let name = format!("BM{}", res.blends.len());
+            let id = w.alloc();
+            w.pdf.ext_graphics(id).blend_mode(mode);
+            res.blends.insert(b, name.clone());
+            res.gstates_list.push((name.clone(), id));
+            name
+        }
+    };
+    c.set_parameters(Name(name.as_bytes()));
 }
 
 /// Opacidade por ExtGState (só no PDF comum; no PDF/X ela já foi achatada).
