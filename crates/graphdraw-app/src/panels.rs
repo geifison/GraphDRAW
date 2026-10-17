@@ -539,6 +539,10 @@ impl App {
                 &doc.selection.clone(),
                 fill.or(Some(Fill::None)),
             ),
+            // GD-BDR-10: sem seleção, pergunta se vira padrão.
+            _ if !self.ws.default_color_no_ask => {
+                self.ask_default = Some(crate::app::DefaultAsk::Fill(fill));
+            }
             _ => self.defaults.fill = fill,
         }
     }
@@ -551,6 +555,9 @@ impl App {
                     Some(c) => ops::edit_stroke(&mut doc.editor, &sel, |s| s.color = c.clone()),
                     None => ops::set_stroke(&mut doc.editor, &sel, None),
                 }
+            }
+            _ if !self.ws.default_color_no_ask => {
+                self.ask_default = Some(crate::app::DefaultAsk::Stroke(color));
             }
             _ => {
                 self.defaults.stroke = color.map(|c| {

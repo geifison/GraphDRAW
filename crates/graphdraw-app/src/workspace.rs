@@ -91,6 +91,8 @@ pub struct Workspace {
     pub tool: String,
     /// Densidade dos painéis (`compacta`, `padrao`, `ampla`).
     pub density: String,
+    /// Cor da paleta sem seleção vira padrão sem perguntar (GD-BDR-10).
+    pub default_color_no_ask: bool,
 }
 
 impl Default for Workspace {
@@ -103,6 +105,7 @@ impl Default for Workspace {
             floating: Vec::new(),
             tool: Tool::Select.info().0.into(),
             density: crate::theme::Density::Default.key().into(),
+            default_color_no_ask: false,
         }
     }
 }
@@ -225,6 +228,7 @@ mod tests {
             }],
             tool: "tool-rect".into(),
             density: "ampla".into(),
+            default_color_no_ask: true,
         };
         let back = Workspace::from_json(&w.to_json()).unwrap();
         assert_eq!(back, w);

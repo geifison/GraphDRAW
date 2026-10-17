@@ -47,6 +47,14 @@ pub(crate) struct OffsetDialog {
     join: graphdraw_core::edit::shapeops::Join,
 }
 
+/// Cor da paleta escolhida sem seleção, esperando a resposta "vira padrão
+/// para novos objetos?" (GD-BDR-10).
+#[derive(Clone)]
+pub(crate) enum DefaultAsk {
+    Fill(Option<graphdraw_core::model::Fill>),
+    Stroke(Option<graphdraw_core::model::Color>),
+}
+
 /// Opções de "Converter em bitmap" (GD-CNV-03).
 #[derive(Clone, Copy)]
 pub(crate) struct BitmapDialog {
@@ -154,6 +162,7 @@ pub struct App {
     export_choice: bool,
     /// Janela do contorno de deslocamento (GD-OFS-01) aberta.
     offset_dlg: Option<OffsetDialog>,
+    pub(crate) ask_default: Option<DefaultAsk>,
     /// Área de transferência interna: objetos com a matriz completa (página).
     clipboard: Vec<graphdraw_core::model::Object>,
     /// Último formato exportado (exportar seleção usa o mesmo).
@@ -235,6 +244,7 @@ impl App {
             last_action: None,
             export_choice: false,
             offset_dlg: None,
+            ask_default: None,
             clipboard: Vec::new(),
             last_export: ExportFormat::Pdf,
             tool_group_last: Default::default(),
@@ -2929,6 +2939,7 @@ impl App {
             self.keys_window(ctx);
         }
         self.offset_window(ctx);
+        self.default_color_window(ctx);
         self.bitmap_window(ctx);
         self.cut_windows(ctx);
         if let Some(dlg) = &mut self.preset_dlg
@@ -3041,6 +3052,73 @@ impl App {
             ),
             Err(e) => format!("{} {e}", tr("Falha ao exportar:", "Export failed:")),
         };
+    }
+
+    /// Pergunta da cor sem seleção (GD-BDR-10): vira padrão dos novos
+    /// objetos? Com "não perguntar de novo", passa a aplicar direto.
+    fn default_color_window(&mut self, ctx: &egui::Context) {
+        let Some(ask) = self.ask_default.clone() else {
+            return;
+        };
+        let (mut yes, mut no) = (false, false);
+        let mut never = false;
+        crate::widgets::modal(ctx, egui::Id::unique("cor-padrao")).show(ctx, |ui| {
+            ui.heading(tr("Nada selecionado", "Nothing selected"));
+            ui.add_space(theme::SPACE_300);
+            ui.label(match ask {
+                DefaultAsk::Fill(_) => tr(
+                    "Usar esta cor como preenchimento dos próximos objetos?",
+                    "Use this color as the fill of the next objects?",
+                ),
+                DefaultAsk::Stroke(_) => tr(
+                    "Usar esta cor como contorno dos próximos objetos?",
+                    "Use this color as the outline of the next objects?",
+                ),
+            });
+            ui.checkbox(&mut never, tr("Não perguntar de novo", "Don't ask again"));
+            ui.add_space(theme::SPACE_300);
+            crate::widgets::footer(ui, |ui| {
+                if ui
+                    .add(crate::widgets::primary_button(tr(
+                        "Usar como padrão",
+                        "Use as default",
+                    )))
+                    .clicked()
+                    || ui.input(|i| i.key_pressed(Key::Enter))
+                {
+                    yes = true;
+                }
+                if ui
+                    .add(crate::widgets::secondary_button(tr("Cancelar", "Cancel")))
+                    .clicked()
+                    || ui.input(|i| i.key_pressed(Key::Escape))
+                {
+                    no = true;
+                }
+            });
+        });
+        if yes {
+            self.ask_default = None;
+            if never {
+                self.ws.default_color_no_ask = true;
+            }
+            match ask {
+                DefaultAsk::Fill(f) => self.defaults.fill = f,
+                DefaultAsk::Stroke(c) => {
+                    self.defaults.stroke = c.map(|c| {
+                        let mut s = self
+                            .defaults
+                            .stroke
+                            .clone()
+                            .unwrap_or_else(crate::doc::default_stroke);
+                        s.color = c;
+                        s
+                    })
+                }
+            }
+        } else if no {
+            self.ask_default = None;
+        }
     }
 
     /// Janela "Converter em bitmap" (GD-CNV-03): resolução, anti-serrilhado
@@ -3650,6 +3728,58 @@ mod tests {
             "{size:?}"
         );
         assert!(app.bitmap_dlg.is_some());
+    }
+
+    /// GD-BDR-10/11: cor sem seleção pergunta antes de virar padrão; o X com
+    /// o botão direito tira o contorno (um passo de desfazer).
+    #[test]
+    fn gd_bdr_10_11_palette_without_and_with_selection() {
+        use crate::paletteui::PalAction;
+        let ctx = crate::theme::test_ctx();
+        let mut app = App::with_ctx(&ctx, None);
+        let red = graphdraw_core::model::Color::from_hex("#ff0000").unwrap();
+        app.apply_pal(PalAction::Fill(Some(red.clone())));
+        assert!(app.ask_default.is_some(), "pergunta");
+        assert!(app.defaults.fill.is_none(), "ainda não aplicou");
+        app.ask_default = None;
+        app.ws.default_color_no_ask = true;
+        app.apply_pal(PalAction::Fill(Some(red.clone())));
+        assert!(app.ask_default.is_none());
+        assert_eq!(
+            app.defaults.fill,
+            Some(graphdraw_core::model::Fill::solid(red))
+        );
+        // Com seleção: X com o direito tira o contorno; desfazer volta.
+        let id = {
+            let d = app.doc.as_mut().unwrap();
+            let mut o = graphdraw_core::model::Object::new(ObjectKind::Rectangle(
+                graphdraw_core::model::RectData {
+                    width: 10_000.0,
+                    height: 10_000.0,
+                    corners: None,
+                    extra: Default::default(),
+                },
+            ));
+            o.stroke = Some(graphdraw_core::model::Stroke::new(
+                352.8,
+                graphdraw_core::model::Color::black(),
+            ));
+            let id = ops::add_object(&mut d.editor, 0, 0, o, "r");
+            d.selection = vec![id.clone()];
+            id
+        };
+        app.apply_pal(PalAction::Stroke(None));
+        let stroke = |app: &App| {
+            let d = app.doc.as_ref().unwrap();
+            d.editor
+                .get(&d.editor.find(&id).unwrap())
+                .unwrap()
+                .stroke
+                .clone()
+        };
+        assert!(stroke(&app).is_none());
+        app.doc.as_mut().unwrap().editor.undo();
+        assert_eq!(stroke(&app).unwrap().width, 352.8);
     }
 
     /// Menu Texto: negrito liga e desliga; converter em curvas tira o texto.

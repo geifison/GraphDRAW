@@ -291,6 +291,14 @@ Converter artístico ↔ parágrafo, Ajustar texto ao caminho, Separar do
 caminho, Converter texto em curvas. Comandos de texto não ficam no menu
 Objeto.
 
+**Menu do botão direito** (doc 26): mesmo visual dos menus suspensos,
+largura mínima `context-menu-width` = 200 px, aberto no ponto do clique e
+mantido dentro da janela. Conteúdo pelo alvo: objeto, área vazia, nó,
+segmento ou soltura de arrasto direito. Item que ainda não existe (Beta)
+aparece desabilitado com o motivo na dica — nunca some. Clique fora ou Esc
+fecha sem efeito. Clique é soltar com menos de 4 px de movimento e menos de
+0,5 s; toque longo no canvas não abre nada.
+
 ### 4.4 Janelas (modais)
 
 - Raio `radius-lg`; margens `space-600`; título em `type-display`.
@@ -479,6 +487,15 @@ Nós não selecionados têm fundo `#FFFFFF`; selecionados, fundo
 | `selection-object` | `accent-primary` 43% | Contorno de cada objeto da seleção |
 | `selection-fill` | `accent-primary` 10% | Fundo do retângulo elástico |
 | `grid-line` | `accent-primary` 16% | Linhas da grade |
+
+**Arrasto com o botão direito** (GD-BDR-20): a seleção não se move; um
+fantasma em `selection-object` segue o cursor e o objeto sob ele ganha
+contorno `accent-primary` de `drop-target-width` = 2 px. Ao soltar abre
+o menu de soltura (Mover para cá, Copiar para cá, Copiar tudo/contorno/
+preenchimento, booleanas, Centralizar no alvo, Cancelar).
+
+**Modo foco** (GD-BDR-82): só a seleção aparece no canvas; a barra de
+status mostra o botão “◉ Modo foco — sair”; Esc também sai.
 
 ### 5.2 Guias inteligentes e encaixe
 

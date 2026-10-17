@@ -272,6 +272,11 @@ Em Linux: `apt install libcdr-dev librevenge-dev pkg-config g++` e o mesmo
 | GD-TXT-03 | `text::tests::gd_txt_03_convert_artistic_paragraph` |
 | GD-ALI-04 | `ops::tests::gd_ali_04_align_baseline` |
 | GD-CNV-03 | `ops::tests::gd_cnv_03_convert_to_bitmap`, `app::tests::bitmap_window_fits_small_screen` |
+| GD-BDR-01/02/20/22/25/70/71 (botão direito) | `canvas::tests::gd_bdr_*` (app) |
+| GD-BDR-10/11 | `app::tests::gd_bdr_10_11_palette_without_and_with_selection` |
+| GD-BDR-28/33/41/42/81 | `ops::tests::gd_bdr_*` |
+| GD-BDR-43/45 (menus pelo alvo) | `ctxmenu::tests::*` (app) |
+| GD-BDR-50/51 | `nodes::tests::gd_bdr_50_symmetric_averages_handles`, `gd_bdr_51_segment_to_line` |
 | GD-OUT-06 | `scene::tests::gd_out_06_calligraphic_nib` |
 | GD-OUT-05 | `arrows::tests::gd_out_05_arrow_at_end`, `tests/arrows.rs` |
 | GD-OBJ-05 | `ops::tests::gd_obj_05_user_data` |

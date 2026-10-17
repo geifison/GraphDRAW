@@ -1192,4 +1192,68 @@ mod tests {
         let ps: Vec<[f64; 2]> = sq.subpaths[0].nodes.iter().map(|n| n.p).collect();
         assert_eq!(ps, vec![[0.0, 0.0], [10.0, 0.0], [10.0, 10.0]]);
     }
+
+    /// GD-BDR-50 (aceite): nó suave com alças de 5 e 12 mm vira simétrico
+    /// com as duas de 8,5 mm, colineares.
+    #[test]
+    fn gd_bdr_50_symmetric_averages_handles() {
+        let mut n = Node::corner(0.0, 0.0);
+        n.kind = NodeKind::Smooth;
+        n.handle_in = Some([-5_000.0, 0.0]);
+        n.handle_out = Some([12_000.0, 0.0]);
+        let mut p = PathData {
+            subpaths: vec![Subpath {
+                closed: false,
+                nodes: vec![
+                    Node::corner(-20_000.0, 5_000.0),
+                    n,
+                    Node::corner(20_000.0, 5_000.0),
+                ],
+                extra: Default::default(),
+            }],
+            fill_rule: Default::default(),
+            extra: Default::default(),
+        };
+        set_kind(
+            &mut p,
+            NodeRef {
+                subpath: 0,
+                index: 1,
+            },
+            NodeKind::Symmetric,
+        );
+        let n = &p.subpaths[0].nodes[1];
+        assert!((n.handle_in.unwrap()[0] + 8_500.0).abs() < 1e-6);
+        assert!((n.handle_out.unwrap()[0] - 8_500.0).abs() < 1e-6);
+        assert_eq!(n.handle_in.unwrap()[1], 0.0);
+    }
+
+    /// GD-BDR-51 (aceite): segmento curvo entre (0,0) e (10,0) vira reta, sem
+    /// alças, extremos no lugar.
+    #[test]
+    fn gd_bdr_51_segment_to_line() {
+        let mut a = Node::corner(0.0, 0.0);
+        a.handle_out = Some([3_000.0, 4_000.0]);
+        let mut b = Node::corner(10_000.0, 0.0);
+        b.handle_in = Some([7_000.0, 4_000.0]);
+        let mut p = PathData {
+            subpaths: vec![Subpath {
+                closed: false,
+                nodes: vec![a, b],
+                extra: Default::default(),
+            }],
+            fill_rule: Default::default(),
+            extra: Default::default(),
+        };
+        to_line(
+            &mut p,
+            SegRef {
+                subpath: 0,
+                index: 0,
+            },
+        );
+        let ns = &p.subpaths[0].nodes;
+        assert!(ns[0].handle_out.is_none() && ns[1].handle_in.is_none());
+        assert_eq!((ns[0].p, ns[1].p), ([0.0, 0.0], [10_000.0, 0.0]));
+    }
 }
