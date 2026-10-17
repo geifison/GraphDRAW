@@ -32,6 +32,19 @@ enum Command {
         /// Arquivo a inspecionar.
         input: PathBuf,
     },
+    /// Mede a fidelidade de importação sobre um corpus privado (GD-FID-30):
+    /// `<corpus>/casos/NNNN/{original.cdr, ref-curvas.pdf, meta.json}`.
+    /// Requer o Poppler (pdftoppm, pdftotext) no PATH ou em GRAPHDRAW_POPPLER.
+    Fidelity {
+        /// Pasta do corpus (nunca dentro do repositório, GD-FID-40).
+        corpus: PathBuf,
+        /// Resolução da rasterização de comparação.
+        #[arg(long, value_name = "N", default_value_t = 150)]
+        dpi: u32,
+        /// Nome da execução em `resultados/` (padrão: data e hora UTC).
+        #[arg(long, value_name = "NOME")]
+        run: Option<String>,
+    },
 }
 
 #[derive(clap::Args)]
@@ -72,6 +85,7 @@ fn main() -> ExitCode {
     let result = match cli.command {
         Command::Convert(args) => convert(&args),
         Command::Info { input } => info(&input),
+        Command::Fidelity { corpus, dpi, run } => fidelity(&corpus, dpi, run),
     };
     match result {
         Ok(code) => code,
@@ -80,6 +94,61 @@ fn main() -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+fn fidelity(corpus: &Path, dpi: u32, run: Option<String>) -> Result<ExitCode, String> {
+    let run = run.unwrap_or_else(utc_stamp);
+    let (report, out) = graphdraw_core::fidelity::run(corpus, dpi, &run)?;
+    let s = &report.summary;
+    for c in &report.cases {
+        let levels: Vec<&str> = c.pages.iter().map(|p| p.level.label()).collect();
+        let status = match &c.error {
+            Some(e) => format!("ERRO: {e}"),
+            None => levels.join(", "),
+        };
+        println!("{}  {status}", c.case);
+    }
+    println!(
+        "{} casos, {} páginas: Fiel {:.1}%, Fiel ou aceitável {:.1}%, travamentos {}{}",
+        s.cases,
+        s.pages,
+        s.fiel_pct,
+        s.fiel_ou_aceitavel_pct,
+        s.crashes,
+        s.trend_fiel_pp
+            .map(|t| format!(", tendência {t:+.1} pp"))
+            .unwrap_or_default()
+    );
+    println!("relatório: {}", out.join("relatorio.html").display());
+    Ok(if s.crashes > 0 || s.falha > 0 {
+        ExitCode::from(1)
+    } else {
+        ExitCode::SUCCESS
+    })
+}
+
+/// `AAAA-MM-DD-HHMM` em UTC, sem dependências de data.
+fn utc_stamp() -> String {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0) as i64;
+    let (days, rem) = (secs.div_euclid(86_400), secs.rem_euclid(86_400));
+    // Algoritmo de Howard Hinnant (dias desde 1970 → data civil).
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = yoe + era * 400 + i64::from(m <= 2);
+    format!(
+        "{y:04}-{m:02}-{d:02}-{:02}{:02}",
+        rem / 3600,
+        rem % 3600 / 60
+    )
 }
 
 fn parse_background(s: &str) -> Result<Option<[u8; 4]>, String> {

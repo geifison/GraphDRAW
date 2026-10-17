@@ -54,6 +54,11 @@ graphdraw convert pasta-de-cdr pasta-de-pdf --format pdf --report relatorio.json
 graphdraw info desenho.cdr
 ```
 
+```bash
+# Fidelidade de importação sobre um corpus privado (fora do repositório; requer Poppler)
+graphdraw fidelity D:/corpus-privado
+```
+
 ## Compilação
 
 Resumo (detalhes em [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#3-compilação)):

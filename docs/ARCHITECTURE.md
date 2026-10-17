@@ -152,6 +152,19 @@ Entrada pasta = conversão em lote (GD-CDR-07), um relatório JSON por
 arquivo com `--report`. `graphdraw info <arquivo>` mostra páginas e o
 relatório de importação.
 
+`graphdraw fidelity <corpus> [--dpi 150] [--run NOME]` (GD-FID-30, doc 25)
+abre cada `casos/NNNN/original.cdr` (ou `.cmx`/`.gdr`), exporta o PDF em
+curvas e compara com `ref-curvas.pdf`: os dois passam pelo mesmo
+rasterizador (`pdftoppm` do Poppler, achado no PATH, em `GRAPHDRAW_POPPLER`
+ou no MSYS2) e cada página recebe % de pixels com ΔE2000 > 5 e SSIM →
+Fiel / Aceitável / Falha. Também mede páginas, travamentos e tempo de
+abertura (GD-FID-14/15) e texto contra `ref-texto.pdf` (`pdftotext`,
+GD-FID-13). Grava em `<corpus>/resultados/<execução>/` o relatório privado
+(HTML com referência | candidato | diferença, e JSON), `resumo-publico.json`
+(só números, GD-FID-31) e a tendência contra a execução anterior. Sai com
+código 1 se houver falha ou travamento. Geometria por objeto (GD-FID-11) e
+CMYK (GD-FID-12) ainda não são medidos. Código em `graphdraw-core::fidelity`.
+
 ### 2.6 Núcleo de edição (`graphdraw-core::edit`)
 
 Toda a lógica de edição fica na biblioteca e é testada sem interface. O app

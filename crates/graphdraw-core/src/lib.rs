@@ -11,6 +11,7 @@ pub mod cdr;
 pub mod cms;
 pub mod edit;
 pub mod export;
+pub mod fidelity;
 pub mod gdr;
 pub mod geometry;
 pub mod model;
