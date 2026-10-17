@@ -419,9 +419,17 @@ pub fn style(p: &Palette, base: Visuals) -> Style {
 /// do egui só muda o conteúdo; sem este comando a barra fica no tema do
 /// sistema e, no Windows, os botões e o título podem sumir até a janela
 /// perder e ganhar o foco. `last` guarda o que já foi enviado.
+///
+/// Só envia com a janela em foco: ao aplicar o tema, o Windows repinta a
+/// barra conforme o foco do momento, e sem foco (primeiros quadros) a barra
+/// ficaria presa com a aparência de janela inativa (título e botões
+/// apagados).
 pub fn sync_window_theme(ctx: &egui::Context, last: &mut Option<egui::ThemePreference>) {
     let pref = ctx.options(|o| o.theme_preference);
     if *last == Some(pref) {
+        return;
+    }
+    if ctx.input(|i| i.viewport().focused) != Some(true) {
         return;
     }
     *last = Some(pref);
