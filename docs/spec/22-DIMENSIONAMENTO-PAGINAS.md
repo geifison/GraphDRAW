@@ -32,7 +32,10 @@ GD-PAG-01/02 (doc 02), GD-UI-04 (doc 20) e o doc 21. A parte de saída
 ## Momento 2 — Edição
 - **GD-DIM-20** *(removido em 2026-10-16 a pedido do responsável pelo produto: os dados da página já ficam na barra de propriedades quando nada está selecionado.)*
 - **GD-DIM-21** Sangria visível no canvas: contorno tracejado ao redor da
-  página na distância da sangria, com marcas de corte nos cantos.
+  página na distância da sangria, com marcas de corte nos cantos. A área de
+  sangria é pintada como papel (a sombra fica fora dela) e o corte aparece
+  como linha fina. A sangria é opcional: documento novo começa sem ela, e a
+  barra de propriedades da página a liga/desliga (ao ligar, 3 mm).
 - **GD-DIM-22** Ajustar à arte: a página passa a ter o tamanho da caixa
   visual dos objetos (com contorno); os objetos são deslocados para que a
   arte comece no canto da página. Um passo no histórico.

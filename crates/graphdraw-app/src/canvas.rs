@@ -542,13 +542,21 @@ impl CanvasState {
             rect.min + Vec2::new(a as f32, b as f32)
         };
         let page_rect = Rect::from_min_max(s(0.0, ph), s(pw, 0.0));
+        let bleed = doc.page().bleed.unwrap_or(doc.doc().data.settings.bleed);
+        // Com sangria, a folha inclui a área de sangria: a sombra fica fora
+        // dela e não aparece faixa cinza entre o corte e a linha tracejada.
+        let sheet = if bleed > 0.0 {
+            Rect::from_min_max(s(-bleed, ph + bleed), s(pw + bleed, -bleed))
+        } else {
+            page_rect
+        };
         // Folha `page-paper` com `shadow-page` sobre o canvas (5.3).
         painter.add(
             theme::palette(ui)
                 .shadow_page()
-                .as_shape(page_rect, theme::RADIUS_NONE),
+                .as_shape(sheet, theme::RADIUS_NONE),
         );
-        painter.rect_filled(page_rect, theme::RADIUS_NONE, theme::PAGE_PAPER);
+        painter.rect_filled(sheet, theme::RADIUS_NONE, theme::PAGE_PAPER);
 
         let ppp = ui.ctx().pixels_per_point();
         let size = rect.size();
@@ -610,9 +618,15 @@ impl CanvasState {
         }
         // Sangria (GD-DIM-21): contorno tracejado na distância da sangria e
         // marcas de corte nos cantos da página.
-        let bleed = doc.page().bleed.unwrap_or(doc.doc().data.settings.bleed);
         if bleed > 0.0 {
-            let b = Rect::from_min_max(s(-bleed, ph + bleed), s(pw + bleed, -bleed));
+            let b = sheet;
+            // Linha de corte: a borda da página dentro da folha.
+            painter.rect_stroke(
+                page_rect,
+                theme::RADIUS_NONE,
+                EStroke::new(theme::GUIDE_WIDTH, theme::palette(ui).border_default),
+                egui::StrokeKind::Middle,
+            );
             let st = EStroke::new(theme::GUIDE_WIDTH, theme::ACCENT_SUCCESS);
             let pts = [
                 b.left_top(),

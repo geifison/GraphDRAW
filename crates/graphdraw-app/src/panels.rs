@@ -236,6 +236,9 @@ impl App {
 /// (GD-UI-01): formato, medidas, orientação, sangria e ajustar à arte. Tudo
 /// vale para todas as páginas do documento (GD-PAG-01). Devolve `true` se o
 /// tamanho mudou (a vista é reajustada).
+/// Valor ao ligar a sangria (o usuário pode mudar no campo).
+const DEFAULT_BLEED: f64 = 3_000.0;
+
 fn page_bar_props(ui: &mut egui::Ui, doc: &mut DocState) -> bool {
     use graphdraw_core::edit::{pages, pagesize};
     let (w, h) = doc.page_size();
@@ -327,29 +330,30 @@ fn page_bar_props(ui: &mut egui::Ui, doc: &mut DocState) -> bool {
         new_size = Some((h, w));
     }
     ui.separator();
-    // Estado da sangria (antes no HUD, GD-DIM-20): verde quando definida.
-    let (bleed_color, bleed_tip) = if bleed > 0.0 {
-        (theme::ACCENT_SUCCESS, tr("Sangria definida", "Bleed set"))
-    } else {
-        (
-            theme::palette(ui).fg_muted,
+    // Sangria opcional: o botão liga/desliga; o campo só aparece ligada.
+    let on = bleed > 0.0;
+    if icons::button(
+        ui,
+        "bleed",
+        if on {
             tr(
-                "Sem sangria: para impressão, use 3 mm",
-                "No bleed: for print, use 3 mm",
-            ),
-        )
-    };
-    let (ir, _) = ui.allocate_exact_size(Vec2::splat(theme::ICON_UI), egui::Sense::hover());
-    egui::Image::new(icons::get("bleed"))
-        .tint(bleed_color)
-        .paint_at(ui, ir);
-    ui.interact(
-        ir,
-        ui.scope_id().with("estado-sangria"),
-        egui::Sense::hover(),
+                "Sangria ligada (clique para desligar)",
+                "Bleed on (click to turn off)",
+            )
+        } else {
+            tr(
+                "Sem sangria (clique para ligar)",
+                "No bleed (click to turn on)",
+            )
+        },
+        on,
+        true,
     )
-    .on_hover_text(bleed_tip);
-    if let Some(v) = length_field(ui, "pag-sangria", bleed, None) {
+    .clicked()
+    {
+        new_bleed = Some(if on { 0.0 } else { DEFAULT_BLEED });
+    }
+    if on && let Some(v) = length_field(ui, "pag-sangria", bleed, None) {
         new_bleed = Some(v.max(0.0));
     }
     ui.separator();

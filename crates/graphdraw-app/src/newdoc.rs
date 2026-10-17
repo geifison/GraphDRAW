@@ -117,12 +117,6 @@ impl NewDocDialog {
         } else {
             Unit::Millimeter
         };
-        // Impressão já sai com sangria de 3 mm; telas sem sangria.
-        self.bleed = if p.category == Category::Print {
-            3_000.0
-        } else {
-            0.0
-        };
     }
 
     /// Predefinições visíveis com a busca e o filtro atuais.
@@ -478,9 +472,21 @@ impl NewDocDialog {
                 });
                 ui.end_row();
                 ui.label(tr("Sangria", "Bleed"));
-                if let Some(v) = unit_field(ui, "novo-s", self.bleed, Unit::Millimeter) {
-                    self.bleed = v.max(0.0);
-                }
+                ui.horizontal(|ui| {
+                    let mut on = self.bleed > 0.0;
+                    if ui.checkbox(&mut on, "").changed() {
+                        self.bleed = if on { 3_000.0 } else { 0.0 };
+                    }
+                    if on && let Some(v) = unit_field(ui, "novo-s", self.bleed, Unit::Millimeter) {
+                        self.bleed = v.max(0.0);
+                    }
+                    if !on {
+                        ui.label(
+                            egui::RichText::new(tr("sem sangria", "no bleed"))
+                                .color(theme::palette(ui).fg_muted),
+                        );
+                    }
+                });
                 ui.end_row();
                 ui.label(tr("Resolução", "Resolution"));
                 ui.add(
@@ -597,11 +603,11 @@ mod tests {
             Some("rgb")
         );
         assert_eq!(doc.doc().metadata.title.as_deref(), Some("Campanha"));
-        // Impressão: CMYK, 300 ppp e 3 mm de sangria.
+        // Impressão: CMYK e 300 ppp; sangria é opcional e começa desligada.
         let d = NewDocDialog::default();
         let doc = d.build();
         let s = &doc.doc().data.settings;
-        assert_eq!((s.bleed, s.resolution), (3_000.0, 300.0));
+        assert_eq!((s.bleed, s.resolution), (0.0, 300.0));
         assert_eq!(
             s.extra.get("colorModel").and_then(|v| v.as_str()),
             Some("cmyk")
