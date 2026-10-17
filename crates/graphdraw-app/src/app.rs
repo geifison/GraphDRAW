@@ -1763,6 +1763,10 @@ impl App {
                     &mut self.canvas.snap.guides,
                     tr("Encaixar nas guias", "Snap to guides"),
                 );
+                ui.checkbox(
+                    &mut self.canvas.smart_guides,
+                    tr("Guias inteligentes", "Smart guides"),
+                );
                 if ui
                     .button(tr("Guias predefinidas…", "Guide presets…"))
                     .clicked()
@@ -2894,7 +2898,7 @@ mod tests {
         }
         app.tool = Tool::Text;
         let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::new(1366.0, 768.0));
-        let mut frame = |app: &mut App, mut events: Vec<egui::Event>| {
+        let frame = |app: &mut App, mut events: Vec<egui::Event>| {
             let modifiers = events
                 .iter()
                 .find_map(|e| match e {

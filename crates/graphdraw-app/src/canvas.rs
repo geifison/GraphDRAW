@@ -305,6 +305,10 @@ pub struct CanvasState {
     artboard_pending: Option<(kurbo::Rect, Pos2)>,
     /// Objeto do menu de botão direito aberto no canvas.
     menu_target: Option<String>,
+    /// Guias inteligentes ao mover (GD-ALI-05).
+    pub smart_guides: bool,
+    smart: Option<(kurbo::Rect, graphdraw_core::edit::smart::Targets)>,
+    smart_lines: Vec<graphdraw_core::edit::smart::SmartLine>,
     /// Réguas e guias (GD-REG-01, GD-GUI-01).
     pub show_rulers: bool,
     pub show_guides: bool,
@@ -349,6 +353,9 @@ impl Default for CanvasState {
             artboard_pending: None,
             menu_target: None,
             text: None,
+            smart_guides: true,
+            smart: None,
+            smart_lines: Vec::new(),
             show_rulers: true,
             show_guides: true,
             guides_locked: false,
@@ -870,6 +877,22 @@ impl CanvasState {
         // ---- desenho ----
         self.paint_page(ui, &painter, doc, rect);
         self.paint_guides(&painter, rect, ph);
+        for l in &self.smart_lines {
+            let (a, b) = if l.vertical {
+                (Point::new(l.at, l.from), Point::new(l.at, l.to))
+            } else {
+                (Point::new(l.from, l.at), Point::new(l.to, l.at))
+            };
+            let c = if l.page {
+                theme::GUIDE_PAGE
+            } else {
+                theme::GUIDE_OBJECT
+            };
+            painter.line_segment(
+                [self.screen(rect, ph, a), self.screen(rect, ph, b)],
+                EStroke::new(theme::GUIDE_WIDTH, c),
+            );
+        }
         self.paint_overlays(ui, &painter, doc, rect, tool);
         if tool == Tool::Artboard {
             self.paint_page_handles(&painter, doc, rect);
@@ -1842,6 +1865,11 @@ impl CanvasState {
                     tr("Mover", "Move"),
                     count(originals.len())
                 ));
+                self.smart = Some((
+                    b,
+                    graphdraw_core::edit::smart::targets(doc.page(), &doc.selection),
+                ));
+                self.smart_lines.clear();
                 self.drag = Drag::Move {
                     grab,
                     start: p,
@@ -1982,6 +2010,27 @@ impl CanvasState {
                 {
                     d = s.point - *grab;
                     self.snap_hit = Some(s);
+                }
+                // Guias inteligentes: bordas e centros alinham com os outros
+                // objetos e com a página quando o ponto não encaixou.
+                self.smart_lines.clear();
+                if self.smart_guides
+                    && self.snap.enabled
+                    && self.snap_hit.is_none()
+                    && let Some((b0, t)) = &self.smart
+                {
+                    let (adj, lines) = graphdraw_core::edit::smart::align(*b0 + d, t, radius);
+                    if mods.ctrl {
+                        // Restrito a um eixo: só ajusta nele.
+                        if d.x == 0.0 {
+                            d.y += adj.y;
+                        } else {
+                            d.x += adj.x;
+                        }
+                    } else {
+                        d += adj;
+                    }
+                    self.smart_lines = lines;
                 }
                 let m = Affine::translate(d);
                 apply_live(doc, originals, m);
@@ -2202,6 +2251,8 @@ impl CanvasState {
         defaults: &Defaults,
     ) {
         let drag = std::mem::replace(&mut self.drag, Drag::None);
+        self.smart = None;
+        self.smart_lines.clear();
         match drag {
             Drag::Rubber { start, lasso } => {
                 let hits = match lasso {
@@ -2924,6 +2975,91 @@ mod tests {
     /// Aceite de GD-DIM-24: arrastar o canto de uma A4 até perto de 148 × 210
     /// mm gruda em A5; sem objetos, o tamanho muda direto em todas as páginas
     /// (GD-PAG-01), num passo do histórico.
+    /// GD-ALI-05: ao mover, a borda encaixa na borda de outro objeto.
+    #[test]
+    fn smart_guides_align_while_moving() {
+        let ctx = crate::theme::test_ctx();
+        let mut cs = CanvasState::default();
+        cs.snap.grid = None;
+        cs.snap.objects = false;
+        cs.snap.page = false;
+        cs.snap.guides = false;
+        let mut doc = DocState::new_blank();
+        let sq = |x: f64, y: f64| {
+            let mut o = Object::new(ObjectKind::Rectangle(RectData {
+                width: 20_000.0,
+                height: 20_000.0,
+                corners: None,
+                extra: Map::new(),
+            }));
+            o.transform = graphdraw_core::model::Transform::translate(x, y);
+            o.fill = Some(Fill::solid(graphdraw_core::model::Color::black()));
+            o
+        };
+        let (a, b) = (sq(30_000.0, 150_000.0), sq(100_000.0, 100_000.0));
+        let bid = b.id.clone();
+        doc.editor.insert_object(
+            graphdraw_core::edit::ObjLoc {
+                page: 0,
+                layer: 0,
+                index: 0,
+            },
+            a,
+        );
+        doc.editor.insert_object(
+            graphdraw_core::edit::ObjLoc {
+                page: 0,
+                layer: 0,
+                index: 1,
+            },
+            b,
+        );
+        doc.selection = vec![bid.clone()];
+        for _ in 0..2 {
+            canvas_frame(&ctx, &mut cs, &mut doc, Tool::Select, vec![]);
+        }
+        let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(1366.0, 768.0));
+        let (_, ph) = doc.page_size();
+        // Pega no meio do B e leva até a borda esquerda ficar a 0,3 mm de x = 30 mm.
+        let s0 = cs.screen(rect, ph, Point::new(110_000.0, 110_000.0));
+        let s1 = cs.screen(rect, ph, Point::new(40_300.0, 110_000.0));
+        let btn = |pos, pressed| egui::Event::PointerButton {
+            pos,
+            button: PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::Select,
+            vec![egui::Event::PointerMoved(s0)],
+        );
+        canvas_frame(&ctx, &mut cs, &mut doc, Tool::Select, vec![btn(s0, true)]);
+        let mut saw_line = false;
+        for k in 1..=8 {
+            let pos = s0 + (s1 - s0) * (k as f32 / 8.0);
+            canvas_frame(
+                &ctx,
+                &mut cs,
+                &mut doc,
+                Tool::Select,
+                vec![egui::Event::PointerMoved(pos)],
+            );
+            saw_line |= cs
+                .smart_lines
+                .iter()
+                .any(|l| l.vertical && (l.at - 30_000.0).abs() < 1e-6);
+        }
+        canvas_frame(&ctx, &mut cs, &mut doc, Tool::Select, vec![btn(s1, false)]);
+        assert!(saw_line, "linha de alinhamento em x = 30 mm");
+        let r = doc.editor.find(&bid).unwrap();
+        let b = ops::object_bounds(&doc.editor, &r, false).unwrap();
+        assert!((b.x0 - 30_000.0).abs() < 1e-6, "encaixou: {}", b.x0);
+        assert!(cs.smart_lines.is_empty(), "linhas somem ao soltar");
+    }
+
     /// GD-GUI-01: arrastar da régua cria guia; arrastar a guia de volta
     /// para a régua apaga.
     #[test]

@@ -482,7 +482,7 @@ Itens abertos, em ordem de impacto:
 
 | Item | Hoje | Alvo |
 |---|---|---|
-| Guias inteligentes | só a marca no ponto encaixado | linhas de 1 px de borda a borda e marcadores de espaçamento igual (5.2) |
+| Guias inteligentes | linhas de 1 px de borda a borda ao mover (`guide-object`/`guide-page`) | marcadores de espaçamento igual e guias também ao redimensionar (5.2) |
 | Entrada animada de menus | padrão do egui (só opacidade) | deslocamento de 4 px + opacidade em `motion-fast` |
 | Botão Split (▾ com variantes) | não existe | quando houver ferramenta com variantes (4.1) |
 
