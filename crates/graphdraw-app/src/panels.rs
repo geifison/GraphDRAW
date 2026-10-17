@@ -327,7 +327,28 @@ fn page_bar_props(ui: &mut egui::Ui, doc: &mut DocState) -> bool {
         new_size = Some((h, w));
     }
     ui.separator();
-    icons::button(ui, "bleed", tr("Sangria", "Bleed"), false, false);
+    // Estado da sangria (antes no HUD, GD-DIM-20): verde quando definida.
+    let (bleed_color, bleed_tip) = if bleed > 0.0 {
+        (theme::ACCENT_SUCCESS, tr("Sangria definida", "Bleed set"))
+    } else {
+        (
+            theme::palette(ui).fg_muted,
+            tr(
+                "Sem sangria: para impressão, use 3 mm",
+                "No bleed: for print, use 3 mm",
+            ),
+        )
+    };
+    let (ir, _) = ui.allocate_exact_size(Vec2::splat(theme::ICON_UI), egui::Sense::hover());
+    egui::Image::new(icons::get("bleed"))
+        .tint(bleed_color)
+        .paint_at(ui, ir);
+    ui.interact(
+        ir,
+        ui.scope_id().with("estado-sangria"),
+        egui::Sense::hover(),
+    )
+    .on_hover_text(bleed_tip);
     if let Some(v) = length_field(ui, "pag-sangria", bleed, None) {
         new_bleed = Some(v.max(0.0));
     }
