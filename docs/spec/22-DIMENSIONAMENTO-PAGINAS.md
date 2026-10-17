@@ -30,9 +30,7 @@ GD-PAG-01/02 (doc 02), GD-UI-04 (doc 20) e o doc 21. A parte de saída
   perfil ICC entra com o gerenciamento de cor (GD-CMS, M2).
 
 ## Momento 2 — Edição
-- **GD-DIM-20** HUD sobre a página ativa: nome, medidas (duplo clique abre
-  a configuração da página), girar orientação, estado da sangria e "Ajustar
-  à arte".
+- **GD-DIM-20** *(removido em 2026-10-16 a pedido do responsável pelo produto: os dados da página já ficam na barra de propriedades quando nada está selecionado.)*
 - **GD-DIM-21** Sangria visível no canvas: contorno tracejado ao redor da
   página na distância da sangria, com marcas de corte nos cantos.
 - **GD-DIM-22** Ajustar à arte: a página passa a ter o tamanho da caixa

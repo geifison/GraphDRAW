@@ -192,7 +192,7 @@ aviso de alterações não salvas (GD-UND-07) e exporta SVG/PDF/PNG.
   páginas que tocou, e o conjunto é a diferença entre a posição atual e a do
   último salvamento no histórico.
 - `newdoc.rs`: janela Novo documento (doc 22, GD-DIM-10..14).
-- `canvas.rs` também desenha a sangria e o HUD da página (GD-DIM-20/21) e a ferramenta Prancheta (GD-DIM-23..25), sobre `edit::pagesize`.
+- `canvas.rs` também desenha a sangria da página (GD-DIM-21) e a ferramenta Prancheta (GD-DIM-23..25), sobre `edit::pagesize`.
 - `dialogs.rs`: janelas de contorno e preenchimento, abertas pelos
   indicadores da barra de status.
 - `icons.rs` + `assets/icons/make-icons.mjs`: ícones próprios do projeto,

@@ -2097,12 +2097,6 @@ impl eframe::App for App {
             if let Some(doc) = &mut self.doc {
                 // Backspace na ferramenta Bézier remove o último nó do traçado.
                 let ev = self.canvas.show(ui, doc, self.tool, &self.defaults);
-                if ev.open_page_setup {
-                    self.page_bar.open_settings(doc);
-                }
-                if ev.refit {
-                    self.canvas.fit_pending = true;
-                }
                 if let Some(t) = ev.switch_tool {
                     self.tool = t;
                 }

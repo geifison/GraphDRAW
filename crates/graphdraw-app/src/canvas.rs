@@ -283,10 +283,6 @@ fn snap_radius(view: &View) -> f64 {
 pub struct CanvasEvents {
     pub switch_tool: Option<Tool>,
     pub status: Option<String>,
-    /// Duplo clique nas medidas do HUD: abrir a janela de tamanho.
-    pub open_page_setup: bool,
-    /// O tamanho da página mudou pelo HUD: reajustar a vista.
-    pub refit: bool,
 }
 
 impl CanvasState {
@@ -511,7 +507,6 @@ impl CanvasState {
         // ---- desenho ----
         self.paint_page(ui, &painter, doc, rect);
         self.paint_overlays(ui, &painter, doc, rect, tool);
-        let hud_hovered = self.page_hud(ui, doc, rect, &mut ev);
         if tool == Tool::Artboard {
             self.paint_page_handles(&painter, doc, rect);
         }
@@ -519,7 +514,6 @@ impl CanvasState {
 
         // Cursor da ferramenta (desenhado por cima, no lugar do cursor do sistema).
         if response.hovered()
-            && !hud_hovered
             && let Some(pos) = hover
         {
             let ph = doc.page_size().1;
@@ -848,178 +842,6 @@ impl CanvasState {
         } else if cancel {
             self.artboard_pending = None;
         }
-    }
-
-    /// HUD sobre a página ativa (doc 22, GD-DIM-20): formato e medidas
-    /// (duplo clique abre a janela de tamanho), orientação, sangria e ajustar
-    /// à arte. Devolve `true` se o ponteiro está sobre ele.
-    fn page_hud(
-        &mut self,
-        ui: &mut egui::Ui,
-        doc: &mut DocState,
-        rect: Rect,
-        ev: &mut CanvasEvents,
-    ) -> bool {
-        use graphdraw_core::edit::{pages, pagesize};
-        let (pw, ph) = doc.page_size();
-        let top_left = self.screen(rect, ph, Point::new(0.0, ph));
-        let pal = theme::palette(ui);
-        // Acima da folha; se ela sair por cima da tela, gruda no topo do canvas.
-        let height = theme::BUTTON_COMPACT + 2.0 * theme::SPACE_100;
-        let y = (top_left.y - theme::HUD_GAP - height).max(rect.top() + theme::HUD_GAP);
-        let x = top_left
-            .x
-            .clamp(rect.left() + theme::HUD_GAP, rect.right() - 200.0);
-        let area = Rect::from_min_size(Pos2::new(x, y), Vec2::new(rect.right() - x, height));
-        let bleed = doc.page().bleed.unwrap_or(doc.doc().data.settings.bleed);
-        let format = pagesize::snap_format(pw, ph, 500.0)
-            .map(|(p, ..)| p.name.to_string())
-            .unwrap_or_else(|| tr("Personalizado", "Custom").to_string());
-        let landscape = pw > ph;
-        let locked = doc.page_locked();
-        let has_art = pagesize::art_bounds(&doc.editor, doc.page).is_some();
-        let mut swap = false;
-        let mut fit = false;
-        let mut hovered = false;
-        ui.scope_builder(
-            egui::UiBuilder::new()
-                .max_rect(area)
-                .layout(egui::Layout::left_to_right(egui::Align::Center)),
-            |ui| {
-                let fill = Color32::from_rgba_unmultiplied(
-                    pal.bg_surface_1.r(),
-                    pal.bg_surface_1.g(),
-                    pal.bg_surface_1.b(),
-                    theme::HUD_ALPHA,
-                );
-                let r = egui::Frame::new()
-                    .fill(fill)
-                    .stroke(theme::border_subtle(ui))
-                    .corner_radius(theme::RADIUS_MD)
-                    .inner_margin(egui::Margin::symmetric(
-                        theme::SPACE_200 as i8,
-                        theme::SPACE_100 as i8,
-                    ))
-                    .show(ui, |ui| {
-                        ui.spacing_mut().item_spacing.x = theme::SPACE_200;
-                        let dims = ui
-                            .add(
-                                egui::Label::new(
-                                    egui::RichText::new(format!(
-                                        "[{format}]  {} × {} mm",
-                                        crate::widgets::fmt_mm(pw),
-                                        crate::widgets::fmt_mm(ph)
-                                    ))
-                                    .font(theme::font_numeric())
-                                    .color(pal.fg_primary),
-                                )
-                                .sense(Sense::click()),
-                            )
-                            .on_hover_text(tr(
-                                "Duplo clique para mudar o tamanho das páginas",
-                                "Double-click to change the page size",
-                            ));
-                        if dims.double_clicked() {
-                            ev.open_page_setup = true;
-                        }
-                        ui.separator();
-                        // Orientação: o ícone gira 90° (GD-DIM-04).
-                        let (r, resp) = ui.allocate_exact_size(
-                            Vec2::splat(theme::BUTTON_COMPACT),
-                            Sense::click(),
-                        );
-                        let resp = resp.on_hover_text(if landscape {
-                            tr(
-                                "Paisagem — clique para retrato",
-                                "Landscape — click for portrait",
-                            )
-                        } else {
-                            tr(
-                                "Retrato — clique para paisagem",
-                                "Portrait — click for landscape",
-                            )
-                        });
-                        if resp.hovered() && !locked {
-                            ui.painter()
-                                .rect_filled(r, theme::RADIUS_SM, pal.bg_surface_hover);
-                        }
-                        let angle = ui.ctx().animate_value_with_time(
-                            ui.scope_id().with("hud-orientacao"),
-                            if landscape {
-                                std::f32::consts::FRAC_PI_2
-                            } else {
-                                0.0
-                            },
-                            theme::MOTION_ORIENTATION,
-                        );
-                        egui::Image::new(crate::icons::get("page-portrait"))
-                            .tint(if locked { pal.fg_muted } else { pal.fg_primary })
-                            .rotate(angle, Vec2::splat(0.5))
-                            .paint_at(ui, r.shrink((theme::BUTTON_COMPACT - theme::ICON_UI) / 2.0));
-                        if resp.clicked() && !locked {
-                            swap = true;
-                        }
-                        ui.label(
-                            egui::RichText::new(if landscape {
-                                tr("Paisagem", "Landscape")
-                            } else {
-                                tr("Retrato", "Portrait")
-                            })
-                            .color(pal.fg_muted),
-                        );
-                        ui.separator();
-                        let (text, color) = if bleed > 0.0 {
-                            (
-                                format!(
-                                    "{} {} mm",
-                                    tr("Sangria", "Bleed"),
-                                    crate::widgets::fmt_mm(bleed)
-                                ),
-                                theme::ACCENT_SUCCESS,
-                            )
-                        } else {
-                            (tr("Sem sangria", "No bleed").to_string(), pal.fg_muted)
-                        };
-                        let (ir, _) =
-                            ui.allocate_exact_size(Vec2::splat(theme::ICON_MICRO), Sense::hover());
-                        egui::Image::new(crate::icons::get_micro("bleed"))
-                            .tint(color)
-                            .paint_at(ui, ir);
-                        ui.label(egui::RichText::new(text).color(color));
-                        ui.separator();
-                        if crate::icons::button(
-                            ui,
-                            "fit-art",
-                            tr(
-                                "Ajustar à arte: todas as páginas ficam do tamanho do desenho",
-                                "Fit to artwork: every page takes the drawing's size",
-                            ),
-                            false,
-                            has_art && !locked,
-                        )
-                        .clicked()
-                        {
-                            fit = true;
-                        }
-                    });
-                hovered = r.response.contains_pointer();
-            },
-        );
-        if swap {
-            let bleed_opt = doc.page().bleed;
-            pages::set_size_all(
-                &mut doc.editor,
-                ph,
-                pw,
-                bleed_opt,
-                tr("Trocar orientação", "Swap orientation"),
-            );
-            ev.refit = true;
-        }
-        if fit && pagesize::fit_to_art(&mut doc.editor, doc.page) {
-            ev.refit = true;
-        }
-        hovered
     }
 
     fn screen(&self, rect: Rect, ph: f64, p: Point) -> Pos2 {
