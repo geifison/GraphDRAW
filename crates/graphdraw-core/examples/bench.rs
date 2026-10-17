@@ -160,6 +160,85 @@ fn main() {
         failed = true;
     }
 
+    // ---- GD-NF-02 com recursos novos (conselho 2026-10-17) ---------------
+    // Os mesmos 10 mil objetos, um em cada 10 com gradiente calculado
+    // (elíptico/cônico/retangular), um em cada 15 com mesclagem e um em cada
+    // 20 com ponta de seta; mais um fundo de página inteira com gradiente
+    // cônico (o pior caso do cálculo pixel a pixel).
+    let mut doc = synthetic(10_000, 1);
+    {
+        let page = &mut doc.data.pages[0];
+        let (pw, ph) = (page.width, page.height);
+        let kinds = ["elliptic", "conic", "rectangular"];
+        let stop = |o: f64, c: Color| GradientStop {
+            offset: o,
+            color: c,
+            opacity: 1.0,
+            extra: Map::new(),
+        };
+        let grad = |kind: &str, c: [f64; 2], r: f64| Gradient {
+            kind: kind.into(),
+            stops: vec![
+                stop(0.0, Color::black()),
+                stop(1.0, Color::rgb(1.0, 0.8, 0.0)),
+            ],
+            start: None,
+            end: None,
+            center: Some(c),
+            radius: Some(r),
+            radius_y: Some(r * 0.6),
+            angle: Some(30.0),
+            spread: "pad".into(),
+            extra: Map::new(),
+        };
+        for (i, o) in page.layers[0].objects.iter_mut().enumerate() {
+            if i % 10 == 0 {
+                o.fill = Some(Fill::Gradient(grad(
+                    kinds[i / 10 % 3],
+                    [0.0, 0.0],
+                    5.0 * MM,
+                )));
+            }
+            if i % 15 == 0 {
+                o.blend = BlendMode::Multiply;
+            }
+            if i % 20 == 0 {
+                let mut st = Stroke::new(0.3 * MM, Color::black());
+                st.end_arrow = Some(Arrow::new("triangle"));
+                o.stroke = Some(st);
+            }
+        }
+        let mut bg = Object::new(ObjectKind::Rectangle(RectData {
+            width: pw,
+            height: ph,
+            corners: None,
+            extra: Map::new(),
+        }));
+        bg.fill = Some(Fill::Gradient(grad(
+            "conic",
+            [pw / 2.0, ph / 2.0],
+            pw / 2.0,
+        )));
+        page.layers[0].objects.insert(0, bg);
+    }
+    let page = &doc.data.pages[0];
+    let scene = build_scene(&doc, page, SceneOptions { print: false }, &cache);
+    let _ = raster::render(&scene, view, w, h, &opts);
+    let t = Instant::now();
+    for _ in 0..frames {
+        let pm = raster::render(&scene, view, w, h, &opts).unwrap();
+        std::hint::black_box(pm);
+    }
+    let per_frame = t.elapsed() / frames;
+    println!(
+        "GD-NF-02+ redesenho com gradientes calculados, mesclagem e setas em {w}×{h}: {:.1} ms/quadro ({:.0} fps)  limite 33,3 ms",
+        ms(per_frame),
+        1.0 / per_frame.as_secs_f64()
+    );
+    if per_frame > Duration::from_micros(33_333) {
+        failed = true;
+    }
+
     if check && failed {
         eprintln!("ERRO: requisito de desempenho não atendido");
         std::process::exit(1);

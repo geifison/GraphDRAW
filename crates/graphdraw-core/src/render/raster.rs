@@ -292,14 +292,10 @@ fn fill_computed(
         return;
     }
     let (w, h) = ((x1 - x0) as u32, (y1 - y0) as u32);
-    let Some(mut mask) = sk::Mask::new(pm.width(), pm.height()) else {
-        return;
-    };
-    mask.fill_path(sp, rule, opts.antialias, sk::Transform::identity());
     let Some(mut pat) = sk::Pixmap::new(w, h) else {
         return;
     };
-    let lut = crate::render::gradient::lut(g, alpha);
+    let lut = crate::render::gradient::lut_cached(g, alpha);
     let inv = (view * m).inverse();
     let data = pat.pixels_mut();
     for y in 0..h {
@@ -311,18 +307,21 @@ fn fill_computed(
             data[(y * w + x) as usize] = c;
         }
     }
-    let paint = sk::PixmapPaint {
+    // A caixa calculada vira padrão (sem máscara do tamanho da tela).
+    let shader = sk::Pattern::new(
+        pat.as_ref(),
+        sk::SpreadMode::Pad,
+        sk::FilterQuality::Nearest,
+        1.0,
+        sk::Transform::from_translate(x0 as f32, y0 as f32),
+    );
+    let paint = sk::Paint {
+        shader,
+        anti_alias: opts.antialias,
         blend_mode: BLEND.with(|b| b.get()),
         ..Default::default()
     };
-    pm.draw_pixmap(
-        x0,
-        y0,
-        pat.as_ref(),
-        &paint,
-        sk::Transform::identity(),
-        Some(&mask),
-    );
+    pm.fill_path(sp, &paint, rule, sk::Transform::identity(), None);
 }
 
 fn fill_path(

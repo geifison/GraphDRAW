@@ -113,6 +113,51 @@ pub fn color_at(g: &Gradient, t: f64) -> (Color, f64) {
     (last.color.clone(), last.opacity)
 }
 
+thread_local! {
+    /// Tabelas já calculadas (paradas + alfa → cores), por linha de
+    /// execução: a conversão de cor das 256 posições pesa quando há muitos
+    /// objetos com o mesmo gradiente.
+    static LUTS: std::cell::RefCell<std::collections::HashMap<u64, std::sync::Arc<Vec<[u8; 4]>>>> =
+        std::cell::RefCell::new(std::collections::HashMap::new());
+}
+
+fn lut_key(g: &Gradient, alpha: f64) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    alpha.to_bits().hash(&mut h);
+    // Perfil de cor ativo: trocar de perfil muda as cores da tabela.
+    crate::cms::current()
+        .map(|c| std::sync::Arc::as_ptr(&c) as usize)
+        .hash(&mut h);
+    for s in &g.stops {
+        s.offset.to_bits().hash(&mut h);
+        s.opacity.to_bits().hash(&mut h);
+        s.color.model.hash(&mut h);
+        for v in &s.color.values {
+            v.to_bits().hash(&mut h);
+        }
+        s.color.reference.hash(&mut h);
+    }
+    h.finish()
+}
+
+/// Tabela de cores com cache (ver [`lut`]).
+pub fn lut_cached(g: &Gradient, alpha: f64) -> std::sync::Arc<Vec<[u8; 4]>> {
+    let key = lut_key(g, alpha);
+    LUTS.with(|m| {
+        let mut m = m.borrow_mut();
+        if let Some(v) = m.get(&key) {
+            return v.clone();
+        }
+        if m.len() > 4096 {
+            m.clear();
+        }
+        let v = std::sync::Arc::new(lut(g, alpha));
+        m.insert(key, v.clone());
+        v
+    })
+}
+
 /// Tabela de 256 cores RGBA (sRGB, sem pré-multiplicar) ao longo de 0..1.
 pub fn lut(g: &Gradient, alpha: f64) -> Vec<[u8; 4]> {
     (0..256)

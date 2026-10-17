@@ -264,6 +264,7 @@ Em Linux: `apt install libcdr-dev librevenge-dev pkg-config g++` e o mesmo
 | GD-NOD-01..07 | `nodes::tests::*` (`gd_nod_06_align_nodes`, `gd_nod_07_reduce_nodes`) |
 | GD-PRI-05, GD-PRI-06, GD-FER-32 | `generate::tests::*`, `canvas::tests::polygon_tool_draws_spiral_and_graph_paper` (app) |
 | GD-FIL-03 (elíptico, cônico, retangular) | `gradient::tests::*`, `tests/gradients.rs` (PNG e PDF pelo Poppler), `mapper::tests::cdr_gradient_styles_map_to_kinds` |
+| Robustez (GD-GDR-10, GD-CDR-06) | `tests/robustness.rs`: `.gdr` com bytes trocados/cortado, `document.json` hostil, `.cdr` cortado/alterado (sem pânico) e ida e volta com os campos novos |
 | GD-PAG-04 (lado a lado) | `canvas::tests::spread_shows_neighbors_and_click_switches` (app); visão geral em `pagebar` |
 | GD-TXT-09 | `ops::tests::gd_txt_09_text_on_path` |
 | GD-TRA-02 | `tests/blend.rs` |
@@ -313,8 +314,11 @@ em i5-13420H (12 threads), 2026-10-16:
 |---|---|---|---|
 | GD-NF-01 | abrir `.gdr` com 100 mil objetos (48,7 MB de JSON, 10,7 MB no disco) | 1,3–2,3 s (varia entre execuções) | 5 s |
 | GD-NF-02 | redesenhar 10 mil objetos visíveis em 1920×1080 | 15–17 ms/quadro (60–65 fps) | 33 ms (30 fps) |
+| GD-NF-02 (recursos novos, 2026-10-17) | os mesmos 10 mil objetos com 1 em 10 de gradiente calculado (elíptico/cônico/retangular), 1 em 15 com mesclagem, 1 em 20 com seta e um fundo cônico de página inteira | 26 ms/quadro (39 fps) | 33 ms (30 fps) |
 
 Antes das faixas paralelas com descarte, GD-NF-02 levava 230 ms/quadro.
+O cenário com recursos novos levava 66 ms até a tabela de cores dos
+gradientes calculados ganhar cache (era refeita por objeto e por faixa).
 No CI o passo roda com `--check` mas não bloqueia, porque o runner não é a
 máquina de referência.
 
