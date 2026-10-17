@@ -531,6 +531,96 @@ impl App {
         }
     }
 
+    /// Janela Sobre: marca, versão, licença, terceiros e onde ficam as
+    /// cópias de recuperação e os registros de falha (suporte).
+    fn about_window(&mut self, ctx: &egui::Context) {
+        let info = format!(
+            "GraphDraw {} · {} {}",
+            env!("CARGO_PKG_VERSION"),
+            std::env::consts::OS,
+            std::env::consts::ARCH
+        );
+        let folder = crate::recovery::config_dir()
+            .map(|d| d.display().to_string())
+            .unwrap_or_default();
+        let mut close = false;
+        crate::widgets::modal(ctx, egui::Id::unique("sobre")).show(ctx, |ui| {
+            ui.set_width(theme::ABOUT_WIDTH);
+            ui.horizontal(|ui| {
+                ui.add(
+                    egui::Image::new(egui::include_image!("../assets/brand/app-128.png"))
+                        .fit_to_exact_size(egui::Vec2::splat(theme::ABOUT_LOGO)),
+                );
+                ui.vertical(|ui| {
+                    ui.heading("GraphDraw");
+                    ui.label(format!(
+                        "{} {}",
+                        tr("Versão", "Version"),
+                        env!("CARGO_PKG_VERSION")
+                    ));
+                    ui.label(tr(
+                        "Editor de ilustração vetorial para gráficas, comunicação visual e corte.",
+                        "Vector illustration editor for print shops, signage and cutting.",
+                    ));
+                    ui.label(tr(
+                        "Código aberto — licença MPL-2.0.",
+                        "Open source — MPL-2.0 license.",
+                    ));
+                });
+            });
+            ui.separator();
+            egui::CollapsingHeader::new(tr("Componentes de terceiros", "Third-party components"))
+                .id_salt("sobre-terceiros")
+                .show(ui, |ui| {
+                    egui::ScrollArea::vertical()
+                        .max_height(theme::ABOUT_LIST_HEIGHT)
+                        .show(ui, |ui| {
+                            ui.label(
+                                egui::RichText::new(include_str!("../../../THIRD_PARTY.md"))
+                                    .monospace()
+                                    .size(theme::TYPE_MICRO),
+                            );
+                        });
+                });
+            ui.label(
+                egui::RichText::new(format!(
+                    "{} {folder}",
+                    tr(
+                        "Recuperação e registros de falha em:",
+                        "Recovery and crash logs in:"
+                    )
+                ))
+                .weak(),
+            );
+            ui.add_space(theme::SPACE_300);
+            crate::widgets::footer(ui, |ui| {
+                if ui
+                    .add(crate::widgets::primary_button(tr("Fechar", "Close")))
+                    .clicked()
+                    || ui.input(|i| i.key_pressed(Key::Escape))
+                {
+                    close = true;
+                }
+                if ui
+                    .add(crate::widgets::secondary_button(tr(
+                        "Copiar informações",
+                        "Copy information",
+                    )))
+                    .clicked()
+                {
+                    ui.ctx().copy_text(format!(
+                        "{info}
+{folder}"
+                    ));
+                    self.status = tr("Informações copiadas", "Information copied").into();
+                }
+            });
+        });
+        if close {
+            self.show_about = false;
+        }
+    }
+
     /// Algum documento aberto tem alterações não salvas?
     fn any_modified(&self) -> bool {
         (0..self.tabs.len()).any(|i| self.doc_modified(i))
@@ -3204,13 +3294,7 @@ impl App {
             }
         }
         if self.show_about {
-            egui::Window::new(tr("Sobre o GraphDraw", "About GraphDraw")).collapsible(false).resizable(false).open(&mut self.show_about).show(ctx, |ui| {
-                ui.label(tr(
-                    "GraphDraw — editor de ilustração vetorial open source (MPL-2.0) para gráficas, comunicação visual e corte.",
-                    "GraphDraw — open source vector illustration editor (MPL-2.0) for print shops, signage and cutting.",
-                ));
-                ui.label(format!("v{}", env!("CARGO_PKG_VERSION")));
-            });
+            self.about_window(ctx);
         }
         if let Some(d) = &mut self.new_doc {
             match d.show(ctx) {
@@ -4145,6 +4229,33 @@ mod tests {
     }
 
     /// GD-CNV-03 / DS 4.4: a janela "Converter em bitmap" cabe em 1366 × 768.
+    /// Janela Sobre: abre, desenha e fecha com Esc.
+    #[test]
+    fn about_window_opens_and_closes() {
+        let ctx = crate::theme::test_ctx();
+        let mut app = App::with_ctx(&ctx, None);
+        app.show_about = true;
+        let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::new(1366.0, 768.0));
+        for k in 0..3 {
+            let mut input = egui::RawInput {
+                screen_rect: Some(screen),
+                ..Default::default()
+            };
+            if k == 2 {
+                input.events.push(egui::Event::Key {
+                    key: Key::Escape,
+                    physical_key: None,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: egui::Modifiers::NONE,
+                });
+            }
+            let mut out = ctx.run_ui(input, |ui| app.about_window(ui.ctx()));
+            out.textures_delta.clear();
+        }
+        assert!(!app.show_about, "Esc fecha");
+    }
+
     /// GD-CMS-04: arquivo com perfis diferentes dos de trabalho — "ask"
     /// pergunta, "ignore" atribui os de trabalho, "keep" não mexe.
     #[test]

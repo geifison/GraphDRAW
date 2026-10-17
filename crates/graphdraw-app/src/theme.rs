@@ -323,6 +323,10 @@ pub const LAYER_COLORS: [[u8; 3]; 8] = [
 ];
 /// Escolha da paleta na barra de paleta.
 pub const PALETTE_SOURCE_WIDTH: f32 = 110.0;
+/// Janela Sobre: largura, logo e altura da lista de terceiros.
+pub const ABOUT_WIDTH: f32 = 520.0;
+pub const ABOUT_LOGO: f32 = 96.0;
+pub const ABOUT_LIST_HEIGHT: f32 = 220.0;
 /// Célula da grade do padrão de duas cores (janela de preenchimento).
 pub const PATTERN_CELL: f32 = 14.0;
 /// Prévia da borracha (alfa do traço) e véu fora do recorte.

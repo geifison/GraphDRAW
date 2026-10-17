@@ -62,8 +62,9 @@ Prioridade:
 - [x] Release no CI: gerar o instalador por tag, com o checksum (artefato
   do job; publicar como release do GitHub fica para quando houver o
   repositório público).
-- [ ] Janela "Sobre": versão, licença e THIRD_PARTY.
-- [ ] Versão 1.0.0 no workspace e um CHANGELOG.
+- [x] Janela "Sobre": versão, licença e THIRD_PARTY.
+- [ ] Versão 1.0.0 no workspace e um CHANGELOG. O CHANGELOG já existe; a
+  versão sobe quando o responsável decidir o lançamento.
 - [x] Atualizar o README (ainda diz "M1 em validação").
 
 ## P0 — Qualidade
