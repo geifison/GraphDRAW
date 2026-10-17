@@ -162,7 +162,7 @@ impl App {
 
     pub fn right_panel(&mut self, ui: &mut egui::Ui) {
         // Painéis laterais em densidade Default (28 px).
-        theme::density_default(ui);
+        theme::panel_density(ui);
         ui.horizontal(|ui| {
             // Recolher e soltar a aba ativa ficam à direita das abas.
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
@@ -287,7 +287,7 @@ impl App {
                 .collapsible(false)
                 .open(&mut open)
                 .show(ctx, |ui| {
-                    theme::density_default(ui);
+                    theme::panel_density(ui);
                     inner = Some(ui.available_size());
                     egui::ScrollArea::vertical().show(ui, |ui| self.tab_content(ui, tab));
                 });
@@ -317,6 +317,7 @@ impl App {
         self.ws.panels = self.show_right;
         self.ws.tab = self.right_tab.key().into();
         self.ws.tool = self.tool.info().0.into();
+        self.ws.density = theme::density(ctx).key().into();
         if self.ws != self.ws_saved && !ctx.input(|i| i.pointer.any_down()) {
             if !cfg!(test) {
                 let _ = self.ws.save();

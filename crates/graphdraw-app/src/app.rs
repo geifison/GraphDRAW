@@ -172,6 +172,7 @@ impl App {
             app.show_right = ws.panels;
             app.right_tab = ws.tab();
             app.tool = ws.tool();
+            theme::set_density(&cc.egui_ctx, theme::Density::from_key(&ws.density));
             app.ws_saved = ws.clone();
             app.ws = ws;
         }
@@ -1431,10 +1432,20 @@ impl App {
                 }
                 ui.separator();
                 ui.checkbox(&mut self.show_right, tr("Painéis", "Panels"));
+                ui.menu_button(tr("Densidade dos painéis", "Panel density"), |ui| {
+                    let cur = theme::density(ui.ctx());
+                    for d in theme::Density::ALL {
+                        if ui.radio(cur == d, d.label()).clicked() {
+                            theme::set_density(ui.ctx(), d);
+                            ui.close();
+                        }
+                    }
+                });
                 if ui
                     .button(tr("Restaurar área de trabalho padrão", "Reset workspace"))
                     .clicked()
                 {
+                    theme::set_density(ui.ctx(), theme::Density::Default);
                     let d = crate::workspace::Workspace::default();
                     self.show_right = d.panels;
                     self.right_tab = d.tab();

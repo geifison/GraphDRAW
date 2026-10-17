@@ -231,6 +231,7 @@ ao lado. Alças de redimensionar usam as setas do sistema.
 |---|---|---|---|
 | Compact | 24 px | 6 px | Barras de ferramentas, réguas, abas densas |
 | Default | 28 px | 10 px | Painéis laterais e inspetor |
+| Wide | 32 px | 12 px | Painéis laterais na densidade Ampla (seção 6) |
 | Prominent | 36 px | 16 px | Só a ação principal de uma janela ("Criar documento", "Exportar") |
 
 **Variantes**
@@ -419,9 +420,13 @@ Nós não selecionados têm fundo `#FFFFFF`; selecionados, fundo
   fechar a janela devolve o painel à coluna.
 - **Largura da coluna:** `panel-width` = 260 px inicial, arrastável entre
   `panel-min-width` = 200 px e `panel-max-width` = 520 px.
-- **Densidade:**
+- **Densidade** (*Exibir → Densidade dos painéis*, salva na área de
+  trabalho; vale para os painéis laterais e janelas de painel solto — a
+  barra de propriedades, as barras de ferramentas e os menus não mudam):
   - *Compacta:* controles de 24 px (notebooks de 13").
-  - *Ampla:* controles de 32 px e espaçamentos maiores (tablets, toque).
+  - *Padrão:* controles de 28 px (Default).
+  - *Ampla:* controles de 32 px e espaçamento entre itens de
+    `space-300` × `space-200` (tablets, toque).
 - **Área de trabalho lembrada:** posição, largura e estado de painéis e
   ferramentas são salvos no perfil do usuário
   (`area-de-trabalho.json`) e restaurados ao abrir; *Exibir → Restaurar
@@ -473,7 +478,6 @@ Itens abertos, em ordem de impacto:
 | Item | Hoje | Alvo |
 |---|---|---|
 | Guias inteligentes | só a marca no ponto encaixado | linhas de 1 px de borda a borda e marcadores de espaçamento igual (5.2) |
-| Densidade Compacta/Ampla | só a Default nos painéis | seção 6 |
 | Entrada animada de menus | padrão do egui (só opacidade) | deslocamento de 4 px + opacidade em `motion-fast` |
 | Botão Split (▾ com variantes) | não existe | quando houver ferramenta com variantes (4.1) |
 

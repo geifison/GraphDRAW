@@ -239,6 +239,9 @@ pub const CROSS_BADGE: f32 = 15.0;
 pub const BUTTON_COMPACT: f32 = 24.0;
 pub const BUTTON_DEFAULT: f32 = 28.0;
 pub const BUTTON_PROMINENT: f32 = 36.0;
+/// Densidade Ampla dos painéis (6): controles de 32 px.
+pub const BUTTON_WIDE: f32 = 32.0;
+pub const BUTTON_PAD_WIDE: f32 = 12.0;
 pub const BUTTON_PAD_COMPACT: f32 = 6.0;
 pub const BUTTON_PAD_DEFAULT: f32 = 10.0;
 pub const BUTTON_PAD_PROMINENT: f32 = 16.0;
@@ -444,11 +447,74 @@ pub fn sync_window_theme(ctx: &egui::Context, last: &mut Option<egui::ThemePrefe
     }));
 }
 
-/// Densidade Default (painéis laterais e inspetor): controles de 28 px.
-pub fn density_default(ui: &mut egui::Ui) {
+/// Densidade dos painéis laterais (DESIGN-SYSTEM 6). A barra de
+/// propriedades, as barras de ferramentas e os menus não mudam.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Density {
+    /// Controles de 24 px (notebooks de 13").
+    Compact,
+    /// Controles de 28 px (padrão).
+    #[default]
+    Default,
+    /// Controles de 32 px e espaçamentos maiores (tablets, toque).
+    Wide,
+}
+
+impl Density {
+    pub const ALL: [Density; 3] = [Density::Compact, Density::Default, Density::Wide];
+
+    /// Chave estável na área de trabalho salva.
+    pub fn key(self) -> &'static str {
+        match self {
+            Density::Compact => "compacta",
+            Density::Default => "padrao",
+            Density::Wide => "ampla",
+        }
+    }
+
+    pub fn from_key(k: &str) -> Density {
+        Density::ALL
+            .into_iter()
+            .find(|d| d.key() == k)
+            .unwrap_or_default()
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Density::Compact => crate::i18n::tr("Compacta", "Compact"),
+            Density::Default => crate::i18n::tr("Padrão", "Default"),
+            Density::Wide => crate::i18n::tr("Ampla", "Wide"),
+        }
+    }
+}
+
+fn density_id() -> egui::Id {
+    egui::Id::unique("densidade-paineis")
+}
+
+/// Escolhe a densidade dos painéis (guardada no contexto do egui).
+pub fn set_density(ctx: &egui::Context, d: Density) {
+    ctx.data_mut(|m| m.insert_temp(density_id(), d));
+}
+
+pub fn density(ctx: &egui::Context) -> Density {
+    ctx.data(|m| m.get_temp(density_id())).unwrap_or_default()
+}
+
+/// Medidas dos painéis laterais e do inspetor na densidade escolhida.
+pub fn panel_density(ui: &mut egui::Ui) {
+    let d = density(ui.ctx());
     let sp = ui.spacing_mut();
-    sp.interact_size.y = BUTTON_DEFAULT;
-    sp.button_padding.x = BUTTON_PAD_DEFAULT;
+    let (h, pad) = match d {
+        Density::Compact => (BUTTON_COMPACT, BUTTON_PAD_COMPACT),
+        Density::Default => (BUTTON_DEFAULT, BUTTON_PAD_DEFAULT),
+        Density::Wide => (BUTTON_WIDE, BUTTON_PAD_WIDE),
+    };
+    sp.interact_size.y = h;
+    sp.button_padding.x = pad;
+    if d == Density::Wide {
+        sp.item_spacing = Vec2::new(SPACE_300, SPACE_200);
+    }
 }
 
 /// Itens de menu com 26 px de altura (4.3).
@@ -467,6 +533,34 @@ pub fn test_ctx() -> egui::Context {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A densidade muda a altura dos controles dos painéis (24/28/32 px).
+    #[test]
+    fn panel_density_sets_control_height() {
+        for (d, want) in [
+            (Density::Compact, BUTTON_COMPACT),
+            (Density::Default, BUTTON_DEFAULT),
+            (Density::Wide, BUTTON_WIDE),
+        ] {
+            let ctx = test_ctx();
+            set_density(&ctx, d);
+            let mut h = 0.0;
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    Vec2::new(800.0, 600.0),
+                )),
+                ..Default::default()
+            };
+            let mut out = ctx.run_ui(input, |ui| {
+                panel_density(ui);
+                h = ui.button("Ok").rect.height();
+            });
+            out.textures_delta.clear();
+            assert_eq!(h, want, "{d:?}");
+            assert_eq!(Density::from_key(d.key()), d);
+        }
+    }
 
     #[test]
     fn tokens_follow_the_design_system() {

@@ -85,6 +85,8 @@ pub struct Workspace {
     pub floating: Vec<Floating>,
     /// Ferramenta ativa (pelo nome do ícone).
     pub tool: String,
+    /// Densidade dos painéis (`compacta`, `padrao`, `ampla`).
+    pub density: String,
 }
 
 impl Default for Workspace {
@@ -96,6 +98,7 @@ impl Default for Workspace {
             tab: RightTab::Transform.key().into(),
             floating: Vec::new(),
             tool: Tool::Select.info().0.into(),
+            density: crate::theme::Density::Default.key().into(),
         }
     }
 }
@@ -217,6 +220,7 @@ mod tests {
                 size: [240.0, 320.0],
             }],
             tool: "tool-rect".into(),
+            density: "ampla".into(),
         };
         let back = Workspace::from_json(&w.to_json()).unwrap();
         assert_eq!(back, w);
