@@ -195,6 +195,8 @@ commands! {
     ToolPolygon = "tool.polygon", "Ferramenta Polígono", "Polygon tool", Tools, NotText, true;
     ToolText = "tool.text", "Ferramenta Texto", "Text tool", Tools, NotText, true;
     ToolInteractiveFill = "tool.interactive_fill", "Preenchimento interativo", "Interactive fill", Tools, NotText, true;
+    ToolSolidFill = "tool.solid_fill", "Preenchimento uniforme", "Uniform fill", Tools, NotText, true;
+    ToolEyedropper = "tool.eyedropper", "Conta-gotas", "Eyedropper", Tools, NotText, true;
     ToolMeshFill = "tool.mesh_fill", "Preenchimento em malha", "Mesh fill", Tools, NotText, false;
     ToolEraser = "tool.eraser", "Ferramenta Borracha", "Eraser tool", Tools, NotText, false;
 
@@ -698,6 +700,11 @@ fn current_label(c: Command) -> Option<String> {
 }
 
 /// "Texto (atalho)" para dicas; só o texto se o comando não tiver atalho.
+/// Texto de dica com vida longa (reaproveitado entre quadros).
+pub fn intern_tip(text: String) -> &'static str {
+    intern(text, false)
+}
+
 pub fn hint(text: &str, c: Command) -> &'static str {
     match current_label(c) {
         Some(k) => intern(format!("{text} ({k})"), false),

@@ -77,6 +77,20 @@ impl App {
         let hint = |ui: &mut egui::Ui, t: &str| widgets::hint_line(ui, t);
         match self.tool {
             Tool::Shape => widgets::single_line_bar(ui, "barra-forma", |ui| shape_bar(ui, doc)),
+            Tool::SolidFill => hint(
+                ui,
+                tr(
+                    "Clique num objeto para escolher a cor sólida do preenchimento",
+                    "Click an object to choose its solid fill color",
+                ),
+            ),
+            Tool::Eyedropper => hint(
+                ui,
+                tr(
+                    "Clique num objeto: com seleção, copia o preenchimento e a cor do contorno para ela; sem seleção, para os novos objetos",
+                    "Click an object: with a selection, copies its fill and outline color to it; without, to new objects",
+                ),
+            ),
             Tool::Gradient => {
                 widgets::single_line_bar(ui, "barra-gradiente", |ui| gradient_bar(ui, doc))
             }
@@ -145,28 +159,8 @@ impl App {
             // (GD-DIM-23). Vale para todas as páginas (GD-PAG-01).
             Tool::Polygon => {
                 widgets::single_line_bar(ui, "barra-poligono", |ui| {
-                    // Família (GD-FER-32): polígono/estrelas, espiral, papel gráfico.
-                    let fam = &mut defaults.shape_family;
-                    widgets::stack(ui, |ui, row| {
-                        let items: &[(&str, &str, &str)] = if row == 0 {
-                            &[
-                                (
-                                    "polygon",
-                                    "tool-polygon",
-                                    tr("Polígono e estrelas", "Polygon and stars"),
-                                ),
-                                ("spiral", "tool-spiral", tr("Espiral", "Spiral")),
-                            ]
-                        } else {
-                            &[("graph", "tool-graph", tr("Papel gráfico", "Graph paper"))]
-                        };
-                        for (key, icon, tip) in items {
-                            if icons::button(ui, icon, tip, fam == key, true).clicked() {
-                                *fam = key.to_string();
-                            }
-                        }
-                    });
-                    ui.separator();
+                    // A família (polígono/estrelas, espiral, papel gráfico) é
+                    // escolhida na gaveta da caixa de ferramentas (DS 4.8).
                     match defaults.shape_family.as_str() {
                         "spiral" => spiral_controls(ui, defaults),
                         "graph" => graph_controls(ui, defaults),

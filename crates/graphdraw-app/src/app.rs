@@ -154,6 +154,10 @@ pub struct App {
     export_choice: bool,
     /// Janela do contorno de deslocamento (GD-OFS-01) aberta.
     offset_dlg: Option<OffsetDialog>,
+    /// Última escolha de cada grupo da caixa de ferramentas.
+    tool_group_last: std::collections::HashMap<&'static str, usize>,
+    /// Gaveta aberta: grupo, variantes, posição e quadro em que abriu.
+    tool_drawer: Option<(&'static str, Vec<crate::toolbox::Variant>, egui::Pos2, u64)>,
     bitmap_dlg: Option<BitmapDialog>,
     /// Exportar para corte (PLT/DXF) e gerar linha de corte (doc 17).
     cut_export: Option<crate::cutui::CutExport>,
@@ -227,6 +231,8 @@ impl App {
             last_action: None,
             export_choice: false,
             offset_dlg: None,
+            tool_group_last: Default::default(),
+            tool_drawer: None,
             bitmap_dlg: None,
             cut_export: None,
             cut_line_dlg: None,
@@ -1365,6 +1371,8 @@ impl App {
             C::ToolText => self.set_tool(Tool::Text),
             C::ToolPolygon => self.set_tool(Tool::Polygon),
             C::ToolInteractiveFill => self.set_tool(Tool::Gradient),
+            C::ToolSolidFill => self.set_tool(Tool::SolidFill),
+            C::ToolEyedropper => self.set_tool(Tool::Eyedropper),
             C::TextAlignLeft | C::TextAlignCenter | C::TextAlignRight | C::TextJustify => {
                 let align = match c {
                     C::TextAlignLeft => "left",
@@ -2328,18 +2336,112 @@ impl App {
         });
     }
 
+    /// Escolhe uma variante de grupo da caixa de ferramentas.
+    fn choose_variant(&mut self, group: &'static str, k: usize, v: crate::toolbox::Variant) {
+        v.apply(&mut self.defaults);
+        self.tool_group_last.insert(group, k);
+        // Mesma ferramenta com outra família: troca mesmo assim.
+        if self.tool == v.tool {
+            self.tool = v.tool;
+        } else {
+            self.set_tool(v.tool);
+        }
+    }
+
     fn toolbox(&mut self, ui: &mut egui::Ui) {
+        use crate::toolbox::{Slot, drawer_mark, hits_mark, separator_after, slots};
+        let mut open: Option<(&'static str, Vec<crate::toolbox::Variant>, egui::Pos2)> = None;
+        let mut chosen = None;
         ui.vertical_centered(|ui| {
-            for t in Tool::ALL {
-                let (icon, tip, _) = t.info();
-                if icons::button(ui, icon, tip, self.tool == t, true).clicked() {
-                    self.set_tool(t);
-                }
-                if matches!(t, Tool::Shape | Tool::Pan) {
-                    ui.separator();
+            for slot in slots() {
+                match slot {
+                    Slot::One(t) => {
+                        let (icon, tip, _) = t.info();
+                        if icons::button(ui, icon, tip, self.tool == t, true).clicked() {
+                            self.set_tool(t);
+                        }
+                        if separator_after(t) {
+                            ui.separator();
+                        }
+                    }
+                    Slot::Group(name, vars) => {
+                        let on = vars
+                            .iter()
+                            .position(|v| v.active(self.tool, &self.defaults));
+                        let k = on.unwrap_or_else(|| *self.tool_group_last.get(name).unwrap_or(&0));
+                        let v = vars[k.min(vars.len() - 1)];
+                        let tip = format!(
+                            "{} — {}",
+                            v.tip,
+                            tr(
+                                "triângulo ou botão direito: mais ferramentas",
+                                "triangle or right click: more tools"
+                            )
+                        );
+                        let r = icons::button(
+                            ui,
+                            v.icon,
+                            crate::keymap::intern_tip(tip),
+                            on.is_some(),
+                            true,
+                        );
+                        drawer_mark(ui, r.rect);
+                        let at_mark = hits_mark(r.rect, r.interact_pointer_pos());
+                        if r.secondary_clicked() || (r.clicked() && at_mark) {
+                            open = Some((name, vars.clone(), r.rect.right_top()));
+                        } else if r.clicked() {
+                            chosen = Some((name, k, v));
+                        }
+                    }
                 }
             }
         });
+        if let Some((name, k, v)) = chosen {
+            self.choose_variant(name, k, v);
+        }
+        if let Some((name, vars, at)) = open {
+            self.tool_drawer = Some((name, vars, at, ui.ctx().cumulative_frame_nr()));
+        }
+        self.tool_drawer_ui(ui.ctx());
+    }
+
+    /// Gaveta aberta: as ferramentas do grupo em linha, ao lado do botão.
+    fn tool_drawer_ui(&mut self, ctx: &egui::Context) {
+        let Some((name, vars, at, opened)) = self.tool_drawer.clone() else {
+            return;
+        };
+        let mut pick = None;
+        let area = egui::Area::new(egui::Id::unique("gaveta-ferramentas"))
+            .order(egui::Order::Foreground)
+            .fixed_pos(at + egui::vec2(theme::SPACE_100, 0.0))
+            .show(ctx, |ui| {
+                egui::Frame::popup(ui.style()).show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        for (k, v) in vars.iter().enumerate() {
+                            if icons::button(
+                                ui,
+                                v.icon,
+                                v.tip,
+                                v.active(self.tool, &self.defaults),
+                                true,
+                            )
+                            .clicked()
+                            {
+                                pick = Some((k, *v));
+                            }
+                        }
+                    });
+                });
+            });
+        let outside = ctx.input(|i| i.pointer.any_pressed())
+            && !area.response.contains_pointer()
+            && ctx.cumulative_frame_nr() > opened + 1;
+        if let Some((k, v)) = pick {
+            self.tool_drawer = None;
+            self.choose_variant(name, k, v);
+        } else if outside || ctx.input(|i| i.key_pressed(Key::Escape)) {
+            self.tool_drawer = None;
+        }
     }
 
     fn status_bar(&mut self, ui: &mut egui::Ui) {
@@ -3245,6 +3347,17 @@ impl App {
                 let ev = self.canvas.show(ui, doc, self.tool, &self.defaults);
                 if let Some(t) = ev.switch_tool {
                     self.tool = t;
+                }
+                if let Some((fill, stroke)) = ev.sampled {
+                    self.defaults.fill = fill;
+                    if stroke.is_some() {
+                        self.defaults.stroke = stroke;
+                    }
+                }
+                if ev.open_solid_fill {
+                    let mut dlg = crate::dialogs::StyleDialog::fill(doc, &self.defaults);
+                    dlg.force_solid();
+                    self.style_dlg = Some(dlg);
                 }
                 if let Some(s) = ev.status {
                     self.status = s;

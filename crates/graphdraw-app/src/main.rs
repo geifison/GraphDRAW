@@ -25,6 +25,7 @@ mod panels;
 mod rulers;
 mod textedit;
 mod theme;
+mod toolbox;
 mod view;
 mod widgets;
 mod workspace;

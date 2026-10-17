@@ -438,6 +438,21 @@ barra (no máximo os 2–4 controles mais usados) e o que fica só na janela.
   novo (chave e valor com dica, botão de adicionar ou Enter). O valor é
   gravado ao sair do campo; cada alteração é um passo de desfazer.
 
+### 4.8 Caixa de ferramentas e gavetas
+
+- Ferramentas parecidas formam um **grupo**: o botão mostra a escolhida e
+  tem um triângulo de `tool-drawer-mark` = 5 px em `fg-muted` no canto
+  inferior direito. Clique no botão usa a ferramenta mostrada; clique no
+  canto (`tool-drawer-hit` = 9 px) ou botão direito abre a **gaveta**: as
+  ferramentas do grupo em linha, ao lado do botão, em `shadow-popover`.
+  Escolher na gaveta usa e passa a mostrar aquela; clique fora ou Esc fecha.
+- Grupos: **Formas** (polígono, estrela, estrela complexa, espiral, papel
+  gráfico — a família sai da barra de propriedades) e **Preenchimento**
+  (interativo/gradiente, uniforme, conta-gotas).
+- Conta-gotas: com seleção, copia o preenchimento e a cor do contorno do
+  objeto clicado para ela (a espessura do destino fica); sem seleção, vira
+  o estilo dos novos objetos.
+
 ---
 
 ## 5. Canvas e controles sobre a arte

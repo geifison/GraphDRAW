@@ -44,6 +44,12 @@ pub enum Tool {
     /// Preenchimento interativo: gradiente editado na tela (GD-FIL-11,
     /// GD-FER-50).
     Gradient,
+    /// Preenchimento uniforme: clicar num objeto abre a janela de
+    /// preenchimento em cor sólida.
+    SolidFill,
+    /// Conta-gotas: copia preenchimento e cor do contorno do objeto clicado
+    /// para a seleção (ou para os novos objetos, sem seleção).
+    Eyedropper,
 }
 
 impl Tool {
@@ -131,9 +137,31 @@ impl Tool {
                 ),
                 "G",
             ),
+            Tool::SolidFill => (
+                "tool-fill-solid",
+                crate::keymap::hint(
+                    tr(
+                        "Preenchimento uniforme — clique num objeto para escolher a cor sólida",
+                        "Uniform fill — click an object to choose its solid color",
+                    ),
+                    crate::keymap::Command::ToolSolidFill,
+                ),
+                "",
+            ),
+            Tool::Eyedropper => (
+                "tool-eyedropper",
+                crate::keymap::hint(
+                    tr(
+                        "Conta-gotas — clique num objeto para copiar o preenchimento e a cor do contorno para a seleção (sem seleção: para os novos objetos)",
+                        "Eyedropper — click an object to copy its fill and outline color to the selection (no selection: to new objects)",
+                    ),
+                    crate::keymap::Command::ToolEyedropper,
+                ),
+                "",
+            ),
         }
     }
-    pub const ALL: [Tool; 11] = [
+    pub const ALL: [Tool; 13] = [
         Tool::Select,
         Tool::Shape,
         Tool::Zoom,
@@ -144,6 +172,8 @@ impl Tool {
         Tool::Polygon,
         Tool::Text,
         Tool::Gradient,
+        Tool::SolidFill,
+        Tool::Eyedropper,
         Tool::Artboard,
     ];
 }
@@ -490,6 +520,11 @@ fn snap_radius(view: &View) -> f64 {
 pub struct CanvasEvents {
     pub switch_tool: Option<Tool>,
     pub status: Option<String>,
+    /// Abrir a janela de preenchimento em cor sólida (ferramenta
+    /// Preenchimento uniforme).
+    pub open_solid_fill: bool,
+    /// Estilo copiado pelo conta-gotas para os novos objetos.
+    pub sampled: Option<(Option<Fill>, Option<Stroke>)>,
 }
 
 impl CanvasState {
@@ -1410,6 +1445,12 @@ impl CanvasState {
             Tool::Gradient => Glyph::Cross {
                 badge: "tool-gradient",
             },
+            Tool::SolidFill => Glyph::Cross {
+                badge: "tool-fill-solid",
+            },
+            Tool::Eyedropper => Glyph::Cross {
+                badge: "tool-eyedropper",
+            },
             Tool::Polygon => Glyph::Cross {
                 badge: "tool-polygon",
             },
@@ -2073,6 +2114,8 @@ impl CanvasState {
                 }
             }
             Tool::Gradient => self.start_gradient_drag(doc, p, origin, tol, rect, ph),
+            // Ferramentas de clique: arrastar não faz nada.
+            Tool::SolidFill | Tool::Eyedropper => {}
             Tool::Select => self.start_select_drag(doc, p, origin, mods, tol, rect, ph),
             Tool::Shape => self.start_shape_drag(doc, p, origin, mods, tol, rect, ph),
             Tool::Artboard => {
@@ -2203,6 +2246,64 @@ impl CanvasState {
         }
         self.grad_stop = None;
         doc.selection = pick(doc, p, tol, true).into_iter().collect();
+    }
+
+    /// Conta-gotas: com seleção (sem o objeto clicado), pinta a seleção com o
+    /// preenchimento e a cor do contorno dele; sem seleção, guarda para os
+    /// novos objetos.
+    fn eyedropper(&mut self, doc: &mut DocState, p: Point, tol: f64, ev: &mut CanvasEvents) {
+        let Some(src) = pick(doc, p, tol, true)
+            .and_then(|id| doc.editor.find(&id))
+            .and_then(|r| doc.editor.get(&r).cloned())
+        else {
+            return;
+        };
+        let targets: Vec<String> = doc
+            .selection
+            .iter()
+            .filter(|id| **id != src.id)
+            .cloned()
+            .collect();
+        if targets.is_empty() {
+            ev.sampled = Some((src.fill.clone(), src.stroke.clone()));
+            ev.status = Some(
+                tr(
+                    "Cor copiada para os novos objetos",
+                    "Color copied for new objects",
+                )
+                .into(),
+            );
+            return;
+        }
+        let (fill, stroke) = (src.fill.clone(), src.stroke.clone());
+        ops::modify(
+            &mut doc.editor,
+            &targets,
+            tr("Copiar cor", "Copy color"),
+            |o| {
+                if matches!(o.kind, ObjectKind::Image(_)) {
+                    return false;
+                }
+                o.fill = fill.clone();
+                match (&mut o.stroke, &stroke) {
+                    // Só a cor do contorno: a espessura do destino fica.
+                    (Some(dst), Some(s)) => {
+                        dst.color = s.color.clone();
+                        dst.opacity = s.opacity;
+                    }
+                    (dst @ None, Some(s)) => *dst = Some(s.clone()),
+                    (dst, None) => *dst = None,
+                }
+                true
+            },
+        );
+        ev.status = Some(
+            tr(
+                "Cor copiada para a seleção",
+                "Color copied to the selection",
+            )
+            .into(),
+        );
     }
 
     /// Tira a parada escolhida do gradiente (Delete); `false` se não havia.
@@ -3128,6 +3229,13 @@ impl CanvasState {
         let ph = doc.page_size().1;
         match tool {
             Tool::Gradient => self.gradient_click(doc, p, pos, tol, rect),
+            Tool::SolidFill => {
+                if let Some(id) = pick(doc, p, tol, true) {
+                    doc.selection = vec![id];
+                    ev.open_solid_fill = true;
+                }
+            }
+            Tool::Eyedropper => self.eyedropper(doc, p, tol, ev),
             Tool::Select => match pick(doc, p, tol, mods.ctrl) {
                 Some(id) => {
                     if mods.shift {
@@ -4254,6 +4362,81 @@ mod tests {
         assert_eq!(doc.selection, vec![g.id.clone()]);
     }
 
+    /// Conta-gotas: com seleção, clicar noutro objeto copia o preenchimento
+    /// e a cor do contorno; sem seleção, devolve o estilo para os novos.
+    #[test]
+    fn eyedropper_copies_fill_and_outline_color() {
+        let ctx = crate::theme::test_ctx();
+        let mut cs = CanvasState::default();
+        cs.snap.enabled = false;
+        let mut doc = DocState::new_blank();
+        let sq = |x: f64, hex: &str, w: f64| {
+            let mut o = Object::new(ObjectKind::Rectangle(RectData {
+                width: 20_000.0,
+                height: 20_000.0,
+                corners: None,
+                extra: Map::new(),
+            }));
+            o.transform = graphdraw_core::model::Transform::translate(x, 100_000.0);
+            o.fill = Some(Fill::solid(
+                graphdraw_core::model::Color::from_hex(hex).unwrap(),
+            ));
+            o.stroke = Some(Stroke::new(
+                w,
+                graphdraw_core::model::Color::from_hex(hex).unwrap(),
+            ));
+            o
+        };
+        let src = sq(30_000.0, "#ff0000", 1000.0);
+        let dst = sq(100_000.0, "#0000ff", 300.0);
+        let dst_id = dst.id.clone();
+        for (i, o) in [src, dst].into_iter().enumerate() {
+            doc.editor.insert_object(
+                graphdraw_core::edit::ObjLoc {
+                    page: 0,
+                    layer: 0,
+                    index: i,
+                },
+                o,
+            );
+        }
+        for _ in 0..2 {
+            canvas_frame(&ctx, &mut cs, &mut doc, Tool::Eyedropper, vec![]);
+        }
+        let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(1366.0, 768.0));
+        let (_, ph) = doc.page_size();
+        let at = cs.screen(rect, ph, Point::new(40_000.0, 110_000.0));
+        let click = |cs: &mut CanvasState, doc: &mut DocState| {
+            let btn = |pressed| egui::Event::PointerButton {
+                pos: at,
+                button: PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::NONE,
+            };
+            canvas_frame(
+                &ctx,
+                cs,
+                doc,
+                Tool::Eyedropper,
+                vec![egui::Event::PointerMoved(at)],
+            );
+            canvas_frame(&ctx, cs, doc, Tool::Eyedropper, vec![btn(true)]);
+            canvas_frame(&ctx, cs, doc, Tool::Eyedropper, vec![btn(false)]);
+        };
+        doc.selection = vec![dst_id.clone()];
+        click(&mut cs, &mut doc);
+        let o = doc
+            .editor
+            .get(&doc.editor.find(&dst_id).unwrap())
+            .unwrap()
+            .clone();
+        let red = graphdraw_core::model::Color::from_hex("#ff0000").unwrap();
+        assert_eq!(o.fill, Some(Fill::solid(red.clone())));
+        let st = o.stroke.unwrap();
+        assert_eq!(st.color, red);
+        assert_eq!(st.width, 300.0, "espessura do destino fica");
+    }
+
     /// GD-PAG-04: com lado a lado, as vizinhas aparecem e clicar numa
     /// delas vai para ela.
     #[test]
@@ -4771,6 +4954,8 @@ mod tests {
                 "mira+tool-polygon",
                 "mira+tool-text",
                 "mira+tool-gradient",
+                "mira+tool-fill-solid",
+                "mira+tool-eyedropper",
                 "cur-select"
             ]
         );

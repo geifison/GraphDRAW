@@ -31,6 +31,8 @@ const icons = {
   "poly-star": `<path d="M12 3.5 L14.2 9.3 L20.3 9.4 L15.5 13.2 L17.2 19.2 L12 15.7 L6.8 19.2 L8.5 13.2 L3.7 9.4 L9.8 9.3 Z"/>`,
   "poly-complex": `<path d="M12 3.5 L17.2 19.2 L3.7 9.4 H20.3 L6.8 19.2 Z"/>`,
   "tool-gradient": `<rect x="3.5" y="3.5" width="17" height="17" rx="2" stroke-dasharray="2 2"/><path d="M7 17 L17 7"/>${hnode(7, 17, 2)}${node(17, 7, 2)}${dot(12, 12, 1.5)}`,
+  "tool-fill-solid": `<path d="M5 11 L11 5 L19 13 L13 19 Z" fill="#fff"/><path d="M11 5 L9 3"/><path d="M19.5 15.5 C 19.5 15.5 21 17.5 21 18.5 a1.5 1.5 0 0 1 -3 0 C 18 17.5 19.5 15.5 19.5 15.5 Z" fill="#fff"/>`,
+  "tool-eyedropper": `<path d="M14.5 4.5 a2.5 2.5 0 0 1 3.5 3.5 L16 10 L14 8 Z" fill="#fff"/><path d="M15 9 L7 17 L5 19.5 L4.5 19 L7 17"/><path d="M13 7 L17 11"/>`,
   "tool-text": `<path d="M5 6.5 V4.5 H19 V6.5 M12 4.5 V19.5 M9 19.5 H15"/>`,
   // ---- texto (doc 06) ----
   "text-bold": `<path d="M7.5 4.5 H13 a3.75 3.75 0 0 1 0 7.5 H7.5 Z M7.5 12 H14 a3.75 3.75 0 0 1 0 7.5 H7.5 Z" stroke-width="2.2"/>`,

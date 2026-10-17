@@ -56,6 +56,19 @@ impl StyleDialog {
         StyleDialog::Stroke(StrokeDialog::new(stroke, for_defaults))
     }
 
+    /// Janela de preenchimento já em cor sólida (ferramenta Preenchimento
+    /// uniforme): um gradiente começa pela cor da primeira parada.
+    pub fn force_solid(&mut self) {
+        if let StyleDialog::Fill(d) = self
+            && d.mode != FillMode::Solid
+        {
+            if d.mode.gradient() {
+                d.color = d.stops[0].color.clone();
+            }
+            d.mode = FillMode::Solid;
+        }
+    }
+
     pub fn fill(doc: &DocState, defaults: &Defaults) -> StyleDialog {
         let (fill, _, for_defaults) = current_style(doc, defaults);
         StyleDialog::Fill(FillDialog::new(fill, for_defaults))

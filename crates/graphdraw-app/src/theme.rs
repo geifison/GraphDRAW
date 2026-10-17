@@ -323,6 +323,10 @@ pub const LAYER_COLORS: [[u8; 3]; 8] = [
 ];
 /// Escolha da paleta na barra de paleta.
 pub const PALETTE_SOURCE_WIDTH: f32 = 110.0;
+/// Triângulo de gaveta no canto do botão de grupo da caixa de ferramentas.
+pub const TOOL_DRAWER_MARK: f32 = 5.0;
+/// Área do canto que abre a gaveta em vez de escolher a ferramenta.
+pub const TOOL_DRAWER_HIT: f32 = 9.0;
 /// Distância na tela entre a página ativa e as vizinhas lado a lado.
 pub const SPREAD_GAP: f32 = 24.0;
 /// Véu sobre as páginas vizinhas (só para ver).
