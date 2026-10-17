@@ -412,12 +412,20 @@ Nós não selecionados têm fundo `#FFFFFF`; selecionados, fundo
 ## 6. Responsividade e adaptação
 
 - **Painéis recolhíveis:** toda barra lateral recolhe por duplo clique na
-  aba ou no botão ◀, virando uma faixa de ícones de 36 px.
+  aba ou no botão de recolher, virando uma faixa de ícones de 36 px
+  (`panel-rail`); clicar num ícone da faixa abre a coluna naquela aba.
+- **Painéis soltos:** botão de soltar (ou botão direito na aba) leva o
+  painel para uma janela própria, de `panel-float-size` = 260 × 360 px;
+  fechar a janela devolve o painel à coluna.
+- **Largura da coluna:** `panel-width` = 260 px inicial, arrastável entre
+  `panel-min-width` = 200 px e `panel-max-width` = 520 px.
 - **Densidade:**
   - *Compacta:* controles de 24 px (notebooks de 13").
   - *Ampla:* controles de 32 px e espaçamentos maiores (tablets, toque).
 - **Área de trabalho lembrada:** posição, largura e estado de painéis e
-  ferramentas são salvos no perfil do usuário e restaurados ao abrir.
+  ferramentas são salvos no perfil do usuário
+  (`area-de-trabalho.json`) e restaurados ao abrir; *Exibir → Restaurar
+  área de trabalho padrão* volta ao início.
 - Funciona de notebook até 4K ultrawide sem layout quebrado; textos e
   ícones respeitam a escala do sistema (GD-UI-04: 100–300%).
 
@@ -465,7 +473,7 @@ Itens abertos, em ordem de impacto:
 | Item | Hoje | Alvo |
 |---|---|---|
 | Guias inteligentes | só a marca no ponto encaixado | linhas de 1 px de borda a borda e marcadores de espaçamento igual (5.2) |
-| Painéis recolhíveis, densidade, layout salvo | não existem | seção 6 |
+| Densidade Compacta/Ampla | só a Default nos painéis | seção 6 |
 | Entrada animada de menus | padrão do egui (só opacidade) | deslocamento de 4 px + opacidade em `motion-fast` |
 | Botão Split (▾ com variantes) | não existe | quando houver ferramenta com variantes (4.1) |
 

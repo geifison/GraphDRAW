@@ -28,7 +28,7 @@ use crate::widgets::fmt_mm;
 
 type OpenResult = Result<(Document, ImportReport), String>;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RightTab {
     Transform,
     Align,
@@ -71,9 +71,13 @@ pub struct App {
     pub(crate) canvas: CanvasState,
     /// Objetos dentro das camadas: miniaturas, renomear e arrastar.
     pub(crate) layer_tree: crate::layertree::LayerTree,
+    /// Área de trabalho (GD-UI-03): recolhida, largura e painéis soltos;
+    /// `ws_saved` é a última versão gravada no arquivo.
+    pub(crate) ws: crate::workspace::Workspace,
+    pub(crate) ws_saved: crate::workspace::Workspace,
     pub(crate) defaults: Defaults,
     pub(crate) right_tab: RightTab,
-    show_right: bool,
+    pub(crate) show_right: bool,
     /// Arrasto em rótulo de campo numérico em andamento (transação aberta).
     field_drag: bool,
     /// Tema já enviado para a barra de título do sistema.
@@ -131,6 +135,8 @@ impl App {
             },
             right_tab: RightTab::Transform,
             layer_tree: Default::default(),
+            ws: Default::default(),
+            ws_saved: Default::default(),
             show_right: true,
             field_drag: false,
             window_theme: None,
@@ -160,6 +166,15 @@ impl App {
             pdf_standard: export::PdfStandard::Screen,
         };
         keymap::set_current(&app.keys);
+        // Testes não leem nem gravam o perfil do usuário.
+        if !cfg!(test) {
+            let ws = crate::workspace::Workspace::load();
+            app.show_right = ws.panels;
+            app.right_tab = ws.tab();
+            app.tool = ws.tool();
+            app.ws_saved = ws.clone();
+            app.ws = ws;
+        }
         if let Some(p) = initial {
             app.start_open(p, &cc.egui_ctx);
         }
@@ -1416,6 +1431,16 @@ impl App {
                 }
                 ui.separator();
                 ui.checkbox(&mut self.show_right, tr("Painéis", "Panels"));
+                if ui
+                    .button(tr("Restaurar área de trabalho padrão", "Reset workspace"))
+                    .clicked()
+                {
+                    let d = crate::workspace::Workspace::default();
+                    self.show_right = d.panels;
+                    self.right_tab = d.tab();
+                    self.ws = d;
+                    ui.close();
+                }
                 // Tema claro e escuro (GD-UI-04); o escuro é o padrão.
                 ui.menu_button(tr("Tema", "Theme"), |ui| {
                     let cur = ui.ctx().options(|o| o.theme_preference);
@@ -1587,10 +1612,13 @@ impl App {
                 )
                 .clicked()
                 {
-                    if self.show_right && self.right_tab == tab {
+                    if self.ws.is_floating(tab) {
+                        // Já está numa janela própria.
+                    } else if self.show_right && self.right_tab == tab && !self.ws.collapsed {
                         self.show_right = false;
                     } else {
                         self.show_right = true;
+                        self.ws.collapsed = false;
                         self.right_tab = tab;
                     }
                 }
@@ -2167,10 +2195,25 @@ impl eframe::App for App {
             .resizable(false)
             .exact_size(theme::BUTTON_COMPACT + 2.0 * theme::SPACE_200)
             .show(ui, |ui| self.toolbox(ui));
-        if self.show_right {
-            egui::Panel::right("paineis")
-                .default_size(260.0)
-                .show(ui, |ui| self.right_panel(ui));
+        let docked = self.ws.docked();
+        if !docked.contains(&self.right_tab)
+            && let Some(t) = docked.first()
+        {
+            self.right_tab = *t;
+        }
+        if self.show_right && !docked.is_empty() {
+            if self.ws.collapsed {
+                egui::Panel::right("paineis-recolhidos")
+                    .resizable(false)
+                    .exact_size(theme::PANEL_RAIL)
+                    .show(ui, |ui| self.panel_rail(ui, &docked));
+            } else {
+                let r = egui::Panel::right("paineis")
+                    .default_size(self.ws.width)
+                    .size_range(theme::PANEL_MIN_WIDTH..=theme::PANEL_MAX_WIDTH)
+                    .show(ui, |ui| self.right_panel(ui));
+                self.ws.width = r.response.rect.width().round();
+            }
         }
         egui::CentralPanel::no_frame().show(ui, |ui| {
             // Abas de documento no topo da área de trabalho; as páginas do
@@ -2220,6 +2263,8 @@ impl eframe::App for App {
                 self.field_drag = false;
             }
         }
+        self.floating_panels(&ctx);
         self.dialogs(&ctx);
+        self.save_workspace(&ctx);
     }
 }

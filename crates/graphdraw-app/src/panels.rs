@@ -163,23 +163,172 @@ impl App {
     pub fn right_panel(&mut self, ui: &mut egui::Ui) {
         // Painéis laterais em densidade Default (28 px).
         theme::density_default(ui);
-        ui.horizontal_wrapped(|ui| {
-            for (tab, label) in [
-                (RightTab::Transform, tr("Transformar", "Transform")),
-                (RightTab::Align, tr("Alinhar", "Align")),
-                (RightTab::Layers, tr("Camadas", "Layers")),
-                (RightTab::History, tr("Histórico", "History")),
-                (RightTab::Pages, tr("Páginas", "Pages")),
-                (RightTab::Report, tr("Relatório", "Report")),
-            ] {
-                if ui.selectable_label(self.right_tab == tab, label).clicked() {
+        ui.horizontal(|ui| {
+            // Recolher e soltar a aba ativa ficam à direita das abas.
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                if icons::button(
+                    ui,
+                    "panel-collapse",
+                    tr(
+                        "Recolher painéis (duplo clique na aba)",
+                        "Collapse panels (double-click a tab)",
+                    ),
+                    false,
+                    true,
+                )
+                .clicked()
+                {
+                    self.ws.collapsed = true;
+                }
+                if icons::button(
+                    ui,
+                    "panel-undock",
+                    tr(
+                        "Soltar este painel numa janela",
+                        "Float this panel in a window",
+                    ),
+                    false,
+                    true,
+                )
+                .clicked()
+                {
+                    self.float_tab(self.right_tab, ui.ctx());
+                }
+                ui.with_layout(
+                    egui::Layout::left_to_right(egui::Align::Min).with_main_wrap(true),
+                    |ui| {
+                        for tab in self.ws.docked() {
+                            let r = ui.selectable_label(self.right_tab == tab, tab.label());
+                            if r.double_clicked() {
+                                self.ws.collapsed = true;
+                            } else if r.clicked() {
+                                self.right_tab = tab;
+                            }
+                            r.context_menu(|ui| {
+                                if ui
+                                    .button(tr("Soltar numa janela", "Float in a window"))
+                                    .clicked()
+                                {
+                                    self.float_tab(tab, ui.ctx());
+                                    ui.close();
+                                }
+                                if ui
+                                    .button(tr("Recolher painéis", "Collapse panels"))
+                                    .clicked()
+                                {
+                                    self.ws.collapsed = true;
+                                    ui.close();
+                                }
+                            });
+                        }
+                    },
+                );
+            });
+        });
+        ui.separator();
+        let tab = self.right_tab;
+        egui::ScrollArea::vertical().show(ui, |ui| self.tab_content(ui, tab));
+    }
+
+    /// Faixa de ícones da coluna recolhida (DESIGN-SYSTEM 6).
+    pub fn panel_rail(&mut self, ui: &mut egui::Ui, docked: &[RightTab]) {
+        ui.vertical_centered(|ui| {
+            if icons::button(
+                ui,
+                "panel-expand",
+                tr("Abrir painéis", "Expand panels"),
+                false,
+                true,
+            )
+            .clicked()
+            {
+                self.ws.collapsed = false;
+            }
+            ui.separator();
+            for &tab in docked {
+                if icons::button(ui, tab.icon(), tab.label(), false, true).clicked() {
                     self.right_tab = tab;
+                    self.ws.collapsed = false;
                 }
             }
         });
-        ui.separator();
+    }
+
+    /// Solta a aba numa janela própria, perto da coluna.
+    fn float_tab(&mut self, tab: RightTab, ctx: &egui::Context) {
+        if self.ws.is_floating(tab) {
+            return;
+        }
+        let screen = ctx.content_rect();
+        let n = self.ws.floating.len() as f32;
+        let [w, h] = theme::PANEL_FLOAT_SIZE;
+        let x = (screen.right() - self.ws.width - w - theme::SPACE_600).max(screen.left());
+        let y = screen.top() + theme::SPACE_600 * (3.0 + n);
+        self.ws.floating.push(crate::workspace::Floating {
+            tab: tab.key().into(),
+            pos: [x, y],
+            size: [w, h],
+        });
+    }
+
+    /// Painéis soltos em janelas; fechar a janela devolve o painel à coluna.
+    pub fn floating_panels(&mut self, ctx: &egui::Context) {
+        let list = self.ws.floating.clone();
+        for f in list {
+            let Some(tab) = RightTab::from_key(&f.tab) else {
+                continue;
+            };
+            let mut open = true;
+            let mut inner = None;
+            let shown = egui::Window::new(tab.label())
+                .id(egui::Id::unique(("painel-solto", tab.key())))
+                .default_pos(f.pos)
+                .default_size(f.size)
+                .collapsible(false)
+                .open(&mut open)
+                .show(ctx, |ui| {
+                    theme::density_default(ui);
+                    inner = Some(ui.available_size());
+                    egui::ScrollArea::vertical().show(ui, |ui| self.tab_content(ui, tab));
+                });
+            if let Some(slot) = self.ws.floating.iter_mut().find(|x| x.tab == f.tab) {
+                if let Some(r) = &shown {
+                    slot.pos = [
+                        r.response.rect.left().round(),
+                        r.response.rect.top().round(),
+                    ];
+                }
+                if let Some(sz) = inner {
+                    slot.size = [sz.x.round(), sz.y.round()];
+                }
+            }
+            if !open {
+                self.ws.floating.retain(|x| x.tab != f.tab);
+                self.show_right = true;
+                self.ws.collapsed = false;
+                self.right_tab = tab;
+            }
+        }
+    }
+
+    /// Grava a área de trabalho quando muda (depois de soltar o mouse, para
+    /// não gravar a cada quadro de um arrasto).
+    pub fn save_workspace(&mut self, ctx: &egui::Context) {
+        self.ws.panels = self.show_right;
+        self.ws.tab = self.right_tab.key().into();
+        self.ws.tool = self.tool.info().0.into();
+        if self.ws != self.ws_saved && !ctx.input(|i| i.pointer.any_down()) {
+            if !cfg!(test) {
+                let _ = self.ws.save();
+            }
+            self.ws_saved = self.ws.clone();
+        }
+    }
+
+    /// Conteúdo de uma aba (na coluna ou numa janela solta).
+    fn tab_content(&mut self, ui: &mut egui::Ui, tab: RightTab) {
         let Some(doc) = self.doc.as_mut() else { return };
-        egui::ScrollArea::vertical().show(ui, |ui| match self.right_tab {
+        match tab {
             RightTab::Transform => transform_panel(ui, doc, &mut self.xf),
             RightTab::Align => align_panel(ui, doc, &mut self.align),
             RightTab::Layers => layers_panel(ui, doc, &mut self.layer_tree),
@@ -190,7 +339,7 @@ impl App {
                 }
             }
             RightTab::Report => report_panel(ui, doc),
-        });
+        }
     }
 
     /// Barra de paleta (GD-PAL-05): clique = preenchimento, botão direito = contorno.

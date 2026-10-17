@@ -20,6 +20,7 @@ mod panels;
 mod theme;
 mod view;
 mod widgets;
+mod workspace;
 
 fn main() -> eframe::Result {
     let initial = std::env::args_os().nth(1).map(std::path::PathBuf::from);

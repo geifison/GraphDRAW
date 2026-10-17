@@ -127,6 +127,9 @@ pub fn get(name: &str) -> ImageSource<'static> {
         "fit-art" => icon!("fit-art"),
         "bleed" => icon!("bleed"),
         "doc" => icon!("doc"),
+        "panel-collapse" => icon!("panel-collapse"),
+        "panel-expand" => icon!("panel-expand"),
+        "panel-undock" => icon!("panel-undock"),
         _ => icon!("history"),
     }
 }

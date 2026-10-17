@@ -259,6 +259,12 @@ pub const TAB_TAG_STRIP: f32 = 3.0;
 pub const MODAL_MAX_HEIGHT: f32 = 0.75;
 /// Faixa de ícones de um painel recolhido (6).
 pub const PANEL_RAIL: f32 = 36.0;
+/// Coluna de painéis aberta: largura inicial e limites ao redimensionar (6).
+pub const PANEL_WIDTH: f32 = 260.0;
+pub const PANEL_MIN_WIDTH: f32 = 200.0;
+pub const PANEL_MAX_WIDTH: f32 = 520.0;
+/// Janela de painel solto: tamanho inicial (6).
+pub const PANEL_FLOAT_SIZE: [f32; 2] = [260.0, 360.0];
 /// Amostras de cor (paleta e indicadores).
 pub const SWATCH: f32 = 18.0;
 

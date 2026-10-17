@@ -123,6 +123,10 @@ const icons = {
   doc: `<path d="M6.5 3 H14 L18.5 7.5 V21 H6.5 Z M14 3 V7.5 H18.5"/>`,
   report: `<path d="M6 3.5 H18 V20.5 H6 Z M9 8 H15 M9 12 H15 M9 16 H12.5"/>`,
   history: `<circle cx="12" cy="12" r="8"/><path d="M12 7.5 V12 L15 14"/>`,
+  // ---- painéis (área de trabalho, GD-UI-03) ----
+  "panel-collapse": `<rect x="3.5" y="4.5" width="17" height="15" rx="1.5"/><path d="M14.5 4.5 V19.5"/><path d="M7.5 9 L10.5 12 L7.5 15"/>`,
+  "panel-expand": `<rect x="3.5" y="4.5" width="17" height="15" rx="1.5"/><path d="M14.5 4.5 V19.5"/><path d="M10.5 9 L7.5 12 L10.5 15"/>`,
+  "panel-undock": `<path d="M10 4.5 H4.5 V19.5 H19.5 V14"/><rect x="12" y="3.5" width="8.5" height="7" rx="1"/><path d="M8 16 L13 11"/>`,
 };
 
 // Ferramentas que também são cursores: o mesmo desenho, na grade de cursor.

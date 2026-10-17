@@ -298,7 +298,9 @@ Do M1:
   de contorno). Os semelhantes comparam só objetos de primeiro nível.
 - Retângulo e elipse têm o modo 3 pontos (GD-FER-30/31) na barra de
   propriedades; distribuir (painel Alinhar) é do M3.
-- Painéis em abas fixas (sem flutuar nem perfis, GD-UI-03). Atalhos têm
+- Painéis (GD-UI-03): coluna à direita com abas, recolhível numa faixa de
+  ícones, painéis soltos em janelas e área de trabalho salva no perfil do
+  usuário; ainda não há vários perfis de área nem encaixe em outros lados. Atalhos têm
   perfis e importação/exportação (GD-UI-10). O painel Camadas mostra os
   objetos dentro de cada camada (GD-UI-02), com miniatura, renomear,
   olho/cadeado, menu de botão direito e arrastar-soltar entre posições,
