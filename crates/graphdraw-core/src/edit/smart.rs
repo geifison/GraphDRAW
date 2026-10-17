@@ -17,6 +17,8 @@ pub struct SmartLine {
     pub to: f64,
     /// Alinhamento com a página (senão, com outro objeto).
     pub page: bool,
+    /// Marcador de espaçamento igual (o vão entre dois objetos).
+    pub spacing: bool,
 }
 
 /// Caixas com que a seleção pode alinhar.
@@ -83,6 +85,7 @@ pub fn align(moving: Rect, t: &Targets, radius: f64) -> (Vec2, Vec<SmartLine>) {
                     from: moved.y0.min(b.y0),
                     to: moved.y1.max(b.y1),
                     page: *page,
+                    spacing: false,
                 });
             }
         }
@@ -96,12 +99,91 @@ pub fn align(moving: Rect, t: &Targets, radius: f64) -> (Vec2, Vec<SmartLine>) {
                     from: moved.x0.min(b.x0),
                     to: moved.x1.max(b.x1),
                     page: *page,
+                    spacing: false,
                 });
             }
         }
     }
+    // Espaçamento igual entre os vizinhos (quando a borda não encaixou).
+    let (mut dx, mut dy) = (dx, dy);
+    let mut moved = moved;
+    if dx == 0.0
+        && let Some((x, marks)) = equal_gap(moved, &t.boxes, radius, true)
+    {
+        dx = x - moved.x0;
+        moved = moved + Vec2::new(dx, 0.0);
+        lines.extend(marks(moved));
+    }
+    if dy == 0.0
+        && let Some((y, marks)) = equal_gap(moved, &t.boxes, radius, false)
+    {
+        dy = y - moved.y0;
+        moved = moved + Vec2::new(0.0, dy);
+        lines.extend(marks(moved));
+    }
+    let _ = moved;
     lines.dedup();
     (Vec2::new(dx, dy), lines)
+}
+
+type Marks = Box<dyn Fn(Rect) -> Vec<SmartLine>>;
+
+/// Posição (x0 ou y0) que deixa vãos iguais até o vizinho anterior e o
+/// seguinte no eixo, se estiver dentro de `radius`, e os marcadores.
+fn equal_gap(
+    m: Rect,
+    boxes: &[(Rect, bool)],
+    radius: f64,
+    horizontal: bool,
+) -> Option<(f64, Marks)> {
+    // Vizinhos que se sobrepõem no outro eixo (fora a página).
+    let overlap = |b: &Rect| {
+        if horizontal {
+            b.y0 < m.y1 && b.y1 > m.y0
+        } else {
+            b.x0 < m.x1 && b.x1 > m.x0
+        }
+    };
+    let (lo, hi, size) = if horizontal {
+        (m.x0, m.x1, m.width())
+    } else {
+        (m.y0, m.y1, m.height())
+    };
+    let end = |b: &Rect| if horizontal { b.x1 } else { b.y1 };
+    let start = |b: &Rect| if horizontal { b.x0 } else { b.y0 };
+    let prev = boxes
+        .iter()
+        .filter(|(b, page)| !page && overlap(b) && end(b) <= lo + radius)
+        .map(|(b, _)| *b)
+        .max_by(|a, b| end(a).total_cmp(&end(b)))?;
+    let next = boxes
+        .iter()
+        .filter(|(b, page)| !page && overlap(b) && start(b) >= hi - radius)
+        .map(|(b, _)| *b)
+        .min_by(|a, b| start(a).total_cmp(&start(b)))?;
+    let target = (end(&prev) + start(&next) - size) / 2.0;
+    if (target - lo).abs() > radius || target < end(&prev) {
+        return None;
+    }
+    let marks: Marks = Box::new(move |mv: Rect| {
+        let (c, a0, a1, b0, b1) = if horizontal {
+            (mv.center().y, prev.x1, mv.x0, mv.x1, next.x0)
+        } else {
+            (mv.center().x, prev.y1, mv.y0, mv.y1, next.y0)
+        };
+        [(a0, a1), (b0, b1)]
+            .into_iter()
+            .map(|(f, t)| SmartLine {
+                vertical: !horizontal,
+                at: c,
+                from: f,
+                to: t,
+                page: false,
+                spacing: true,
+            })
+            .collect()
+    });
+    Some((target, marks))
 }
 
 #[cfg(test)]
@@ -145,5 +227,23 @@ mod tests {
         let (adj, lines) = align(Rect::new(140.0, 65.0, 145.0, 68.0), &t, 1.0);
         assert_eq!(adj, Vec2::ZERO);
         assert!(lines.is_empty());
+    }
+
+    /// Espaçamento igual: entre dois objetos, o vão da esquerda iguala o da
+    /// direita, com dois marcadores.
+    #[test]
+    fn gd_ali_05_equal_spacing() {
+        let mut p = Page::new(300.0, 100.0);
+        p.layers[0]
+            .objects
+            .extend([rect(10.0, 40.0, 20.0, 20.0), rect(110.0, 40.0, 20.0, 20.0)]);
+        let t = targets(&p, &[]);
+        // Caixa de 20 entre x = 30 e x = 110: centrada em x0 = 60; está em 61.
+        let (adj, lines) = align(Rect::new(61.0, 42.0, 81.0, 58.0), &t, 2.5);
+        assert!((adj.x + 1.0).abs() < 1e-9, "{adj:?}");
+        let marks: Vec<_> = lines.iter().filter(|l| l.spacing).collect();
+        assert_eq!(marks.len(), 2);
+        assert!((marks[0].to - marks[0].from - 30.0).abs() < 1e-9);
+        assert!((marks[1].to - marks[1].from - 30.0).abs() < 1e-9);
     }
 }

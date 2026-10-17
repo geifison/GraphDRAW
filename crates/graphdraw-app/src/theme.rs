@@ -37,6 +37,8 @@ pub const GUIDE_PAGE: Color32 = Color32::from_rgb(0x06, 0xB6, 0xD4);
 /// Guias do usuário (GD-GUI-01); travadas ficam mais apagadas.
 pub const GUIDE_USER: Color32 = Color32::from_rgb(0x3B, 0x82, 0xF6);
 pub const GUIDE_LOCKED_ALPHA: u8 = 110;
+/// Meio-comprimento do traço nas pontas do marcador de espaçamento igual.
+pub const SPACING_TICK: f32 = 4.0;
 
 /// Sobreposições de seleção sobre a arte (5.1).
 pub const SELECTION_OBJECT: Color32 = Color32::from_rgba_unmultiplied_const(0x63, 0x66, 0xF1, 110);

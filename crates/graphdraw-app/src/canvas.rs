@@ -888,10 +888,20 @@ impl CanvasState {
             } else {
                 theme::GUIDE_OBJECT
             };
-            painter.line_segment(
-                [self.screen(rect, ph, a), self.screen(rect, ph, b)],
-                EStroke::new(theme::GUIDE_WIDTH, c),
-            );
+            let (sa, sb) = (self.screen(rect, ph, a), self.screen(rect, ph, b));
+            let st = EStroke::new(theme::GUIDE_WIDTH, c);
+            painter.line_segment([sa, sb], st);
+            // Espaçamento igual: traços nas pontas do vão.
+            if l.spacing {
+                let n = if l.vertical {
+                    Vec2::new(theme::SPACING_TICK, 0.0)
+                } else {
+                    Vec2::new(0.0, theme::SPACING_TICK)
+                };
+                for p in [sa, sb] {
+                    painter.line_segment([p - n, p + n], st);
+                }
+            }
         }
         self.paint_overlays(ui, &painter, doc, rect, tool);
         if tool == Tool::Artboard {
