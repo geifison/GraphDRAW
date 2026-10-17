@@ -1629,6 +1629,19 @@ impl App {
                 }
             }
             C::ExportSelection => self.export_selection(),
+            C::ToGuides => {
+                if let Some(d) = &mut self.doc {
+                    let sel = std::mem::take(&mut d.selection);
+                    let page = d.page;
+                    if ops::to_guides(&mut d.editor, &sel, page).is_some() {
+                        self.status = format!(
+                            "{} {}",
+                            sel.len(),
+                            tr("objeto(s) viraram guias", "object(s) became guides")
+                        );
+                    }
+                }
+            }
             C::Preflight => {
                 self.right_tab = RightTab::Preflight;
                 self.show_right = true;
@@ -2479,6 +2492,7 @@ impl App {
                     (tr("Mostrar todos", "Show all"), Command::ShowAll, true),
                     (tr("Desbloquear todos", "Unlock all"), Command::UnlockAll, true),
                     (tr("Estender até a sangria", "Extend to bleed"), Command::ExtendToBleed, has_sel),
+                    (tr("Converter em guia", "Convert to guide"), Command::ToGuides, has_sel),
                 ] {
                     if ui
                         .add_enabled(on, egui::Button::new(keymap::menu(label, cmd)))

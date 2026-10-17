@@ -135,7 +135,7 @@ Para depois da 1.0, cada um com o motivo:
 - [ ] B-spline (GD-BSP-01, GD-FER-24).
 - [ ] Largura variável (GD-VAR-01, GD-OUT-08).
 - [ ] Esboço contínuo (GD-FER-29).
-- [ ] Objeto vira guia (GD-GUI-03).
+- [x] Objeto vira guia (GD-GUI-03).
 - [ ] Grade de linha base e de pixels (GD-GRD-01).
 - [ ] Texto contornando objeto (GD-TXT-10).
 - [ ] Toque longo em amostra composta (GD-BDR-12).

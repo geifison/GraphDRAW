@@ -266,6 +266,10 @@ pub fn object_entries(doc: &DocState, clicked: &str, focus: bool) -> Vec<Entry> 
         tr("Estender até a sangria", "Extend to bleed"),
         Cmd::Run(Command::ExtendToBleed),
     ));
+    out.push(item(
+        tr("Converter em guia", "Convert to guide"),
+        Cmd::Run(Command::ToGuides),
+    ));
     out.push(if focus {
         item(tr("Sair do modo foco", "Leave focus mode"), Cmd::ExitFocus)
     } else {
@@ -429,6 +433,7 @@ pub fn icon_of(c: &Cmd) -> &'static str {
             K::CutLine => "cut-line",
             K::ExportSelection => "export-selection",
             K::ExtendToBleed => "bleed",
+            K::ToGuides => "guide-object",
             K::FocusMode => "focus",
             K::Paste => "paste",
             K::SelectAll => "select-all",

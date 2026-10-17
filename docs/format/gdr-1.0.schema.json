@@ -450,6 +450,7 @@
         "locked": { "type": "boolean" },
         "color": { "$ref": "#/$defs/color" },
         "wireframe": { "type": "boolean" },
+        "guides": { "type": "boolean", "description": "Camada de guias (GD-GUI-03)." },
         "objects": { "type": "array", "items": { "$ref": "#/$defs/object" } }
       }
     },

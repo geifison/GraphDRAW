@@ -297,6 +297,10 @@ pub struct Layer {
     pub color: Option<Color>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub wireframe: bool,
+    /// Camada de guias (GD-GUI-03): os objetos dela são guias — tracejados
+    /// na tela, fora da impressão e da exportação.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub guides: bool,
     #[serde(default)]
     pub objects: Vec<Object>,
     #[serde(flatten)]
@@ -313,6 +317,7 @@ impl Layer {
             locked: false,
             color: None,
             wireframe: false,
+            guides: false,
             objects: Vec::new(),
             extra: Map::new(),
         }

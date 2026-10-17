@@ -631,6 +631,12 @@ status mostra o botão “◉ Modo foco — sair”; Esc também sai.
 - Uma chapa aparece em tons de cinza: preto = 100% de tinta.
 - A barra de status mostra "◐ Separação: … — sair"; o clique desliga.
 
+**Camada de guias** (GD-GUI-03, Objeto → Converter em guia):
+- os objetos dela aparecem só como contorno tracejado de 2 mm na cor de
+  `guide-page`, sem preenchimento;
+- não imprimem nem exportam;
+- servem de encaixe.
+
 ### 5.2 Guias inteligentes e encaixe
 
 - Alinhamento a borda/centro de outro objeto: linha contínua de 1 px

@@ -651,6 +651,31 @@ pub fn delete(ed: &mut Editor, sel: &[String]) {
 
 /// Move objetos de primeiro nível (ou tirados de grupos) para o topo de
 /// outra camada da mesma página, mantendo a ordem relativa (GD-CAM-03).
+/// Converter em guia (GD-GUI-03): leva a seleção para a camada de guias da
+/// página (criada no topo se faltar). Devolve o índice da camada; um passo.
+pub fn to_guides(ed: &mut Editor, sel: &[String], page: usize) -> Option<usize> {
+    if sel.is_empty() || page >= ed.doc.data.pages.len() {
+        return None;
+    }
+    let mut out = None;
+    ed.transaction("Converter em guia", |ed| {
+        let idx = match ed.layers(page).iter().position(|l| l.guides) {
+            Some(i) => i,
+            None => {
+                let mut l = crate::model::Layer::new("Guias");
+                l.guides = true;
+                l.printable = false;
+                let at = ed.layers(page).len();
+                ed.insert_layer(page, at, l);
+                at
+            }
+        };
+        move_to_layer(ed, sel, page, idx);
+        out = Some(idx);
+    });
+    out
+}
+
 pub fn move_to_layer(ed: &mut Editor, sel: &[String], page: usize, layer: usize) {
     let mut refs: Vec<ObjRef> = refs(ed, sel)
         .into_iter()

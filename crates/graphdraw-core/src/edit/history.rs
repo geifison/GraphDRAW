@@ -115,6 +115,7 @@ fn layer_props(l: &Layer) -> Layer {
         locked: l.locked,
         color: l.color.clone(),
         wireframe: l.wireframe,
+        guides: l.guides,
         objects: Vec::new(),
         extra: l.extra.clone(),
     }

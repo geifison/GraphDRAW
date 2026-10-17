@@ -298,6 +298,7 @@ pub fn build_scene(doc: &Document, page: &Page, opts: SceneOptions, images: &Ima
         items: Vec::new(),
         missing_fonts: Vec::new(),
         wireframe: false,
+        guide_layer: false,
         blend: crate::model::BlendMode::Normal,
         blends: std::collections::HashMap::new(),
         overprints: std::collections::HashMap::new(),
@@ -334,6 +335,8 @@ struct Builder<'a> {
     missing_fonts: Vec<String>,
     /// Camada atual em modo esboço (só na tela; a impressão sai normal).
     wireframe: bool,
+    /// Camada de guias (GD-GUI-03): o esboço sai tracejado na cor das guias.
+    guide_layer: bool,
     /// Modo de mesclagem herdado do grupo.
     blend: crate::model::BlendMode,
     blends: std::collections::HashMap<String, crate::model::BlendMode>,
@@ -356,14 +359,16 @@ impl Builder<'_> {
     }
 
     fn layer(&mut self, layer: &crate::model::Layer) {
-        if !layer.visible || (self.opts.print && !layer.printable) {
+        if !layer.visible || (self.opts.print && (!layer.printable || layer.guides)) {
             return;
         }
-        self.wireframe = layer.wireframe && !self.opts.print;
+        self.wireframe = (layer.wireframe || layer.guides) && !self.opts.print;
+        self.guide_layer = layer.guides;
         for o in &layer.objects {
             self.object(o, Affine::IDENTITY, 1.0);
         }
         self.wireframe = false;
+        self.guide_layer = false;
     }
 
     fn object(&mut self, o: &Object, parent: Affine, parent_alpha: f64) {
@@ -459,7 +464,7 @@ impl Builder<'_> {
                             stroke: o.stroke.as_ref().map(|s| resolve_stroke(s, m, alpha)),
                         };
                         if self.wireframe {
-                            wireframe(&mut item);
+                            wireframe(&mut item, self.guide_layer);
                         }
                         outlines.push(item);
                     }
@@ -573,7 +578,7 @@ impl Builder<'_> {
                 stroke,
             };
             if self.wireframe {
-                wireframe(&mut item);
+                wireframe(&mut item, self.guide_layer);
             }
             self.items.push(Item::Shape(item));
         }
@@ -606,15 +611,23 @@ pub fn nib_outline(path: &BezPath, st: &StrokeStyle, stretch: f64, angle: f64) -
 }
 
 /// Modo esboço (GD-CAM-01): só o traço fino, sem preenchimento.
-fn wireframe(s: &mut ShapeItem) {
+/// Cor das guias de objeto na tela (GD-GUI-03), igual à das guias.
+pub const GUIDE_COLOR: [f64; 3] = [0.024, 0.714, 0.831];
+
+fn wireframe(s: &mut ShapeItem, guide: bool) {
     s.fill = None;
     s.stroke = Some(StrokeStyle {
         width: 0.0,
         paint: Paint::Solid {
-            color: Color::black(),
+            color: if guide {
+                Color::rgb(GUIDE_COLOR[0], GUIDE_COLOR[1], GUIDE_COLOR[2])
+            } else {
+                Color::black()
+            },
             alpha: 1.0,
         },
-        dash: None,
+        // Tracejado de 2 mm nas guias.
+        dash: guide.then(|| vec![2_000.0, 1_500.0]),
         dash_offset: 0.0,
         cap: "butt".into(),
         join: "miter".into(),
