@@ -283,7 +283,8 @@ Do M0, ainda valem:
 
 - Cores de `.cdr` chegam em RGB (limitação da interface librevenge; P-01).
 - Texto no PDF sai em curvas; texto vivo com fontes incorporadas é M2 (GD-EXP-02/03).
-- Sem gerenciamento ICC (M2); sem PDF/X, sangria e marcas (M2).
+- Sem gerenciamento ICC (M2): a conversão para CMYK do PDF/X-1a é a
+  fórmula simples, sem perfil.
 - Gradientes: só linear e radial; repetir/espelhar não existe no PDF (sai como "estender").
 - Transparência de grupo é aproximada multiplicando a opacidade dos filhos.
 - Diagramação de texto simples: sem bidi, hifenização ou justificação.
@@ -292,13 +293,15 @@ Do M0, ainda valem:
 
 Do M1:
 
-- Seleção por laço, por tipo/propriedade e inverter (GD-SEL-03) ainda não
-  existem; só clique, Shift+clique e retângulo.
+- Seleção (GD-SEL-03): clique, Shift+clique, retângulo, laço (Alt +
+  arrastar), tudo, inverter e semelhantes (mesmo tipo, preenchimento ou cor
+  de contorno). Os semelhantes comparam só objetos de primeiro nível.
 - Retângulo e elipse de 3 pontos (variantes de GD-FER-30/31) ainda não
   existem; distribuir (painel Alinhar) é do M3.
-- Painéis em abas fixas (sem flutuar nem perfis, GD-UI-03); atalhos não são
-  configuráveis (GD-UI-10). Falta o painel Objetos em árvore (GD-UI-02).
-- Camadas da página mestra não aparecem no painel de Camadas.
+- Painéis em abas fixas (sem flutuar nem perfis, GD-UI-03). Atalhos têm
+  perfis e importação/exportação (GD-UI-10). Falta o painel Objetos em
+  árvore (GD-UI-02).
+- A página mestra existe no núcleo, mas a interface não a mostra.
 - Agrupar exige objetos na mesma camada e no mesmo grupo.
 - Contorno externo no PDF pode sair errado em formas com auto-sobreposição
   e regra não-zero (ver 2.4).

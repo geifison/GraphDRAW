@@ -120,6 +120,8 @@ enum Drag {
     Pan,
     Rubber {
         start: Pos2,
+        /// Laço (Alt + arrastar, GD-SEL-03): pontos na página.
+        lasso: Option<Vec<Point>>,
     },
     ZoomRect {
         start: Pos2,
@@ -951,7 +953,18 @@ impl CanvasState {
         // Retângulos elásticos e prévias.
         let hover = ui.input(|i| i.pointer.hover_pos());
         match &self.drag {
-            Drag::Rubber { start } | Drag::NodeRubber { start } | Drag::ZoomRect { start } => {
+            Drag::Rubber {
+                lasso: Some(pts), ..
+            } => {
+                let mut line: Vec<Pos2> = pts.iter().map(|q| self.screen(rect, ph, *q)).collect();
+                if let Some(h) = hover {
+                    line.push(h);
+                }
+                if line.len() >= 2 {
+                    painter.add(egui::Shape::closed_line(line, thin));
+                }
+            }
+            Drag::Rubber { start, .. } | Drag::NodeRubber { start } | Drag::ZoomRect { start } => {
                 if let Some(h) = hover {
                     let r = Rect::from_two_pos(*start, h);
                     painter.rect_filled(r, theme::RADIUS_NONE, theme::SELECTION_FILL);
@@ -1225,6 +1238,18 @@ impl CanvasState {
         rect: Rect,
         ph: f64,
     ) {
+        // Alt + arrastar: laço à mão livre (GD-SEL-03, GD-FER-01).
+        if mods.alt {
+            if !mods.shift {
+                doc.selection.clear();
+                self.rotate_mode = false;
+            }
+            self.drag = Drag::Rubber {
+                start: origin,
+                lasso: Some(vec![p]),
+            };
+            return;
+        }
         if let Some(b) = ops::selection_bounds(&doc.editor, &doc.selection, false) {
             let near = |q: Pos2| (q - origin).length() <= theme::HANDLE_HIT;
             if self.rotate_mode {
@@ -1335,7 +1360,10 @@ impl CanvasState {
                     doc.selection.clear();
                     self.rotate_mode = false;
                 }
-                self.drag = Drag::Rubber { start: origin };
+                self.drag = Drag::Rubber {
+                    start: origin,
+                    lasso: None,
+                };
             }
         }
     }
@@ -1354,7 +1382,10 @@ impl CanvasState {
         let Some((loc, o, path, m)) =
             single_path(doc).map(|s| (s.r, s.obj.clone(), s.path.clone(), s.m))
         else {
-            self.drag = Drag::Rubber { start: origin };
+            self.drag = Drag::Rubber {
+                start: origin,
+                lasso: None,
+            };
             return;
         };
         let near = |q: Point| (self.screen(rect, ph, m * q) - origin).length() <= 6.0;
@@ -1421,6 +1452,19 @@ impl CanvasState {
     }
 
     fn update_drag(&mut self, doc: &mut DocState, cur: Point, mods: egui::Modifiers, _tol: f64) {
+        if let Drag::Rubber {
+            lasso: Some(pts), ..
+        } = &mut self.drag
+        {
+            // Um ponto a cada 2 px de tela basta para o laço.
+            if pts
+                .last()
+                .is_none_or(|l| (cur - *l).hypot() * self.view.zoom > 2.0)
+            {
+                pts.push(cur);
+            }
+            return;
+        }
         let radius = snap_radius(&self.view);
         self.snap_hit = None;
         match &self.drag {
@@ -1653,10 +1697,17 @@ impl CanvasState {
     ) {
         let drag = std::mem::replace(&mut self.drag, Drag::None);
         match drag {
-            Drag::Rubber { start } => {
-                let a = self.page_of(rect, ph, start);
-                let r = kurbo::Rect::from_points(a, cur);
-                let hits = query::objects_in_rect(doc.page(), r);
+            Drag::Rubber { start, lasso } => {
+                let hits = match lasso {
+                    Some(mut pts) => {
+                        pts.push(cur);
+                        query::objects_in_lasso(doc.page(), &pts)
+                    }
+                    None => {
+                        let a = self.page_of(rect, ph, start);
+                        query::objects_in_rect(doc.page(), kurbo::Rect::from_points(a, cur))
+                    }
+                };
                 let ids: Vec<String> = hits
                     .iter()
                     .map(|h| doc.page().layers[h.layer].objects[h.index].id.clone())
@@ -2166,6 +2217,99 @@ mod tests {
     /// Aceite de GD-DIM-24: arrastar o canto de uma A4 até perto de 148 × 210
     /// mm gruda em A5; sem objetos, o tamanho muda direto em todas as páginas
     /// (GD-PAG-01), num passo do histórico.
+    /// GD-SEL-03: Alt + arrastar desenha um laço; só o objeto cercado entra
+    /// na seleção.
+    #[test]
+    fn alt_drag_selects_with_lasso() {
+        let ctx = crate::theme::test_ctx();
+        let mut cs = CanvasState::default();
+        let mut doc = DocState::new_blank();
+        let square = |x: f64| {
+            let mut o = Object::new(ObjectKind::Rectangle(RectData {
+                width: 20_000.0,
+                height: 20_000.0,
+                corners: None,
+                extra: Map::new(),
+            }));
+            o.transform = graphdraw_core::model::Transform::translate(x, 100_000.0);
+            o
+        };
+        let (a, b) = (square(30_000.0), square(150_000.0));
+        let a_id = a.id.clone();
+        for (k, o) in [a, b].into_iter().enumerate() {
+            let loc = graphdraw_core::edit::ObjLoc {
+                page: doc.page,
+                layer: 0,
+                index: k,
+            };
+            doc.editor.insert_object(loc, o);
+        }
+        for _ in 0..2 {
+            canvas_frame(&ctx, &mut cs, &mut doc, Tool::Select, vec![]);
+        }
+        let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(1366.0, 768.0));
+        let (_, ph) = doc.page_size();
+        // Laço em volta do primeiro quadrado (coordenadas da página, µm).
+        let ring: Vec<Pos2> = [
+            (20_000.0, 90_000.0),
+            (60_000.0, 90_000.0),
+            (60_000.0, 130_000.0),
+            (20_000.0, 130_000.0),
+            (20_000.0, 95_000.0),
+        ]
+        .iter()
+        .map(|&(x, y)| cs.screen(rect, ph, Point::new(x, y)))
+        .collect();
+        let alt = egui::Modifiers::ALT;
+        let btn = |pos, pressed| egui::Event::PointerButton {
+            pos,
+            button: PointerButton::Primary,
+            pressed,
+            modifiers: alt,
+        };
+        let held = |e: egui::Event| vec![egui::Event::ModifiersChanged(alt), e];
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::Select,
+            held(egui::Event::PointerMoved(ring[0])),
+        );
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::Select,
+            held(btn(ring[0], true)),
+        );
+        for w in ring.windows(2) {
+            for k in 1..=5 {
+                let pos = w[0] + (w[1] - w[0]) * (k as f32 / 5.0);
+                canvas_frame(
+                    &ctx,
+                    &mut cs,
+                    &mut doc,
+                    Tool::Select,
+                    held(egui::Event::PointerMoved(pos)),
+                );
+            }
+        }
+        assert!(
+            matches!(cs.drag, Drag::Rubber { lasso: Some(_), .. }),
+            "laço ativo"
+        );
+        let last = *ring.last().unwrap();
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::Select,
+            held(btn(last, false)),
+        );
+        canvas_frame(&ctx, &mut cs, &mut doc, Tool::Select, vec![]);
+        assert_eq!(doc.selection, vec![a_id]);
+    }
+
     #[test]
     fn artboard_snaps_a4_to_a5() {
         let ctx = crate::theme::test_ctx();

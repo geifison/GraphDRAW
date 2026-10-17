@@ -131,6 +131,10 @@ commands! {
     PasteInPlace = "edit.paste_in_place", "Copiar no mesmo lugar", "Copy in place", Edit, Selection, true;
     Repeat = "edit.repeat", "Repetir a última ação", "Repeat last action", Edit, NotText, true;
     SelectAll = "edit.select_all", "Selecionar tudo", "Select all", Edit, NotText, true;
+    InvertSelection = "edit.invert_selection", "Inverter seleção", "Invert selection", Edit, NotText, true;
+    SelectSameKind = "edit.select_same_kind", "Selecionar mesmo tipo", "Select same type", Edit, Selection, true;
+    SelectSameFill = "edit.select_same_fill", "Selecionar mesmo preenchimento", "Select same fill", Edit, Selection, true;
+    SelectSameStroke = "edit.select_same_stroke", "Selecionar mesma cor de contorno", "Select same outline color", Edit, Selection, true;
 
     ToCurves = "obj.to_curves", "Converter em curvas", "Convert to curves", Object, Selection, true;
     OutlineToObject = "obj.outline_to_object", "Converter contorno em objeto", "Convert outline to object", Object, Selection, true;
@@ -356,6 +360,7 @@ impl Keymap {
                 (PasteInPlace, "Ctrl+Shift+D"),
                 (Repeat, "Ctrl+Shift+R"),
                 (SelectAll, "Ctrl+A"),
+                (InvertSelection, "Ctrl+Shift+I"),
                 (ToCurves, "Ctrl+Q"),
                 (OutlineToObject, "Ctrl+Shift+Q"),
                 (Group_, "Ctrl+G"),
@@ -460,6 +465,7 @@ impl Keymap {
                 (Redo, "Ctrl+Shift+Z"),
                 // Fora da lista, sem conflito com ela
                 (SelectAll, "Ctrl+A"),
+                (InvertSelection, "Ctrl+Shift+I"),
                 (Close, "Ctrl+W"),
                 (NextDoc, "Ctrl+Tab"),
                 (PrevDoc, "Ctrl+Shift+Tab"),

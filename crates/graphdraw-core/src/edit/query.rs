@@ -194,6 +194,112 @@ pub fn objects_in_rect(page: &Page, r: Rect) -> Vec<Hit> {
     out
 }
 
+/// Objetos de primeiro nível que podem ser selecionados: visíveis, sem
+/// trava, em camadas visíveis e destravadas.
+pub fn selectable(page: &Page) -> Vec<Hit> {
+    let mut out = Vec::new();
+    for (l, layer) in page.layers.iter().enumerate() {
+        if !layer.visible || layer.locked {
+            continue;
+        }
+        for (i, o) in layer.objects.iter().enumerate() {
+            if o.visible && !o.locked {
+                out.push(Hit { layer: l, index: i });
+            }
+        }
+    }
+    out
+}
+
+/// Pontos do contorno em coordenadas da página, para testar se o objeto cabe
+/// numa região. Sem contorno, usa os cantos da caixa.
+fn outline_points(o: &Object, parent: Affine, out: &mut Vec<Point>) {
+    let m = parent * o.transform.affine();
+    if let ObjectKind::Group(g) = &o.kind {
+        for c in &g.children {
+            outline_points(c, m, out);
+        }
+        return;
+    }
+    match local_outline(o).filter(|p| !p.elements().is_empty()) {
+        Some(mut path) => {
+            path.apply_affine(m);
+            let tol = (path.bounding_box().size().max_side() / 200.0).max(1e-3);
+            kurbo::flatten(path, tol, |el| match el {
+                kurbo::PathEl::MoveTo(q) | kurbo::PathEl::LineTo(q) => out.push(q),
+                _ => {}
+            });
+        }
+        None => {
+            if let Some(b) = bounds(o, parent, false) {
+                out.extend([
+                    Point::new(b.x0, b.y0),
+                    Point::new(b.x1, b.y0),
+                    Point::new(b.x1, b.y1),
+                    Point::new(b.x0, b.y1),
+                ]);
+            }
+        }
+    }
+}
+
+/// Seleção por laço (GD-SEL-03): objetos cujo contorno inteiro fica dentro
+/// do polígono desenhado (`lasso`, em coordenadas da página).
+pub fn objects_in_lasso(page: &Page, lasso: &[Point]) -> Vec<Hit> {
+    if lasso.len() < 3 {
+        return Vec::new();
+    }
+    let mut poly = BezPath::new();
+    poly.move_to(lasso[0]);
+    for q in &lasso[1..] {
+        poly.line_to(*q);
+    }
+    poly.close_path();
+    let area = poly.bounding_box();
+    selectable(page)
+        .into_iter()
+        .filter(|h| {
+            let o = &page.layers[h.layer].objects[h.index];
+            if !bounds(o, Affine::IDENTITY, false).is_some_and(|b| area.contains_rect(b)) {
+                return false;
+            }
+            let mut pts = Vec::new();
+            outline_points(o, Affine::IDENTITY, &mut pts);
+            !pts.is_empty() && pts.iter().all(|q| poly.contains(*q))
+        })
+        .collect()
+}
+
+/// Critério de "selecionar semelhantes" (GD-SEL-03).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Similar {
+    /// Mesmo tipo de objeto (retângulo, elipse, curva, texto…).
+    Kind,
+    /// Mesmo preenchimento.
+    Fill,
+    /// Mesma cor de contorno (objetos sem contorno combinam entre si).
+    StrokeColor,
+}
+
+/// Objetos selecionáveis semelhantes a `reference` pelo critério dado.
+pub fn similar(page: &Page, reference: &Object, by: Similar) -> Vec<Hit> {
+    let stroke_color = |o: &Object| o.stroke.as_ref().map(|s| s.color.clone());
+    let fill = |o: &Object| o.fill.clone().filter(|f| *f != Fill::None);
+    selectable(page)
+        .into_iter()
+        .filter(|h| {
+            let o = &page.layers[h.layer].objects[h.index];
+            match by {
+                Similar::Kind => {
+                    std::mem::discriminant(&o.kind) == std::mem::discriminant(&reference.kind)
+                }
+                Similar::Fill => fill(o) == fill(reference),
+                Similar::StrokeColor => stroke_color(o) == stroke_color(reference),
+            }
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -325,5 +431,55 @@ mod tests {
             objects_in_rect(&page, Rect::new(-1.0, -1.0, 31.0, 31.0)).len(),
             2
         );
+    }
+
+    #[test]
+    fn gd_sel_03_lasso_needs_whole_outline_inside() {
+        let mut page = Page::new(100.0, 100.0);
+        page.layers[0].objects.push(rect(10.0, 10.0, 10.0, 10.0));
+        page.layers[0].objects.push(rect(60.0, 10.0, 10.0, 10.0));
+        // Triângulo que cobre só o primeiro retângulo.
+        let tri = [
+            Point::new(0.0, 0.0),
+            Point::new(50.0, 0.0),
+            Point::new(0.0, 50.0),
+        ];
+        assert_eq!(
+            objects_in_lasso(&page, &tri),
+            vec![Hit { layer: 0, index: 0 }]
+        );
+        // A caixa cabe no triângulo menor, mas um canto fica fora: não entra.
+        let small = [
+            Point::new(5.0, 5.0),
+            Point::new(30.0, 5.0),
+            Point::new(5.0, 30.0),
+        ];
+        assert!(objects_in_lasso(&page, &small).is_empty());
+    }
+
+    #[test]
+    fn gd_sel_03_similar_by_kind_fill_and_stroke() {
+        let mut page = Page::new(100.0, 100.0);
+        let a = rect(0.0, 0.0, 10.0, 10.0);
+        let mut b = rect(20.0, 0.0, 10.0, 10.0);
+        b.fill = Some(Fill::solid(Color::rgb(1.0, 0.0, 0.0)));
+        b.stroke = Some(Stroke::new(1.0, Color::black()));
+        let mut e = Object::new(ObjectKind::Ellipse(EllipseData {
+            rx: 5.0,
+            ry: 5.0,
+            mode: "ellipse".into(),
+            start_angle: 0.0,
+            end_angle: 360.0,
+            extra: Map::new(),
+        }));
+        e.fill = Some(Fill::solid(Color::black()));
+        e.stroke = Some(Stroke::new(2.0, Color::black()));
+        page.layers[0].objects.extend([a.clone(), b, e]);
+        let idx = |v: Vec<Hit>| v.into_iter().map(|h| h.index).collect::<Vec<_>>();
+        assert_eq!(idx(similar(&page, &a, Similar::Kind)), vec![0, 1]);
+        assert_eq!(idx(similar(&page, &a, Similar::Fill)), vec![0, 2]);
+        let b = page.layers[0].objects[1].clone();
+        assert_eq!(idx(similar(&page, &b, Similar::StrokeColor)), vec![1, 2]);
+        assert_eq!(idx(similar(&page, &a, Similar::StrokeColor)), vec![0]);
     }
 }

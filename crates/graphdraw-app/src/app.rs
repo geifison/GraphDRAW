@@ -9,6 +9,7 @@ use std::sync::mpsc::{Receiver, channel};
 
 use eframe::egui::{self, Key};
 use graphdraw_core::edit::ops::{self, Align, AlignTo, Anchor, Order};
+use graphdraw_core::edit::query;
 use graphdraw_core::export::{self, ExportFormat, ExportOptions};
 use graphdraw_core::model::ObjectKind;
 use graphdraw_core::report::Severity;
@@ -590,6 +591,35 @@ impl App {
         }
     }
 
+    /// Inverte a seleção entre os objetos de primeiro nível (GD-SEL-03).
+    fn invert_selection(&mut self) {
+        if let Some(d) = &mut self.doc {
+            let page = d.page();
+            let ids: Vec<String> = query::selectable(page)
+                .into_iter()
+                .map(|h| page.layers[h.layer].objects[h.index].id.clone())
+                .filter(|id| !d.selection.contains(id))
+                .collect();
+            d.selection = ids;
+            self.canvas.rotate_mode = false;
+        }
+    }
+
+    /// Seleciona os objetos semelhantes ao primeiro selecionado (GD-SEL-03).
+    fn select_similar(&mut self, by: query::Similar) {
+        if let Some(d) = &mut self.doc
+            && let Some(r) = d.selection.first().and_then(|id| d.editor.find(id))
+            && let Some(reference) = d.editor.get(&r).cloned()
+        {
+            let page = d.page();
+            d.selection = query::similar(page, &reference, by)
+                .into_iter()
+                .map(|h| page.layers[h.layer].objects[h.index].id.clone())
+                .collect();
+            self.canvas.rotate_mode = false;
+        }
+    }
+
     fn with_selection(
         &mut self,
         f: impl FnOnce(&mut graphdraw_core::edit::Editor, &[String]) -> Option<Vec<String>>,
@@ -844,6 +874,10 @@ impl App {
                 }
             },
             C::SelectAll => self.select_all(),
+            C::InvertSelection => self.invert_selection(),
+            C::SelectSameKind => self.select_similar(query::Similar::Kind),
+            C::SelectSameFill => self.select_similar(query::Similar::Fill),
+            C::SelectSameStroke => self.select_similar(query::Similar::StrokeColor),
             C::ToCurves => self.with_selection(|ed, s| {
                 ops::convert_to_curves(ed, s);
                 None
@@ -1150,6 +1184,38 @@ impl App {
                     .clicked()
                 {
                     self.select_all();
+                }
+                for (label, cmd, enabled) in [
+                    (
+                        tr("Inverter seleção", "Invert selection"),
+                        Command::InvertSelection,
+                        has,
+                    ),
+                    (
+                        tr("Selecionar mesmo tipo", "Select same type"),
+                        Command::SelectSameKind,
+                        has_sel,
+                    ),
+                    (
+                        tr("Selecionar mesmo preenchimento", "Select same fill"),
+                        Command::SelectSameFill,
+                        has_sel,
+                    ),
+                    (
+                        tr(
+                            "Selecionar mesma cor de contorno",
+                            "Select same outline color",
+                        ),
+                        Command::SelectSameStroke,
+                        has_sel,
+                    ),
+                ] {
+                    if ui
+                        .add_enabled(enabled, egui::Button::new(keymap::menu(label, cmd)))
+                        .clicked()
+                    {
+                        self.run_command(cmd, &ctx);
+                    }
                 }
                 ui.separator();
                 if ui
