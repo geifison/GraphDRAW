@@ -431,6 +431,11 @@ Nós não selecionados têm fundo `#FFFFFF`; selecionados, fundo
 
 ### 5.3 Página
 
+- **Lado a lado** (GD-PAG-04, menu Exibir): a página anterior à esquerda e
+  a seguinte à direita, a `spread-gap` = 24 px da ativa, alinhadas pelo
+  topo, com `shadow-page`, véu `spread-dim` (preto 16%) e o nome acima em
+  `type-micro` `fg-muted`. Só para ver; clicar numa delas vai para ela.
+
 - Folha `page-paper` com `shadow-page` sobre `bg-canvas`.
 - Sangria: contorno tracejado na distância da sangria com marcas de corte
   nos cantos; `accent-success` quando correta, `accent-warning` quando há

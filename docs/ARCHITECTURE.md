@@ -264,6 +264,7 @@ Em Linux: `apt install libcdr-dev librevenge-dev pkg-config g++` e o mesmo
 | GD-NOD-01..07 | `nodes::tests::*` (`gd_nod_06_align_nodes`, `gd_nod_07_reduce_nodes`) |
 | GD-PRI-05, GD-PRI-06, GD-FER-32 | `generate::tests::*`, `canvas::tests::polygon_tool_draws_spiral_and_graph_paper` (app) |
 | GD-FIL-03 (elíptico, cônico, retangular) | `gradient::tests::*`, `tests/gradients.rs` (PNG e PDF pelo Poppler), `mapper::tests::cdr_gradient_styles_map_to_kinds` |
+| GD-PAG-04 (lado a lado) | `canvas::tests::spread_shows_neighbors_and_click_switches` (app); visão geral em `pagebar` |
 | GD-TXT-09 | `ops::tests::gd_txt_09_text_on_path` |
 | GD-TRA-02 | `tests/blend.rs` |
 | GD-DOC-03 | `rulers::tests::gd_doc_03_drawing_scale_on_rulers` (app) |

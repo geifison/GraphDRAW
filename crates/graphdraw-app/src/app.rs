@@ -1993,6 +1993,10 @@ impl App {
                 ui.separator();
                 ui.separator();
                 ui.checkbox(&mut self.canvas.show_rulers, tr("Réguas", "Rulers"));
+                ui.checkbox(
+                    &mut self.canvas.spread,
+                    tr("Páginas vizinhas lado a lado", "Neighbor pages side by side"),
+                );
                 // Escala de desenho (GD-DOC-03): só réguas; a geometria não muda.
                 if let Some(d) = &mut self.doc {
                     let [paper, world] = d.doc().data.settings.drawing_scale;

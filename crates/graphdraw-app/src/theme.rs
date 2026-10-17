@@ -323,6 +323,10 @@ pub const LAYER_COLORS: [[u8; 3]; 8] = [
 ];
 /// Escolha da paleta na barra de paleta.
 pub const PALETTE_SOURCE_WIDTH: f32 = 110.0;
+/// Distância na tela entre a página ativa e as vizinhas lado a lado.
+pub const SPREAD_GAP: f32 = 24.0;
+/// Véu sobre as páginas vizinhas (só para ver).
+pub const SPREAD_DIM: Color32 = Color32::from_rgba_premultiplied(0, 0, 0, 40);
 /// Lista de modos de mesclagem (painel Camadas, Aparência).
 pub const BLEND_COMBO_WIDTH: f32 = 150.0;
 /// Lista de formas de ponta de seta (janela de contorno).

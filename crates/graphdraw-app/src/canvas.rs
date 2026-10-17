@@ -355,6 +355,13 @@ pub struct CanvasState {
     pub snap_hit: Option<Snapped>,
     pub snap: SnapSettings,
     pub show_grid: bool,
+    /// Páginas vizinhas lado a lado (GD-PAG-04): a anterior à esquerda e a
+    /// seguinte à direita, só para ver; clicar numa delas vai para ela.
+    pub spread: bool,
+    /// Miniaturas das vizinhas: (ID da página, revisão, lado em px, textura).
+    spread_tex: Vec<(String, u64, u32, egui::TextureHandle)>,
+    /// Área de cada vizinha na tela no último quadro.
+    spread_rects: Vec<(usize, Rect)>,
     pub canvas_size: Vec2,
     /// Segurar Espaço vira a mão (quando o perfil de atalhos não usa o Espaço).
     pub space_pans: bool,
@@ -412,6 +419,9 @@ impl Default for CanvasState {
                 ..Default::default()
             },
             show_grid: false,
+            spread: false,
+            spread_tex: Vec::new(),
+            spread_rects: Vec::new(),
             canvas_size: Vec2::new(800.0, 600.0),
             space_pans: true,
             artboard_pending: None,
@@ -915,6 +925,22 @@ impl CanvasState {
                 crate::layertree::apply(doc, a);
             }
         }
+        // Clique numa página vizinha (lado a lado): vai para ela.
+        if self.spread
+            && response.clicked()
+            && !panning_tool
+            && let Some(pos) = response.interact_pointer_pos()
+            && let Some((i, _)) = self
+                .spread_rects
+                .iter()
+                .find(|(_, r)| r.contains(pos))
+                .copied()
+        {
+            self.drag = Drag::None;
+            doc.selection.clear();
+            doc.set_page(i);
+            self.fit_pending = true;
+        }
         if response.secondary_clicked()
             && tool == Tool::Zoom
             && let Some(pos) = response.interact_pointer_pos()
@@ -955,6 +981,7 @@ impl CanvasState {
         }
 
         // ---- desenho ----
+        self.paint_spread(ui, &painter, doc, rect);
         self.paint_page(ui, &painter, doc, rect);
         self.paint_guides(&painter, rect, ph);
         for l in &self.smart_lines {
@@ -1049,6 +1076,83 @@ impl CanvasState {
             }
         }
         ev
+    }
+
+    /// Vizinhas da página ativa, lado a lado (GD-PAG-04), alinhadas pelo
+    /// topo e afastadas por `spread-gap`.
+    fn paint_spread(&mut self, ui: &egui::Ui, painter: &egui::Painter, doc: &DocState, rect: Rect) {
+        self.spread_rects.clear();
+        if !self.spread {
+            return;
+        }
+        let pages = &doc.doc().data.pages;
+        let (pw, ph) = doc.page_size();
+        let gap = theme::SPREAD_GAP as f64 / self.view.zoom.max(1e-9);
+        let mut wanted = Vec::new();
+        if doc.page > 0 {
+            let p = &pages[doc.page - 1];
+            wanted.push((doc.page - 1, -gap - p.width, p.width, p.height));
+        }
+        if doc.page + 1 < pages.len() {
+            let p = &pages[doc.page + 1];
+            wanted.push((doc.page + 1, pw + gap, p.width, p.height));
+        }
+        let ppp = ui.ctx().pixels_per_point();
+        for (i, x0, w, h) in wanted {
+            let r = Rect::from_min_max(
+                self.screen(rect, ph, Point::new(x0, ph)),
+                self.screen(rect, ph, Point::new(x0 + w, ph - h)),
+            );
+            if !r.intersects(rect) {
+                continue;
+            }
+            // Miniatura na resolução da tela, refeita ao mudar de zoom ou de
+            // conteúdo (em degraus para não refazer a cada quadro).
+            let side = ((r.width().max(r.height()) * ppp).ceil() as u32).clamp(16, 2048);
+            let side = side.next_power_of_two().min(2048);
+            let id = pages[i].id.clone();
+            let rev = doc.editor.revision();
+            let pos = self.spread_tex.iter().position(|t| t.0 == id);
+            let fresh =
+                pos.is_some_and(|k| self.spread_tex[k].1 == rev && self.spread_tex[k].2 == side);
+            if !fresh {
+                let img = doc.thumbnail(i, side as f64);
+                let tex = ui.ctx().load_texture(
+                    format!("vizinha-{id}"),
+                    img,
+                    egui::TextureOptions::LINEAR,
+                );
+                match pos {
+                    Some(k) => self.spread_tex[k] = (id.clone(), rev, side, tex),
+                    None => self.spread_tex.push((id.clone(), rev, side, tex)),
+                }
+            }
+            let Some(t) = self.spread_tex.iter().find(|t| t.0 == id) else {
+                continue;
+            };
+            painter.add(
+                theme::palette(ui)
+                    .shadow_page()
+                    .as_shape(r, theme::RADIUS_NONE),
+            );
+            painter.image(
+                t.3.id(),
+                r,
+                Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
+                Color32::WHITE,
+            );
+            painter.rect_filled(r, theme::RADIUS_NONE, theme::SPREAD_DIM);
+            painter.text(
+                r.left_top() - Vec2::new(0.0, theme::SPACE_100),
+                egui::Align2::LEFT_BOTTOM,
+                graphdraw_core::edit::pages::display_name(&pages[i], i),
+                theme::font_micro(),
+                theme::palette(ui).fg_muted,
+            );
+            self.spread_rects.push((i, r));
+        }
+        self.spread_tex
+            .retain(|t| pages.iter().any(|p| p.id == t.0));
     }
 
     fn paint_page(
@@ -4075,6 +4179,48 @@ mod tests {
         };
         assert_eq!(gd.children.len(), 6);
         assert_eq!(doc.selection, vec![g.id.clone()]);
+    }
+
+    /// GD-PAG-04: com lado a lado, as vizinhas aparecem e clicar numa
+    /// delas vai para ela.
+    #[test]
+    fn spread_shows_neighbors_and_click_switches() {
+        let ctx = crate::theme::test_ctx();
+        let mut cs = CanvasState::default();
+        let mut doc = DocState::new_blank();
+        graphdraw_core::edit::pages::add_after(&mut doc.editor, 0);
+        graphdraw_core::edit::pages::add_after(&mut doc.editor, 1);
+        doc.sync();
+        doc.set_page(1);
+        cs.spread = true;
+        for _ in 0..2 {
+            canvas_frame(&ctx, &mut cs, &mut doc, Tool::Select, vec![]);
+        }
+        // Afasta o zoom para as vizinhas caberem na tela.
+        cs.view.zoom_at(0.3, (683.0, 384.0));
+        for _ in 0..2 {
+            canvas_frame(&ctx, &mut cs, &mut doc, Tool::Select, vec![]);
+        }
+        assert_eq!(cs.spread_rects.len(), 2, "anterior e seguinte");
+        let (i, r) = *cs.spread_rects.iter().find(|(i, _)| *i == 2).unwrap();
+        assert_eq!(i, 2);
+        let c = r.center();
+        let btn = |pressed| egui::Event::PointerButton {
+            pos: c,
+            button: PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::Select,
+            vec![egui::Event::PointerMoved(c)],
+        );
+        canvas_frame(&ctx, &mut cs, &mut doc, Tool::Select, vec![btn(true)]);
+        canvas_frame(&ctx, &mut cs, &mut doc, Tool::Select, vec![btn(false)]);
+        assert_eq!(doc.page, 2);
     }
 
     /// GD-GUI-01: arrastar da régua cria guia; arrastar a guia de volta
