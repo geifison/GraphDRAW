@@ -50,6 +50,14 @@ pub enum Tool {
     /// Conta-gotas: copia preenchimento e cor do contorno do objeto clicado
     /// para a seleção (ou para os novos objetos, sem seleção).
     Eyedropper,
+    /// Faca (GD-FER-17): arrastar corta em reta; Alt + arrastar, à mão livre.
+    Knife,
+    /// Recortar (GD-FER-16): retângulo; Enter ou duplo clique aplica.
+    Crop,
+    /// Borracha (GD-FER-18): arrastar apaga a área sob o pincel.
+    Eraser,
+    /// Excluir segmento virtual (GD-FER-19): clique no trecho.
+    VirtualDelete,
 }
 
 impl Tool {
@@ -159,9 +167,53 @@ impl Tool {
                 ),
                 "",
             ),
+            Tool::Knife => (
+                "tool-knife",
+                crate::keymap::hint(
+                    tr(
+                        "Faca — arraste através dos objetos para cortar em reta (Alt: à mão livre)",
+                        "Knife — drag across objects to cut in a straight line (Alt: freehand)",
+                    ),
+                    crate::keymap::Command::ToolKnife,
+                ),
+                "",
+            ),
+            Tool::Crop => (
+                "tool-crop",
+                crate::keymap::hint(
+                    tr(
+                        "Recortar — arraste o retângulo; Enter ou duplo clique apaga o que está fora",
+                        "Crop — drag the rectangle; Enter or double-click removes what is outside",
+                    ),
+                    crate::keymap::Command::ToolCrop,
+                ),
+                "",
+            ),
+            Tool::Eraser => (
+                "tool-eraser",
+                crate::keymap::hint(
+                    tr(
+                        "Borracha — arraste para apagar a área sob o pincel",
+                        "Eraser — drag to erase the area under the brush",
+                    ),
+                    crate::keymap::Command::ToolEraser,
+                ),
+                "",
+            ),
+            Tool::VirtualDelete => (
+                "tool-virtual-delete",
+                crate::keymap::hint(
+                    tr(
+                        "Excluir segmento virtual — clique no trecho entre cruzamentos para apagá-lo",
+                        "Virtual segment delete — click the stretch between crossings to delete it",
+                    ),
+                    crate::keymap::Command::ToolVirtualDelete,
+                ),
+                "",
+            ),
         }
     }
-    pub const ALL: [Tool; 13] = [
+    pub const ALL: [Tool; 17] = [
         Tool::Select,
         Tool::Shape,
         Tool::Zoom,
@@ -175,6 +227,10 @@ impl Tool {
         Tool::SolidFill,
         Tool::Eyedropper,
         Tool::Artboard,
+        Tool::Knife,
+        Tool::Crop,
+        Tool::Eraser,
+        Tool::VirtualDelete,
     ];
 }
 
@@ -274,6 +330,20 @@ struct Menu {
 
 enum Drag {
     None,
+    /// Faca: pontos do traço (reta = início e ponto atual).
+    Knife {
+        pts: Vec<Point>,
+        free: bool,
+    },
+    /// Retângulo do recorte sendo puxado.
+    CropRect {
+        start: Point,
+        cur: Point,
+    },
+    /// Pincel da borracha.
+    Erase {
+        pts: Vec<Point>,
+    },
     /// Arrasto com o botão direito (GD-BDR-20): a seleção não se move até a
     /// escolha no menu; `over` é o alvo sob o cursor.
     RightMove {
@@ -432,6 +502,13 @@ pub struct CanvasState {
     stamped: usize,
     /// Há o que colar (a área de transferência fica no App).
     pub can_paste: bool,
+    /// Lacuna da faca e largura do pincel da borracha (µm).
+    pub knife_gap: f64,
+    pub eraser_width: f64,
+    /// Recorte esperando Enter ou duplo clique (página).
+    pub crop_pending: Option<kurbo::Rect>,
+    /// Mensagem para a barra de status no fim do quadro.
+    note: Option<String>,
     /// Conta-gotas (doc 27).
     pub eyedrop: crate::eyedrop::Eyedrop,
     /// Último quadro renderizado (RGBA pré-multiplicado), guardado só com o
@@ -518,6 +595,10 @@ impl Default for CanvasState {
             menu_node: None,
             stamped: 0,
             can_paste: false,
+            knife_gap: 0.0,
+            eraser_width: 5_000.0,
+            crop_pending: None,
+            note: None,
             eyedrop: Default::default(),
             pixels: None,
             focus: None,
@@ -1141,6 +1222,15 @@ impl CanvasState {
             return true;
         }
         if self.pick_reference.take().is_some() {
+            return true;
+        }
+        if self.crop_pending.take().is_some()
+            || matches!(
+                self.drag,
+                Drag::Knife { .. } | Drag::Erase { .. } | Drag::CropRect { .. }
+            )
+        {
+            self.drag = Drag::None;
             return true;
         }
         if self.eyedrop.active && self.eyedrop.empty() {
@@ -1829,6 +1919,16 @@ impl CanvasState {
         self.paint_overlays(ui, &painter, doc, rect, tool);
         self.paint_right_drag(&painter, doc, rect, ph);
         self.eyedrop_overlay(ui, &painter, doc, rect, ph, tol, &mut ev);
+        self.paint_cut_tools(ui, &painter, rect, ph, tool);
+        if tool == Tool::Crop
+            && self.crop_pending.is_some()
+            && ui.input(|i| i.key_pressed(Key::Enter))
+        {
+            self.apply_crop(doc);
+        }
+        if let Some(n) = self.note.take() {
+            ev.status = Some(n);
+        }
         self.stop_popup(ui.ctx(), doc, tool);
         if tool == Tool::Artboard {
             self.paint_page_handles(&painter, doc, rect);
@@ -2225,6 +2325,16 @@ impl CanvasState {
             },
             Tool::SolidFill => Glyph::Cross {
                 badge: "tool-fill-solid",
+            },
+            Tool::Knife => Glyph::Cross {
+                badge: "tool-knife",
+            },
+            Tool::Crop => Glyph::Cross { badge: "tool-crop" },
+            Tool::Eraser => Glyph::Cross {
+                badge: "tool-eraser",
+            },
+            Tool::VirtualDelete => Glyph::Cross {
+                badge: "tool-virtual-delete",
             },
             // Pipeta para amostrar; balde para despejar (GD-CTG-05).
             Tool::Eyedropper => Glyph::Cross {
@@ -2856,6 +2966,17 @@ impl CanvasState {
     ) {
         let ph = doc.page_size().1;
         match tool {
+            Tool::Knife => {
+                self.drag = Drag::Knife {
+                    pts: vec![p, p],
+                    free: mods.alt,
+                }
+            }
+            Tool::Crop => {
+                self.crop_pending = None;
+                self.drag = Drag::CropRect { start: p, cur: p };
+            }
+            Tool::Eraser => self.drag = Drag::Erase { pts: vec![p] },
             Tool::Pan => self.drag = Drag::Pan,
             Tool::Zoom => self.drag = Drag::ZoomRect { start: origin },
             Tool::Text => {
@@ -2898,7 +3019,7 @@ impl CanvasState {
             }
             Tool::Gradient => self.start_gradient_drag(doc, p, origin, tol, rect, ph),
             // Ferramentas de clique: arrastar não faz nada.
-            Tool::SolidFill | Tool::Eyedropper => {}
+            Tool::SolidFill | Tool::Eyedropper | Tool::VirtualDelete => {}
             Tool::Select => self.start_select_drag(doc, p, origin, mods, tol, rect, ph),
             Tool::Shape => self.start_shape_drag(doc, p, origin, mods, tol, rect, ph),
             Tool::Artboard => {
@@ -3126,6 +3247,159 @@ impl CanvasState {
             && frame > opened + 1;
         if close || outside || ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
             self.close_stop_popup(doc);
+        }
+    }
+
+    /// Faca solta: corta a seleção (ou o que a linha cruza) e seleciona as peças.
+    fn knife_end(&mut self, doc: &mut DocState, pts: &[Point]) {
+        use graphdraw_core::edit::cutting;
+        if pts.len() < 2
+            || (pts[0] - *pts.last().unwrap()).hypot() * self.view.zoom < 3.0 && pts.len() == 2
+        {
+            return;
+        }
+        let mut line = BezPath::new();
+        line.move_to(pts[0]);
+        for p in &pts[1..] {
+            line.line_to(*p);
+        }
+        let sel: Vec<String> = doc
+            .selection
+            .iter()
+            .filter(|id| doc.editor.find(id).is_some_and(|r| r.is_top()))
+            .cloned()
+            .collect();
+        let ids = if sel.is_empty() {
+            cutting::crossed(doc.page(), &line)
+        } else {
+            sel
+        };
+        let made = cutting::knife(&mut doc.editor, &ids, &line, self.knife_gap);
+        if made.is_empty() {
+            self.note = Some(
+                tr(
+                    "A faca precisa atravessar o objeto de um lado ao outro",
+                    "The knife must go across the object from side to side",
+                )
+                .into(),
+            );
+        } else {
+            doc.selection = made;
+        }
+    }
+
+    /// Borracha solta: apaga na seleção (ou em tudo o que o pincel toca).
+    fn erase_end(&mut self, doc: &mut DocState, pts: &[Point]) {
+        let ids: Vec<String> = if doc.selection.is_empty() {
+            doc.page()
+                .layers
+                .iter()
+                .filter(|l| l.visible && !l.locked)
+                .flat_map(|l| l.objects.iter().filter(|o| !o.locked).map(|o| o.id.clone()))
+                .collect()
+        } else {
+            doc.selection.clone()
+        };
+        graphdraw_core::edit::cutting::erase(&mut doc.editor, &ids, pts, self.eraser_width);
+    }
+
+    /// Aplica o recorte pendente (GD-FER-16).
+    pub fn apply_crop(&mut self, doc: &mut DocState) {
+        let Some(r) = self.crop_pending.take() else {
+            return;
+        };
+        let page = doc.page;
+        let (changed, removed, skipped) =
+            graphdraw_core::edit::cutting::crop(&mut doc.editor, page, r);
+        let mut msg = format!(
+            "{} {changed} {}, {removed} {}",
+            tr("Recorte:", "Crop:"),
+            tr("aparado(s)", "trimmed"),
+            tr("removido(s)", "removed")
+        );
+        if skipped > 0 {
+            msg.push_str(&format!(
+                "; {skipped} {}",
+                tr(
+                    "imagem(ns)/texto(s) na borda ficaram inteiros",
+                    "image(s)/text(s) on the edge kept whole"
+                )
+            ));
+        }
+        self.note = Some(msg);
+    }
+
+    /// Prévia da faca, do recorte e da borracha.
+    fn paint_cut_tools(
+        &self,
+        ui: &egui::Ui,
+        painter: &egui::Painter,
+        rect: Rect,
+        ph: f64,
+        tool: Tool,
+    ) {
+        let accent = theme::ACCENT_PRIMARY;
+        let line = |pts: &[Point]| -> Vec<Pos2> {
+            pts.iter().map(|p| self.screen(rect, ph, *p)).collect()
+        };
+        match &self.drag {
+            Drag::Knife { pts, .. } => {
+                painter.add(egui::Shape::line(
+                    line(pts),
+                    EStroke::new(theme::FOCUS_WIDTH, accent),
+                ));
+            }
+            Drag::Erase { pts } => {
+                let w = (self.eraser_width * self.view.zoom) as f32;
+                painter.add(egui::Shape::line(
+                    line(pts),
+                    EStroke::new(
+                        w,
+                        theme::ACCENT_DANGER.gamma_multiply(theme::ERASER_PREVIEW_ALPHA),
+                    ),
+                ));
+            }
+            _ => {}
+        }
+        let crop = match &self.drag {
+            Drag::CropRect { start, cur } => Some(kurbo::Rect::from_points(*start, *cur)),
+            _ => self.crop_pending.filter(|_| tool == Tool::Crop),
+        };
+        if let Some(c) = crop {
+            let r = self.screen_rect(rect, ph, c);
+            let veil = egui::Color32::from_black_alpha(theme::CROP_VEIL_ALPHA);
+            for part in [
+                Rect::from_min_max(rect.min, egui::pos2(rect.max.x, r.min.y)),
+                Rect::from_min_max(egui::pos2(rect.min.x, r.max.y), rect.max),
+                Rect::from_min_max(
+                    egui::pos2(rect.min.x, r.min.y),
+                    egui::pos2(r.min.x, r.max.y),
+                ),
+                Rect::from_min_max(
+                    egui::pos2(r.max.x, r.min.y),
+                    egui::pos2(rect.max.x, r.max.y),
+                ),
+            ] {
+                painter.rect_filled(part, 0.0, veil);
+            }
+            painter.rect_stroke(
+                r,
+                0.0,
+                EStroke::new(theme::FOCUS_WIDTH, accent),
+                egui::StrokeKind::Middle,
+            );
+        }
+        // Pincel da borracha sob o cursor.
+        if tool == Tool::Eraser
+            && let Some(p) = ui
+                .input(|i| i.pointer.hover_pos())
+                .filter(|p| rect.contains(*p))
+        {
+            painter.circle_stroke(
+                p,
+                (self.eraser_width * self.view.zoom / 2.0) as f32,
+                EStroke::new(theme::BORDER_WIDTH, accent),
+            );
         }
     }
 
@@ -3786,6 +4060,24 @@ impl CanvasState {
     }
 
     fn update_drag(&mut self, doc: &mut DocState, cur: Point, mods: egui::Modifiers, _tol: f64) {
+        let px = 2.0 / self.view.zoom;
+        match &mut self.drag {
+            Drag::Knife { pts, free: true } | Drag::Erase { pts } => {
+                if pts.last().is_none_or(|l| (cur - *l).hypot() > px) {
+                    pts.push(cur);
+                }
+                return;
+            }
+            Drag::Knife { pts, free: false } => {
+                *pts.last_mut().unwrap() = cur;
+                return;
+            }
+            Drag::CropRect { cur: c, .. } => {
+                *c = cur;
+                return;
+            }
+            _ => {}
+        }
         if let Drag::Rubber {
             lasso: Some(pts), ..
         } = &mut self.drag
@@ -4189,6 +4481,17 @@ impl CanvasState {
         self.smart_lines.clear();
         self.smart_point = None;
         match drag {
+            Drag::Knife { pts, .. } => self.knife_end(doc, &pts),
+            Drag::CropRect { start, cur } => {
+                let r = kurbo::Rect::from_points(start, cur);
+                self.crop_pending = (r.width() * self.view.zoom > 4.0
+                    && r.height() * self.view.zoom > 4.0)
+                    .then_some(r);
+            }
+            Drag::Erase { mut pts } => {
+                pts.push(cur);
+                self.erase_end(doc, &pts);
+            }
             // O arrasto direito termina no próprio tratamento do botão direito.
             d @ Drag::RightMove { .. } => self.drag = d,
             Drag::Rubber { start, lasso } => {
@@ -4442,6 +4745,15 @@ impl CanvasState {
                     ev.status = Some(msg);
                 }
             }
+            Tool::VirtualDelete => {
+                let page = doc.page;
+                let done = pick(doc, p, tol, false).is_some_and(|id| {
+                    graphdraw_core::edit::cutting::delete_virtual_segment(&mut doc.editor, page, &id, p, tol)
+                });
+                if !done {
+                    ev.status = Some(tr("Clique sobre o contorno de um objeto", "Click on an object outline").into());
+                }
+            }
             Tool::Select => match self.pick_focus(doc, p, tol, mods.ctrl) {
                 Some(id) => {
                     if mods.shift {
@@ -4551,6 +4863,7 @@ impl CanvasState {
         ev: &mut CanvasEvents,
     ) {
         match tool {
+            Tool::Crop if self.crop_pending.is_some_and(|r| r.contains(p)) => self.apply_crop(doc),
             Tool::Gradient => {
                 use graphdraw_core::edit::gradtool;
                 if let Some((r, mut o, g, m)) = single_gradient(doc) {
@@ -5776,6 +6089,107 @@ mod tests {
         assert_eq!(ev.command, Some(crate::keymap::Command::UnlockSelection));
     }
 
+    /// GD-FER-16/17/18/19 na tela: faca arrastada corta o quadrado em dois;
+    /// recorte com Enter tira o que está fora; borracha abre furo; clique no
+    /// segmento o apaga.
+    #[test]
+    fn cut_tools_on_canvas() {
+        let (ctx, mut cs, mut doc, id, rect, ph) = bdr_setup();
+        let at = |cs: &CanvasState, x: f64, y: f64| cs.screen(rect, ph, Point::new(x, y));
+        let drag = |cs: &mut CanvasState, doc: &mut DocState, tool: Tool, a: Pos2, b: Pos2| {
+            canvas_frame(&ctx, cs, doc, tool, vec![egui::Event::PointerMoved(a)]);
+            canvas_frame(
+                &ctx,
+                cs,
+                doc,
+                tool,
+                vec![button(a, PointerButton::Primary, true)],
+            );
+            for k in 1..=6 {
+                let q = a + (b - a) * (k as f32 / 6.0);
+                canvas_frame(&ctx, cs, doc, tool, vec![egui::Event::PointerMoved(q)]);
+            }
+            canvas_frame(
+                &ctx,
+                cs,
+                doc,
+                tool,
+                vec![button(b, PointerButton::Primary, false)],
+            );
+        };
+        // Faca de cima a baixo pelo meio do quadrado (50..70, 100..120 mm).
+        let (a, b) = (at(&cs, 60_000.0, 125_000.0), at(&cs, 60_000.0, 95_000.0));
+        drag(&mut cs, &mut doc, Tool::Knife, a, b);
+        assert_eq!(doc.page().layers[0].objects.len(), 2, "duas peças");
+        assert_eq!(doc.selection.len(), 2);
+        doc.editor.undo();
+        assert_eq!(doc.page().layers[0].objects.len(), 1);
+        // Recorte: retângulo pela metade esquerda; Enter aplica.
+        doc.selection.clear();
+        let (a, b) = (at(&cs, 40_000.0, 130_000.0), at(&cs, 60_000.0, 90_000.0));
+        drag(&mut cs, &mut doc, Tool::Crop, a, b);
+        assert!(cs.crop_pending.is_some());
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::Crop,
+            vec![egui::Event::Key {
+                key: Key::Enter,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: egui::Modifiers::NONE,
+            }],
+        );
+        assert!(cs.crop_pending.is_none());
+        let b0 = ops::object_bounds(&doc.editor, &doc.editor.find(&id).unwrap(), false).unwrap();
+        assert!((b0.x1 - 60_000.0).abs() < 10.0, "{b0:?}");
+        doc.editor.undo();
+        // Borracha no meio: a área diminui.
+        let area = |doc: &DocState| {
+            graphdraw_core::edit::shapeops::area(&graphdraw_core::edit::shapeops::region(
+                &doc.page().layers[0].objects[0],
+                kurbo::Affine::IDENTITY,
+            ))
+        };
+        let a0 = area(&doc);
+        cs.eraser_width = 4_000.0;
+        let (a, b) = (at(&cs, 60_000.0, 112_000.0), at(&cs, 60_000.0, 108_000.0));
+        drag(&mut cs, &mut doc, Tool::Eraser, a, b);
+        assert!(area(&doc) < a0 - 10_000_000.0);
+        doc.editor.undo();
+        // Excluir segmento virtual: clique na base do quadrado.
+        let p = at(&cs, 60_000.0, 100_000.0);
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::VirtualDelete,
+            vec![egui::Event::PointerMoved(p)],
+        );
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::VirtualDelete,
+            vec![button(p, PointerButton::Primary, true)],
+        );
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::VirtualDelete,
+            vec![button(p, PointerButton::Primary, false)],
+        );
+        let o = &doc.page().layers[0].objects[0];
+        assert!(
+            matches!(&o.kind, ObjectKind::Path(pd) if !pd.subpaths[0].closed),
+            "{:?}",
+            o.kind
+        );
+    }
+
     /// GD-BDR-01: 3 px ainda é clique (abre o menu); 5 px é arrasto (não abre).
     #[test]
     fn gd_bdr_01_click_vs_drag_threshold() {
@@ -6682,7 +7096,11 @@ mod tests {
                 "mira+tool-gradient",
                 "mira+tool-fill-solid",
                 "mira+tool-eyedropper",
-                "cur-select"
+                "cur-select",
+                "mira+tool-knife",
+                "mira+tool-crop",
+                "mira+tool-eraser",
+                "mira+tool-virtual-delete"
             ]
         );
         assert_eq!(

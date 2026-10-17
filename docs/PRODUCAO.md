@@ -23,11 +23,11 @@ Prioridade:
   anterior.
 
 ## P0 — Ferramentas de produção (gráfica e corte)
-- [ ] Faca: corta ao longo de reta, mão livre ou Bézier, com lacuna
+- [x] Faca: corta ao longo de reta, mão livre ou Bézier, com lacuna
   opcional (GD-FER-17).
-- [ ] Recortar: o retângulo apaga tudo fora dele (GD-FER-16).
-- [ ] Borracha (GD-FER-18).
-- [ ] Excluir segmento virtual: apaga o trecho entre interseções
+- [x] Recortar: o retângulo apaga tudo fora dele (GD-FER-16).
+- [x] Borracha (GD-FER-18).
+- [x] Excluir segmento virtual: apaga o trecho entre interseções
   (GD-FER-19).
 - [ ] Mão livre com suavização (GD-FER-20).
 - [ ] Polilinha (GD-FER-25).

@@ -213,7 +213,10 @@ commands! {
     ToolSolidFill = "tool.solid_fill", "Preenchimento uniforme", "Uniform fill", Tools, NotText, true;
     ToolEyedropper = "tool.eyedropper", "Conta-gotas", "Eyedropper", Tools, NotText, true;
     ToolMeshFill = "tool.mesh_fill", "Preenchimento em malha", "Mesh fill", Tools, NotText, false;
-    ToolEraser = "tool.eraser", "Ferramenta Borracha", "Eraser tool", Tools, NotText, false;
+    ToolEraser = "tool.eraser", "Ferramenta Borracha", "Eraser tool", Tools, NotText, true;
+    ToolKnife = "tool.knife", "Ferramenta Faca", "Knife tool", Tools, NotText, true;
+    ToolCrop = "tool.crop", "Ferramenta Recortar", "Crop tool", Tools, NotText, true;
+    ToolVirtualDelete = "tool.virtual_delete", "Excluir segmento virtual", "Virtual segment delete", Tools, NotText, true;
 
     PageNext = "page.next", "Próxima página", "Next page", Pages, NotText, true;
     PagePrev = "page.prev", "Página anterior", "Previous page", Pages, NotText, true;

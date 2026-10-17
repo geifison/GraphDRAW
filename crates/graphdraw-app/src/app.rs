@@ -1745,6 +1745,10 @@ impl App {
             C::ToolInteractiveFill => self.set_tool(Tool::Gradient),
             C::ToolSolidFill => self.set_tool(Tool::SolidFill),
             C::ToolEyedropper => self.set_tool(Tool::Eyedropper),
+            C::ToolKnife => self.set_tool(Tool::Knife),
+            C::ToolCrop => self.set_tool(Tool::Crop),
+            C::ToolEraser => self.set_tool(Tool::Eraser),
+            C::ToolVirtualDelete => self.set_tool(Tool::VirtualDelete),
             C::TextAlignLeft | C::TextAlignCenter | C::TextAlignRight | C::TextJustify => {
                 let align = match c {
                     C::TextAlignLeft => "left",
@@ -2787,7 +2791,9 @@ impl App {
     }
 
     fn toolbox(&mut self, ui: &mut egui::Ui) {
-        use crate::toolbox::{Slot, drawer_mark, hits_mark, separator_after, slots};
+        use crate::toolbox::{
+            Slot, drawer_mark, hits_mark, separator_after, separator_after_group, slots,
+        };
         let mut open: Option<(&'static str, Vec<crate::toolbox::Variant>, egui::Pos2)> = None;
         let mut chosen = None;
         ui.vertical_centered(|ui| {
@@ -2829,6 +2835,9 @@ impl App {
                             open = Some((name, vars.clone(), r.rect.right_top()));
                         } else if r.clicked() {
                             chosen = Some((name, k, v));
+                        }
+                        if separator_after_group(name) {
+                            ui.separator();
                         }
                     }
                 }

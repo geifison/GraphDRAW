@@ -40,6 +40,10 @@ const icons = {
   "tool-gradient": `<rect x="3.5" y="3.5" width="17" height="17" rx="2" stroke-dasharray="2 2"/><path d="M7 17 L17 7"/>${hnode(7, 17, 2)}${node(17, 7, 2)}${dot(12, 12, 1.5)}`,
   "tool-fill-solid": `<path d="M5 11 L11 5 L19 13 L13 19 Z" fill="#fff"/><path d="M11 5 L9 3"/><path d="M19.5 15.5 C 19.5 15.5 21 17.5 21 18.5 a1.5 1.5 0 0 1 -3 0 C 18 17.5 19.5 15.5 19.5 15.5 Z" fill="#fff"/>`,
   "tool-eyedropper": `<path d="M14.5 4.5 a2.5 2.5 0 0 1 3.5 3.5 L16 10 L14 8 Z" fill="#fff"/><path d="M15 9 L7 17 L5 19.5 L4.5 19 L7 17"/><path d="M13 7 L17 11"/>`,
+  "tool-knife": `<path d="M3.5 20.5 L8.5 15.5"/><path d="M8.5 15.5 L19.5 4.5 C 20.5 9.5 16 14 11 18 Z"/>`,
+  "tool-crop": `<path d="M7 3.5 V17 H20.5 M3.5 7 H17 V20.5"/>`,
+  "tool-eraser": `<path d="M9 20 L3.8 14.8 a1.5 1.5 0 0 1 0 -2.1 L12.7 3.8 a1.5 1.5 0 0 1 2.1 0 L20.2 9.2 a1.5 1.5 0 0 1 0 2.1 L11.3 20 Z M7.5 9 L15 16.5 M11.3 20 H20.5"/>`,
+  "tool-virtual-delete": `<path d="M3.5 12 H12 M9 3.5 V20.5"/><path d="M12 12 H20.5" stroke-dasharray="1.5 1.8"/><path d="M15 15.5 L19 19.5 M19 15.5 L15 19.5"/>`,
   "tool-text": `<path d="M5 6.5 V4.5 H19 V6.5 M12 4.5 V19.5 M9 19.5 H15"/>`,
   // ---- texto (doc 06) ----
   "text-bold": `<path d="M7.5 4.5 H13 a3.75 3.75 0 0 1 0 7.5 H7.5 Z M7.5 12 H14 a3.75 3.75 0 0 1 0 7.5 H7.5 Z" stroke-width="2.2"/>`,

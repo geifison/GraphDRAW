@@ -52,7 +52,8 @@ pub enum Slot {
     Group(&'static str, Vec<Variant>),
 }
 
-/// Ordem da caixa de ferramentas; separadores depois de Forma e de Mão.
+/// Ordem da caixa de ferramentas; separadores depois do grupo Corte (que
+/// vem após Forma) e de Mão.
 pub fn slots() -> Vec<Slot> {
     let shape = |icon, tip, family, mode| Variant {
         icon,
@@ -63,6 +64,15 @@ pub fn slots() -> Vec<Slot> {
     vec![
         Slot::One(Tool::Select),
         Slot::One(Tool::Shape),
+        Slot::Group(
+            "corte",
+            vec![
+                Variant::of(Tool::Knife),
+                Variant::of(Tool::Crop),
+                Variant::of(Tool::Eraser),
+                Variant::of(Tool::VirtualDelete),
+            ],
+        ),
         Slot::One(Tool::Zoom),
         Slot::One(Tool::Pan),
         Slot::One(Tool::Bezier),
@@ -108,7 +118,12 @@ pub fn slots() -> Vec<Slot> {
 
 /// Separador depois desta ferramenta.
 pub fn separator_after(t: Tool) -> bool {
-    matches!(t, Tool::Shape | Tool::Pan)
+    matches!(t, Tool::Pan)
+}
+
+/// Separador depois deste grupo (as ferramentas de edição de forma).
+pub fn separator_after_group(name: &str) -> bool {
+    name == "corte"
 }
 
 /// Desenha o triângulo de gaveta no canto inferior direito do botão.

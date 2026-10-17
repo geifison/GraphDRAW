@@ -323,6 +323,9 @@ pub const LAYER_COLORS: [[u8; 3]; 8] = [
 ];
 /// Escolha da paleta na barra de paleta.
 pub const PALETTE_SOURCE_WIDTH: f32 = 110.0;
+/// Prévia da borracha (alfa do traço) e véu fora do recorte.
+pub const ERASER_PREVIEW_ALPHA: f32 = 0.35;
+pub const CROP_VEIL_ALPHA: u8 = 90;
 /// Conta-gotas (doc 27): célula da lupa (px por pixel físico; 10× a 100%).
 pub const EYEDROP_CELL: f32 = 10.0;
 /// Distância da lupa ao cursor.

@@ -500,12 +500,22 @@ Aba **Verificação** (ícone `preflight`) no painel direito:
   canto (`tool-drawer-hit` = 9 px) ou botão direito abre a **gaveta**: as
   ferramentas do grupo em linha, ao lado do botão, em `shadow-popover`.
   Escolher na gaveta usa e passa a mostrar aquela; clique fora ou Esc fecha.
-- Grupos: **Formas** (polígono, estrela, estrela complexa, espiral, papel
-  gráfico — a família sai da barra de propriedades) e **Preenchimento**
-  (interativo/gradiente, uniforme, conta-gotas).
-- Conta-gotas: com seleção, copia o preenchimento e a cor do contorno do
-  objeto clicado para ela (a espessura do destino fica); sem seleção, vira
-  o estilo dos novos objetos.
+- Grupos:
+  - **Corte**, logo após Forma e antes do separador: faca, recortar,
+    borracha, excluir segmento virtual;
+  - **Formas**: polígono, estrela, estrela complexa, espiral, papel
+    gráfico; a família sai da barra de propriedades;
+  - **Preenchimento**: interativo/gradiente, uniforme, conta-gotas (o
+    ciclo do conta-gotas está no doc 27 e na seção 5).
+- Ferramentas de corte (prévia na tela):
+  - **Faca**: traço de `focus-width` em `accent-primary`. A barra tem
+    Lacuna.
+  - **Recortar**: o que fica fora do retângulo leva o véu preto de
+    `crop-veil-alpha` = 90/255, e a borda é `accent-primary`. A barra tem
+    Recortar e Cancelar.
+  - **Borracha**: o traço do pincel em `accent-danger` a
+    `eraser-preview-alpha` = 35%, com um círculo do tamanho do pincel sob
+    o cursor. A barra tem Largura.
 
 ---
 

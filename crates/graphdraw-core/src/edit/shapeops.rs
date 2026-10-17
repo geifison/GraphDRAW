@@ -43,7 +43,7 @@ fn ofill(r: FillRule) -> OFill {
 
 /// Contornos poligonais de um caminho (subcaminhos abertos fecham, como no
 /// preenchimento).
-fn contours(path: &BezPath) -> Vec<Contour> {
+pub(crate) fn contours(path: &BezPath) -> Vec<Contour> {
     let mut out: Vec<Contour> = Vec::new();
     let mut cur: Contour = Vec::new();
     kurbo::flatten(path, FLATTEN_TOL, |el| match el {
@@ -91,7 +91,7 @@ pub fn region(o: &Object, parent: Affine) -> Shapes {
     c.simplify_shape(ofill(rule))
 }
 
-fn overlay(a: &Shapes, b: &Shapes, rule: OverlayRule) -> Shapes {
+pub(crate) fn overlay(a: &Shapes, b: &Shapes, rule: OverlayRule) -> Shapes {
     if a.is_empty() && b.is_empty() {
         return Vec::new();
     }
@@ -177,7 +177,7 @@ impl BoolOp {
 }
 
 /// Objeto de caminho (coordenadas da página) com os atributos de `like`.
-fn path_object(path: &BezPath, like: &Object, rule: FillRule) -> Object {
+pub(crate) fn path_object(path: &BezPath, like: &Object, rule: FillRule) -> Object {
     let mut o = Object::new(ObjectKind::Path(PathData {
         subpaths: bez_to_subpaths(path),
         fill_rule: rule,

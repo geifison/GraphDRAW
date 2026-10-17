@@ -84,6 +84,68 @@ impl App {
                     "Click an object to choose its solid fill color",
                 ),
             ),
+            Tool::Knife => widgets::single_line_bar(ui, "barra-faca", |ui| {
+                ui.label(tr("Lacuna", "Gap"));
+                if let Some(v) =
+                    widgets::length_field(ui, "faca-lacuna", self.canvas.knife_gap, None)
+                {
+                    self.canvas.knife_gap = v.max(0.0);
+                }
+                ui.separator();
+                widgets::hint_line(
+                    ui,
+                    tr(
+                        "Arraste através dos objetos (com seleção, só ela) · Alt: à mão livre",
+                        "Drag across objects (with a selection, only it) · Alt: freehand",
+                    ),
+                );
+            }),
+            Tool::Eraser => widgets::single_line_bar(ui, "barra-borracha", |ui| {
+                ui.label(tr("Largura", "Width"));
+                if let Some(v) =
+                    widgets::length_field(ui, "borracha-largura", self.canvas.eraser_width, None)
+                {
+                    self.canvas.eraser_width = v.max(100.0);
+                }
+                ui.separator();
+                widgets::hint_line(
+                    ui,
+                    tr(
+                        "Arraste para apagar (com seleção, só nela)",
+                        "Drag to erase (with a selection, only in it)",
+                    ),
+                );
+            }),
+            Tool::Crop => widgets::single_line_bar(ui, "barra-recorte", |ui| {
+                let pending = self.canvas.crop_pending.is_some();
+                if ui
+                    .add_enabled(pending, egui::Button::new(tr("Recortar", "Crop")))
+                    .clicked()
+                {
+                    self.canvas.apply_crop(doc);
+                }
+                if ui
+                    .add_enabled(pending, egui::Button::new(tr("Cancelar", "Cancel")))
+                    .clicked()
+                {
+                    self.canvas.crop_pending = None;
+                }
+                ui.separator();
+                widgets::hint_line(
+                    ui,
+                    tr(
+                        "Arraste o retângulo; Enter ou duplo clique apaga o que está fora",
+                        "Drag the rectangle; Enter or double-click removes what is outside",
+                    ),
+                );
+            }),
+            Tool::VirtualDelete => hint(
+                ui,
+                tr(
+                    "Clique no trecho entre cruzamentos para apagá-lo; sem cruzamento, sai o segmento",
+                    "Click the stretch between crossings to delete it; without crossings, the segment goes",
+                ),
+            ),
             Tool::Eyedropper => widgets::single_line_bar(ui, "barra-conta-gotas", |ui| {
                 eyedrop_bar(ui, &mut self.canvas.eyedrop)
             }),
