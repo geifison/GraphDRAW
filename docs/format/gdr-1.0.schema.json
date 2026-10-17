@@ -179,7 +179,9 @@
         "scaleWithObject": { "type": "boolean" },
         "behindFill": { "type": "boolean" },
         "startArrow": { "$ref": "#/$defs/arrow" },
-        "endArrow": { "$ref": "#/$defs/arrow" }
+        "endArrow": { "$ref": "#/$defs/arrow" },
+        "nibStretch": { "type": "number", "exclusiveMinimum": 0, "maximum": 1, "description": "Caneta caligráfica: largura do bico (1 = redondo)." },
+        "nibAngle": { "type": "number", "description": "Ângulo do bico em graus." }
       }
     },
     "arrow": {

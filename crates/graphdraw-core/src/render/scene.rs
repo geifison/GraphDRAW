@@ -383,6 +383,40 @@ impl Builder<'_> {
                 st.position = StrokePosition::Center;
             }
             let fill = o.fill.as_ref().and_then(|f| resolve_fill(f, m, alpha));
+            // Caneta caligráfica (GD-OUT-06): o traço vira a área varrida pelo
+            // bico elíptico, preenchida com a tinta do contorno.
+            if let (Some(s), Some(st)) = (&o.stroke, &stroke)
+                && s.nib_stretch < 0.999
+                && !self.wireframe
+            {
+                let outline = nib_outline(&path, st, s.nib_stretch, s.nib_angle);
+                if fill.is_some() && !st.behind_fill {
+                    self.items.push(Item::Shape(ShapeItem {
+                        object_id: o.id.clone(),
+                        path: path.clone(),
+                        fill: fill.clone(),
+                        fill_rule,
+                        stroke: None,
+                    }));
+                }
+                self.items.push(Item::Shape(ShapeItem {
+                    object_id: o.id.clone(),
+                    path: outline,
+                    fill: Some(st.paint.clone()),
+                    fill_rule: FillRule::Nonzero,
+                    stroke: None,
+                }));
+                if fill.is_some() && st.behind_fill {
+                    self.items.push(Item::Shape(ShapeItem {
+                        object_id: o.id.clone(),
+                        path,
+                        fill,
+                        fill_rule,
+                        stroke: None,
+                    }));
+                }
+                return;
+            }
             // Pontas de seta (GD-OUT-05): o traço recua e as pontas entram
             // como formas preenchidas com a tinta do contorno.
             let heads = match (&o.stroke, &stroke) {
@@ -435,6 +469,31 @@ impl Builder<'_> {
             self.items.push(Item::Shape(item));
         }
     }
+}
+
+/// Área varrida por um bico elíptico de largura `width` (eixo maior),
+/// achatado por `stretch` e girado `angle` graus, ao longo de `path`:
+/// traça com bico redondo no espaço em que o bico é um círculo e volta.
+pub fn nib_outline(path: &BezPath, st: &StrokeStyle, stretch: f64, angle: f64) -> BezPath {
+    let w = st.width.max(crate::model::paint::HAIRLINE_UM);
+    let a = Affine::rotate(angle.to_radians())
+        * Affine::scale_non_uniform(1.0, stretch.clamp(0.01, 1.0));
+    let mut local = path.clone();
+    local.apply_affine(a.inverse());
+    let mut ks = kurbo::Stroke::new(w)
+        .with_caps(kurbo::Cap::Round)
+        .with_join(kurbo::Join::Round);
+    if let Some(d) = &st.dash {
+        ks = ks.with_dashes(st.dash_offset, d.iter().copied());
+    }
+    let mut out = kurbo::stroke(
+        local,
+        &ks,
+        &kurbo::StrokeOpts::default(),
+        (w / 1000.0).max(0.01),
+    );
+    out.apply_affine(a);
+    out
 }
 
 /// Modo esboço (GD-CAM-01): só o traço fino, sem preenchimento.
@@ -700,5 +759,36 @@ mod tests {
         };
         let a = ellipse_path(&e).area().abs();
         assert!((a - PI * 100.0 / 4.0).abs() < 0.05);
+    }
+
+    /// GD-OUT-06: bico achatado a 0°: traço horizontal fica fino, vertical
+    /// fica com a largura toda.
+    #[test]
+    fn gd_out_06_calligraphic_nib() {
+        use kurbo::Shape;
+        let st = StrokeStyle {
+            width: 1000.0,
+            paint: Paint::Solid {
+                color: Color::black(),
+                alpha: 1.0,
+            },
+            dash: None,
+            dash_offset: 0.0,
+            cap: "butt".into(),
+            join: "miter".into(),
+            miter_limit: 4.0,
+            behind_fill: false,
+            position: StrokePosition::Center,
+        };
+        let line = |a: (f64, f64), b: (f64, f64)| {
+            let mut p = BezPath::new();
+            p.move_to(a);
+            p.line_to(b);
+            p
+        };
+        let h = nib_outline(&line((0.0, 0.0), (10_000.0, 0.0)), &st, 0.2, 0.0).bounding_box();
+        let v = nib_outline(&line((0.0, 0.0), (0.0, 10_000.0)), &st, 0.2, 0.0).bounding_box();
+        assert!((h.height() - 200.0).abs() < 5.0, "{h:?}");
+        assert!((v.width() - 1000.0).abs() < 5.0, "{v:?}");
     }
 }

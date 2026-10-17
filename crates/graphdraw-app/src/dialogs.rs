@@ -386,6 +386,27 @@ impl StrokeDialog {
                     true,
                 );
             });
+            section(ui, tr("Caneta caligráfica", "Calligraphic pen"), |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(tr("Bico", "Nib"));
+                    let mut pct = (s.nib_stretch * 100.0).round();
+                    if ui
+                        .add(egui::DragValue::new(&mut pct).range(1.0..=100.0).suffix("%"))
+                        .on_hover_text(tr(
+                            "Largura do bico; 100% = bico redondo (contorno comum)",
+                            "Nib width; 100% = round nib (regular outline)",
+                        ))
+                        .changed()
+                    {
+                        s.nib_stretch = pct / 100.0;
+                    }
+                    ui.label(tr("Ângulo", "Angle"));
+                    ui.add_enabled(
+                        s.nib_stretch < 0.999,
+                        egui::DragValue::new(&mut s.nib_angle).range(-360.0..=360.0).suffix("°"),
+                    );
+                });
+            });
             section(ui, tr("Pontas de seta", "Arrowheads"), |ui| {
                 arrow_row(ui, "seta-inicio", tr("Início", "Start"), &mut s.start_arrow);
                 arrow_row(ui, "seta-fim", tr("Fim", "End"), &mut s.end_arrow);
@@ -501,7 +522,9 @@ fn merge_changes(s: &mut Stroke, old: &Stroke, new: &Stroke) {
         scale_with_object,
         behind_fill,
         start_arrow,
-        end_arrow
+        end_arrow,
+        nib_stretch,
+        nib_angle
     );
 }
 

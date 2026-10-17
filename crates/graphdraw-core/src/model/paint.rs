@@ -193,6 +193,12 @@ pub struct Stroke {
     pub start_arrow: Option<Arrow>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub end_arrow: Option<Arrow>,
+    /// Caneta caligráfica (GD-OUT-06): largura do bico (0–1 da espessura,
+    /// 1 = bico redondo, o contorno comum) e ângulo do bico em graus.
+    #[serde(default = "one", skip_serializing_if = "is_one")]
+    pub nib_stretch: f64,
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub nib_angle: f64,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }
@@ -246,6 +252,8 @@ impl Stroke {
             behind_fill: false,
             start_arrow: None,
             end_arrow: None,
+            nib_stretch: 1.0,
+            nib_angle: 0.0,
             extra: Map::new(),
         }
     }
