@@ -1324,17 +1324,13 @@ fn basic_thumb(ui: &mut egui::Ui, shape: &str, size: f32, selected: bool) -> egu
     resp.on_hover_text(basic_label(shape))
 }
 
-fn basic_controls(ui: &mut egui::Ui, d: &mut crate::canvas::Defaults) {
-    // Galeria: miniaturas de todas as formas, num balão.
-    let r = ui.horizontal(|ui| {
-        basic_thumb(ui, &d.basic_shape.clone(), theme::BUTTON_COMPACT, true);
-        ui.label(basic_label(&d.basic_shape));
-    });
+pub(crate) fn basic_controls(ui: &mut egui::Ui, d: &mut crate::canvas::Defaults) {
+    // Galeria: a miniatura da forma escolhida abre o balão com todas (o
+    // balão abre e fecha sozinho no clique).
     let pid = ui.make_persistent_id("galeria-formas");
-    let open = r.response.interact(egui::Sense::click());
-    if open.clicked() {
-        egui::Popup::toggle_id(ui.ctx(), pid);
-    }
+    let open = basic_thumb(ui, &d.basic_shape.clone(), theme::BUTTON_COMPACT, true)
+        .on_hover_text(tr("Escolher a forma", "Choose the shape"));
+    ui.label(basic_label(&d.basic_shape));
     egui::Popup::menu(&open)
         .id(pid)
         .close_behavior(egui::PopupCloseBehavior::CloseOnClick)
@@ -5103,6 +5099,85 @@ fn preflight_panel(ui: &mut egui::Ui, doc: &mut DocState) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    #[ignore]
+    fn shot_basic_gallery() {
+        let ctx = crate::theme::test_ctx();
+        let mut d = crate::canvas::Defaults::default();
+        let mut shot = crate::uishot::Shot::default();
+        let at = egui::pos2(12.0, 12.0);
+        let btn = |pressed| egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: Default::default(),
+        };
+        let steps = [
+            vec![egui::Event::PointerMoved(at)],
+            vec![btn(true)],
+            vec![btn(false)],
+            vec![],
+            vec![],
+        ];
+        for (k, events) in steps.into_iter().enumerate() {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(420.0, 260.0),
+                )),
+                events,
+                ..Default::default()
+            };
+            let mut out = ctx.run_ui(input, |ui| {
+                egui::CentralPanel::default().show(ui, |ui| basic_controls(ui, &mut d));
+            });
+            if k == 4 {
+                shot.save(&ctx, out, "galeria-formas");
+            } else {
+                shot.textures(&mut out);
+            }
+        }
+    }
+
+    /// A galeria das formas básicas abre com um clique e mostra todas.
+    #[test]
+    fn basic_gallery_opens_with_every_shape() {
+        let ctx = crate::theme::test_ctx();
+        let mut d = crate::canvas::Defaults::default();
+        let mut pid = None;
+        let mut frame = |events: Vec<egui::Event>, pid: &mut Option<egui::Id>| {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(800.0, 600.0),
+                )),
+                events,
+                ..Default::default()
+            };
+            let mut out = ctx.run_ui(input, |ui| {
+                egui::CentralPanel::no_frame().show(ui, |ui| {
+                    basic_controls(ui, &mut d);
+                    *pid = Some(ui.make_persistent_id("galeria-formas"));
+                });
+            });
+            out.textures_delta.clear();
+        };
+        let at = egui::pos2(12.0, 12.0);
+        frame(vec![egui::Event::PointerMoved(at)], &mut pid);
+        let btn = |pressed| egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: Default::default(),
+        };
+        frame(vec![btn(true)], &mut pid);
+        frame(vec![btn(false)], &mut pid);
+        frame(vec![], &mut pid);
+        let open = egui::Popup::is_id_open(&ctx, pid.expect("id"));
+        assert!(open, "a galeria abriu");
+        assert_eq!(graphdraw_core::render::basic::SHAPES.len(), 13);
+    }
 
     /// Sem seleção, a barra de propriedades mostra a página e cabe numa linha.
     #[test]
