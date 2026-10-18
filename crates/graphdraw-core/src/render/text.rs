@@ -205,11 +205,22 @@ struct Shaped {
 
 /// Faz o shaping de `text`; glifos com origem na linha de base em (0,0).
 fn shape(id: fontdb::ID, text: &str, size: f64) -> Option<Shaped> {
+    shape_dir(id, text, size, None)
+}
+
+/// Como [`shape`], com a direção dada (`Some(true)` = da direita para a
+/// esquerda; `None` = adivinhada pelo texto).
+fn shape_dir(id: fontdb::ID, text: &str, size: f64, rtl: Option<bool>) -> Option<Shaped> {
     fonts().with_face_data(id, |data, index| {
         let face = rustybuzz::Face::from_slice(data, index)?;
         let scale = size / face.units_per_em() as f64;
         let mut buffer = rustybuzz::UnicodeBuffer::new();
         buffer.push_str(text);
+        match rtl {
+            Some(true) => buffer.set_direction(rustybuzz::Direction::RightToLeft),
+            Some(false) => buffer.set_direction(rustybuzz::Direction::LeftToRight),
+            None => {}
+        }
         let shaped = rustybuzz::shape(&face, &[], buffer);
         let mut glyphs = Vec::new();
         let mut pen = 0.0;
@@ -377,6 +388,57 @@ pub fn plain_text(t: &TextData) -> String {
         .map(|p| p.spans.iter().map(|s| s.text.as_str()).collect::<String>())
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+/// Bidirecional (GD-TXT-06, UAX#9): os trechos da linha recortados pelos
+/// níveis e postos na ordem visual, cada um com a direção (`true` = da
+/// direita para a esquerda). Sem texto RTL, a linha fica como está.
+fn bidi_pieces(pieces: Vec<Piece>, text: &str) -> (Vec<Piece>, Vec<bool>) {
+    use unicode_bidi::{BidiClass, BidiInfo, bidi_class};
+    let has_rtl = text
+        .chars()
+        .any(|c| matches!(bidi_class(c), BidiClass::R | BidiClass::AL | BidiClass::AN));
+    if !has_rtl {
+        let n = pieces.len();
+        return (pieces, vec![false; n]);
+    }
+    let info = BidiInfo::new(text, None);
+    let Some(para) = info.paragraphs.first() else {
+        let n = pieces.len();
+        return (pieces, vec![false; n]);
+    };
+    let (levels, runs) = info.visual_runs(para, para.range.clone());
+    let mut ranges = Vec::new();
+    let mut b = 0;
+    for p in &pieces {
+        ranges.push(b..b + p.text.len());
+        b += p.text.len();
+    }
+    let (mut out, mut rtl) = (Vec::new(), Vec::new());
+    for run in runs {
+        let is_rtl = levels.get(run.start).is_some_and(|l| l.is_rtl());
+        let mut parts = Vec::new();
+        for (pi, r) in ranges.iter().enumerate() {
+            let (s, e) = (run.start.max(r.start), run.end.min(r.end));
+            if s < e {
+                let p = &pieces[pi];
+                let local = (s - r.start)..(e - r.start);
+                parts.push(Piece {
+                    start: p.start + p.text[..local.start].chars().count(),
+                    text: p.text[local].to_string(),
+                    span: p.span,
+                });
+            }
+        }
+        if is_rtl {
+            parts.reverse();
+        }
+        for q in parts {
+            out.push(q);
+            rtl.push(is_rtl);
+        }
+    }
+    (out, rtl)
 }
 
 /// Diagrama o texto. Origem local = canto superior esquerdo do bloco.
@@ -552,32 +614,52 @@ pub fn layout_text(t: &TextData) -> TextLayout {
             // Fronteiras de caractere: (índice no texto corrido, x sem justificar).
             let mut bounds: Vec<(usize, f64)> = Vec::new();
             let mut shaped_runs = Vec::new();
-            for p in &pieces {
+            // Ordem lógica (texto corrido) antes de ir para a ordem visual.
+            let logical_end = pieces
+                .last()
+                .map_or(line_start, |p| p.start + p.text.chars().count());
+            let logical_text: String = pieces.iter().map(|p| p.text.as_str()).collect();
+            let (pieces, rtl) = bidi_pieces(pieces, &logical_text);
+            let any_rtl = rtl.iter().any(|r| *r);
+            for (pi, p) in pieces.iter().enumerate() {
                 let span = &para.spans[p.span];
                 let Some((id, used, _)) = fonts[p.span].clone() else {
                     continue;
                 };
-                let shaped = shape(id, &p.text, span.font.size).unwrap_or(Shaped {
+                let dir = any_rtl.then_some(rtl[pi]);
+                let shaped = shape_dir(id, &p.text, span.font.size, dir).unwrap_or(Shaped {
                     glyphs: Vec::new(),
                     advance: 0.0,
                     ascent: span.font.size * 0.8,
                 });
                 ascent = ascent.max(shaped.ascent);
                 for (k, (byte, _)) in p.text.char_indices().enumerate() {
-                    let x = shaped
-                        .glyphs
-                        .iter()
-                        .find(|g| g.cluster >= byte)
-                        .map_or(shaped.advance, |g| g.x);
+                    // Da direita para a esquerda: o começo lógico do
+                    // caractere fica à direita dos glifos que vêm depois.
+                    let x = if rtl[pi] {
+                        shaped
+                            .glyphs
+                            .iter()
+                            .filter(|g| g.cluster >= byte)
+                            .map(|g| g.advance)
+                            .sum()
+                    } else {
+                        shaped
+                            .glyphs
+                            .iter()
+                            .find(|g| g.cluster >= byte)
+                            .map_or(shaped.advance, |g| g.x)
+                    };
                     bounds.push((p.start + k, pen + x));
                 }
                 shaped_runs.push((p, span, id, used, pen, shaped));
                 pen += shaped_runs.last().unwrap().5.advance;
             }
-            let line_end = pieces
-                .last()
-                .map_or(line_start, |p| p.start + p.text.chars().count());
+            let line_end = logical_end;
             bounds.push((line_end, pen));
+            if any_rtl {
+                bounds.sort_by_key(|b| b.0);
+            }
             if first_line {
                 baseline = -(if ascent > 0.0 { ascent } else { max_size * 0.8 });
                 first_line = false;
@@ -591,7 +673,7 @@ pub fn layout_text(t: &TextData) -> TextLayout {
             let x0 = slot.map_or(0.0, |s| s.1);
             // Justificar: espaço extra repartido entre os espaços da linha
             // (não na última linha do parágrafo nem antes de \n).
-            let line_text: String = pieces.iter().map(|p| p.text.as_str()).collect();
+            let line_text = logical_text;
             let trailing = line_text.len() - line_text.trim_end().len();
             let content_w = if trailing > 0 {
                 // Largura sem os espaços do fim.
@@ -995,6 +1077,38 @@ mod tests {
             l.lines.len() > plain.lines.len(),
             "mais linhas por causa do desvio"
         );
+    }
+
+    #[test]
+    fn bidi_orders_rtl_runs() {
+        if !has_font() {
+            return;
+        }
+        // Hebraico no meio do português: o trecho RTL vem invertido dentro.
+        let t = text("artistic", "left", "abc שלום def", None);
+        let l = layout_text(&t);
+        let line = &l.lines[0];
+        if line.runs.iter().all(|r| r.glyphs.is_empty()) {
+            return;
+        }
+        let x = |i: usize| line.carets.iter().find(|c| c.0 == i).map(|c| c.1).unwrap();
+        assert!(x(0) < x(4), "abc à esquerda do hebraico");
+        assert!(x(4) > x(7), "dentro do hebraico, o começo fica à direita");
+        assert!(x(9) > x(4), "def depois do hebraico");
+        // Parágrafo todo em hebraico: a primeira palavra fica à direita.
+        let h = layout_text(&text("artistic", "left", "שלום עולם", None));
+        let hx = |i: usize| {
+            h.lines[0]
+                .carets
+                .iter()
+                .find(|c| c.0 == i)
+                .map(|c| c.1)
+                .unwrap()
+        };
+        assert!(hx(0) > hx(5), "{} {}", hx(0), hx(5));
+        // Sem RTL, nada muda.
+        let p = layout_text(&text("artistic", "left", "abc def", None));
+        assert_eq!(p.lines[0].runs.len(), 1);
     }
 
     #[test]

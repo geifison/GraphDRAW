@@ -146,7 +146,9 @@ Para depois da 1.0, cada um com o motivo:
 - [x] Toque longo em amostra composta (GD-BDR-12).
 
 ## P2 — Proposta: depois da 1.0
-- [ ] Unicode bidirecional e scripts complexos (GD-TXT-06).
+- [x] Unicode bidirecional e scripts complexos (GD-TXT-06): UAX#9 por
+  linha (unicode-bidi) e shaping com a direção (rustybuzz). A quebra de
+  linha continua nos espaços (UAX#14 completo fica para depois).
 - [x] Hifenização (GD-TXT-07): por parágrafo, com idioma; dicionário
   hyphen (`hyph_<idioma>.dic`) quando instalado, regras do português sem
   ele.

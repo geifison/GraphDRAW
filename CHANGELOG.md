@@ -40,6 +40,8 @@ entre parênteses são os requisitos de `docs/spec/`.
   cores, suavizar e inverter; seletor de cor com roda de matiz, canais,
   hexadecimal, paletas com busca e conta-gotas na janela; amostra original
   × nova; F11 e Shift+F11.
+- Texto bidirecional: hebraico e árabe na ordem certa dentro da linha,
+  moldados com a direção da direita para a esquerda (GD-TXT-06).
 - Verificar ortografia (Texto): palavra desconhecida com o trecho em volta,
   sugestões, Substituir, Substituir todas, Ignorar, Ignorar todas e
   Adicionar ao dicionário, pelo corretor do Windows (GD-TXT-08).

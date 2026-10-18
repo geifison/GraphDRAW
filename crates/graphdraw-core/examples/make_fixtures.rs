@@ -1174,6 +1174,27 @@ fn appearance() -> Document {
         }),
     );
     p.layers[0].objects.push(t);
+    // GD-TXT-06: português com hebraico e árabe na mesma linha.
+    let mut bidi = obj(
+        &mut ids,
+        ObjectKind::Text(TextData {
+            text_kind: "artistic".into(),
+            frame: None,
+            paragraphs: vec![Paragraph {
+                align: "left".into(),
+                spans: vec![span("Olá שלום עולם e مرحبا بالعالم!", 16.0)],
+                hyphenate: false,
+                lang: None,
+                extra: Map::new(),
+            }],
+            line_spacing: 1.2,
+            path: None,
+            exclusions: Default::default(),
+            extra: Map::new(),
+        }),
+    );
+    bidi.transform = Transform::translate(20.0 * MM, 110.0 * MM);
+    p.layers[0].objects.push(bidi);
     // Camada de guias: um círculo que vira guia (não imprime).
     let mut g = layer(&mut ids, "Guias");
     g.guides = true;
