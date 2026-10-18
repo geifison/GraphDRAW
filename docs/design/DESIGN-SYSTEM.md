@@ -440,7 +440,7 @@ barra (no máximo os 2–4 controles mais usados) e o que fica só na janela.
 | Contorno | espessura, estilo de linha, "Sem contorno" | cor, junção, terminação, limite de canto, posição, atrás do preenchimento, escalar com objeto, traço personalizado |
 | Pontas de seta | forma no início e no fim | tamanho, afastamento, giro, espelho |
 | Caneta caligráfica | bico % e ângulo | — |
-| Preenchimento | — (cor pela paleta; gradiente pela ferramenta G) | tipo, paradas, opacidade, sobreimpressão, ângulo, repetir |
+| Preenchimento | — (cor pela paleta; gradiente pela ferramenta G) | modo, tipo de gradiente, nós, pontos médios, transparência, ângulo, centro, tamanho, faixas, repetição, mistura, suavizar, padrões e textura, sobreimpressão |
 | Retângulo | cantos escolhidos, tipo e raio | — |
 | Polígono/estrela | modo, lados/pontas, nitidez | — |
 | Elipse | elipse/arco/fatia, ângulos | — |
@@ -449,25 +449,99 @@ barra (no máximo os 2–4 controles mais usados) e o que fica só na janela.
 | Aparência | — | painel Camadas: opacidade, mesclagem, dados do objeto |
 | Gradiente (ferramenta G) | linear/radial na barra da ferramenta | paradas: cor e opacidade no balão da parada |
 
-### 4.6.1 Janela de preenchimento: Padrão (GD-FIL-04..06)
+### 4.6.1 Janela Editar preenchimento (GD-FIL-01..06)
 
-Botão `fill-pattern` depois dos gradientes. O conteúdo:
-- Duas cores | Imagem | Vetorial.
-- **Duas cores**:
-  - predefinições: listras verticais/horizontais, xadrez, pontos, grade,
-    diagonal;
-  - grade 8 × 8 de células de `pattern-cell` = 14 px; o clique troca
-    frente/fundo;
-  - editores de cor da frente e do fundo.
-- **Imagem**: "Escolher imagem…"; o arquivo entra nos recursos do documento.
-- **Vetorial**: "Usar objetos copiados" (o ladrilho é a caixa do que foi
-  copiado com Ctrl+C).
-- **Comum**:
-  - ladrilho L × A (mm), escala %, giro °, deslocar linhas/colunas %,
-    resolução ppp;
-  - Espelhar ladrilhos alternados;
-  - Transformar com o objeto.
-- A amostra mostra três ladrilhos na largura.
+Abre por duplo clique no indicador de preenchimento da barra de status, por
+`F11` (já no gradiente) e por `Shift+F11` (já no uniforme). Modal de
+`fill-dialog-width` = 560 px; o corpo rola acima de `fill-body-max` =
+470 px. Nada muda no documento até o OK; Cancelar (ou Esc) descarta tudo
+sem passo no histórico.
+
+Zonas, de cima para baixo:
+
+1. **Barra de modos** (botões de ícone, ligado = `bg-surface-toggled`):
+   Sem preenchimento (`fill-none`) · Uniforme (`tool-fill-solid`) ·
+   Gradiente (`fill-gradient`) · Padrão vetorial (`fill-vector`) · Padrão
+   de imagem (`fill-bitmap`) · Padrão de duas cores (`fill-two-color`) ·
+   Textura (`fill-texture`) · PostScript (`fill-postscript`, sempre
+   desabilitado: fora da 1.0). O nome do modo fica à direita, em
+   `fg-strong`. Para os novos objetos (sem seleção), o Gradiente fica
+   desabilitado com dica.
+2. **Sub-barra de tipos** (só no Gradiente): Linear · Radial · Elíptico ·
+   Cônico · Retangular (`fill-linear`, `fill-radial`, `fill-elliptic`,
+   `fill-conic`, `fill-rectangular`) e o nome em `fg-muted`.
+3. **Corpo**, conforme o modo:
+   - **Sem preenchimento**: uma linha explicativa; nada a editar.
+   - **Uniforme**: o seletor de cor (abaixo), Transparência % e
+     Sobreimprimir.
+   - **Gradiente**:
+     - **Rampa** na largura da janela: faixa de `ramp-height` = 24 px
+       sobre xadrez, desenhada pelo motor (com ponto médio, faixas e
+       rota de cor); em cima, numa faixa de 12 px, os **pontos médios**
+       (losangos de `ramp-mid` = 9 px, `fg-muted`; arrastando,
+       `accent-primary`); embaixo, numa faixa de 16 px, os **nós**
+       (quadrados de `ramp-node` = 10 px na cor do nó, borda `fg-strong`;
+       o escolhido com borda `accent-primary` de `focus-width`), ligados à
+       faixa por um traço.
+       - Duplo clique na faixa: nó novo com a cor daquele ponto.
+       - Duplo clique num nó do meio: tira. Nas pontas, não.
+       - Duplo clique num losango: volta o ponto médio a 50%.
+       - Arrastar: move o nó ou o ponto médio (5–95% do trecho).
+       - `Delete` (sem campo em foco): tira o nó escolhido.
+       - Amostra arrastada da aba Paletas e solta na rampa: nó novo; a
+         borda da faixa fica `accent-primary` enquanto a amostra passa.
+     - **Linha do nó**: amostra da cor (abre o seletor num balão),
+       Posição % (0–100, uma casa) e Transparência %.
+     - **Matriz** (grade de 4 colunas): Ângulo (mostrador de
+       `angle-dial` = 26 px com ponteiro `accent-primary`; Shift = de 15
+       em 15°; desabilitado no radial) e campo °; Tamanho %; Centro X % e
+       Centro Y % (100% = borda); Faixas com cadeado (`lock-on`/`lock-off`;
+       aberto = contínuo, fechado = 2–256 faixas); Repetição: Repetir e
+       espelhar (`grad-reflect`) e Repetir (`grad-repeat`), um ou outro ou
+       nenhum; Mistura: em linha reta (`blend-direct`), roda horária
+       (`blend-cw`) e anti-horária (`blend-ccw`); Suavizar
+       (`grad-smooth`, pontilhado contra faixas); e o botão Inverter
+       (`grad-reverse`).
+   - **Padrões** (vetorial, imagem, duas cores, textura): o conteúdo do
+     tipo e depois o comum.
+     - Duas cores: predefinições (listras verticais/horizontais, xadrez,
+       pontos, grade, diagonal), grade 8 × 8 de `pattern-cell` = 14 px (o
+       clique troca frente/fundo), Frente e Fundo.
+     - Imagem: "Escolher imagem…" (o arquivo entra nos recursos).
+     - Vetorial: "Usar objetos copiados" (o ladrilho é a caixa do que foi
+       copiado com Ctrl+C).
+     - Textura: Nuvens | Mármore | Madeira | Granito; Semente (+ Sortear),
+       Escala do ruído, Detalhe (oitavas), Contraste; Frente e Fundo.
+     - Comum: Ladrilho L × A, Escala %, Giro °, Resolução ppp, Deslocar
+       linhas/colunas %, Espelhar ladrilhos alternados, Transformar com o
+       objeto.
+4. **Rodapé**: à esquerda, a amostra bipartida de `fill-compare` = 132 ×
+   56 px sobre xadrez — a metade de cima é a **nova**, a de baixo a
+   **original** (separadas por um traço `fg-muted`), com os rótulos Nova
+   e Original em `type-micro` ao lado; à direita, OK (primário), Cancelar
+   e Ajuda (secundários). Ajuda abre um balão com a explicação do modo
+   atual.
+
+**Seletor de cor** (no Uniforme e no balão das amostras de cor; largura
+`picker-width` = 320 px no balão):
+- Abas Modelos | Paletas e, à direita, o conta-gotas (`tool-eyedropper`).
+- **Modelos**: roda de `hue-wheel` = 168 px — anel de matiz de
+  `hue-ring` = 16 px (matiz crescendo no sentido anti-horário a partir da
+  direita) e, dentro, o quadrado de saturação (x) e brilho (y); as miras
+  são círculos de `handle-size` com borda preta e branca. Abaixo, Modelo
+  (RGB, CMYK, Cinza, HSB, HLS, Lab), um controle por canal com campo, e
+  Hex. Mexer na roda mantém o modelo da cor.
+- **Paletas**: lista de paletas (Padrão, Documento, as prontas e as do
+  usuário), busca por nome ou código e a grade de amostras de `swatch`
+  (rola acima de `picker-grid-height` = 150 px); a dica mostra o nome e
+  os valores no modelo da cor. Clique escolhe; arrastar leva a amostra à
+  rampa.
+- **Conta-gotas**: a janela some, a tela é fotografada e mostrada parada;
+  o cursor vira mira e uma lupa de 11 × 11 pixels (células de
+  `loupe-cell` = 9 px, o do meio com borda branca) acompanha o cursor com
+  o hexadecimal embaixo. Clique pega a cor para a cor que abriu o
+  conta-gotas; Esc ou botão direito cancela. Só dentro da janela do
+  programa (fora dela espera a P-12).
 
 Exibir → "Preencher caminhos abertos" (GD-FIL-12) é uma opção do
 documento.

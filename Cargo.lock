@@ -1763,6 +1763,7 @@ dependencies = [
  "egui_extras",
  "graphdraw-core",
  "kurbo 0.13.1",
+ "png 0.18.1",
  "rfd",
  "serde",
  "serde_json",

@@ -6,6 +6,7 @@
 
 mod app;
 mod canvas;
+mod colorpick;
 mod colorui;
 mod ctxmenu;
 mod cutui;
@@ -13,6 +14,7 @@ mod dialogs;
 mod doc;
 mod doctabs;
 mod eyedrop;
+mod fillui;
 mod fontpicker;
 mod guideui;
 mod i18n;
@@ -29,6 +31,8 @@ mod rulers;
 mod textedit;
 mod theme;
 mod toolbox;
+#[cfg(test)]
+mod uishot;
 mod view;
 mod widgets;
 mod workspace;

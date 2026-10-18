@@ -163,6 +163,8 @@ commands! {
     Ungroup = "obj.ungroup", "Desagrupar", "Ungroup", Object, Selection, true;
     UngroupAll = "obj.ungroup_all", "Desagrupar tudo", "Ungroup all", Object, Selection, true;
     ExtendToBleed = "obj.extend_bleed", "Estender até a sangria", "Extend to bleed", Object, Selection, true;
+    EditFill = "obj.edit_fill", "Editar preenchimento (gradiente)", "Edit fill (gradient)", Object, NotText, true;
+    EditUniformFill = "obj.edit_uniform_fill", "Editar preenchimento uniforme", "Edit uniform fill", Object, NotText, true;
     ToGuides = "obj.to_guides", "Converter em guia", "Convert to guide", Object, Selection, true;
     Symmetry = "obj.symmetry", "Simetria", "Symmetry", Object, NotText, true;
     Preflight = "view.preflight", "Verificação prévia", "Preflight", View, Always, true;
@@ -585,6 +587,8 @@ impl Keymap {
                 // Texto
                 (TextProperties, "Ctrl+T"),
                 (TextGlyphs, "Ctrl+F11"),
+                (EditFill, "F11"),
+                (EditUniformFill, "Shift+F11"),
                 (TextEdit, "Ctrl+Shift+T"),
                 (TextBigger, "Ctrl+8"),
                 (TextSmaller, "Ctrl+2"),

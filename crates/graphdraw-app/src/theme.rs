@@ -301,7 +301,29 @@ pub const RULER_TICK_MAJOR: f32 = 8.0;
 pub const RULER_TICK_MINOR: f32 = 4.0;
 /// Janela de preenchimento: largura, editor, amostra; barra de paradas do
 /// gradiente e marca de parada (GD-FIL-03).
-pub const FILL_DIALOG_WIDTH: f32 = 460.0;
+pub const FILL_DIALOG_WIDTH: f32 = 560.0;
+/// Altura máxima do corpo (rola além disso).
+pub const FILL_BODY_MAX: f32 = 470.0;
+/// Amostra original × nova do rodapé.
+pub const FILL_COMPARE_W: f32 = 132.0;
+pub const FILL_COMPARE_H: f32 = 56.0;
+pub const FILL_COMPARE_LABEL: f32 = 56.0;
+/// Rampa do gradiente: faixa dos pontos médios, faixa, faixa dos nós;
+/// nó (quadrado) e ponto médio (losango).
+pub const RAMP_MID_ROW: f32 = 12.0;
+pub const RAMP_HEIGHT: f32 = 24.0;
+pub const RAMP_NODE_ROW: f32 = 16.0;
+pub const RAMP_NODE: f32 = 10.0;
+pub const RAMP_MID: f32 = 9.0;
+/// Mostrador de ângulo.
+pub const ANGLE_DIAL: f32 = 26.0;
+/// Seletor de cor: largura do balão, roda de matiz e anel, grade de
+/// amostras; célula da lupa do conta-gotas.
+pub const PICKER_WIDTH: f32 = 320.0;
+pub const HUE_WHEEL: f32 = 168.0;
+pub const HUE_RING: f32 = 16.0;
+pub const PICKER_GRID_HEIGHT: f32 = 150.0;
+pub const LOUPE_CELL: f32 = 9.0;
 pub const FILL_EDITOR_WIDTH: f32 = 280.0;
 pub const FILL_SAMPLE: f32 = 140.0;
 pub const GRADIENT_BAR_HEIGHT: f32 = 18.0;

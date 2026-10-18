@@ -280,6 +280,7 @@ Em Linux: `apt install libcdr-dev librevenge-dev pkg-config g++` e o mesmo
 | GD-CMS-04 (política de perfis ao abrir) | `palette::tests::gd_cms_04_convert_to_working_profile` (core), `app::tests::gd_cms_04_profile_policy_on_open` |
 | GD-SEP-01 (prévia de separações) | `separation::tests::*` (core), `canvas::tests::separation_preview_on_canvas` (app) |
 | GD-FIL-04..06/10/12 (padrões, caminho aberto) | `pattern::tests::*` (core), `tests/patterns.rs`, `dialogs::tests::pattern_fill_dialog` (app) |
+| GD-FIL-01..06 (janela Editar preenchimento) | `render::gradient::tests::midpoint_steps_and_hue_path`, `render::pattern::tests::texture_tile_is_seamless_and_seeded`, `ops::tests` (centro e tamanho), `fillui::tests::*`, `colorpick::tests::*` (app) |
 | Booleanas não destrutivas (P1) | `shapeops::live_tests::live_boolean_stays_editable` (core), fixture `live-boolean.gdr` |
 | GD-PRE-30 (aninhamento) | `nest::tests::*` (core) |
 | GD-BDR-12 (amostra composta) | `paletteui::tests::gd_bdr_12_composites_and_targets` (app) |

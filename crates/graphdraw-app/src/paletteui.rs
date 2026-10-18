@@ -237,6 +237,23 @@ impl Palettes {
         v
     }
 
+    /// Todas as paletas (nome e cores) para o seletor de cor.
+    pub fn all_lists(&self, doc: Option<&DocState>) -> crate::colorpick::PaletteList {
+        let mut probe = Palettes {
+            user: self.user.clone(),
+            builtin: self.builtin.clone(),
+            ..Default::default()
+        };
+        self.sources()
+            .into_iter()
+            .enumerate()
+            .map(|(i, name)| {
+                probe.bar_source = i;
+                (name, probe.bar_colors(doc))
+            })
+            .collect()
+    }
+
     /// Cores da paleta escolhida na barra (as do documento vêm ligadas).
     pub fn bar_colors(&self, doc: Option<&DocState>) -> Vec<(String, Color)> {
         match self.bar_source {

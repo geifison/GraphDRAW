@@ -13,3 +13,6 @@ kurbo = "0.13.1"
 rfd = "0.17.2"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
+
+[dev-dependencies]
+png = "0.18.1"

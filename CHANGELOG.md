@@ -32,6 +32,15 @@ entre parênteses são os requisitos de `docs/spec/`.
   - horizontal, vertical, paralela, angular, raio, diâmetro e segmento;
   - ligadas aos nós medidos, com a escala de desenho (GD-FER-40,
     GD-COT-01..03).
+- Janela Editar preenchimento refeita: barra de modos (nenhum, uniforme,
+  gradiente, padrão vetorial, de imagem, de duas cores, textura), sub-barra
+  de tipos de gradiente, rampa com nós e pontos médios (duplo clique cria e
+  tira, arrastar move, amostra solta vira nó), ângulo em mostrador, centro,
+  tamanho, faixas com cadeado, repetir/espelhar, mistura pela roda de
+  cores, suavizar e inverter; seletor de cor com roda de matiz, canais,
+  hexadecimal, paletas com busca e conta-gotas na janela; amostra original
+  × nova; F11 e Shift+F11.
+- Textura procedural como padrão (nuvens, mármore, madeira, granito).
 - Booleanas não destrutivas: Soldar, Aparar e Interseção ao vivo; as
   formas continuam editáveis, a operação troca na barra, Converter em
   curvas fecha o resultado e Desagrupar devolve as formas.

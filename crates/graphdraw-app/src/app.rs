@@ -1865,6 +1865,17 @@ impl App {
                 }
             }
             C::ExportSelection => self.export_selection(),
+            C::EditFill | C::EditUniformFill => {
+                if let Some(d) = &self.doc {
+                    let mut dlg = crate::dialogs::StyleDialog::fill(d, &self.defaults);
+                    if c == C::EditFill {
+                        dlg.force_gradient();
+                    } else {
+                        dlg.force_solid();
+                    }
+                    self.style_dlg = Some(dlg);
+                }
+            }
             C::Symmetry => {
                 if let Some(d) = &mut self.doc {
                     use graphdraw_core::edit::symmetry;
@@ -3543,6 +3554,9 @@ impl App {
     }
 
     fn dialogs(&mut self, ctx: &egui::Context) {
+        if let (Some(dlg), Some(doc)) = (&mut self.style_dlg, &self.doc) {
+            dlg.set_palettes(|| self.palettes.all_lists(Some(doc)));
+        }
         if let (Some(dlg), Some(doc)) = (&mut self.style_dlg, &mut self.doc)
             && dlg.show(ctx, doc, &mut self.defaults)
         {

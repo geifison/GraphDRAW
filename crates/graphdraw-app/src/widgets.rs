@@ -344,6 +344,16 @@ pub fn no_color(p: &egui::Painter, rect: egui::Rect) {
 /// cinza, HSB, HLS e Lab, mais hexadecimal. Devolve a nova cor quando
 /// alterada.
 pub fn color_editor(ui: &mut egui::Ui, color: &Color) -> Option<Color> {
+    color_editor_with(ui, color, true)
+}
+
+/// Como [`color_editor`], sem o seletor visual do RGB (a janela de
+/// preenchimento já tem a roda de matiz).
+pub fn color_channels(ui: &mut egui::Ui, color: &Color) -> Option<Color> {
+    color_editor_with(ui, color, false)
+}
+
+fn color_editor_with(ui: &mut egui::Ui, color: &Color, visual: bool) -> Option<Color> {
     let mut c = color.clone();
     let mut changed = false;
     ui.horizontal_wrapped(|ui| {
@@ -442,7 +452,7 @@ pub fn color_editor(ui: &mut egui::Ui, color: &Color) -> Option<Color> {
             changed = true;
         }
     });
-    if c.model == "rgb" {
+    if visual && c.model == "rgb" {
         let mut rgb = to_color32(&c);
         if egui::color_picker::color_picker_color32(ui, &mut rgb, egui::color_picker::Alpha::Opaque)
         {
@@ -459,7 +469,7 @@ pub fn color_editor(ui: &mut egui::Ui, color: &Color) -> Option<Color> {
 
 /// Converte só quando o usuário troca o modelo explicitamente. Para CMYK,
 /// usa o perfil do documento quando há (GD-CMS-01).
-fn convert_model(c: &Color, model: &str) -> Color {
+pub(crate) fn convert_model(c: &Color, model: &str) -> Color {
     use graphdraw_core::model::color as cc;
     let [r, g, b] = c.to_srgb();
     match model {
