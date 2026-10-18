@@ -481,6 +481,7 @@
               "frame": { "$ref": "#/$defs/point" },
               "paragraphs": { "type": "array", "items": { "$ref": "#/$defs/paragraph" } },
               "lineSpacing": { "type": "number", "exclusiveMinimum": 0 },
+              "tracking": { "type": "number", "minimum": -0.9, "maximum": 10 },
               "path": {
                 "type": "object",
                 "required": ["subpaths"],

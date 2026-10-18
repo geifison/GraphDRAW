@@ -497,6 +497,7 @@ impl App {
                     if let Some(st) = text_bar(ui, doc, &text_targets, text_at, picker) {
                         pending_style = Some(st);
                     }
+                    tracking_bar(ui, doc, &text_targets);
                     path_text_bar(ui, doc, &text_targets);
                     hyphen_bar(ui, doc, &text_targets);
                 });
@@ -525,6 +526,7 @@ impl App {
                             if let Some(st) = text_bar(ui, doc, texts, None, picker) {
                                 pending_style = Some(st);
                             }
+                            tracking_bar(ui, doc, texts);
                             path_text_bar(ui, doc, texts);
                             hyphen_bar(ui, doc, texts);
                         }
@@ -3715,6 +3717,48 @@ fn hyphen_bar(ui: &mut egui::Ui, doc: &mut DocState, targets: &[String]) {
     }
 }
 
+/// Espaçamento entre letras dos textos (% do corpo; também pela alça na
+/// tela no texto em caminho).
+fn tracking_bar(ui: &mut egui::Ui, doc: &mut DocState, targets: &[String]) {
+    let Some(cur) = targets
+        .first()
+        .and_then(|id| doc.editor.find(id))
+        .and_then(|r| doc.editor.get(&r))
+        .and_then(|o| match &o.kind {
+            ObjectKind::Text(t) => Some(t.tracking),
+            _ => None,
+        })
+    else {
+        return;
+    };
+    ui.separator();
+    if let Some(v) = widgets::icon_number(
+        ui,
+        "tp-tracking",
+        tr(
+            "Espaçamento entre letras, em % do corpo (arraste o ícone; no texto em caminho, também pela alça no fim do texto)",
+            "Letter spacing, in % of the size (drag the icon; on text on a path, also with the handle at the end of the text)",
+        ),
+        "texto-espacamento",
+        cur * 100.0,
+        "%",
+    ) {
+        let v = (v / 100.0).clamp(-0.9, 10.0);
+        ops::modify(
+            &mut doc.editor,
+            targets,
+            tr("Espaçamento entre letras", "Letter spacing"),
+            |o| match &mut o.kind {
+                ObjectKind::Text(t) if t.tracking != v => {
+                    t.tracking = v;
+                    true
+                }
+                _ => false,
+            },
+        );
+    }
+}
+
 fn path_text_bar(ui: &mut egui::Ui, doc: &mut DocState, targets: &[String]) {
     use graphdraw_core::edit::textpath;
     let Some(id) = targets.first().cloned() else {
@@ -3748,228 +3792,230 @@ fn path_text_bar(ui: &mut egui::Ui, doc: &mut DocState, targets: &[String]) {
             }
         }
     };
-    // Orientação das letras.
-    pick(
-        ui,
-        &mut next.orientation,
-        &[
-            (
-                "rotate",
-                "tp-rotate",
-                tr(
-                    "Girar letras: cada letra acompanha a curva (selos, logotipos)",
-                    "Rotate letters: each letter follows the curve (badges, logos)",
-                ),
+    let orient: [(&str, &str, &str); 5] = [
+        (
+            "rotate",
+            "tp-rotate",
+            tr(
+                "Girar letras: cada letra acompanha a curva (selos, logotipos)",
+                "Rotate letters: each letter follows the curve (badges, logos)",
             ),
-            (
-                "upright",
-                "tp-upright",
-                tr(
-                    "De pé: as letras ficam na vertical da página (mapas, diagramas)",
-                    "Upright: letters stay vertical on the page (maps, diagrams)",
-                ),
-            ),
-            (
-                "skew-v",
-                "tp-skew-v",
-                tr(
-                    "Perspectiva pelas verticais: as hastes ficam paralelas, a base inclina",
-                    "Perspective by verticals: stems stay parallel, the base slants",
-                ),
-            ),
-            (
-                "skew-h",
-                "tp-skew-h",
-                tr(
-                    "Perspectiva pelas horizontais: a base fica reta, as hastes inclinam",
-                    "Perspective by horizontals: the base stays level, stems slant",
-                ),
-            ),
-            (
-                "warp",
-                "tp-warp",
-                tr(
-                    "Deformar: a base segue o traço e o topo o arco externo (letreiros, medalhões)",
-                    "Warp: the base follows the stroke and the top the outer arc (signs, medallions)",
-                ),
-            ),
-        ],
-    );
-    ui.separator();
-    // Linha tipográfica sobre o traço.
-    pick(
-        ui,
-        &mut next.vertical,
-        &[
-            (
-                "baseline",
-                "tpv-baseline",
-                tr("Traço na linha de base", "Stroke on the baseline"),
-            ),
-            (
-                "descender",
-                "tpv-descender",
-                tr(
-                    "Traço nas descendentes (abaixo do g, p, q)",
-                    "Stroke on the descender line (below g, p, q)",
-                ),
-            ),
-            (
-                "x-height",
-                "tpv-xheight",
-                tr(
-                    "Traço na altura-x (topo das minúsculas)",
-                    "Stroke on the x-height (top of lowercase)",
-                ),
-            ),
-            (
-                "cap",
-                "tpv-cap",
-                tr("Traço na altura das maiúsculas", "Stroke on the cap height"),
-            ),
-            (
-                "center",
-                "tpv-center",
-                tr(
-                    "Traço no centro das letras",
-                    "Stroke through the middle of the letters",
-                ),
-            ),
-        ],
-    );
-    ui.separator();
-    // Alinhamento ao longo do caminho.
-    pick(
-        ui,
-        &mut next.align,
-        &[
-            (
-                "start",
-                "text-left",
-                tr("Alinhar no início do caminho", "Align to the path start"),
-            ),
-            (
-                "center",
-                "text-center",
-                tr("Centralizar no caminho", "Center on the path"),
-            ),
-            (
-                "end",
-                "text-right",
-                tr("Alinhar no fim do caminho", "Align to the path end"),
-            ),
-            (
-                "justify",
-                "text-justify",
-                tr(
-                    "Justificar: espalha as letras pelo caminho todo",
-                    "Justify: spreads the letters along the whole path",
-                ),
-            ),
-        ],
-    );
-    ui.separator();
-    if let Some(v) = widgets::icon_length(
-        ui,
-        "tp-offset-x",
-        tr(
-            "Deslocamento ao longo do caminho (arraste o ícone)",
-            "Offset along the path (drag the icon)",
         ),
-        "texto-caminho-inicio",
-        next.offset,
-    ) {
-        next.offset = v;
-    }
-    if let Some(v) = widgets::icon_length(
-        ui,
-        "tp-offset-y",
-        tr(
-            "Distância do traço: positivo afasta, negativo aproxima (arraste o ícone)",
-            "Distance from the stroke: positive moves away, negative closer (drag the icon)",
+        (
+            "upright",
+            "tp-upright",
+            tr(
+                "De pé: as letras ficam na vertical da página (mapas, diagramas)",
+                "Upright: letters stay vertical on the page (maps, diagrams)",
+            ),
         ),
-        "texto-caminho-dist",
-        next.distance,
-    ) {
-        next.distance = v;
-    }
-    if icons::button(
-        ui,
-        "tp-reverse",
-        tr(
-            "Espelhar na horizontal: percorre o caminho ao contrário",
-            "Mirror horizontally: runs the path backwards",
+        (
+            "skew-v",
+            "tp-skew-v",
+            tr(
+                "Perspectiva pelas verticais: as hastes ficam paralelas, a base inclina",
+                "Perspective by verticals: stems stay parallel, the base slants",
+            ),
         ),
-        next.mirror,
-        true,
-    )
-    .clicked()
-    {
-        next.mirror = !next.mirror;
-    }
-    let below = next.side == "below";
-    if icons::button(ui, "tp-flip-side", tr("Espelhar na vertical: o texto passa para o outro lado do traço, sem inverter a leitura", "Mirror vertically: the text moves to the other side of the stroke, keeping the reading direction"), below, true).clicked() {
-        next.side = if below { "above" } else { "below" }.into();
-    }
+        (
+            "skew-h",
+            "tp-skew-h",
+            tr(
+                "Perspectiva pelas horizontais: a base fica reta, as hastes inclinam",
+                "Perspective by horizontals: the base stays level, stems slant",
+            ),
+        ),
+        (
+            "warp",
+            "tp-warp",
+            tr(
+                "Deformar: a base segue o traço e o topo o arco externo (letreiros, medalhões)",
+                "Warp: the base follows the stroke and the top the outer arc (signs, medallions)",
+            ),
+        ),
+    ];
+    let vertical: [(&str, &str, &str); 5] = [
+        (
+            "baseline",
+            "tpv-baseline",
+            tr("Traço na linha de base", "Stroke on the baseline"),
+        ),
+        (
+            "descender",
+            "tpv-descender",
+            tr(
+                "Traço nas descendentes (abaixo do g, p, q)",
+                "Stroke on the descender line (below g, p, q)",
+            ),
+        ),
+        (
+            "x-height",
+            "tpv-xheight",
+            tr(
+                "Traço na altura-x (topo das minúsculas)",
+                "Stroke on the x-height (top of lowercase)",
+            ),
+        ),
+        (
+            "cap",
+            "tpv-cap",
+            tr("Traço na altura das maiúsculas", "Stroke on the cap height"),
+        ),
+        (
+            "center",
+            "tpv-center",
+            tr(
+                "Traço no centro das letras",
+                "Stroke through the middle of the letters",
+            ),
+        ),
+    ];
+    let align: [(&str, &str, &str); 4] = [
+        (
+            "start",
+            "text-left",
+            tr("Alinhar no início do caminho", "Align to the path start"),
+        ),
+        (
+            "center",
+            "text-center",
+            tr("Centralizar no caminho", "Center on the path"),
+        ),
+        (
+            "end",
+            "text-right",
+            tr("Alinhar no fim do caminho", "Align to the path end"),
+        ),
+        (
+            "justify",
+            "text-justify",
+            tr(
+                "Justificar: espalha as letras pelo caminho todo",
+                "Justify: spreads the letters along the whole path",
+            ),
+        ),
+    ];
+    let corners: [(&str, &str, &str); 3] = [
+        (
+            "jump",
+            "tp-corner-jump",
+            tr(
+                "Cantos: a letra que cairia no canto pula inteira para o lado seguinte",
+                "Corners: a letter landing on the corner jumps whole to the next side",
+            ),
+        ),
+        (
+            "wrap",
+            "tp-corner-wrap",
+            tr(
+                "Cantos: a letra dobra no canto",
+                "Corners: the letter wraps around the corner",
+            ),
+        ),
+        (
+            "split",
+            "tp-corner-split",
+            tr(
+                "Cantos: cada lado recebe uma parte igual do texto",
+                "Corners: each side gets an equal part of the text",
+            ),
+        ),
+    ];
+    // Grupos empilhados em duas linhas (a unidade dentro dos campos deixa
+    // a barra estreita): orientação sobre a linha tipográfica; alinhamento
+    // sobre espelhar; X e Y sobre o intervalo; cantos sobre anticolisão.
+    widgets::stack(ui, |ui, row| {
+        if row == 0 {
+            pick(ui, &mut next.orientation, &orient);
+        } else {
+            pick(ui, &mut next.vertical, &vertical);
+        }
+    });
     ui.separator();
-    // Intervalo útil (batentes) em %.
-    let [mut r0, mut r1] = next.range.unwrap_or([0.0, 1.0]).map(|v| v * 100.0);
-    let range_tip = tr(
-        "Trecho do caminho onde o texto corre (também pelos batentes [ ] na tela)",
-        "Stretch of the path where the text runs (also with the [ ] stops on the canvas)",
-    );
-    ui.add(
-        egui::Image::new(icons::get("tp-range"))
-            .tint(theme::palette(ui).fg_muted)
-            .fit_to_exact_size(Vec2::splat(theme::ICON_UI)),
-    )
-    .on_hover_text(range_tip);
-    let c0 = ui
-        .add(egui::DragValue::new(&mut r0).range(0.0..=100.0).suffix("%"))
-        .on_hover_text(range_tip)
-        .changed();
-    let c1 = ui
-        .add(egui::DragValue::new(&mut r1).range(0.0..=100.0).suffix("%"))
-        .on_hover_text(range_tip)
-        .changed();
-    if c0 || c1 {
-        next.range = ((r0, r1) != (0.0, 100.0)).then_some([r0 / 100.0, r1 / 100.0]);
-    }
+    widgets::stack(ui, |ui, row| {
+        if row == 0 {
+            pick(ui, &mut next.align, &align);
+        } else {
+            if icons::button(
+                ui,
+                "tp-reverse",
+                tr(
+                    "Espelhar na horizontal: percorre o caminho ao contrário",
+                    "Mirror horizontally: runs the path backwards",
+                ),
+                next.mirror,
+                true,
+            )
+            .clicked()
+            {
+                next.mirror = !next.mirror;
+            }
+            let below = next.side == "below";
+            if icons::button(ui, "tp-flip-side", tr("Espelhar na vertical: o texto passa para o outro lado do traço, sem inverter a leitura", "Mirror vertically: the text moves to the other side of the stroke, keeping the reading direction"), below, true).clicked() {
+                next.side = if below { "above" } else { "below" }.into();
+            }
+        }
+    });
     ui.separator();
-    // Cantos vivos.
-    pick(
-        ui,
-        &mut next.corners,
-        &[
-            (
-                "jump",
-                "tp-corner-jump",
+    widgets::stack(ui, |ui, row| {
+        if row == 0 {
+            // Deslocar ao longo: só o ícone (arraste); o valor vai na dica.
+            if let Some(v) = widgets::icon_drag_length(
+                ui,
+                "tp-offset-x",
                 tr(
-                    "Cantos: a letra que cairia no canto pula inteira para o lado seguinte",
-                    "Corners: a letter landing on the corner jumps whole to the next side",
+                    "Deslocar ao longo do caminho (arraste o ícone ou o losango na tela)",
+                    "Move along the path (drag the icon or the diamond on the canvas)",
                 ),
-            ),
-            (
-                "wrap",
-                "tp-corner-wrap",
+                next.offset,
+            ) {
+                next.offset = v;
+            }
+            if let Some(v) = widgets::icon_length(
+                ui,
+                "tp-offset-y",
                 tr(
-                    "Cantos: a letra dobra no canto",
-                    "Corners: the letter wraps around the corner",
+                    "Distância do traço: positivo afasta, negativo aproxima (arraste o ícone)",
+                    "Distance from the stroke: positive moves away, negative closer (drag the icon)",
                 ),
-            ),
-            (
-                "split",
-                "tp-corner-split",
-                tr(
-                    "Cantos: cada lado recebe uma parte igual do texto",
-                    "Corners: each side gets an equal part of the text",
-                ),
-            ),
-        ],
-    );
-    if icons::button(ui, "tp-relax", tr("Anticolisão: nas curvas fechadas, abre o espaço para os topos das letras não se tocarem", "Anti-collision: on tight curves, opens the spacing so letter tops do not touch"), next.relax, true).clicked() {
-        next.relax = !next.relax;
-    }
+                "texto-caminho-dist",
+                next.distance,
+            ) {
+                next.distance = v;
+            }
+        } else {
+            let [mut r0, mut r1] = next.range.unwrap_or([0.0, 1.0]).map(|v| v * 100.0);
+            let range_tip = tr(
+                "Trecho do caminho onde o texto corre (também pelos batentes [ ] na tela)",
+                "Stretch of the path where the text runs (also with the [ ] stops on the canvas)",
+            );
+            ui.add(
+                egui::Image::new(icons::get("tp-range"))
+                    .tint(theme::palette(ui).fg_muted)
+                    .fit_to_exact_size(Vec2::splat(theme::ICON_MICRO)),
+            )
+            .on_hover_text(range_tip);
+            let c0 = ui
+                .add(egui::DragValue::new(&mut r0).range(0.0..=100.0).suffix("%"))
+                .on_hover_text(range_tip)
+                .changed();
+            let c1 = ui
+                .add(egui::DragValue::new(&mut r1).range(0.0..=100.0).suffix("%"))
+                .on_hover_text(range_tip)
+                .changed();
+            if c0 || c1 {
+                next.range = ((r0, r1) != (0.0, 100.0)).then_some([r0 / 100.0, r1 / 100.0]);
+            }
+        }
+    });
+    ui.separator();
+    widgets::stack(ui, |ui, row| {
+        if row == 0 {
+            pick(ui, &mut next.corners, &corners);
+        } else if icons::button(ui, "tp-relax", tr("Anticolisão: nas curvas fechadas, abre o espaço para os topos das letras não se tocarem", "Anti-collision: on tight curves, opens the spacing so letter tops do not touch"), next.relax, true).clicked() {
+            next.relax = !next.relax;
+        }
+    });
     if next != tp {
         let ids = vec![id.clone()];
         ops::edit_text_path(&mut doc.editor, &ids, move |p| *p = next.clone());
@@ -3993,27 +4039,32 @@ fn path_text_bar(ui: &mut egui::Ui, doc: &mut DocState, targets: &[String]) {
     {
         doc.selection = vec![id.clone(), bot];
     }
-    if let Some(mut c) = textpath::is_construction(&doc.editor, &id)
-        && ui
-            .checkbox(
-                &mut c,
-                tr("Traço como construção", "Stroke as construction"),
-            )
-            .on_hover_text(tr(
-                "O traço-guia aparece na tela, mas não sai na impressão, no PDF nem no corte",
-                "The guide stroke shows on screen but not in print, PDF or cutting",
-            ))
-            .changed()
-    {
-        textpath::set_construction(&mut doc.editor, &id, c);
-    }
-    if ui
-        .button(tr("Desvincular", "Unlink"))
-        .on_hover_text(tr(
-            "Texto e caminho viram objetos independentes; o texto mantém a curva",
-            "Text and path become independent objects; the text keeps the curve",
-        ))
+    if let Some(c) = textpath::is_construction(&doc.editor, &id)
+        && icons::button(
+            ui,
+            "tp-construction",
+            tr(
+                "Traço como construção: o traço-guia aparece na tela, mas não sai na impressão, no PDF nem no corte",
+                "Stroke as construction: the guide shows on screen but not in print, PDF or cutting",
+            ),
+            c,
+            true,
+        )
         .clicked()
+    {
+        textpath::set_construction(&mut doc.editor, &id, !c);
+    }
+    if icons::button(
+        ui,
+        "tp-unlink",
+        tr(
+            "Desvincular: texto e caminho viram objetos independentes; o texto mantém a curva",
+            "Unlink: text and path become independent objects; the text keeps the curve",
+        ),
+        false,
+        true,
+    )
+    .clicked()
         && let Some(s) = graphdraw_core::edit::breakapart::break_apart(
             &mut doc.editor,
             std::slice::from_ref(&id),
@@ -4021,13 +4072,17 @@ fn path_text_bar(ui: &mut egui::Ui, doc: &mut DocState, targets: &[String]) {
     {
         doc.selection = s;
     }
-    if ui
-        .button(tr("Endireitar", "Straighten"))
-        .on_hover_text(tr(
-            "Volta a texto reto; o caminho fica guardado (Reativar caminho de origem)",
-            "Back to straight text; the path is kept (Reactivate source path)",
-        ))
-        .clicked()
+    if icons::button(
+        ui,
+        "tp-straighten",
+        tr(
+            "Endireitar: volta a texto reto; o caminho fica guardado (Reativar caminho de origem)",
+            "Straighten: back to straight text; the path is kept (Reactivate source path)",
+        ),
+        false,
+        true,
+    )
+    .clicked()
     {
         textpath::straighten(&mut doc.editor, std::slice::from_ref(&id));
     }

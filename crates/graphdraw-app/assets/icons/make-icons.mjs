@@ -80,6 +80,7 @@ const icons = {
   "text-smaller": `<path d="M3.5 18 L8 6 L12.5 18 M5.2 14 H10.8"/><path d="M14.5 10 H20.5"/>`,
   "tool-artistic": `<path d="M4 19.5 C 8 19.5, 8 14, 11 13 L14 16 C 13 19, 8 20.5, 4 19.5 Z"/><path d="M12.5 14.5 L19.5 4.5 L20.5 5.5 L15 15.5"/>`,
   "tool-mesh": `<rect x="3.5" y="3.5" width="17" height="17" rx="1"/><path d="M3.5 10 C 9 8, 15 12, 20.5 9.5 M3.5 15 C 9 13, 15 17, 20.5 14.5 M10 3.5 C 8 9, 12 15, 9.5 20.5 M15 3.5 C 13 9, 17 15, 14.5 20.5"/>`,
+  "tp-tracking": `<path d="M3 15 L5.5 7 L8 15 M3.8 12.5 H7.2 M16 15 L18.5 7 L21 15 M16.8 12.5 H20.2"/><path d="M9.5 18.5 H14.5 M9.5 18.5 L11 17 M9.5 18.5 L11 20 M14.5 18.5 L13 17 M14.5 18.5 L13 20"/>`,
   "tp-rotate": `<path d="M3 19 Q12 5 21 19" stroke-dasharray="1.6 1.6"/><rect x="5.4" y="9.1" width="3.2" height="4.8" rx="0.4" transform="rotate(-40 7 11.5)"/><rect x="10.4" y="5.799999999999999" width="3.2" height="4.8" rx="0.4" transform="rotate(0 12 8.2)"/><rect x="15.4" y="9.1" width="3.2" height="4.8" rx="0.4" transform="rotate(40 17 11.5)"/>`,
   "tp-upright": `<path d="M3 19 Q12 5 21 19" stroke-dasharray="1.6 1.6"/><rect x="5.4" y="9.1" width="3.2" height="4.8" rx="0.4" transform="rotate(0 7 11.5)"/><rect x="10.4" y="5.799999999999999" width="3.2" height="4.8" rx="0.4" transform="rotate(0 12 8.2)"/><rect x="15.4" y="9.1" width="3.2" height="4.8" rx="0.4" transform="rotate(0 17 11.5)"/>`,
   "tp-skew-v": `<path d="M3 19 Q12 5 21 19" stroke-dasharray="1.6 1.6"/><path d="M5.4 14.2 L8.6 11.6 V7 L5.4 9.6 Z M10.4 10.6 H13.6 V5.8 H10.4 Z M15.4 11.6 L18.6 14.2 V9.6 L15.4 7 Z"/>`,

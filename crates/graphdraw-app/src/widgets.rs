@@ -92,8 +92,11 @@ pub fn fmt_num(v: f64, decimals: usize) -> String {
 }
 
 /// Largura dos campos de comprimento e de número.
-const LENGTH_WIDTH: f32 = 64.0;
+/// A unidade fica dentro do campo ("12,5 mm"): a barra economiza o rótulo
+/// e os controles podem ser empilhados (DESIGN-SYSTEM 4.6).
+const LENGTH_WIDTH: f32 = 78.0;
 const NUMBER_WIDTH: f32 = 48.0;
+const NUMBER_UNIT_WIDTH: f32 = 58.0;
 /// Passo do arrasto no rótulo, por pixel: 0,1 mm e 0,5 (graus, %).
 const LENGTH_DRAG_STEP: f64 = 100.0;
 const NUMBER_DRAG_STEP: f64 = 0.5;
@@ -229,17 +232,18 @@ fn length_field_in(
     let disp = display();
     let id = ui.scope_id().with(id);
     let base = reference_um.unwrap_or(value_um);
-    let r = expr_field(
+    // A unidade vai dentro do campo; o campo aceita digitar com ou sem ela.
+    expr_field(
         ui,
         id,
-        localize(disp.format(value_um, world)),
+        format!(
+            "{} {}",
+            localize(disp.format(value_um, world)),
+            disp.unit.name()
+        ),
         LENGTH_WIDTH,
         |t| disp.parse(t, Some(base), world),
-    );
-    // A unidade também é alça de arrasto: 0,1 da unidade por pixel.
-    let step = disp.unit_um() / 10.0 / if world { disp.scale.max(1e-9) } else { 1.0 };
-    let d = drag_handle(ui, disp.unit.name(), step);
-    r.or(d.map(|d| value_um + d))
+    )
 }
 
 /// Comprimento com rótulo arrastável à esquerda (W, H, X, Y…).
@@ -270,12 +274,34 @@ pub fn labeled_world_length(
 
 pub fn number_field(ui: &mut egui::Ui, id: &str, value: f64, suffix: &str) -> Option<f64> {
     let id = ui.scope_id().with(id);
-    let r = expr_field(ui, id, fmt_num(value, 2), NUMBER_WIDTH, units::parse_number);
     if suffix.is_empty() {
-        return r;
+        return expr_field(ui, id, fmt_num(value, 2), NUMBER_WIDTH, units::parse_number);
     }
-    let d = drag_handle(ui, suffix, NUMBER_DRAG_STEP);
-    r.or(d.map(|d| value + d))
+    // O sufixo (°, %, pt…) vai dentro do campo; digitar com ou sem ele.
+    let sfx = suffix.trim().to_string();
+    expr_field(
+        ui,
+        id,
+        format!("{}{}", fmt_num(value, 2), suffix),
+        NUMBER_UNIT_WIDTH,
+        move |t| {
+            let t = t.trim();
+            units::parse_number(t.strip_suffix(sfx.as_str()).unwrap_or(t).trim())
+        },
+    )
+}
+
+/// Só o ícone, arrastável (sem campo): para ajustes contínuos em que o
+/// número importa menos (ex.: deslocar o texto ao longo do caminho). A dica
+/// mostra o valor.
+pub fn icon_drag_length(ui: &mut egui::Ui, icon: &str, tip: &str, value_um: f64) -> Option<f64> {
+    let disp = display();
+    let tip = format!(
+        "{tip}: {} {}",
+        localize(disp.format(value_um, false)),
+        disp.unit.name()
+    );
+    drag_icon(ui, icon, &tip, LENGTH_DRAG_STEP).map(|d| value_um + d)
 }
 
 /// Número com ícone arrastável à esquerda (o ícone também tem dica).

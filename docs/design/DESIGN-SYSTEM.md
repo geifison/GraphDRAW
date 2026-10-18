@@ -177,6 +177,12 @@ de estado.
 
 ## 3. Iconografia (desenhos próprios)
 
+**Campos (2026-10-18):** a unidade fica dentro do campo ("12,5 mm",
+"45°", "10%"), sem rótulo de unidade ao lado; o campo aceita digitar com
+ou sem ela (e contas). Ajustes contínuos em que o número importa menos
+ficam só no ícone arrastável, com o valor na dica. Com isso os grupos da
+barra de propriedades se empilham em duas linhas.
+
 **Regra (2026-10-18):** toda função que tem ícone mostra o mesmo ícone em
 todo lugar onde aparece — caixa de ferramentas, barras, menus principais,
 menu de contexto e janela de atalhos —, para ser reconhecida de relance. O

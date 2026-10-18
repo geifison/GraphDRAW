@@ -209,6 +209,7 @@ mod tests {
             path: None,
             exclusions: Default::default(),
             path_memory: None,
+            tracking: 0.0,
             extra: Default::default(),
         }));
         graphdraw_core::edit::ops::add_object(&mut doc.editor, 0, 0, t, "t");

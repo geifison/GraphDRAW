@@ -47,6 +47,11 @@ entre parênteses são os requisitos de `docs/spec/`.
   cores, suavizar e inverter; seletor de cor com roda de matiz, canais,
   hexadecimal, paletas com busca e conta-gotas na janela; amostra original
   × nova; F11 e Shift+F11.
+- Espaçamento entre letras (todo texto): campo na barra e, no texto em
+  caminho, alça no fim do texto na tela.
+- Campos de medida com a unidade dentro ("12,5 mm"), em todo o programa;
+  barra do texto em caminho empilhada em duas linhas; deslocar ao longo do
+  caminho só pelo ícone.
 - Barra do texto no caminho toda em ícones com dica (24 desenhos novos);
   em caminho fechado o texto entra lendo por fora, centrado no topo.
 - Texto no caminho refeito (GD-TXT-09): vínculo vivo com a curva-guia;

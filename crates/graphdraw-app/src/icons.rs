@@ -106,6 +106,7 @@ pub fn get(name: &str) -> ImageSource<'static> {
         "text-smaller" => icon!("text-smaller"),
         "tool-artistic" => icon!("tool-artistic"),
         "tool-mesh" => icon!("tool-mesh"),
+        "tp-tracking" => icon!("tp-tracking"),
         "tp-rotate" => icon!("tp-rotate"),
         "tp-upright" => icon!("tp-upright"),
         "tp-skew-v" => icon!("tp-skew-v"),

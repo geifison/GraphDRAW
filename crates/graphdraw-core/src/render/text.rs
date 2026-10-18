@@ -223,6 +223,18 @@ fn shape(id: fontdb::ID, text: &str, size: f64) -> Option<Shaped> {
 /// Como [`shape`], com a direção dada (`Some(true)` = da direita para a
 /// esquerda; `None` = adivinhada pelo texto).
 fn shape_dir(id: fontdb::ID, text: &str, size: f64, rtl: Option<bool>) -> Option<Shaped> {
+    shape_tracked(id, text, size, rtl, 0.0)
+}
+
+/// Como [`shape_dir`], com `track` µm a mais depois de cada glifo
+/// (espaçamento entre letras; marcas sem avanço ficam como estão).
+fn shape_tracked(
+    id: fontdb::ID,
+    text: &str,
+    size: f64,
+    rtl: Option<bool>,
+    track: f64,
+) -> Option<Shaped> {
     fonts().with_face_data(id, |data, index| {
         let face = rustybuzz::Face::from_slice(data, index)?;
         let scale = size / face.units_per_em() as f64;
@@ -251,7 +263,10 @@ fn shape_dir(id: fontdb::ID, text: &str, size: f64, rtl: Option<bool>) -> Option
                 outline = sink.path;
                 outline.apply_affine(Affine::new([scale, 0.0, 0.0, scale, gx, gy]));
             }
-            let advance = pos.x_advance as f64 * scale;
+            let mut advance = pos.x_advance as f64 * scale;
+            if advance > 0.0 {
+                advance += track;
+            }
             glyphs.push(ShapedGlyph {
                 id: gid,
                 x: gx,
@@ -639,7 +654,14 @@ pub fn layout_text(t: &TextData) -> TextLayout {
                     continue;
                 };
                 let dir = any_rtl.then_some(rtl[pi]);
-                let shaped = shape_dir(id, &p.text, span.font.size, dir).unwrap_or(Shaped {
+                let shaped = shape_tracked(
+                    id,
+                    &p.text,
+                    span.font.size,
+                    dir,
+                    t.tracking * span.font.size,
+                )
+                .unwrap_or(Shaped {
                     glyphs: Vec::new(),
                     advance: 0.0,
                     ascent: span.font.size * 0.8,
@@ -1301,6 +1323,7 @@ mod tests {
             path: None,
             exclusions: Default::default(),
             path_memory: None,
+            tracking: 0.0,
             extra: Map::new(),
         }
     }
@@ -1332,6 +1355,23 @@ mod tests {
     fn circle(r: f64) -> kurbo::BezPath {
         use kurbo::Shape;
         kurbo::Circle::new((0.0, 0.0), r).to_path(0.1)
+    }
+
+    /// Espaçamento entre letras: soma depois de cada glifo; negativo aperta.
+    #[test]
+    fn tracking_widens_and_tightens() {
+        if !has_font() {
+            return;
+        }
+        let width = |k: f64| {
+            let mut t = text("artistic", "left", "ABCD", None);
+            t.tracking = k;
+            let l = layout_text(&t);
+            l.lines[0].carets.last().unwrap().1
+        };
+        let (n, w, tight) = (width(0.0), width(0.2), width(-0.1));
+        assert!((w - n - 4.0 * 0.2 * 10_000.0).abs() < 1.0, "{n} {w}");
+        assert!(tight < n);
     }
 
     /// GD-TXT-09: alinhamentos dentro do intervalo, justificar, batentes e
