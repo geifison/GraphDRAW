@@ -32,6 +32,7 @@ mod rulers;
 mod spell;
 mod spellui;
 mod strokeui;
+mod stylesui;
 mod textedit;
 mod theme;
 mod toolbox;

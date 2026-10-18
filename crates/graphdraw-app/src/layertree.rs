@@ -499,6 +499,7 @@ mod tests {
             boolean: None,
             symmetry: None,
             effect: None,
+            symbol: None,
             extra: serde_json::Map::new(),
         }));
         let g = group.id.clone();
@@ -592,6 +593,7 @@ mod tests {
                 boolean: None,
                 symmetry: None,
                 effect: None,
+                symbol: None,
                 extra: serde_json::Map::new(),
             }))
         );

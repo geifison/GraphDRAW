@@ -256,6 +256,7 @@ fn basic_shapes() -> Document {
             boolean: None,
             symmetry: None,
             effect: None,
+            symbol: None,
             extra: Map::new(),
         }),
     );
@@ -729,6 +730,7 @@ fn m1_editing() -> Document {
             boolean: None,
             symmetry: None,
             effect: None,
+            symbol: None,
             extra: Map::new(),
         }),
     );
@@ -749,6 +751,7 @@ fn m1_editing() -> Document {
             boolean: None,
             symmetry: None,
             effect: None,
+            symbol: None,
             extra: Map::new(),
         }),
     );
@@ -834,6 +837,77 @@ fn patterns() -> Document {
     d
 }
 
+/// Doc 11: estilo de objeto, estilo de texto e símbolo com duas instâncias.
+fn styles() -> Document {
+    use graphdraw_core::model::{ObjectStyle, SymbolDef, TextStyleDef};
+    let mut ids = Ids::new(24);
+    let mut p = page(&mut ids, 210.0 * MM, 297.0 * MM);
+    let mut d = doc_with(vec![], "Estilos e símbolos");
+    let brand = Fill::solid(Color::cmyk(1.0, 0.5, 0.0, 0.0));
+    d.styles.object.push(ObjectStyle {
+        id: "style-marca".into(),
+        name: "Marca".into(),
+        fill: Some(brand.clone()),
+        stroke: None,
+    });
+    d.styles.text.push(TextStyleDef {
+        id: "style-titulo".into(),
+        name: "Título".into(),
+        family: "Arial".into(),
+        size: 24.0 * 352.778,
+        weight: 700,
+        italic: false,
+        align: Some("left".into()),
+        fill: Some(brand.clone()),
+    });
+    for (i, x) in [20.0, 80.0].into_iter().enumerate() {
+        let mut r = rect(
+            &mut ids,
+            x * MM,
+            220.0 * MM,
+            40.0 * MM,
+            20.0 * MM,
+            brand.clone(),
+        );
+        r.style = Some("style-marca".into());
+        r.name = Some(format!("Faixa {}", i + 1));
+        p.layers[0].objects.push(r);
+    }
+    let master = rect(
+        &mut ids,
+        0.0,
+        0.0,
+        30.0 * MM,
+        30.0 * MM,
+        Fill::solid(Color::cmyk(0.0, 0.8, 1.0, 0.0)),
+    );
+    d.styles.symbols.push(SymbolDef {
+        id: "symbol-selo".into(),
+        name: "Selo".into(),
+        objects: vec![master.clone()],
+    });
+    for (x, y) in [(20.0, 60.0), (120.0, 60.0)] {
+        let mut copy = master.clone();
+        copy.id = ids.next();
+        let mut g = obj(
+            &mut ids,
+            ObjectKind::Group(GroupData {
+                children: vec![copy],
+                boolean: None,
+                symmetry: None,
+                effect: None,
+                symbol: Some("symbol-selo".into()),
+                extra: Map::new(),
+            }),
+        );
+        g.transform = Transform::translate(x * MM, y * MM);
+        g.name = Some("Selo".into());
+        p.layers[0].objects.push(g);
+    }
+    d.data.pages.push(p);
+    d
+}
+
 /// Doc 10: os cinco efeitos dinâmicos — contorno, mistura, sombra
 /// projetada, sombra de bloco e envelope.
 fn effects() -> Document {
@@ -849,6 +923,7 @@ fn effects() -> Document {
                 boolean: None,
                 symmetry: None,
                 effect: Some(effect),
+                symbol: None,
                 extra: Map::new(),
             }),
         );
@@ -1425,6 +1500,7 @@ fn live_boolean() -> Document {
                 boolean: Some((*op).into()),
                 symmetry: None,
                 effect: None,
+                symbol: None,
                 extra: Map::new(),
             }),
         );
@@ -1572,6 +1648,7 @@ fn symmetry() -> Document {
                     angle: 90.0,
                 }),
                 effect: None,
+                symbol: None,
                 extra: Map::new(),
             }),
         );
@@ -1787,6 +1864,7 @@ fn main() {
         ("strokes", strokes()),
         ("appearance", appearance()),
         ("effects", effects()),
+        ("styles", styles()),
     ];
     for (name, doc) in &docs {
         let path = dir.join(format!("{name}.gdr"));

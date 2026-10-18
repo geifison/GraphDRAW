@@ -587,6 +587,19 @@ novos objetos.
   Sobreimprimir contorno.
 - **Rodapé**: OK, Cancelar e Ajuda (balão com a explicação).
 
+### 4.6.10 Aba Estilos (doc 11)
+
+Aba do painel da direita, depois de Paletas, com três seções separadas por
+divisória: Estilos de objeto (amostra 16 px do preenchimento + nome),
+Estilos de texto ("Aa" no peso, itálico e cor do estilo + nome, família e
+corpo) e Símbolos (contagem de objetos + nome). O "+" à direita do título
+cria pela seleção (texto, para estilo de texto) e fica desativado sem ela.
+Clicar no nome aplica à seleção (no símbolo, insere uma instância no
+centro da página); o "…" abre Redefinir pela seleção, Renomear (campo no
+lugar; Enter confirma) e Excluir — os objetos ligados ficam com a
+aparência e perdem a ligação; as instâncias viram grupos comuns. Lista
+vazia mostra a dica em `text-weak`. Cada ação é um passo do histórico.
+
 ### 4.6.9 Efeitos (doc 10)
 
 Menu Efeitos, depois de Objeto: Contorno, Mistura (dois objetos),

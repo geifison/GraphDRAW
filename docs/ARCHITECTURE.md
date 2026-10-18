@@ -281,6 +281,7 @@ Em Linux: `apt install libcdr-dev librevenge-dev pkg-config g++` e o mesmo
 | GD-SEP-01 (prévia de separações) | `separation::tests::*` (core), `canvas::tests::separation_preview_on_canvas` (app) |
 | GD-FIL-04..06/10/12 (padrões, caminho aberto) | `pattern::tests::*` (core), `tests/patterns.rs`, `dialogs::tests::pattern_fill_dialog` (app) |
 | Doc 10 (efeitos dinâmicos) | `effects::tests::*` (core), fixture `effects.gdr`, `canvas::tests::envelope_point_drag` (app) |
+| Doc 11 (estilos e símbolos) | `edit::styles::tests::*` (core), fixture `styles.gdr`, `stylesui::tests::panel_lists_styles_and_symbols` (app) |
 | GD-TXT-06 (bidirecional) | `render::text::tests::bidi_orders_rtl_runs` (core), fixture `appearance.gdr` |
 | GD-TXT-08 (corretor ortográfico) | `spell::tests::*`, `spellui::tests::*` (app; usam o corretor do Windows quando o idioma está instalado) |
 | GD-FER-27 (desenho inteligente) | `recognize::tests::gd_fer_27_shapes` (core), `canvas::tests::smart_draw_recognizes` (app) |

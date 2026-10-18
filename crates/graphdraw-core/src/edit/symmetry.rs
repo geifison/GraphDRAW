@@ -80,6 +80,7 @@ pub fn create(
             boolean: None,
             symmetry: None,
             effect: None,
+            symbol: None,
             extra: Default::default(),
         }));
         let gid = g.id.clone();
@@ -95,6 +96,7 @@ pub fn create(
                 boolean: None,
                 symmetry: None,
                 effect: None,
+                symbol: None,
                 extra: Default::default(),
             })),
             "Simetria",

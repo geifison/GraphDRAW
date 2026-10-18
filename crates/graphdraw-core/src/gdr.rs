@@ -30,6 +30,7 @@ const DOCUMENT: &str = "document.json";
 const MANIFEST: &str = "manifest.json";
 const METADATA: &str = "metadata.json";
 const COLORS: &str = "resources/colors.json";
+const STYLES: &str = "resources/styles.json";
 
 /// `manifest.json`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -250,6 +251,15 @@ pub fn read_bytes(bytes: &[u8]) -> Result<(Document, ImportReport), Error> {
     doc.data = data;
     doc.metadata = metadata;
     doc.colors = colors;
+    match members.get(STYLES).map(|b| serde_json::from_slice(b)) {
+        Some(Ok(s)) => doc.styles = s,
+        Some(Err(e)) => report.warn(
+            "gdr.styles.invalid",
+            format!("resources/styles.json inválido: {e}"),
+            None,
+        ),
+        None => {}
+    }
     for (name, bytes) in members {
         if name.starts_with("resources/images/") {
             if image::guess_format(&bytes).is_err() {
@@ -313,8 +323,10 @@ pub fn embedded_fonts(doc: &Document) -> Vec<(String, Vec<u8>)> {
 
 /// Membros que o gravador regenera (não vão para `extra_members`).
 fn is_managed_member(name: &str) -> bool {
-    matches!(name, "mimetype" | DOCUMENT | MANIFEST | METADATA | COLORS)
-        || name.starts_with("thumbnails/")
+    matches!(
+        name,
+        "mimetype" | DOCUMENT | MANIFEST | METADATA | COLORS | STYLES
+    ) || name.starts_with("thumbnails/")
         || name.starts_with("pages/")
 }
 
@@ -419,6 +431,13 @@ pub fn write_bytes(doc: &Document, opts: &WriteOptions) -> Result<Vec<u8>, Error
         to_json(&doc.colors)?,
         CompressionMethod::Deflated,
     ));
+    if !doc.styles.is_empty() {
+        entries.push((
+            STYLES.into(),
+            to_json(&doc.styles)?,
+            CompressionMethod::Deflated,
+        ));
+    }
     for (name, bytes) in &doc.images {
         entries.push((name.clone(), bytes.to_vec(), CompressionMethod::Stored));
     }

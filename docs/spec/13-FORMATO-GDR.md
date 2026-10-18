@@ -11,7 +11,7 @@ manifest.json        versão do formato, app gerador, lista de membros + SHA-256
 document.json        configurações, páginas, camadas, árvore de objetos
 resources/
   colors.json        cores nomeadas/globais, paletas do documento
-  styles.json        (futuro)
+  styles.json        estilos de objeto e de texto, símbolos (só com conteúdo)
   images/<sha256>.<ext>   bitmaps (PNG/JPEG/TIFF/WebP), deduplicados por hash
   fonts/<sha256>.<ext>    fontes inteiras incorporadas (otf/ttf/ttc, GD-FNT-03)
 thumbnails/

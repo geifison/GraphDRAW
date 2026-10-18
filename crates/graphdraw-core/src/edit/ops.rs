@@ -516,6 +516,7 @@ pub fn group(ed: &mut Editor, sel: &[String]) -> Option<String> {
         boolean: None,
         symmetry: None,
         effect: None,
+        symbol: None,
         extra: Default::default(),
     }));
     let id = g.id.clone();

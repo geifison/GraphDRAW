@@ -399,6 +399,7 @@ mod tests {
             boolean: None,
             symmetry: None,
             effect: None,
+            symbol: None,
             extra: Map::new(),
         }));
         let cover = rect(60.0, 0.0, 10.0, 10.0);
@@ -443,6 +444,7 @@ mod tests {
             boolean: None,
             symmetry: None,
             effect: None,
+            symbol: None,
             extra: Map::new(),
         }));
         assert_eq!(
@@ -513,6 +515,7 @@ mod tests {
             boolean: None,
             symmetry: None,
             effect: None,
+            symbol: None,
             extra: Map::new(),
         }));
         g.transform = Transform::translate(50.0, 50.0);

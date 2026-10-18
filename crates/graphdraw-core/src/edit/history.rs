@@ -75,6 +75,10 @@ enum Change {
     /// Configurações do documento (cor, unidade, resolução…).
     Settings(Box<crate::model::Settings>, Box<crate::model::Settings>),
     /// Cores nomeadas do documento (paleta, GD-PAL-01).
+    Styles(
+        Box<crate::model::StylesResource>,
+        Box<crate::model::StylesResource>,
+    ),
     Colors(
         Box<crate::model::ColorsResource>,
         Box<crate::model::ColorsResource>,
@@ -286,7 +290,7 @@ impl Editor {
             Change::InsertLayer(p, _, _)
             | Change::RemoveLayer(p, _, _)
             | Change::LayerProps(p, _, _, _) => self.page_key(*p),
-            Change::Settings(..) | Change::Colors(..) => None,
+            Change::Settings(..) | Change::Colors(..) | Change::Styles(..) => None,
         };
         let auto = self.open.is_none();
         if auto {
@@ -436,6 +440,18 @@ impl Editor {
         self.record(Change::PageProps(index, old, new));
     }
 
+    /// Altera os estilos e símbolos do documento (doc 11).
+    pub fn edit_styles(&mut self, f: impl FnOnce(&mut crate::model::StylesResource)) {
+        let old = self.doc.styles.clone();
+        let mut new = old.clone();
+        f(&mut new);
+        if new == old {
+            return;
+        }
+        self.doc.styles = new.clone();
+        self.record(Change::Styles(Box::new(old), Box::new(new)));
+    }
+
     /// Altera as cores nomeadas do documento.
     pub fn edit_colors(&mut self, f: impl FnOnce(&mut crate::model::ColorsResource)) {
         let old = self.doc.colors.clone();
@@ -537,6 +553,7 @@ impl Editor {
             Change::PageProps(i, old, _) => copy_page_props(&mut doc.data.pages[*i], old),
             Change::Settings(old, _) => doc.data.settings = (**old).clone(),
             Change::Colors(old, _) => doc.colors = (**old).clone(),
+            Change::Styles(old, _) => doc.styles = (**old).clone(),
         }
     }
 
@@ -566,6 +583,7 @@ impl Editor {
             Change::PageProps(i, _, new) => copy_page_props(&mut doc.data.pages[*i], new),
             Change::Settings(_, new) => doc.data.settings = (**new).clone(),
             Change::Colors(_, new) => doc.colors = (**new).clone(),
+            Change::Styles(_, new) => doc.styles = (**new).clone(),
         }
     }
 

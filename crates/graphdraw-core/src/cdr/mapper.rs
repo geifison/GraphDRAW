@@ -211,6 +211,7 @@ impl Mapper<'_> {
                             boolean: None,
                             symmetry: None,
                             effect: None,
+                            symbol: None,
                             extra: Map::new(),
                         })));
                     }
@@ -277,6 +278,7 @@ impl Mapper<'_> {
                     boolean: None,
                     symmetry: None,
                     effect: None,
+                    symbol: None,
                     extra: Map::new(),
                 })));
         }

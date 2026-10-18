@@ -194,6 +194,7 @@ fn gd_gdr_04_ids_are_uuid_v7_and_coordinates_in_um() {
         boolean: None,
         symmetry: None,
         effect: None,
+        symbol: None,
         extra: Default::default(),
     }));
     let id = uuid::Uuid::parse_str(&o.id).unwrap();

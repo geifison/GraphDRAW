@@ -489,6 +489,7 @@ pub fn apply(ed: &mut Editor, sel: &[String], effect: Effect) -> Option<String> 
                 boolean: None,
                 symmetry: None,
                 effect: None,
+                symbol: None,
                 extra: Default::default(),
             }));
             let id = g.id.clone();
@@ -595,6 +596,7 @@ mod tests {
             boolean: None,
             symmetry: None,
             effect: Some(e),
+            symbol: None,
             extra: Default::default(),
         }
     }

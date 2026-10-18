@@ -242,6 +242,7 @@ const icons = {
   instance: `<rect x="3.5" y="3.5" width="7" height="7" rx="1"/><rect x="13.5" y="13.5" width="7" height="7" rx="1" stroke-dasharray="2 2"/><path d="M10.5 10.5 L13.5 13.5"/>${dot(12, 12, 1.3)}`,
   cancel: `<circle cx="12" cy="12" r="8.5"/><path d="M8.5 8.5 L15.5 15.5 M15.5 8.5 L8.5 15.5"/>`,
   "guide-object": `<circle cx="12" cy="12" r="7" stroke-dasharray="2 2"/><path d="M3 12 H21 M12 3 V21" stroke-dasharray="1.5 2"/>`,
+  styles: `<rect x="3.5" y="3.5" width="7" height="7" rx="1"/><rect x="13.5" y="3.5" width="7" height="7" rx="3.5"/><path d="M3.5 15 H20.5 M3.5 19 H14"/>`,
   preflight: `<path d="M5.5 3.5 H14 L18.5 8 V20.5 H5.5 Z M14 3.5 V8 H18.5"/><path d="M8.5 14 L11 16.5 L15.5 11.5"/>`,
   // ---- painéis (área de trabalho, GD-UI-03) ----
   "panel-collapse": `<rect x="3.5" y="4.5" width="17" height="15" rx="1.5"/><path d="M14.5 4.5 V19.5"/><path d="M7.5 9 L10.5 12 L7.5 15"/>`,

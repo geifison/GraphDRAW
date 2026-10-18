@@ -38,6 +38,7 @@ pub enum RightTab {
     Pages,
     Report,
     Preflight,
+    Styles,
 }
 
 /// Opções da janela de contorno de deslocamento.
@@ -138,6 +139,7 @@ pub struct App {
     pub(crate) font_picker: crate::fontpicker::FontPicker,
     /// Paletas do documento e do usuário (GD-PAL-01..05).
     pub(crate) palettes: crate::paletteui::Palettes,
+    pub(crate) styles_panel: crate::stylesui::StylesPanel,
     /// Área de trabalho (GD-UI-03): recolhida, largura e painéis soltos;
     /// `ws_saved` é a última versão gravada no arquivo.
     pub(crate) ws: crate::workspace::Workspace,
@@ -250,6 +252,7 @@ impl App {
             layer_tree: Default::default(),
             font_picker: Default::default(),
             palettes: crate::paletteui::Palettes::load(),
+            styles_panel: Default::default(),
             ws: Default::default(),
             ws_saved: Default::default(),
             show_right: true,

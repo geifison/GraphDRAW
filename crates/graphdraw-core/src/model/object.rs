@@ -35,6 +35,9 @@ pub struct Object {
     pub blend: BlendMode,
     /// Afasta o texto de parágrafo (GD-TXT-10).
     pub wrap: Option<TextWrap>,
+    /// Estilo de objeto e estilo de texto ligados (doc 11).
+    pub style: Option<String>,
+    pub text_style: Option<String>,
     pub kind: ObjectKind,
 }
 
@@ -192,6 +195,9 @@ pub struct GroupData {
     /// filho de baixo, e os filhos continuam editáveis.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub boolean: Option<String>,
+    /// Instância do símbolo (doc 11): os filhos são cópias do mestre.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub symbol: Option<String>,
     /// Efeito dinâmico (doc 10): o grupo desenha o resultado gerado.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub effect: Option<Effect>,
@@ -571,6 +577,8 @@ const COMMON_KEYS: &[&str] = &[
     "userData",
     "blendMode",
     "textWrap",
+    "objectStyle",
+    "textStyle",
 ];
 
 impl Object {
@@ -588,6 +596,8 @@ impl Object {
             user_data: None,
             blend: BlendMode::Normal,
             wrap: None,
+            style: None,
+            text_style: None,
             kind,
         }
     }
@@ -681,6 +691,14 @@ impl Object {
             .and_then(|b| serde_json::from_value(b).ok())
             .unwrap_or_default();
         let wrap = de("textWrap")?.and_then(|w| serde_json::from_value(w).ok());
+        let style = map
+            .get("objectStyle")
+            .and_then(Value::as_str)
+            .map(String::from);
+        let text_style = map
+            .get("textStyle")
+            .and_then(Value::as_str)
+            .map(String::from);
 
         let mut rest = map.clone();
         for k in COMMON_KEYS {
@@ -720,6 +738,8 @@ impl Object {
             user_data,
             blend,
             wrap,
+            style,
+            text_style,
             kind,
         })
     }
@@ -754,6 +774,12 @@ impl Object {
         }
         if let Some(u) = &self.user_data {
             m.insert("userData".into(), serde_json::to_value(u).unwrap());
+        }
+        if let Some(s) = &self.style {
+            m.insert("objectStyle".into(), s.clone().into());
+        }
+        if let Some(s) = &self.text_style {
+            m.insert("textStyle".into(), s.clone().into());
         }
         if let Some(w) = &self.wrap {
             m.insert("textWrap".into(), serde_json::to_value(w).unwrap());

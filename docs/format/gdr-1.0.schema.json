@@ -335,6 +335,8 @@
         "printable": { "type": "boolean" },
         "userData": { "type": "object", "additionalProperties": { "type": "string" } },
         "blendMode": { "enum": ["normal", "multiply", "screen", "overlay", "darken", "lighten", "color-dodge", "color-burn", "hard-light", "soft-light", "difference", "exclusion", "hue", "saturation", "color", "luminosity"] },
+        "objectStyle": { "type": "string", "description": "ID do estilo de objeto em resources/styles.json." },
+        "textStyle": { "type": "string", "description": "ID do estilo de texto em resources/styles.json." },
         "textWrap": {
           "type": "object",
           "description": "Afasta o texto de parágrafo da página (GD-TXT-10).",
@@ -401,6 +403,7 @@
             "properties": {
               "children": { "type": "array", "items": { "$ref": "#/$defs/object" } },
               "boolean": { "enum": ["weld", "trim", "intersect"] },
+              "symbol": { "type": "string", "description": "Instância do símbolo com este ID (resources/styles.json)." },
               "effect": {
                 "type": "object",
                 "required": ["kind"],

@@ -12,11 +12,12 @@ use crate::canvas::Tool;
 use crate::i18n::tr;
 
 impl RightTab {
-    pub const ALL: [RightTab; 8] = [
+    pub const ALL: [RightTab; 9] = [
         RightTab::Transform,
         RightTab::Align,
         RightTab::Layers,
         RightTab::Palettes,
+        RightTab::Styles,
         RightTab::History,
         RightTab::Pages,
         RightTab::Report,
@@ -34,6 +35,7 @@ impl RightTab {
             RightTab::Pages => "paginas",
             RightTab::Report => "relatorio",
             RightTab::Preflight => "verificacao",
+            RightTab::Styles => "estilos",
         }
     }
 
@@ -51,6 +53,7 @@ impl RightTab {
             RightTab::Pages => tr("Páginas", "Pages"),
             RightTab::Report => tr("Relatório", "Report"),
             RightTab::Preflight => tr("Verificação", "Preflight"),
+            RightTab::Styles => tr("Estilos", "Styles"),
         }
     }
 
@@ -65,6 +68,7 @@ impl RightTab {
             RightTab::Pages => "page-list",
             RightTab::Report => "report",
             RightTab::Preflight => "preflight",
+            RightTab::Styles => "styles",
         }
     }
 }

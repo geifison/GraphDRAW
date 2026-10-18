@@ -361,6 +361,68 @@ pub struct NamedColor {
     pub extra: Map<String, Value>,
 }
 
+/// Estilos e símbolos do documento (`resources/styles.json`, doc 11).
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct StylesResource {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub object: Vec<ObjectStyle>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub text: Vec<TextStyleDef>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub symbols: Vec<SymbolDef>,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+impl StylesResource {
+    pub fn is_empty(&self) -> bool {
+        self.object.is_empty()
+            && self.text.is_empty()
+            && self.symbols.is_empty()
+            && self.extra.is_empty()
+    }
+}
+
+/// Estilo de objeto: preenchimento e contorno com nome.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ObjectStyle {
+    pub id: String,
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fill: Option<crate::model::Fill>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stroke: Option<crate::model::Stroke>,
+}
+
+/// Estilo de texto: fonte, corpo, alinhamento e cor.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TextStyleDef {
+    pub id: String,
+    pub name: String,
+    pub family: String,
+    pub size: f64,
+    #[serde(default = "normal_weight")]
+    pub weight: u16,
+    #[serde(default)]
+    pub italic: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub align: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fill: Option<crate::model::Fill>,
+}
+
+fn normal_weight() -> u16 {
+    400
+}
+
+/// Símbolo: os objetos mestre (origem no canto de baixo à esquerda).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SymbolDef {
+    pub id: String,
+    pub name: String,
+    pub objects: Vec<crate::model::Object>,
+}
+
 /// `resources/colors.json`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct ColorsResource {
@@ -376,6 +438,8 @@ pub struct Document {
     pub data: DocumentData,
     pub metadata: Metadata,
     pub colors: ColorsResource,
+    /// Estilos e símbolos (doc 11).
+    pub styles: StylesResource,
     /// Bytes das imagens indexados pelo caminho do membro
     /// (`resources/images/<sha256>.<ext>`).
     pub images: BTreeMap<String, Arc<Vec<u8>>>,
@@ -395,6 +459,7 @@ impl Document {
             },
             metadata: Metadata::default(),
             colors: ColorsResource::default(),
+            styles: StylesResource::default(),
             images: BTreeMap::new(),
             extra_members: BTreeMap::new(),
         }

@@ -238,6 +238,7 @@ pub fn get(name: &str) -> ImageSource<'static> {
         "instance" => icon!("instance"),
         "cancel" => icon!("cancel"),
         "preflight" => icon!("preflight"),
+        "styles" => icon!("styles"),
         "guide-object" => icon!("guide-object"),
         _ => icon!("history"),
     }

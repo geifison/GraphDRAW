@@ -976,6 +976,7 @@ mod live_tests {
             boolean: Some("intersect".into()),
             symmetry: None,
             effect: None,
+            symbol: None,
             extra: Default::default(),
         });
         assert_eq!(Object::from_value(o.to_value()), o);

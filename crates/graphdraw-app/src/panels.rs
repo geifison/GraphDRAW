@@ -724,6 +724,7 @@ impl App {
             RightTab::Report => report_panel(ui, doc),
             RightTab::Preflight => preflight_panel(ui, doc),
             RightTab::Palettes => pal_act = self.palettes.panel(ui, doc),
+            RightTab::Styles => self.styles_panel.panel(ui, doc),
         }
         if let Some(s) = self.palettes.status.take() {
             self.status = s;

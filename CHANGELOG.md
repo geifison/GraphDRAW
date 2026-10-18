@@ -44,6 +44,10 @@ entre parênteses são os requisitos de `docs/spec/`.
   sombra de bloco e envelope; os parâmetros ficam na barra, o envelope se
   ajusta pelos 8 pontos na ferramenta Forma e Desagrupar congela o
   resultado (doc 10).
+- Aba Estilos: estilos de objeto (preenchimento e contorno) e de texto
+  (fonte, corpo, alinhamento e cor) ligados aos objetos — redefinir
+  atualiza todos num passo — e símbolos, com instâncias que acompanham o
+  mestre ao redefinir; gravados em `resources/styles.json` (doc 11).
 - Texto bidirecional: hebraico e árabe na ordem certa dentro da linha,
   moldados com a direção da direita para a esquerda (GD-TXT-06).
 - Verificar ortografia (Texto): palavra desconhecida com o trecho em volta,

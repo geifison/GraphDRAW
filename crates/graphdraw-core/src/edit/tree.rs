@@ -309,6 +309,7 @@ mod tests {
             boolean: None,
             symmetry: None,
             effect: None,
+            symbol: None,
             extra: Map::new(),
         }));
         g.transform = Transform::translate(x, 0.0);
