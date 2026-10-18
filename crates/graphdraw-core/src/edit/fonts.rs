@@ -237,6 +237,7 @@ mod tests {
             path: None,
             exclusions: Default::default(),
             path_memory: None,
+            tracking: 0.0,
             extra: Default::default(),
         }));
         let id = t.id.clone();
@@ -300,6 +301,7 @@ mod embed_tests {
             path: None,
             exclusions: Default::default(),
             path_memory: None,
+            tracking: 0.0,
             extra: Default::default(),
         }));
         d.data.pages[0].layers[0].objects.push(t);

@@ -1499,10 +1499,25 @@ pub fn fit_text_to_path(ed: &mut Editor, text_id: &str, path_id: &str) -> bool {
         };
         td.text_kind = "artistic".into();
         td.frame = None;
-        td.path = Some(crate::model::TextPath::new(
-            subpaths.clone(),
-            Some(path_id.to_string()),
-        ));
+        let mut tp = crate::model::TextPath::new(subpaths.clone(), Some(path_id.to_string()));
+        // Caminho fechado: entra lendo por fora, centrado no ponto mais alto
+        // (como o texto de cima de um selo), qualquer que seja o sentido em
+        // que a forma foi desenhada.
+        let size = td
+            .paragraphs
+            .first()
+            .and_then(|p| p.spans.first())
+            .map_or(10_000.0, |s| s.font.size);
+        if let Some(track) = crate::render::text::path_track(&tp, size)
+            && track.closed
+        {
+            tp.mirror = track.counter_clockwise();
+            if let Some(t2) = crate::render::text::path_track(&tp, size) {
+                tp.align = "center".into();
+                tp.offset = t2.extreme(true) - t2.total() / 2.0;
+            }
+        }
+        td.path = Some(tp);
         true
     });
     true

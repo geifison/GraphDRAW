@@ -177,6 +177,12 @@ de estado.
 
 ## 3. Iconografia (desenhos próprios)
 
+**Campos (2026-10-18):** a unidade fica dentro do campo ("12,5 mm",
+"45°", "10%"), sem rótulo de unidade ao lado; o campo aceita digitar com
+ou sem ela (e contas). Ajustes contínuos em que o número importa menos
+ficam só no ícone arrastável, com o valor na dica. Com isso os grupos da
+barra de propriedades se empilham em duas linhas.
+
 **Regra (2026-10-18):** toda função que tem ícone mostra o mesmo ícone em
 todo lugar onde aparece — caixa de ferramentas, barras, menus principais,
 menu de contexto e janela de atalhos —, para ser reconhecida de relance. O
@@ -604,12 +610,19 @@ por uma linha `accent-success` de `focus-width` à barra verde (quadrado de
 `handle-size`) acima das letras; a seta dupla verde ao lado da barra; e os
 batentes `[` `]` em `accent-primary` nos extremos do intervalo, de pé
 sobre o traço. A ferramenta Texto, perto de uma curva, troca o selo do
-cursor para `text-path`. A barra traz, nesta ordem: orientação,
-alinhamento vertical, os quatro botões de alinhamento (`text-left`,
-`text-center`, `text-right`, `text-justify`), X, Y, espelhar
-(`mirror-h`, `mirror-v`), De/até %, cantos, Anticolisão, Selo
-superior/inferior (só em caminho fechado), Traço como construção,
-Desvincular e Endireitar.
+cursor para `text-path`. A barra traz tudo em botões de ícone com dica, nesta ordem e separados
+por grupo: orientação (`tp-rotate`, `tp-upright`, `tp-skew-v`,
+`tp-skew-h`, `tp-warp`), linha sobre o traço (`tpv-baseline`,
+`tpv-descender`, `tpv-xheight`, `tpv-cap`, `tpv-center`), alinhamento
+(`text-left`, `text-center`, `text-right`, `text-justify`), X
+(`tp-offset-x`) e Y (`tp-offset-y`) com o ícone arrastável, espelhar
+(`tp-reverse`, `tp-flip-side`), intervalo (`tp-range` + De/até %),
+cantos (`tp-corner-jump`, `tp-corner-wrap`, `tp-corner-split`),
+Anticolisão (`tp-relax`), Selo (`tp-badge`, só em caminho fechado),
+Construção (`tp-construction`), Desvincular (`tp-unlink`) e Endireitar
+(`tp-straighten`). Os ligados aparecem no estado "ligado" (4.1). Num
+caminho fechado, o texto entra lendo por fora, centrado no ponto mais
+alto, qualquer que seja o sentido em que a forma foi desenhada.
 
 ### 4.6.11 Janela Imprimir (doc 29)
 

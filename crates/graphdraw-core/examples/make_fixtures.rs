@@ -438,6 +438,7 @@ fn text() -> Document {
             path: None,
             exclusions: Default::default(),
             path_memory: None,
+            tracking: 0.0,
             extra: Map::new(),
         }),
     );
@@ -464,6 +465,7 @@ fn text() -> Document {
             path: None,
             exclusions: Default::default(),
             path_memory: None,
+            tracking: 0.0,
             extra: Map::new(),
         }),
     );
@@ -487,6 +489,7 @@ fn text() -> Document {
             path: None,
             exclusions: Default::default(),
             path_memory: None,
+            tracking: 0.0,
             extra: Map::new(),
         }),
     );
@@ -1660,6 +1663,7 @@ fn appearance() -> Document {
             }),
             exclusions: Default::default(),
             path_memory: None,
+            tracking: 0.0,
             extra: Map::new(),
         }),
     );
@@ -1681,6 +1685,7 @@ fn appearance() -> Document {
             path: None,
             exclusions: Default::default(),
             path_memory: None,
+            tracking: 0.0,
             extra: Map::new(),
         }),
     );
@@ -1805,6 +1810,7 @@ fn text_wrap() -> Document {
             path: None,
             exclusions: Default::default(),
             path_memory: None,
+            tracking: 0.0,
             extra: Map::new(),
         }),
     );

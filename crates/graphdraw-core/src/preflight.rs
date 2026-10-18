@@ -470,6 +470,7 @@ mod tests {
             path: None,
             exclusions: Default::default(),
             path_memory: None,
+            tracking: 0.0,
             extra: Map::new(),
         }));
         o.transform = Transform::translate(x, y);

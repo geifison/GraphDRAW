@@ -4958,6 +4958,52 @@ mod tests {
 
     #[test]
     #[ignore]
+    fn shot_text_path_bar() {
+        use graphdraw_core::model::{Color, EllipseData, Fill, Object, ObjectKind};
+        let ctx = crate::theme::test_ctx();
+        let mut shot = crate::uishot::Shot::default();
+        let mut app = App::with_ctx(&ctx, None);
+        let d = app.doc.as_mut().unwrap();
+        let mut c = Object::new(ObjectKind::Ellipse(EllipseData {
+            rx: 50_000.0,
+            ry: 50_000.0,
+            mode: "ellipse".into(),
+            start_angle: 0.0,
+            end_angle: 360.0,
+            extra: Default::default(),
+        }));
+        c.transform = graphdraw_core::model::Transform::translate(105_000.0, 150_000.0);
+        c.stroke = Some(graphdraw_core::model::Stroke::new(300.0, Color::black()));
+        let cid = ops::add_object(&mut d.editor, 0, 0, c, "c");
+        let mut t = graphdraw_core::edit::text::new_text(0.0, 0.0, None, "Arial", 9_000.0);
+        if let ObjectKind::Text(td) = &mut t.kind {
+            graphdraw_core::edit::text::insert(td, 0, "TEXTO NO CAMINHO");
+        }
+        t.fill = Some(Fill::solid(Color::cmyk(0.0, 0.8, 1.0, 0.0)));
+        let tid = ops::add_object(&mut d.editor, 0, 0, t, "t");
+        assert!(ops::fit_text_to_path(&mut d.editor, &tid, &cid));
+        d.selection = vec![tid];
+        app.tool = Tool::Select;
+        for k in 0..20 {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::Vec2::new(1920.0, 900.0),
+                )),
+                time: Some(k as f64 / 30.0),
+                ..Default::default()
+            };
+            let mut out = ctx.run_ui(input, |ui| app.frame(ui));
+            if k == 19 {
+                shot.save(&ctx, out, "texto-caminho-barra");
+            } else {
+                shot.textures(&mut out);
+            }
+        }
+    }
+
+    #[test]
+    #[ignore]
     fn shot_effect_bars() {
         use graphdraw_core::model::{Color, Effect, Fill, Object, ObjectKind, RectData};
         let ctx = crate::theme::test_ctx();

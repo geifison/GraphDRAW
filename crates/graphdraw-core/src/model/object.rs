@@ -238,6 +238,10 @@ fn poly_zero(v: &f64) -> bool {
     *v == 0.0
 }
 
+fn tracking_zero(v: &f64) -> bool {
+    *v == 0.0
+}
+
 fn polygon_mode() -> String {
     "polygon".into()
 }
@@ -473,6 +477,10 @@ pub struct TextData {
     /// Entrelinha como múltiplo do corpo.
     #[serde(default = "line_spacing")]
     pub line_spacing: f64,
+    /// Espaçamento entre letras, em fração do corpo (0,1 = +10%; negativo
+    /// aperta). Soma a cada glifo, depois do kerning.
+    #[serde(default, skip_serializing_if = "tracking_zero")]
+    pub tracking: f64,
     /// Texto em caminho (GD-TXT-09).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub path: Option<TextPath>,

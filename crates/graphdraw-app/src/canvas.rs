@@ -787,6 +787,15 @@ enum Drag {
         original: Object,
         end: bool,
     },
+    /// Alça do fim do texto em caminho: espaçamento entre letras.
+    TextPathTracking {
+        r: ObjRef,
+        original: Object,
+        end0: f64,
+        start: f64,
+        base: f64,
+        per_glyph: f64,
+    },
     /// Curvatura simétrica dos lados do polígono.
     PolyBend {
         r: ObjRef,
@@ -1173,6 +1182,23 @@ impl CanvasState {
             let tip = f + Vec2::new(0.0, 6.0 * d);
             painter.line_segment([tip, tip + Vec2::new(-3.0, -3.0 * d)], st);
             painter.line_segment([tip, tip + Vec2::new(3.0, -3.0 * d)], st);
+        }
+        // Espaçamento entre letras: quadrado com setas para os lados.
+        let sp = s(h.spacing);
+        let sq = Rect::from_center_size(sp, Vec2::splat(theme::HANDLE_SIZE));
+        painter.rect_filled(sq, theme::RADIUS_XS, theme::ACCENT_PRIMARY);
+        painter.rect_stroke(
+            sq,
+            theme::RADIUS_XS,
+            handle_stroke(),
+            egui::StrokeKind::Middle,
+        );
+        let ast = EStroke::new(theme::BORDER_WIDTH * 1.5, theme::ACCENT_PRIMARY);
+        for d in [-1.0f32, 1.0] {
+            let tip = sp + Vec2::new(11.0 * d, 0.0);
+            painter.line_segment([sp + Vec2::new(5.0 * d, 0.0), tip], ast);
+            painter.line_segment([tip, tip + Vec2::new(-3.0 * d, -3.0)], ast);
+            painter.line_segment([tip, tip + Vec2::new(-3.0 * d, 3.0)], ast);
         }
         // Batentes.
         for (i, q) in h.stops.iter().enumerate() {
@@ -5512,7 +5538,9 @@ impl CanvasState {
         if let Some(h) = path_text_handles(doc) {
             let near = |q: Point| (self.screen(rect, ph, q) - origin).length() <= theme::HANDLE_HIT;
             let (r, o) = (h.r.clone(), h.object.clone());
-            let which = if near(h.lift) {
+            let which = if near(h.spacing) {
+                Some(4)
+            } else if near(h.lift) {
                 Some(1)
             } else if near(h.start) {
                 Some(0)
@@ -5532,6 +5560,14 @@ impl CanvasState {
                         grab: h.s_at(p),
                     },
                     1 => Drag::TextPathDistance { r, original: o },
+                    4 => Drag::TextPathTracking {
+                        r,
+                        original: o,
+                        end0: h.span.end,
+                        start: h.span.start,
+                        base: h.tracking,
+                        per_glyph: h.glyphs.max(1) as f64 * h.size,
+                    },
                     k => Drag::TextPathStop {
                         r,
                         original: o,
@@ -6402,6 +6438,26 @@ impl CanvasState {
                     doc.editor.replace_at(r, o);
                 }
             }
+            Drag::TextPathTracking {
+                r,
+                original,
+                end0,
+                start,
+                base,
+                per_glyph,
+            } => {
+                if let Some(h) = path_text_handles_of(doc, r, original) {
+                    // O fim do texto vai até o cursor: o espaço extra se
+                    // reparte entre as letras.
+                    let s = h.s_at(cur).max(*start);
+                    let v = (*base + (s - *end0) / per_glyph.max(1e-9)).clamp(-0.9, 10.0);
+                    let mut o = original.clone();
+                    if let ObjectKind::Text(t) = &mut o.kind {
+                        t.tracking = v;
+                    }
+                    doc.editor.replace_at(r, o);
+                }
+            }
             Drag::TextPathStop { r, original, end } => {
                 if let Some(h) = path_text_handles_of(doc, r, original) {
                     let f = (h.s_at(cur) / h.span.total.max(1e-9)).clamp(0.0, 1.0);
@@ -6700,6 +6756,7 @@ impl CanvasState {
             | Drag::TextPathSlide { .. }
             | Drag::TextPathDistance { .. }
             | Drag::TextPathStop { .. }
+            | Drag::TextPathTracking { .. }
             | Drag::PolySides { .. }
             | Drag::PolyFree { .. }
             | Drag::BasicHandle { .. }
@@ -7806,6 +7863,11 @@ struct PathTextHandles {
     lift: Point,
     flip: Point,
     stops: [Point; 2],
+    /// Alça do espaçamento entre letras (fim do texto).
+    spacing: Point,
+    tracking: f64,
+    glyphs: usize,
+    size: f64,
 }
 
 impl PathTextHandles {
@@ -7842,7 +7904,19 @@ fn path_text_handles_of(doc: &DocState, r: &ObjRef, o: &Object) -> Option<PathTe
     let tan = kurbo::Vec2::new(a.cos(), a.sin());
     let lift_height = size * 1.1;
     let lift = p0 + n * (tp.distance + lift_height);
+    let (pe, ae) = track.at(span.end);
+    let ne = kurbo::Vec2::new(-ae.sin(), ae.cos());
+    let spacing = pe + ne * (tp.distance + size * 0.35);
+    let glyphs = graphdraw_core::render::text::layout_text(t)
+        .lines
+        .first()
+        .map_or(0, |l| l.runs.iter().map(|r| r.glyphs.len()).sum::<usize>())
+        .saturating_sub(1);
     Some(PathTextHandles {
+        spacing: m * spacing,
+        tracking: t.tracking,
+        glyphs,
+        size,
         r: r.clone(),
         object: o.clone(),
         start: m * p0,
@@ -7872,7 +7946,7 @@ fn path_s_at(doc: &DocState, id: &str, p: Point) -> Option<f64> {
         .map_or(10_000.0, |s| s.font.size);
     let track = graphdraw_core::render::text::path_track(tp, size)?;
     let m = doc.editor.parent_affine(&r) * o.transform.affine();
-    Some(track.project(m.inverse() * p))
+    Some(track.offset_for(tp, track.project(m.inverse() * p)))
 }
 
 /// Objeto com contorno (curva, forma) cujo traço passa perto de `p`.
@@ -8381,7 +8455,7 @@ mod tests {
             "digitar",
             |o| {
                 if let ObjectKind::Text(t) = &mut o.kind {
-                    graphdraw_core::edit::text::insert(t, 0, "TEXTO NA BORDA");
+                    graphdraw_core::edit::text::insert(t, 0, "ABC");
                     return true;
                 }
                 false
@@ -8442,6 +8516,50 @@ mod tests {
             first.offset,
             moved.offset
         );
+        // Espaçamento: a alça do fim, puxada para a frente, abre as letras.
+        let h = path_text_handles(&doc).unwrap();
+        let a = cs.screen(rect, ph, h.spacing);
+        let b = cs.screen(rect, ph, h.m * h.track.at(h.span.end + 10_000.0).0);
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            s,
+            vec![egui::Event::PointerMoved(a)],
+        );
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            s,
+            vec![button(a, PointerButton::Primary, true)],
+        );
+        for k in 1..=4 {
+            canvas_frame(
+                &ctx,
+                &mut cs,
+                &mut doc,
+                s,
+                vec![egui::Event::PointerMoved(a + (b - a) * (k as f32 / 4.0))],
+            );
+        }
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            s,
+            vec![button(b, PointerButton::Primary, false)],
+        );
+        let tracking = match &doc
+            .editor
+            .get(&doc.editor.find(&tid).unwrap())
+            .unwrap()
+            .kind
+        {
+            ObjectKind::Text(t) => t.tracking,
+            _ => 0.0,
+        };
+        assert!(tracking > 0.01, "{tracking}");
         // Seta dupla: troca o lado.
         let h = path_text_handles(&doc).unwrap();
         let f = cs.screen(rect, ph, h.flip);

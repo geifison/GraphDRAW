@@ -523,7 +523,8 @@ impl NewDocDialog {
 /// "10in" num campo em mm converte). Devolve µm ao confirmar.
 fn unit_field(ui: &mut egui::Ui, id: &str, value_um: f64, unit: Unit) -> Option<f64> {
     let id = ui.scope_id().with(id);
-    let shown = fmt_unit(value_um, unit);
+    // A unidade vai dentro do campo (padrão dos campos de medida).
+    let shown = format!("{} {}", fmt_unit(value_um, unit), unit.name());
     let mut text: String = ui
         .data(|d| d.get_temp::<String>(id))
         .unwrap_or_else(|| shown.clone());
@@ -543,7 +544,6 @@ fn unit_field(ui: &mut egui::Ui, id: &str, value_um: f64, unit: Unit) -> Option<
         if r.lost_focus() && text != shown {
             out = units::parse_length(&text.replace(',', "."), unit, Some(value_um));
         }
-        ui.label(unit.name());
     });
     out
 }

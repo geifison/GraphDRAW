@@ -26,6 +26,7 @@ Alinhamento (esquerda, centro, direita, justificado, forçado), recuos (primeira
   - **Caminho fechado:** o texto dá a volta. **Selo:** o texto vira o de cima (lendo por fora, centrado no ponto mais alto) e ganha o de baixo (lendo da esquerda para a direita por dentro, centrado no ponto mais baixo, com a altura das maiúsculas no traço — os dois na mesma faixa).
   - **Várias linhas:** cada linha corre paralela (concêntrica) à de cima, pela entrelinha do texto.
   - **Caminho fantasma:** Endireitar guarda o caminho; "Reativar caminho de origem" (menu de contexto) volta ao caminho e ao vínculo, recriando a guia se ela não existe mais.
+  - **Espaçamento entre letras** (todo texto): campo na barra (% do corpo, ícone arrastável) e, no texto em caminho, a alça no fim do texto — puxar para a frente abre, para trás fecha (o espaço se reparte entre as letras).
   - **Construção:** o traço-guia marcado como construção não sai na impressão, no PDF/SVG nem no corte; só as letras.
 
 ## Contorno de texto em objetos (text wrap)

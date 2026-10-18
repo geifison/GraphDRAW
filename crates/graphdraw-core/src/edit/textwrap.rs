@@ -257,6 +257,7 @@ mod tests {
             path: None,
             exclusions: Default::default(),
             path_memory: None,
+            tracking: 0.0,
             extra: Default::default(),
         }));
         text.transform = Transform::translate(0.0, 150_000.0);
