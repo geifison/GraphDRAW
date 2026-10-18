@@ -3766,7 +3766,11 @@ fn tracking_bar(ui: &mut egui::Ui, doc: &mut DocState, targets: &[String]) {
             tr("Espaçamento entre letras", "Letter spacing"),
             |o| match &mut o.kind {
                 ObjectKind::Text(t) if t.tracking != v => {
-                    t.tracking = v;
+                    // Justificado no caminho: passa a "início" (senão a
+                    // justificação desfaz o aperto) e aplica a diferença.
+                    let before = t.tracking;
+                    graphdraw_core::edit::textpath::unjustify(t);
+                    t.tracking += v - before;
                     true
                 }
                 _ => false,

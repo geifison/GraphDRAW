@@ -5580,8 +5580,18 @@ impl CanvasState {
             && kind != TextPathHandle::Flip
             && let Some(h) = path_text_handles(doc)
         {
-            let (r, o) = (h.r.clone(), h.object.clone());
+            let (r, mut o) = (h.r.clone(), h.object.clone());
             doc.editor.begin(tr("Texto em caminho", "Text on path"));
+            let mut tracking = h.tracking;
+            // Espaçamento num texto justificado: passa a "início" com o mesmo
+            // espaçamento, senão a justificação desfaz o aperto.
+            if kind == TextPathHandle::Spacing
+                && let ObjectKind::Text(t) = &mut o.kind
+                && graphdraw_core::edit::textpath::unjustify(t)
+            {
+                tracking = t.tracking;
+                doc.editor.replace_at(&r, o.clone());
+            }
             self.drag = match kind {
                 TextPathHandle::Slide => Drag::TextPathSlide {
                     r,
@@ -5593,7 +5603,7 @@ impl CanvasState {
                     r,
                     original: o,
                     grab: h.s_at(p),
-                    base: h.tracking,
+                    base: tracking,
                     per_glyph: h.glyphs.max(1) as f64 * h.size,
                 },
             };

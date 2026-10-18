@@ -65,6 +65,46 @@ pub fn refresh(ed: &mut Editor) {
     }
 }
 
+/// Texto em caminho justificado vira alinhado no início com o espaçamento
+/// que a justificação dava (a mesma aparência): assim o espaçamento entre
+/// letras pode diminuir — justificado, ele sempre ocupa o caminho todo.
+/// Devolve se mudou.
+pub fn unjustify(t: &mut crate::model::TextData) -> bool {
+    let Some(tp) = &t.path else { return false };
+    if tp.align != "justify" {
+        return false;
+    }
+    let now = crate::render::text::layout_text(t);
+    let Some(span) = now.path_span else {
+        return false;
+    };
+    let glyphs = now.lines.first().map_or(0, |l| {
+        l.runs
+            .iter()
+            .flat_map(|r| &r.glyphs)
+            .filter(|g| g.advance > 0.0)
+            .count()
+    });
+    let size = t
+        .paragraphs
+        .first()
+        .and_then(|p| p.spans.first())
+        .map_or(10_000.0, |s| s.font.size);
+    let mut n = t.clone();
+    if let Some(p) = &mut n.path {
+        p.align = "start".into();
+        p.offset = span.start - span.range.0;
+    }
+    let Some(nat) = crate::render::text::layout_text(&n).path_span else {
+        return false;
+    };
+    if glyphs > 0 {
+        n.tracking += ((span.end - span.start) - (nat.end - nat.start)) / (glyphs as f64 * size);
+    }
+    *t = n;
+    true
+}
+
 /// Endireita o texto e guarda o caminho para reativar depois.
 pub fn straighten(ed: &mut Editor, sel: &[String]) {
     super::ops::modify(ed, sel, "Endireitar texto", |o| match &mut o.kind {
@@ -272,6 +312,31 @@ mod tests {
             ObjectKind::Text(t) => t.path.clone(),
             _ => None,
         }
+    }
+
+    /// Justificado não deixa apertar: unjustify troca por início com o mesmo
+    /// espaçamento; depois o espaçamento menor encolhe o texto.
+    #[test]
+    fn unjustify_keeps_look_and_lets_tighten() {
+        let (mut ed, tid, _cid) = setup();
+        super::super::ops::edit_text_path(&mut ed, std::slice::from_ref(&tid), |p| {
+            p.align = "justify".into()
+        });
+        let text = |ed: &Editor| match &ed.get(&ed.find(&tid).unwrap()).unwrap().kind {
+            ObjectKind::Text(t) => t.clone(),
+            _ => panic!(),
+        };
+        let mut t = text(&ed);
+        let before = crate::render::text::layout_text(&t).path_span.unwrap();
+        assert!(unjustify(&mut t));
+        let after = crate::render::text::layout_text(&t).path_span.unwrap();
+        assert!(
+            (after.start - before.start).abs() < 50.0 && (after.end - before.end).abs() < 300.0,
+            "{before:?} {after:?}"
+        );
+        t.tracking -= 0.05;
+        let tight = crate::render::text::layout_text(&t).path_span.unwrap();
+        assert!(tight.end - tight.start < after.end - after.start - 1_000.0);
     }
 
     #[test]

@@ -47,6 +47,9 @@ entre parênteses são os requisitos de `docs/spec/`.
   cores, suavizar e inverter; seletor de cor com roda de matiz, canais,
   hexadecimal, paletas com busca e conta-gotas na janela; amostra original
   × nova; F11 e Shift+F11.
+- Espaçamento num texto justificado no caminho: passa a "início" com o
+  mesmo espaçamento (a mesma aparência) e então aperta ou abre — antes a
+  justificação desfazia o aperto.
 - Alças do texto em caminho numa linguagem só: losango (deslizar),
   bolinha verde (afastar), seta dupla (trocar de lado) e bolinha azul
   (espaçamento), cada uma com o seu cursor e o nome da ação ao passar o
