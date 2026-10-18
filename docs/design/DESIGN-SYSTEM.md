@@ -604,12 +604,19 @@ por uma linha `accent-success` de `focus-width` à barra verde (quadrado de
 `handle-size`) acima das letras; a seta dupla verde ao lado da barra; e os
 batentes `[` `]` em `accent-primary` nos extremos do intervalo, de pé
 sobre o traço. A ferramenta Texto, perto de uma curva, troca o selo do
-cursor para `text-path`. A barra traz, nesta ordem: orientação,
-alinhamento vertical, os quatro botões de alinhamento (`text-left`,
-`text-center`, `text-right`, `text-justify`), X, Y, espelhar
-(`mirror-h`, `mirror-v`), De/até %, cantos, Anticolisão, Selo
-superior/inferior (só em caminho fechado), Traço como construção,
-Desvincular e Endireitar.
+cursor para `text-path`. A barra traz tudo em botões de ícone com dica, nesta ordem e separados
+por grupo: orientação (`tp-rotate`, `tp-upright`, `tp-skew-v`,
+`tp-skew-h`, `tp-warp`), linha sobre o traço (`tpv-baseline`,
+`tpv-descender`, `tpv-xheight`, `tpv-cap`, `tpv-center`), alinhamento
+(`text-left`, `text-center`, `text-right`, `text-justify`), X
+(`tp-offset-x`) e Y (`tp-offset-y`) com o ícone arrastável, espelhar
+(`tp-reverse`, `tp-flip-side`), intervalo (`tp-range` + De/até %),
+cantos (`tp-corner-jump`, `tp-corner-wrap`, `tp-corner-split`),
+Anticolisão (`tp-relax`), Selo (`tp-badge`, só em caminho fechado),
+Construção (`tp-construction`), Desvincular (`tp-unlink`) e Endireitar
+(`tp-straighten`). Os ligados aparecem no estado "ligado" (4.1). Num
+caminho fechado, o texto entra lendo por fora, centrado no ponto mais
+alto, qualquer que seja o sentido em que a forma foi desenhada.
 
 ### 4.6.11 Janela Imprimir (doc 29)
 

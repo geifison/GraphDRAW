@@ -192,6 +192,19 @@ pub fn icon_number(
     r.or(d.map(|d| value + d))
 }
 
+/// Medida com ícone arrastável à esquerda (o ícone também tem dica).
+pub fn icon_length(
+    ui: &mut egui::Ui,
+    icon: &str,
+    tip: &str,
+    id: &str,
+    value_um: f64,
+) -> Option<f64> {
+    let d = drag_icon(ui, icon, tip, LENGTH_DRAG_STEP);
+    let r = length_field(ui, id, value_um, None);
+    r.or(d.map(|d| value_um + d))
+}
+
 /// Dois grupos de controles empilhados na barra de propriedades (4.6):
 /// `f` é chamado com a linha 0 (de cima) e depois com a 1 (de baixo).
 pub fn stack(ui: &mut egui::Ui, mut f: impl FnMut(&mut egui::Ui, usize)) {

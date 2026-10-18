@@ -7707,7 +7707,7 @@ fn path_s_at(doc: &DocState, id: &str, p: Point) -> Option<f64> {
         .map_or(10_000.0, |s| s.font.size);
     let track = graphdraw_core::render::text::path_track(tp, size)?;
     let m = doc.editor.parent_affine(&r) * o.transform.affine();
-    Some(track.project(m.inverse() * p))
+    Some(track.offset_for(tp, track.project(m.inverse() * p)))
 }
 
 /// Objeto com contorno (curva, forma) cujo traço passa perto de `p`.

@@ -984,6 +984,26 @@ impl Track {
         best.1
     }
 
+    /// O caminho anda no sentido anti-horário (área positiva).
+    pub fn counter_clockwise(&self) -> bool {
+        let n = self.pts.len();
+        let a: f64 = (0..n)
+            .map(|i| self.pts[i].to_vec2().cross(self.pts[(i + 1) % n].to_vec2()))
+            .sum();
+        a > 0.0
+    }
+
+    /// `offset` que põe no comprimento `s` o começo do texto (início,
+    /// justificar), o meio (centro) ou o fim.
+    pub fn offset_for(&self, tp: &crate::model::TextPath, s: f64) -> f64 {
+        let (r0, r1) = path_range(tp, self.total());
+        match tp.align.as_str() {
+            "center" => s - (r0 + r1) / 2.0,
+            "end" => s - r1,
+            _ => s - r0,
+        }
+    }
+
     /// Comprimento do ponto mais alto (`top`) ou mais baixo do caminho.
     pub fn extreme(&self, top: bool) -> f64 {
         let mut best = 0;
