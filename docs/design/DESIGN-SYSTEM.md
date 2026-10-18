@@ -604,12 +604,19 @@ novos objetos.
 
 ### 4.6.12 Texto no caminho (GD-TXT-09)
 
-Com um texto em caminho selecionado (Seleção ou Texto), a tela mostra:
-losango `accent-danger` (lado `handle-size` × 1,8) no início do texto, ligado
-por uma linha `accent-success` de `focus-width` à barra verde (quadrado de
-`handle-size`) acima das letras; a seta dupla verde ao lado da barra; e os
-batentes `[` `]` em `accent-primary` nos extremos do intervalo, de pé
-sobre o traço. A ferramenta Texto, perto de uma curva, troca o selo do
+Com um texto em caminho selecionado (Seleção ou Texto), a tela mostra
+quatro alças, cada uma com uma função só e o seu cursor: o losango
+`accent-danger` (lado `handle-size` × 1,8) no início do texto **desliza**
+no caminho (cursor de redimensionar na horizontal); a bolinha
+`accent-success` acima das letras, ligada ao losango por uma linha de
+`focus-width`, **afasta** do traço (cursor de pegar); ao lado dela, a
+bolinha verde vazada com a seta dupla **troca de lado** no clique (cursor
+de mão); e a bolinha `accent-primary` com setas para os lados, no fim do
+texto, muda o **espaçamento entre letras** (cursor de redimensionar na
+horizontal). Sobre qualquer alça aparece, ao lado do cursor, o nome da ação
+num balão escuro. O intervalo útil do caminho fica só na barra (De/até).
+No caminho fechado, os arrastos não saltam ao passar pelo começo do
+caminho. A ferramenta Texto, perto de uma curva, troca o selo do
 cursor para `text-path`. A barra traz tudo em botões de ícone com dica, nesta ordem e separados
 por grupo: orientação (`tp-rotate`, `tp-upright`, `tp-skew-v`,
 `tp-skew-h`, `tp-warp`), linha sobre o traço (`tpv-baseline`,

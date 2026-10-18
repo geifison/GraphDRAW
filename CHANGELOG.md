@@ -47,6 +47,11 @@ entre parênteses são os requisitos de `docs/spec/`.
   cores, suavizar e inverter; seletor de cor com roda de matiz, canais,
   hexadecimal, paletas com busca e conta-gotas na janela; amostra original
   × nova; F11 e Shift+F11.
+- Alças do texto em caminho numa linguagem só: losango (deslizar),
+  bolinha verde (afastar), seta dupla (trocar de lado) e bolinha azul
+  (espaçamento), cada uma com o seu cursor e o nome da ação ao passar o
+  mouse; o espaçamento e o deslizar não saltam mais no caminho fechado;
+  os batentes saem da tela (o intervalo fica na barra).
 - Espaçamento entre letras (todo texto): campo na barra e, no texto em
   caminho, alça no fim do texto na tela.
 - Campos de medida com a unidade dentro ("12,5 mm"), em todo o programa;

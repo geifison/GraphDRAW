@@ -782,17 +782,11 @@ enum Drag {
         r: ObjRef,
         original: Object,
     },
-    TextPathStop {
-        r: ObjRef,
-        original: Object,
-        end: bool,
-    },
     /// Alça do fim do texto em caminho: espaçamento entre letras.
     TextPathTracking {
         r: ObjRef,
         original: Object,
-        end0: f64,
-        start: f64,
+        grab: f64,
         base: f64,
         per_glyph: f64,
     },
@@ -1145,17 +1139,26 @@ impl CanvasState {
     /// Alças do texto em caminho: losango vermelho no início (desliza),
     /// barra verde perpendicular (afasta), seta dupla (troca de lado, no
     /// clique) e os batentes [ e ] do intervalo.
-    fn paint_text_path(&self, painter: &egui::Painter, doc: &DocState, rect: Rect, ph: f64) {
+    fn paint_text_path(
+        &self,
+        painter: &egui::Painter,
+        doc: &DocState,
+        rect: Rect,
+        ph: f64,
+        hover: Option<Pos2>,
+    ) {
         let Some(h) = path_text_handles(doc) else {
             return;
         };
         let s = |q: Point| self.screen(rect, ph, q);
-        let start = s(h.start);
-        let lift = s(h.lift);
+        let (start, lift, flip, sp) = (s(h.start), s(h.lift), s(h.flip), s(h.spacing));
         let red = theme::ACCENT_DANGER;
         let green = theme::ACCENT_SUCCESS;
-        let k = theme::HANDLE_SIZE * 0.9;
+        let blue = theme::ACCENT_PRIMARY;
+        let r = theme::HANDLE_SIZE * 0.6;
+        // Deslizar: losango vermelho no início, ligado à bolinha verde.
         painter.line_segment([start, lift], EStroke::new(theme::FOCUS_WIDTH, green));
+        let k = theme::HANDLE_SIZE * 0.9;
         painter.add(egui::Shape::convex_polygon(
             vec![
                 start + Vec2::new(0.0, -k),
@@ -1166,57 +1169,85 @@ impl CanvasState {
             red,
             handle_stroke(),
         ));
-        let bar = Rect::from_center_size(lift, Vec2::splat(theme::HANDLE_SIZE));
-        painter.rect_filled(bar, theme::RADIUS_XS, green);
-        painter.rect_stroke(
-            bar,
-            theme::RADIUS_XS,
-            handle_stroke(),
-            egui::StrokeKind::Middle,
+        // Afastar: bolinha verde.
+        painter.circle(lift, r, green, handle_stroke());
+        // Trocar de lado: bolinha verde vazada com a seta dupla.
+        painter.circle(
+            flip,
+            r + 1.0,
+            theme::HANDLE_FILL,
+            EStroke::new(theme::BORDER_WIDTH, green),
         );
-        // Seta dupla de trocar o lado.
-        let f = s(h.flip);
-        let st = EStroke::new(theme::BORDER_WIDTH * 1.5, green);
-        painter.line_segment([f + Vec2::new(0.0, -6.0), f + Vec2::new(0.0, 6.0)], st);
+        let st = EStroke::new(theme::BORDER_WIDTH * 1.2, green);
+        painter.line_segment(
+            [flip + Vec2::new(0.0, -3.5), flip + Vec2::new(0.0, 3.5)],
+            st,
+        );
         for d in [-1.0f32, 1.0] {
-            let tip = f + Vec2::new(0.0, 6.0 * d);
-            painter.line_segment([tip, tip + Vec2::new(-3.0, -3.0 * d)], st);
-            painter.line_segment([tip, tip + Vec2::new(3.0, -3.0 * d)], st);
+            let tip = flip + Vec2::new(0.0, 3.5 * d);
+            painter.line_segment([tip, tip + Vec2::new(-2.0, -2.0 * d)], st);
+            painter.line_segment([tip, tip + Vec2::new(2.0, -2.0 * d)], st);
         }
-        // Espaçamento entre letras: quadrado com setas para os lados.
-        let sp = s(h.spacing);
-        let sq = Rect::from_center_size(sp, Vec2::splat(theme::HANDLE_SIZE));
-        painter.rect_filled(sq, theme::RADIUS_XS, theme::ACCENT_PRIMARY);
-        painter.rect_stroke(
-            sq,
-            theme::RADIUS_XS,
-            handle_stroke(),
-            egui::StrokeKind::Middle,
-        );
-        let ast = EStroke::new(theme::BORDER_WIDTH * 1.5, theme::ACCENT_PRIMARY);
+        // Espaçamento: bolinha azul no fim do texto, com setas para os lados.
+        painter.circle(sp, r, blue, handle_stroke());
+        let ast = EStroke::new(theme::BORDER_WIDTH * 1.5, blue);
         for d in [-1.0f32, 1.0] {
-            let tip = sp + Vec2::new(11.0 * d, 0.0);
-            painter.line_segment([sp + Vec2::new(5.0 * d, 0.0), tip], ast);
+            let tip = sp + Vec2::new(12.0 * d, 0.0);
+            painter.line_segment([sp + Vec2::new((r + 2.0) * d, 0.0), tip], ast);
             painter.line_segment([tip, tip + Vec2::new(-3.0 * d, -3.0)], ast);
             painter.line_segment([tip, tip + Vec2::new(-3.0 * d, 3.0)], ast);
         }
-        // Batentes.
-        for (i, q) in h.stops.iter().enumerate() {
-            let c = s(*q);
-            let (pp, a) = h.track.at(if i == 0 {
-                h.span.range.0
-            } else {
-                h.span.range.1
-            });
-            let dir = h.m * (pp + kurbo::Vec2::new(a.cos(), a.sin())) - h.m * pp;
-            let ang = -dir.angle() as f32;
-            let (dx, dy) = (ang.cos(), ang.sin());
-            let along = Vec2::new(dx, dy) * if i == 0 { 4.0 } else { -4.0 };
-            let up = Vec2::new(-dy, dx) * 7.0;
-            painter.add(egui::Shape::line(
-                vec![c - up + along, c - up, c + up, c + up + along],
-                EStroke::new(theme::FOCUS_WIDTH, theme::ACCENT_PRIMARY),
-            ));
+        // Nome da ação perto do cursor.
+        if let Some(pos) = hover
+            && let Some(kind) = self.text_path_handle_at(doc, rect, ph, pos)
+        {
+            let label = match kind {
+                TextPathHandle::Slide => {
+                    tr("Arraste: deslizar no caminho", "Drag: slide along the path")
+                }
+                TextPathHandle::Distance => tr(
+                    "Arraste: afastar do traço",
+                    "Drag: move away from the stroke",
+                ),
+                TextPathHandle::Flip => tr(
+                    "Clique: passar para o outro lado",
+                    "Click: move to the other side",
+                ),
+                TextPathHandle::Spacing => {
+                    tr("Arraste: espaçamento entre letras", "Drag: letter spacing")
+                }
+            };
+            let font = egui::FontId::proportional(11.0);
+            let galley = painter.layout_no_wrap(label.into(), font, egui::Color32::WHITE);
+            let at = pos + Vec2::new(14.0, 14.0);
+            let bg = Rect::from_min_size(at, galley.size() + Vec2::splat(theme::SPACE_200))
+                .translate(Vec2::splat(-theme::SPACE_100));
+            painter.rect_filled(bg, theme::RADIUS_SM, egui::Color32::from_black_alpha(200));
+            painter.galley(at, galley, egui::Color32::WHITE);
+        }
+    }
+
+    /// Alça do texto em caminho sob o cursor.
+    fn text_path_handle_at(
+        &self,
+        doc: &DocState,
+        rect: Rect,
+        ph: f64,
+        pos: Pos2,
+    ) -> Option<TextPathHandle> {
+        let h = path_text_handles(doc)?;
+        let near = |q: Point| (self.screen(rect, ph, q) - pos).length() <= theme::HANDLE_HIT;
+        // A ordem resolve a sobreposição: o que está por cima ganha.
+        if near(h.flip) {
+            Some(TextPathHandle::Flip)
+        } else if near(h.lift) {
+            Some(TextPathHandle::Distance)
+        } else if near(h.start) {
+            Some(TextPathHandle::Slide)
+        } else if near(h.spacing) {
+            Some(TextPathHandle::Spacing)
+        } else {
+            None
         }
     }
 
@@ -3222,6 +3253,15 @@ impl CanvasState {
             name,
             hotspot: (hx, hy),
         };
+        if matches!(tool, Tool::Select | Tool::Text)
+            && let Some(k) = self.text_path_handle_at(doc, rect, ph, pos)
+        {
+            return Glyph::System(match k {
+                TextPathHandle::Flip => CursorIcon::PointingHand,
+                TextPathHandle::Distance => CursorIcon::Grab,
+                _ => CursorIcon::ResizeHorizontal,
+            });
+        }
         if panning || matches!(self.drag, Drag::Pan) {
             return if self.is_dragging() {
                 icon("cur-grab", 12.0, 12.0)
@@ -3573,7 +3613,8 @@ impl CanvasState {
             self.paint_effect(painter, doc, rect, ph, tool);
         }
         if matches!(tool, Tool::Select | Tool::Text) {
-            self.paint_text_path(painter, doc, rect, ph);
+            let hover = ui.input(|i| i.pointer.hover_pos());
+            self.paint_text_path(painter, doc, rect, ph, hover);
         }
         if tool == Tool::Gradient {
             self.paint_gradient(painter, doc, rect, ph);
@@ -5509,47 +5550,28 @@ impl CanvasState {
         ph: f64,
     ) {
         // Texto em caminho selecionado: as alças na tela.
-        if let Some(h) = path_text_handles(doc) {
-            let near = |q: Point| (self.screen(rect, ph, q) - origin).length() <= theme::HANDLE_HIT;
+        if let Some(kind) = self.text_path_handle_at(doc, rect, ph, origin)
+            && kind != TextPathHandle::Flip
+            && let Some(h) = path_text_handles(doc)
+        {
             let (r, o) = (h.r.clone(), h.object.clone());
-            let which = if near(h.spacing) {
-                Some(4)
-            } else if near(h.lift) {
-                Some(1)
-            } else if near(h.start) {
-                Some(0)
-            } else if near(h.stops[0]) {
-                Some(2)
-            } else if near(h.stops[1]) {
-                Some(3)
-            } else {
-                None
+            doc.editor.begin(tr("Texto em caminho", "Text on path"));
+            self.drag = match kind {
+                TextPathHandle::Slide => Drag::TextPathSlide {
+                    r,
+                    original: o,
+                    grab: h.s_at(p),
+                },
+                TextPathHandle::Distance => Drag::TextPathDistance { r, original: o },
+                _ => Drag::TextPathTracking {
+                    r,
+                    original: o,
+                    grab: h.s_at(p),
+                    base: h.tracking,
+                    per_glyph: h.glyphs.max(1) as f64 * h.size,
+                },
             };
-            if let Some(w) = which {
-                doc.editor.begin(tr("Texto em caminho", "Text on path"));
-                self.drag = match w {
-                    0 => Drag::TextPathSlide {
-                        r,
-                        original: o,
-                        grab: h.s_at(p),
-                    },
-                    1 => Drag::TextPathDistance { r, original: o },
-                    4 => Drag::TextPathTracking {
-                        r,
-                        original: o,
-                        end0: h.span.end,
-                        start: h.span.start,
-                        base: h.tracking,
-                        per_glyph: h.glyphs.max(1) as f64 * h.size,
-                    },
-                    k => Drag::TextPathStop {
-                        r,
-                        original: o,
-                        end: k == 3,
-                    },
-                };
-                return;
-            }
+            return;
         }
         // Alt + arrastar: laço à mão livre (GD-SEL-03, GD-FER-01).
         if mods.alt {
@@ -6375,7 +6397,7 @@ impl CanvasState {
             }
             Drag::TextPathSlide { r, original, grab } => {
                 if let Some(h) = path_text_handles_of(doc, r, original) {
-                    let s = h.s_at(cur);
+                    let s = h.unwrap_s(h.s_at(cur), *grab);
                     let mut d = s - *grab;
                     // Ímã: início, meio e fim do intervalo (8 px).
                     let w = h.span.end - h.span.start;
@@ -6415,33 +6437,17 @@ impl CanvasState {
             Drag::TextPathTracking {
                 r,
                 original,
-                end0,
-                start,
+                grab,
                 base,
                 per_glyph,
             } => {
                 if let Some(h) = path_text_handles_of(doc, r, original) {
-                    // O fim do texto vai até o cursor: o espaço extra se
-                    // reparte entre as letras.
-                    let s = h.s_at(cur).max(*start);
-                    let v = (*base + (s - *end0) / per_glyph.max(1e-9)).clamp(-0.9, 10.0);
+                    // O quanto o fim andou se reparte entre as letras.
+                    let s = h.unwrap_s(h.s_at(cur), *grab);
+                    let v = (*base + (s - *grab) / per_glyph.max(1e-9)).clamp(-0.9, 10.0);
                     let mut o = original.clone();
                     if let ObjectKind::Text(t) = &mut o.kind {
                         t.tracking = v;
-                    }
-                    doc.editor.replace_at(r, o);
-                }
-            }
-            Drag::TextPathStop { r, original, end } => {
-                if let Some(h) = path_text_handles_of(doc, r, original) {
-                    let f = (h.s_at(cur) / h.span.total.max(1e-9)).clamp(0.0, 1.0);
-                    let mut o = original.clone();
-                    if let ObjectKind::Text(t) = &mut o.kind
-                        && let Some(p) = &mut t.path
-                    {
-                        let mut rg = p.range.unwrap_or([0.0, 1.0]);
-                        rg[usize::from(*end)] = f;
-                        p.range = Some(rg);
                     }
                     doc.editor.replace_at(r, o);
                 }
@@ -6729,7 +6735,6 @@ impl CanvasState {
             | Drag::PolyBend { .. }
             | Drag::TextPathSlide { .. }
             | Drag::TextPathDistance { .. }
-            | Drag::TextPathStop { .. }
             | Drag::TextPathTracking { .. }
             | Drag::PolySides { .. }
             | Drag::PolyFree { .. }
@@ -6986,8 +6991,7 @@ impl CanvasState {
                     None => {}
                 }
             }
-            Tool::Select
-                if path_text_handles(doc).is_some_and(|h| (self.screen(rect, ph, h.flip) - pos).length() <= theme::HANDLE_HIT) =>
+            Tool::Select if self.text_path_handle_at(doc, rect, ph, pos) == Some(TextPathHandle::Flip) =>
             {
                 let ids = doc.selection.clone();
                 ops::edit_text_path(&mut doc.editor, &ids, |p| {
@@ -7800,7 +7804,6 @@ struct PathTextHandles {
     start: Point,
     lift: Point,
     flip: Point,
-    stops: [Point; 2],
     /// Alça do espaçamento entre letras (fim do texto).
     spacing: Point,
     tracking: f64,
@@ -7813,6 +7816,25 @@ impl PathTextHandles {
     fn s_at(&self, p: Point) -> f64 {
         self.track.project(self.m.inverse() * p)
     }
+
+    /// No caminho fechado, `s` dado a volta para perto de `near` (o arrasto
+    /// não salta uma volta inteira ao passar pelo começo do caminho).
+    fn unwrap_s(&self, s: f64, near: f64) -> f64 {
+        let t = self.span.total;
+        if !self.track.closed || t <= 0.0 {
+            return s;
+        }
+        s + ((near - s) / t).round() * t
+    }
+}
+
+/// Alças do texto em caminho.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TextPathHandle {
+    Slide,
+    Distance,
+    Flip,
+    Spacing,
 }
 
 fn path_text_handles(doc: &DocState) -> Option<PathTextHandles> {
@@ -7860,7 +7882,6 @@ fn path_text_handles_of(doc: &DocState, r: &ObjRef, o: &Object) -> Option<PathTe
         start: m * p0,
         lift: m * lift,
         flip: m * (lift + tan * size * 0.8),
-        stops: [m * track.at(span.range.0).0, m * track.at(span.range.1).0],
         tp,
         track,
         span,
