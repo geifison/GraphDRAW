@@ -280,6 +280,7 @@ Em Linux: `apt install libcdr-dev librevenge-dev pkg-config g++` e o mesmo
 | GD-CMS-04 (política de perfis ao abrir) | `palette::tests::gd_cms_04_convert_to_working_profile` (core), `app::tests::gd_cms_04_profile_policy_on_open` |
 | GD-SEP-01 (prévia de separações) | `separation::tests::*` (core), `canvas::tests::separation_preview_on_canvas` (app) |
 | GD-FIL-04..06/10/12 (padrões, caminho aberto) | `pattern::tests::*` (core), `tests/patterns.rs`, `dialogs::tests::pattern_fill_dialog` (app) |
+| GD-TXT-10 (texto contornando objeto) | `textwrap::tests::*`, `render::text::tests::wrap_flows_around_zone` (core), fixture `text-wrap.gdr` |
 | GD-GRD-01 (grades) | `ops::tests::gd_grd_01_printable_grid` (core), `canvas::tests::grids_paint` (app) |
 | GD-FER-29 (esboço contínuo) | `drawing::tests::gd_fer_29_sketch_join` (core), `canvas::tests::continuous_sketch_joins` (app) |
 | GD-VAR-01, GD-OUT-08 (largura variável) | `varwidth::tests::*` (core), fixture `variable-width.gdr`, `canvas::tests::width_tool_on_canvas` (app) |

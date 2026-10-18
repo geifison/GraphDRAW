@@ -549,6 +549,10 @@ Aba **Verificação** (ícone `preflight`) no painel direito:
     - a barra tem Uniforme e os perfis prontos (Afinar no fim, Afinar no
       início, Afinar nas pontas, Bojo), que também estão na seção Largura
       variável do diálogo de contorno.
+- Contornar texto (GD-TXT-10): com objetos (não textos) selecionados, a
+  barra da Seleção tem o menu Contornar texto — Nenhum | Contorno |
+  Quadrado; Dos dois lados | À esquerda | À direita | Acima e abaixo;
+  Distância. O texto de parágrafo da página se afasta na hora.
 - Grades (GD-GRD-01; Exibir → Grades): grade de documento (espaçamento
   ou frequência por cm; Como pontos), grade de linha base (entrelinha,
   início no topo), grade de pixels (96 ppp, aparece com o pixel ≥ 6 px

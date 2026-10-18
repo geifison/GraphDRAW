@@ -422,6 +422,7 @@ fn text() -> Document {
             )],
             line_spacing: 1.2,
             path: None,
+            exclusions: Default::default(),
             extra: Map::new(),
         }),
     );
@@ -446,6 +447,7 @@ fn text() -> Document {
             ],
             line_spacing: 1.3,
             path: None,
+            exclusions: Default::default(),
             extra: Map::new(),
         }),
     );
@@ -467,6 +469,7 @@ fn text() -> Document {
             )],
             line_spacing: 1.2,
             path: None,
+            exclusions: Default::default(),
             extra: Map::new(),
         }),
     );
@@ -814,6 +817,68 @@ fn patterns() -> Document {
     d
 }
 
+/// GD-TXT-10: parágrafo contornando um círculo (contorno, dos dois lados)
+/// e um quadrado à direita (quadrado, texto à esquerda).
+fn text_wrap() -> Document {
+    let mut ids = Ids::new(17);
+    let mut p = page(&mut ids, 150.0 * MM, 120.0 * MM);
+    let mut d = doc_with(vec![], "Texto contornando");
+    let words = "Texto de parágrafo que contorna os objetos com afastamento. ".repeat(14);
+    let mut body = obj(
+        &mut ids,
+        ObjectKind::Text(TextData {
+            text_kind: "paragraph".into(),
+            frame: Some([130.0 * MM, 105.0 * MM]),
+            paragraphs: vec![Paragraph {
+                align: "justify".into(),
+                spans: vec![span(&words, 10.0)],
+                extra: Map::new(),
+            }],
+            line_spacing: 1.2,
+            path: None,
+            exclusions: Default::default(),
+            extra: Map::new(),
+        }),
+    );
+    body.transform = Transform::translate(10.0 * MM, 112.0 * MM);
+    p.layers[0].objects.push(body);
+    let mut circle = obj(
+        &mut ids,
+        ObjectKind::Ellipse(EllipseData {
+            rx: 20.0 * MM,
+            ry: 20.0 * MM,
+            mode: "ellipse".into(),
+            start_angle: 0.0,
+            end_angle: 360.0,
+            extra: Map::new(),
+        }),
+    );
+    circle.transform = Transform::translate(60.0 * MM, 70.0 * MM);
+    circle.fill = Some(Fill::solid(Color::cmyk(0.0, 0.5, 1.0, 0.0)));
+    circle.wrap = Some(TextWrap {
+        style: "contour".into(),
+        side: "both".into(),
+        distance: 3.0 * MM,
+    });
+    p.layers[0].objects.push(circle);
+    let mut sq = rect(
+        &mut ids,
+        105.0 * MM,
+        15.0 * MM,
+        30.0 * MM,
+        30.0 * MM,
+        Fill::solid(Color::cmyk(0.8, 0.0, 0.3, 0.0)),
+    );
+    sq.wrap = Some(TextWrap {
+        style: "square".into(),
+        side: "left".into(),
+        distance: 2.0 * MM,
+    });
+    p.layers[0].objects.push(sq);
+    d.data.pages.push(p);
+    d
+}
+
 /// GD-VAR-01: os quatro perfis prontos e um anel fechado com bojo.
 fn variable_width() -> Document {
     let mut ids = Ids::new(16);
@@ -1093,6 +1158,7 @@ fn main() {
         ("bspline", bspline()),
         ("symmetry", symmetry()),
         ("variable-width", variable_width()),
+        ("text-wrap", text_wrap()),
     ];
     for (name, doc) in &docs {
         let path = dir.join(format!("{name}.gdr"));

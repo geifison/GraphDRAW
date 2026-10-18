@@ -266,6 +266,8 @@ pub fn read_bytes(bytes: &[u8]) -> Result<(Document, ImportReport), Error> {
     }
 
     check_objects(&doc, &mut report);
+    // Áreas do texto contornando objetos (derivadas, GD-TXT-10).
+    crate::edit::textwrap::refresh_doc(&mut doc);
     Ok((doc, report))
 }
 

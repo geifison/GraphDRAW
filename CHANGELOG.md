@@ -32,6 +32,8 @@ entre parênteses são os requisitos de `docs/spec/`.
   - horizontal, vertical, paralela, angular, raio, diâmetro e segmento;
   - ligadas aos nós medidos, com a escala de desenho (GD-FER-40,
     GD-COT-01..03).
+- Texto contornando objeto: contorno ou quadrado, dos dois lados, à
+  esquerda, à direita ou acima e abaixo, com distância (GD-TXT-10).
 - Grades: de documento por espaçamento ou frequência, em linhas ou
   pontos; de linha base; de pixels (96 ppp); e grade imprimível numa
   camada nova (GD-GRD-01).

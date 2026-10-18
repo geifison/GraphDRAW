@@ -789,6 +789,7 @@ impl Mapper<'_> {
             paragraphs: Vec::new(),
             line_spacing: 1.2,
             path: None,
+            exclusions: Default::default(),
             extra: Map::new(),
         };
         self.text = Some(TextBuild {

@@ -330,6 +330,41 @@ pub fn layout_text(t: &TextData) -> TextLayout {
     let frame_w = t.frame.map(|f| f[0]);
     let frame_h = t.frame.map(|f| f[1]);
     let wrap = t.text_kind == "paragraph" && frame_w.is_some();
+    // Texto contornando objetos (GD-TXT-10): a posição de cada linha (linha
+    // de base, início, largura) sai na quebra, pelos trechos livres.
+    let flow = wrap && !t.exclusions.0.is_empty();
+    let mut flow_base: Option<f64> = None;
+    let mut flow_slots: std::collections::VecDeque<(f64, f64)> = Default::default();
+    let mut next_slot = |size: f64, clear: bool| -> Option<(f64, f64, f64)> {
+        if !flow {
+            return None;
+        }
+        if clear {
+            flow_slots.clear();
+        }
+        let (w, h) = (frame_w.unwrap_or(0.0), frame_h.unwrap_or(f64::INFINITY));
+        for _ in 0..10_000 {
+            if let Some((a, b)) = flow_slots.pop_front() {
+                return Some((flow_base.unwrap_or(0.0), a, b - a));
+            }
+            let b = match flow_base {
+                None => -size * 0.8,
+                Some(b) => b - size * t.line_spacing,
+            };
+            flow_base = Some(b);
+            if b < -h - size {
+                return Some((b, 0.0, w));
+            }
+            flow_slots.extend(crate::edit::textwrap::free_slots(
+                &t.exclusions.0,
+                w,
+                b - size * 0.25,
+                b + size * 0.8,
+                size * 1.5,
+            ));
+        }
+        Some((flow_base.unwrap_or(0.0), 0.0, w))
+    };
     let mut baseline = 0.0;
     let mut first_line = true;
     // Índice do primeiro caractere do parágrafo no texto corrido.
@@ -348,8 +383,12 @@ pub fn layout_text(t: &TextData) -> TextLayout {
             })
             .collect();
 
-        // Quebra em linhas; `hard` = a linha termina por \n ou fim de parágrafo.
-        let mut lines: Vec<(Vec<Piece>, usize, bool)> = vec![(Vec::new(), para_start, false)];
+        // Quebra em linhas; `hard` = a linha termina por \n ou fim de parágrafo;
+        // a última parte é a posição fixa no fluxo em volta de objetos.
+        type Slot = Option<(f64, f64, f64)>;
+        let fsz = para.spans.first().map(|s| s.font.size).unwrap_or(0.0);
+        let mut lines: Vec<(Vec<Piece>, usize, bool, Slot)> =
+            vec![(Vec::new(), para_start, false, next_slot(fsz, true))];
         let mut line_width = 0.0;
         let mut cursor = para_start;
         for (si, span) in para.spans.iter().enumerate() {
@@ -357,7 +396,7 @@ pub fn layout_text(t: &TextData) -> TextLayout {
                 if li > 0 {
                     lines.last_mut().unwrap().2 = true;
                     cursor += 1; // o \n
-                    lines.push((Vec::new(), cursor, false));
+                    lines.push((Vec::new(), cursor, false, next_slot(fsz, true)));
                     line_width = 0.0;
                 }
                 let words: Vec<&str> = if wrap {
@@ -375,8 +414,9 @@ pub fn layout_text(t: &TextData) -> TextLayout {
                             .and_then(|(id, _, _)| shape(*id, word.trim_end(), span.font.size))
                             .map(|s| s.advance)
                             .unwrap_or(0.0);
-                        if line_width + w > frame_w.unwrap() && line_width > 0.0 {
-                            lines.push((Vec::new(), cursor, false));
+                        let avail = lines.last().unwrap().3.map_or(frame_w.unwrap(), |s| s.2);
+                        if line_width + w > avail && line_width > 0.0 {
+                            lines.push((Vec::new(), cursor, false, next_slot(fsz, false)));
                             line_width = 0.0;
                         }
                         let full = fonts[si]
@@ -401,7 +441,7 @@ pub fn layout_text(t: &TextData) -> TextLayout {
         }
         lines.last_mut().unwrap().2 = true;
 
-        for (pieces, line_start, hard) in lines {
+        for (pieces, line_start, hard, slot) in lines {
             let first_size = para.spans.first().map(|s| s.font.size).unwrap_or(0.0);
             let max_size = pieces
                 .iter()
@@ -445,6 +485,11 @@ pub fn layout_text(t: &TextData) -> TextLayout {
             } else {
                 baseline -= max_size * t.line_spacing;
             }
+            if let Some((b, _, _)) = slot {
+                baseline = b;
+            }
+            let line_w = slot.map(|s| s.2).or(frame_w);
+            let x0 = slot.map_or(0.0, |s| s.1);
             // Justificar: espaço extra repartido entre os espaços da linha
             // (não na última linha do parágrafo nem antes de \n).
             let line_text: String = pieces.iter().map(|p| p.text.as_str()).collect();
@@ -459,17 +504,18 @@ pub fn layout_text(t: &TextData) -> TextLayout {
                 && wrap
                 && (!hard || para.align == "forceJustify");
             let spaces = line_text.trim_end().matches(' ').count();
-            let extra = match (justify, frame_w) {
+            let extra = match (justify, line_w) {
                 (true, Some(w)) if spaces > 0 && w > content_w => (w - content_w) / spaces as f64,
                 _ => 0.0,
             };
-            let dx = match (para.align.as_str(), frame_w) {
-                ("center", Some(w)) => (w - content_w) / 2.0,
-                ("right", Some(w)) => w - content_w,
-                ("center", None) => -content_w / 2.0,
-                ("right", None) => -content_w,
-                _ => 0.0,
-            };
+            let dx = x0
+                + match (para.align.as_str(), line_w) {
+                    ("center", Some(w)) => (w - content_w) / 2.0,
+                    ("right", Some(w)) => w - content_w,
+                    ("center", None) => -content_w / 2.0,
+                    ("right", None) => -content_w,
+                    _ => 0.0,
+                };
             // Espaços antes de cada caractere da linha (para o deslocamento).
             let chars: Vec<char> = line_text.chars().collect();
             let spaces_before = |idx: usize| -> f64 {
@@ -738,6 +784,7 @@ mod tests {
                 .collect(),
             line_spacing: 1.2,
             path: None,
+            exclusions: Default::default(),
             extra: Map::new(),
         }
     }
@@ -764,6 +811,48 @@ mod tests {
         assert_eq!(l.index_at(Point::new(x2 + 1.0, b0)), 2);
         // Glifos guardados para o PDF.
         assert_eq!(l.lines[0].runs[0].glyphs.len(), 2);
+    }
+
+    #[test]
+    fn wrap_flows_around_zone() {
+        if !has_font() {
+            return;
+        }
+        let words = "palavra ".repeat(80);
+        let w = 100_000.0;
+        let mut t = text("paragraph", "left", &words, Some([w, 200_000.0]));
+        let plain = layout_text(&t);
+        assert!(
+            plain
+                .lines
+                .iter()
+                .all(|l| l.runs.first().is_none_or(|r| r.x.abs() < 1e-6))
+        );
+        // Faixa no meio, de lado a lado à esquerda: linhas ali começam depois.
+        t.exclusions.0 = vec![crate::model::WrapZone {
+            polys: vec![vec![
+                [0.0, -40_000.0],
+                [50_000.0, -40_000.0],
+                [50_000.0, -20_000.0],
+                [0.0, -20_000.0],
+            ]],
+            side: "both".into(),
+            distance: 1_000.0,
+        }];
+        let l = layout_text(&t);
+        let inside: Vec<_> = l
+            .lines
+            .iter()
+            .filter(|l| l.baseline < -22_000.0 && l.baseline > -38_000.0)
+            .collect();
+        assert!(!inside.is_empty());
+        for line in inside {
+            assert!(line.runs[0].x >= 50_000.0, "{}", line.runs[0].x);
+        }
+        assert!(
+            l.lines.len() > plain.lines.len(),
+            "mais linhas por causa do desvio"
+        );
     }
 
     #[test]

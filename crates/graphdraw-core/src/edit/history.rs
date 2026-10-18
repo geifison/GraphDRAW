@@ -148,7 +148,8 @@ pub struct Editor {
 }
 
 impl Editor {
-    pub fn new(doc: Document) -> Editor {
+    pub fn new(mut doc: Document) -> Editor {
+        super::textwrap::refresh_doc(&mut doc);
         Editor {
             doc,
             undo: Vec::new(),
@@ -195,6 +196,7 @@ impl Editor {
             // Cotas ligadas acompanham os nós medidos, no mesmo passo.
             super::dimension::refresh(self);
             super::connector::refresh(self);
+            super::textwrap::refresh(self);
         }
         self.depth -= 1;
         if self.depth > 0 {
@@ -370,6 +372,14 @@ impl Editor {
         if *slot == obj {
             return;
         }
+        let old = std::mem::replace(slot, obj.clone());
+        self.record(Change::ReplaceObject(loc, old, obj));
+    }
+
+    /// Como `replace_object`, mas grava mesmo se só mudou dado derivado
+    /// que não entra na comparação (áreas do texto, GD-TXT-10).
+    pub(crate) fn replace_object_always(&mut self, loc: ObjLoc, obj: Object) {
+        let slot = &mut layers_mut(&mut self.doc, loc.page)[loc.layer].objects[loc.index];
         let old = std::mem::replace(slot, obj.clone());
         self.record(Change::ReplaceObject(loc, old, obj));
     }

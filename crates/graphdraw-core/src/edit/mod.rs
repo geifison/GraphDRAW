@@ -27,6 +27,7 @@ pub mod smartfill;
 pub mod snap;
 pub mod symmetry;
 pub mod text;
+pub mod textwrap;
 pub mod tree;
 
 pub use history::{Editor, MASTER, ObjLoc};

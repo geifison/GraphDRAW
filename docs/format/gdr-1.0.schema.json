@@ -316,7 +316,17 @@
         "locked": { "type": "boolean" },
         "printable": { "type": "boolean" },
         "userData": { "type": "object", "additionalProperties": { "type": "string" } },
-        "blendMode": { "enum": ["normal", "multiply", "screen", "overlay", "darken", "lighten", "color-dodge", "color-burn", "hard-light", "soft-light", "difference", "exclusion", "hue", "saturation", "color", "luminosity"] }
+        "blendMode": { "enum": ["normal", "multiply", "screen", "overlay", "darken", "lighten", "color-dodge", "color-burn", "hard-light", "soft-light", "difference", "exclusion", "hue", "saturation", "color", "luminosity"] },
+        "textWrap": {
+          "type": "object",
+          "description": "Afasta o texto de parágrafo da página (GD-TXT-10).",
+          "required": ["style", "side"],
+          "properties": {
+            "style": { "enum": ["contour", "square"] },
+            "side": { "enum": ["both", "left", "right", "above-below"] },
+            "distance": { "type": "number", "minimum": 0 }
+          }
+        }
       },
       "allOf": [
         {

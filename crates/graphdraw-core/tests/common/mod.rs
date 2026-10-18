@@ -32,6 +32,7 @@ pub const VALID_GDR: &[&str] = &[
     "bspline.gdr",
     "symmetry.gdr",
     "variable-width.gdr",
+    "text-wrap.gdr",
 ];
 
 /// Lê um membro de um pacote ZIP.

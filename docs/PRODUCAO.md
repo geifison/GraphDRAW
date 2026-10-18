@@ -137,7 +137,7 @@ Para depois da 1.0, cada um com o motivo:
 - [x] Esboço contínuo (GD-FER-29).
 - [x] Objeto vira guia (GD-GUI-03).
 - [x] Grade de linha base e de pixels (GD-GRD-01).
-- [ ] Texto contornando objeto (GD-TXT-10).
+- [x] Texto contornando objeto (GD-TXT-10).
 - [ ] Toque longo em amostra composta (GD-BDR-12).
 
 ## P2 — Proposta: depois da 1.0

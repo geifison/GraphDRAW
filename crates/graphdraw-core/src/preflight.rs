@@ -466,6 +466,7 @@ mod tests {
             }],
             line_spacing: 1.2,
             path: None,
+            exclusions: Default::default(),
             extra: Map::new(),
         }));
         o.transform = Transform::translate(x, y);

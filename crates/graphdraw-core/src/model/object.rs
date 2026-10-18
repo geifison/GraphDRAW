@@ -33,6 +33,8 @@ pub struct Object {
     pub user_data: Option<BTreeMap<String, String>>,
     /// Modo de mesclagem com o que está embaixo (GD-TRA-02).
     pub blend: BlendMode,
+    /// Afasta o texto de parágrafo (GD-TXT-10).
+    pub wrap: Option<TextWrap>,
     pub kind: ObjectKind,
 }
 
@@ -257,8 +259,43 @@ pub struct TextData {
     /// Texto em caminho (GD-TXT-09).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub path: Option<TextPath>,
+    /// Áreas que afastam o texto de parágrafo (GD-TXT-10), no espaço do
+    /// texto. Derivado dos objetos com `wrap`; não é gravado.
+    #[serde(skip)]
+    pub exclusions: Exclusions,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
+}
+
+/// Áreas derivadas que afastam o texto (GD-TXT-10). Não entram na
+/// comparação: são recalculadas a partir dos objetos.
+#[derive(Debug, Clone, Default)]
+pub struct Exclusions(pub Vec<WrapZone>);
+
+impl PartialEq for Exclusions {
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
+/// Área que afasta o texto: polígonos (espaço do texto), lado e distância.
+#[derive(Debug, Clone, PartialEq)]
+pub struct WrapZone {
+    pub polys: Vec<Vec<[f64; 2]>>,
+    pub side: String,
+    pub distance: f64,
+}
+
+/// Afastamento do texto de parágrafo pelo objeto (GD-TXT-10): `style` =
+/// `contour` (a forma) ou `square` (a caixa); `side` = `both`, `left`
+/// (o texto fica à esquerda), `right` ou `above-below`; `distance` em µm.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TextWrap {
+    pub style: String,
+    pub side: String,
+    #[serde(default)]
+    pub distance: f64,
 }
 
 /// Caminho do texto (GD-TXT-09), em coordenadas locais do texto. A linha
@@ -474,6 +511,7 @@ const COMMON_KEYS: &[&str] = &[
     "printable",
     "userData",
     "blendMode",
+    "textWrap",
 ];
 
 impl Object {
@@ -490,6 +528,7 @@ impl Object {
             printable: None,
             user_data: None,
             blend: BlendMode::Normal,
+            wrap: None,
             kind,
         }
     }
@@ -582,6 +621,7 @@ impl Object {
         let blend = de("blendMode")?
             .and_then(|b| serde_json::from_value(b).ok())
             .unwrap_or_default();
+        let wrap = de("textWrap")?.and_then(|w| serde_json::from_value(w).ok());
 
         let mut rest = map.clone();
         for k in COMMON_KEYS {
@@ -620,6 +660,7 @@ impl Object {
             printable,
             user_data,
             blend,
+            wrap,
             kind,
         })
     }
@@ -654,6 +695,9 @@ impl Object {
         }
         if let Some(u) = &self.user_data {
             m.insert("userData".into(), serde_json::to_value(u).unwrap());
+        }
+        if let Some(w) = &self.wrap {
+            m.insert("textWrap".into(), serde_json::to_value(w).unwrap());
         }
         if self.blend != BlendMode::Normal {
             m.insert(

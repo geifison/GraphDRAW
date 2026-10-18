@@ -491,6 +491,7 @@ impl App {
                         &mut text_params,
                     );
                     symmetry_bar(ui, doc);
+                    wrap_bar(ui, doc);
                 });
             }
         }
@@ -3812,6 +3813,78 @@ fn dimension_bar(ui: &mut egui::Ui, doc: &mut DocState, cs: &mut crate::canvas::
                 },
             );
         }
+    }
+}
+
+/// Contornar texto (GD-TXT-10): com objetos (não textos) selecionados, o
+/// estilo, o lado e a distância com que afastam o texto de parágrafo.
+fn wrap_bar(ui: &mut egui::Ui, doc: &mut DocState) {
+    let sel: Vec<String> = doc
+        .selection
+        .iter()
+        .filter(|id| {
+            doc.editor
+                .find(id)
+                .and_then(|r| doc.editor.get(&r))
+                .is_some_and(|o| !matches!(o.kind, ObjectKind::Text(_)))
+        })
+        .cloned()
+        .collect();
+    let Some(first) = sel
+        .first()
+        .and_then(|id| doc.editor.find(id))
+        .and_then(|r| doc.editor.get(&r))
+    else {
+        return;
+    };
+    let cur = first.wrap.clone();
+    let mut next = cur.clone();
+    ui.separator();
+    ui.menu_button(tr("Contornar texto", "Wrap text"), |ui| {
+        let style = next.as_ref().map(|w| w.style.clone());
+        for (k, label) in [
+            (None, tr("Nenhum", "None")),
+            (Some("contour"), tr("Contorno", "Contour")),
+            (Some("square"), tr("Quadrado", "Square")),
+        ] {
+            if ui.radio(style.as_deref() == k, label).clicked() {
+                next = k.map(|k| graphdraw_core::model::TextWrap {
+                    style: k.into(),
+                    side: next.as_ref().map_or("both".into(), |w| w.side.clone()),
+                    distance: next.as_ref().map_or(2_000.0, |w| w.distance),
+                });
+            }
+        }
+        if let Some(w) = &mut next {
+            ui.separator();
+            for (k, label) in [
+                ("both", tr("Dos dois lados", "Both sides")),
+                ("left", tr("À esquerda", "Left")),
+                ("right", tr("À direita", "Right")),
+                ("above-below", tr("Acima e abaixo", "Above and below")),
+            ] {
+                if ui.radio(w.side == k, label).clicked() {
+                    w.side = k.into();
+                }
+            }
+            ui.horizontal(|ui| {
+                ui.label(tr("Distância", "Distance"));
+                if let Some(v) = widgets::length_field(ui, "contornar-dist", w.distance, None) {
+                    w.distance = v.max(0.0);
+                }
+            });
+        }
+    });
+    if next != cur {
+        ops::modify(
+            &mut doc.editor,
+            &sel,
+            tr("Contornar texto", "Wrap text"),
+            |o| {
+                o.wrap = next.clone();
+                true
+            },
+        );
     }
 }
 

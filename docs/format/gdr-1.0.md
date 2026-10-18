@@ -105,6 +105,9 @@ camada), `userData?` (texto → texto), `blendMode?` (`normal` se ausente; os 16
 kebab-case: `multiply`, `screen`, `overlay`, `darken`, `lighten`, `color-dodge`, `color-burn`,
 `hard-light`, `soft-light`, `difference`, `exclusion`, `hue`, `saturation`, `color`, `luminosity`;
 valor desconhecido é lido como `normal`; GD-TRA-02).
+`textWrap?` = `{style: contour|square, side: both|left|right|above-below, distance?}` (µm): o objeto
+afasta o texto de parágrafo de primeiro nível da mesma página (GD-TXT-10). As áreas são recalculadas
+ao ler e a cada mudança; não são gravadas no texto.
 
 | `type` | Campos | Geometria local |
 |---|---|---|
