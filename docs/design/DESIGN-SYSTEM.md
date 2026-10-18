@@ -549,6 +549,13 @@ Aba **Verificação** (ícone `preflight`) no painel direito:
     - a barra tem Uniforme e os perfis prontos (Afinar no fim, Afinar no
       início, Afinar nas pontas, Bojo), que também estão na seção Largura
       variável do diálogo de contorno.
+- Amostras compostas (GD-BDR-12): no alto da aba Paletas, Gradientes e
+  padrões do documento em amostras de `swatch` (gradiente em faixas
+  pelas paradas; padrão com o ícone `fill-pattern` sobre `page-paper`).
+  Clique = preenchimento. Segurar o direito ≥ 0,5 s abre no cursor o
+  miniseletor (`Frame::popup`): Preenchimento · Contorno · Sombra
+  (Beta); destinos que não se aplicam ficam desabilitados com dica.
+  Soltar sobre um destino aplica; fora, cancela.
 - Contornar texto (GD-TXT-10): com objetos (não textos) selecionados, a
   barra da Seleção tem o menu Contornar texto — Nenhum | Contorno |
   Quadrado; Dos dois lados | À esquerda | À direita | Acima e abaixo;

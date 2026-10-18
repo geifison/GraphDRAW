@@ -477,7 +477,7 @@ struct RightPress {
 /// Arrasto direito menor que isto (px de tela) é clique (GD-BDR-01).
 const RIGHT_DRAG_PX: f32 = 4.0;
 /// Parado mais que isto (s) é toque longo, não clique (GD-BDR-01).
-const LONG_PRESS_S: f64 = 0.5;
+pub const LONG_PRESS_S: f64 = 0.5;
 
 #[derive(Clone)]
 enum MenuTarget {

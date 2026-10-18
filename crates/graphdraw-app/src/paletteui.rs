@@ -21,6 +21,100 @@ pub enum PalAction {
     Stroke(Option<Color>),
     /// Ctrl + clique: mistura 10% da cor no preenchimento atual.
     Tint(Color),
+    /// Amostra composta (gradiente, padrão) no preenchimento (GD-BDR-12).
+    FillWith(Fill),
+}
+
+/// Destino escolhido no miniseletor da amostra composta (GD-BDR-12).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum CompositeTarget {
+    Fill,
+    Stroke,
+    Shadow,
+}
+
+/// Destinos do miniseletor e se valem para `f`: o contorno só aceita cor
+/// sólida e a sombra (doc 10) ainda não existe.
+pub fn composite_targets(f: &Fill) -> [(CompositeTarget, &'static str, bool); 3] {
+    let _ = f;
+    [
+        (CompositeTarget::Fill, tr("Preenchimento", "Fill"), true),
+        (CompositeTarget::Stroke, tr("Contorno", "Outline"), false),
+        (
+            CompositeTarget::Shadow,
+            tr("Sombra (Beta)", "Shadow (Beta)"),
+            false,
+        ),
+    ]
+}
+
+/// Gradientes e padrões usados no documento, sem repetir (até `max`).
+pub fn composite_fills(doc: &graphdraw_core::model::Document, max: usize) -> Vec<Fill> {
+    fn walk(o: &graphdraw_core::model::Object, out: &mut Vec<Fill>, max: usize) {
+        if out.len() >= max {
+            return;
+        }
+        if let Some(f @ (Fill::Gradient(_) | Fill::Pattern(_))) = &o.fill
+            && !out.contains(f)
+        {
+            out.push(f.clone());
+        }
+        if let graphdraw_core::model::ObjectKind::Group(g) = &o.kind {
+            for c in &g.children {
+                walk(c, out, max);
+            }
+        }
+    }
+    let mut out = Vec::new();
+    for page in &doc.data.pages {
+        for l in &page.layers {
+            for o in &l.objects {
+                walk(o, &mut out, max);
+            }
+        }
+    }
+    out
+}
+
+/// Amostra de gradiente (faixas pelas paradas) ou de padrão (ícone).
+fn composite_swatch(ui: &mut egui::Ui, f: &Fill, size: f32) -> egui::Response {
+    let (rect, resp) = ui.allocate_exact_size(egui::Vec2::splat(size), egui::Sense::click());
+    let p = ui.painter();
+    match f {
+        Fill::Gradient(g) if !g.stops.is_empty() => {
+            let mut mesh = egui::Mesh::default();
+            let mut stops = g.stops.clone();
+            stops.sort_by(|a, b| a.offset.total_cmp(&b.offset));
+            let col =
+                |s: &graphdraw_core::model::GradientStop| crate::widgets::to_color32(&s.color);
+            let x = |o: f64| rect.left() + rect.width() * o.clamp(0.0, 1.0) as f32;
+            let mut pts: Vec<(f32, egui::Color32)> = vec![(rect.left(), col(&stops[0]))];
+            pts.extend(stops.iter().map(|s| (x(s.offset), col(s))));
+            pts.push((rect.right(), col(stops.last().unwrap())));
+            for w in pts.windows(2) {
+                let i = mesh.vertices.len() as u32;
+                mesh.colored_vertex(egui::pos2(w[0].0, rect.top()), w[0].1);
+                mesh.colored_vertex(egui::pos2(w[1].0, rect.top()), w[1].1);
+                mesh.colored_vertex(egui::pos2(w[1].0, rect.bottom()), w[1].1);
+                mesh.colored_vertex(egui::pos2(w[0].0, rect.bottom()), w[0].1);
+                mesh.add_triangle(i, i + 1, i + 2);
+                mesh.add_triangle(i, i + 2, i + 3);
+            }
+            p.add(egui::Shape::mesh(mesh));
+        }
+        _ => {
+            p.rect_filled(rect, theme::RADIUS_XS, theme::PAGE_PAPER);
+            egui::Image::new(crate::icons::get("fill-pattern")).paint_at(ui, rect.shrink(2.0));
+        }
+    }
+    let stroke = if resp.hovered() {
+        ui.visuals().widgets.hovered.fg_stroke
+    } else {
+        theme::border_default(ui)
+    };
+    ui.painter()
+        .rect_stroke(rect, theme::RADIUS_XS, stroke, egui::StrokeKind::Inside);
+    resp
 }
 
 /// Amostra arrastada até um objeto do canvas (GD-PAL-05).
@@ -29,6 +123,10 @@ pub struct SwatchDrop(pub Color);
 
 #[derive(Default)]
 pub struct Palettes {
+    /// Toque direito em amostra composta: índice e hora (GD-BDR-12).
+    composite_press: Option<(usize, f64)>,
+    /// Miniseletor aberto: índice da amostra e posição.
+    composite_menu: Option<(usize, egui::Pos2)>,
     /// Paletas do usuário (guardadas em `%APPDATA%\GraphDraw\paletas`).
     pub user: Vec<Palette>,
     /// Paleta da barra: 0 = padrão, 1 = documento, 2.. = do usuário.
@@ -154,8 +252,97 @@ impl Palettes {
     }
 
     /// Painel Paletas.
-    pub fn panel(&mut self, ui: &mut egui::Ui, doc: &mut DocState) -> Option<PalAction> {
+    /// Gradientes e padrões do documento (GD-BDR-12): clique = preenchimento;
+    /// toque longo direito = miniseletor no cursor (Preenchimento · Contorno
+    /// · Sombra); soltar fora dele cancela.
+    fn composites(&mut self, ui: &mut egui::Ui, doc: &DocState) -> Option<PalAction> {
+        let fills = composite_fills(doc.doc(), 24);
+        if fills.is_empty() {
+            self.composite_press = None;
+            self.composite_menu = None;
+            return None;
+        }
         let mut act = None;
+        ui.label(
+            egui::RichText::new(tr("Gradientes e padrões", "Gradients and patterns")).strong(),
+        );
+        let now = ui.input(|i| i.time);
+        let (pressed, down, released, pointer) = ui.input(|i| {
+            (
+                i.pointer.button_pressed(egui::PointerButton::Secondary),
+                i.pointer.button_down(egui::PointerButton::Secondary),
+                i.pointer.button_released(egui::PointerButton::Secondary),
+                i.pointer.interact_pos(),
+            )
+        });
+        ui.horizontal_wrapped(|ui| {
+            for (i, f) in fills.iter().enumerate() {
+                let r = composite_swatch(ui, f, theme::SWATCH).on_hover_text(tr(
+                    "Clique: preenchimento · segure o botão direito: escolher o destino",
+                    "Click: fill · hold the right button: choose the target",
+                ));
+                if r.clicked() {
+                    act = Some(PalAction::FillWith(f.clone()));
+                }
+                if pressed && r.hovered() {
+                    self.composite_press = Some((i, now));
+                }
+            }
+        });
+        if let Some((i, t)) = self.composite_press {
+            if down && self.composite_menu.is_none() {
+                if now - t >= crate::canvas::LONG_PRESS_S {
+                    self.composite_menu = pointer.map(|p| (i, p));
+                } else {
+                    ui.ctx().request_repaint();
+                }
+            }
+            if !down {
+                self.composite_press = None;
+            }
+        }
+        if let Some((i, pos)) = self.composite_menu
+            && let Some(f) = fills.get(i)
+        {
+            let mut hit = None;
+            egui::Area::new(ui.scope_id().with("mini-composta"))
+                .order(egui::Order::Foreground)
+                .fixed_pos(pos)
+                .show(ui.ctx(), |ui| {
+                    egui::Frame::popup(ui.style()).show(ui, |ui| {
+                        for (target, label, on) in composite_targets(f) {
+                            let r = ui.add_enabled(
+                                on,
+                                egui::Button::new(label).min_size(egui::vec2(120.0, 0.0)),
+                            );
+                            let r = if on {
+                                r
+                            } else {
+                                r.on_disabled_hover_text(tr(
+                                    "Não se aplica a esta amostra",
+                                    "Does not apply to this swatch",
+                                ))
+                            };
+                            if on && pointer.is_some_and(|p| r.rect.contains(p)) {
+                                hit = Some(target);
+                            }
+                        }
+                    });
+                });
+            if released || !down {
+                if hit == Some(CompositeTarget::Fill) {
+                    act = Some(PalAction::FillWith(f.clone()));
+                }
+                self.composite_menu = None;
+                self.composite_press = None;
+            }
+        }
+        ui.separator();
+        act
+    }
+
+    pub fn panel(&mut self, ui: &mut egui::Ui, doc: &mut DocState) -> Option<PalAction> {
+        let mut act = self.composites(ui, doc);
         ui.label(egui::RichText::new(tr("Cores do documento", "Document colors")).strong());
         ui.weak(tr(
             "Cores globais: mudar uma muda todos os objetos que a usam",
@@ -448,6 +635,44 @@ pub fn swatch_action(ui: &egui::Ui, r: &egui::Response, c: Color) -> Option<PalA
 mod tests {
     use super::*;
     use graphdraw_core::edit::palette::PaletteColor;
+
+    #[test]
+    fn gd_bdr_12_composites_and_targets() {
+        use graphdraw_core::model::{Gradient, Object, ObjectKind, RectData};
+        let mut d = DocState::new_blank();
+        let g = Fill::Gradient(
+            serde_json::from_value::<Gradient>(serde_json::json!({
+                "kind": "linear",
+                "stops": [
+                    {"offset": 0.0, "color": serde_json::to_value(Color::black()).unwrap()},
+                    {"offset": 1.0, "color": serde_json::to_value(Color::rgb(1.0, 0.0, 0.0)).unwrap()}
+                ]
+            }))
+            .unwrap(),
+        );
+        for _ in 0..2 {
+            let mut o = Object::new(ObjectKind::Rectangle(RectData {
+                width: 1000.0,
+                height: 1000.0,
+                corners: None,
+                extra: Default::default(),
+            }));
+            o.fill = Some(g.clone());
+            graphdraw_core::edit::ops::add_object(&mut d.editor, 0, 0, o, "r");
+        }
+        assert_eq!(composite_fills(d.doc(), 24), vec![g.clone()], "sem repetir");
+        let t = composite_targets(&g);
+        assert!(t[0].2 && !t[1].2 && !t[2].2, "só o preenchimento vale");
+        // A aba desenha a amostra composta.
+        let ctx = crate::theme::test_ctx();
+        let mut p = Palettes::default();
+        let mut out = ctx.run_ui(Default::default(), |ui| {
+            egui::CentralPanel::default().show(ui, |ui| {
+                p.panel(ui, &mut d);
+            });
+        });
+        out.textures_delta.clear();
+    }
 
     #[test]
     fn gd_pal_05_tint_mixes_ten_percent() {

@@ -732,6 +732,7 @@ impl App {
         }
         match a {
             PalAction::Fill(c) => self.apply_fill(c.map(Fill::solid)),
+            PalAction::FillWith(f) => self.apply_fill(Some(f)),
             PalAction::Stroke(c) => self.apply_stroke_color(c),
             PalAction::Tint(c) => {
                 let current = self
