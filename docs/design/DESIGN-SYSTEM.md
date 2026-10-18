@@ -214,15 +214,16 @@ de estado.
 
 ### 3.1.1 Marca e ícone do programa
 
-A marca é a logo do projeto (`assets/brand/logo-original.jpg`): o G e o D
-em faixa colorida que termina numa pena.
-`scripts/brand-icons` gera os ícones a partir dela:
-- `mark.png`: a marca sem fundo. Ela é separada do fundo pela saturação,
-  sem emenda.
-- `app-<n>.png` e `app.ico`: a marca ocupando 82% de largura num quadrado
-  com o escuro do fundo da logo e cantos de 20%.
-- `gdr-<n>.png` e `gdr.ico`: folha clara com dobra e o quadrado da marca
-  (ícone do arquivo `.gdr`).
+O ícone do programa é o vetor `assets/brand/icone.svg` (desenhado no
+próprio GraphDraw pelo responsável pelo produto, 2026-10-18): foguete
+branco sobre quadrado verde em gradiente, de cantos arredondados, com
+moldura texturizada. A logo `assets/brand/logo-original.jpg` fica como
+referência da marca.
+`scripts/brand-icons` rasteriza o SVG (resvg) em cada tamanho, direto do
+vetor:
+- `app-<n>.png` e `app.ico`: o ícone, fundo transparente fora dele.
+- `gdr-<n>.png` e `gdr.ico`: folha clara com dobra e o ícone (ícone do
+  arquivo `.gdr`).
 - Tamanhos: 16, 20, 24, 32, 40, 48, 64, 128, 256 e 1024 px.
 
 No Windows, o `.exe` leva os dois ícones (`build.rs` com `windres`):

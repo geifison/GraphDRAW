@@ -80,6 +80,7 @@ Binários da libcdr/librevenge e dependências vêm dos pacotes do MSYS2
 | jsonschema | 0.58.6 | MIT | Validação das fixtures contra o schema (GD-GDR-08) |
 | roxmltree | 0.21.1 | MIT OR Apache-2.0 | Verificar SVG bem formado nos testes |
 | tempfile | 3.27.0 | MIT OR Apache-2.0 | Diretórios temporários nos testes |
+| resvg (com usvg e tiny-skia) | 0.45.1 | Apache-2.0 OR MIT | `scripts/brand-icons`: rasterizar o ícone vetorial do programa nos PNG/ICO (só os arquivos gerados vão com o programa) |
 | MSYS2 (gcc, pkgconf, binutils, make) | — | várias (GPL, ferramentas de build) | Compilar a ponte; `dlltool` para o alvo GNU do Rust |
 | poppler (pdftoppm/pdftotext/pdffonts/pdfinfo) | — | GPL-2.0 | Conferência dos PDFs e rasterização do `graphdraw fidelity` (programa externo chamado por processo, não vinculado nem distribuído) |
 
