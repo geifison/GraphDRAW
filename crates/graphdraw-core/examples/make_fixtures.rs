@@ -944,7 +944,7 @@ fn strokes() -> Document {
             vec![Subpath {
                 nodes: vec![
                     node(115.0, y),
-                    smooth(150.0, (y - 15.0), [140.0, (y - 15.0)], [160.0, (y - 15.0)]),
+                    smooth(150.0, y - 15.0, [140.0, y - 15.0], [160.0, y - 15.0]),
                     node(185.0, y),
                 ],
                 closed: false,
@@ -982,11 +982,7 @@ fn strokes() -> Document {
         let mut o = path(
             &mut ids,
             vec![Subpath {
-                nodes: vec![
-                    node(x, 40.0),
-                    node((x + 20.0), 80.0),
-                    node((x + 40.0), 40.0),
-                ],
+                nodes: vec![node(x, 40.0), node(x + 20.0, 80.0), node(x + 40.0, 40.0)],
                 closed: false,
                 extra: Map::new(),
             }],
