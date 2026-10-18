@@ -44,6 +44,12 @@ pub const SPACING_TICK: f32 = 4.0;
 pub const SELECTION_OBJECT: Color32 = Color32::from_rgba_unmultiplied_const(0x63, 0x66, 0xF1, 110);
 pub const SELECTION_FILL: Color32 = Color32::from_rgba_unmultiplied_const(0x63, 0x66, 0xF1, 26);
 pub const GRID_LINE: Color32 = Color32::from_rgba_unmultiplied_const(0x63, 0x66, 0xF1, 40);
+/// Grade em pontos (GD-GRD-01): raio e cor.
+pub const GRID_DOT: f32 = 1.0;
+pub const GRID_DOT_COLOR: Color32 = Color32::from_rgba_unmultiplied_const(0x63, 0x66, 0xF1, 110);
+/// Grade de linha base e de pixels (GD-GRD-01).
+pub const BASELINE_GRID: Color32 = Color32::from_rgba_unmultiplied_const(0x06, 0xB6, 0xD4, 70);
+pub const PIXEL_GRID: Color32 = Color32::from_rgba_unmultiplied_const(0x80, 0x80, 0x80, 45);
 
 /// Xadrez atrás de amostras com transparência.
 pub const CHECKER_LIGHT: Color32 = Color32::WHITE;

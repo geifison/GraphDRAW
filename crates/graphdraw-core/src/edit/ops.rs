@@ -622,6 +622,82 @@ pub fn renew_ids(o: &mut Object) {
 }
 
 /// Adiciona um objeto no topo da camada; devolve seu ID.
+/// Grade imprimível (GD-GRD-01): camada nova no fundo da página com as
+/// linhas da grade de documento (`spacing`) e da linha base (`baseline` =
+/// entrelinha e início a partir do topo), em fio de 0,1 mm cinza.
+pub fn printable_grid(
+    ed: &mut Editor,
+    page: usize,
+    w: f64,
+    h: f64,
+    spacing: Option<f64>,
+    baseline: Option<(f64, f64)>,
+    name: &str,
+) -> Option<String> {
+    use crate::model::{Color, FillRule, Layer, Node, PathData, Stroke, Subpath};
+    let line = |a: (f64, f64), b: (f64, f64)| Subpath {
+        nodes: vec![Node::corner(a.0, a.1), Node::corner(b.0, b.1)],
+        closed: false,
+        extra: Default::default(),
+    };
+    let mut objs = Vec::new();
+    let mut push = |subpaths: Vec<Subpath>, gray: f64, label: &str| {
+        if subpaths.is_empty() {
+            return;
+        }
+        let mut o = Object::new(ObjectKind::Path(PathData {
+            subpaths,
+            fill_rule: FillRule::Nonzero,
+            extra: Default::default(),
+        }));
+        o.stroke = Some(Stroke::new(100.0, Color::cmyk(0.0, 0.0, 0.0, gray)));
+        o.name = Some(label.into());
+        objs.push(o);
+    };
+    if let Some(g) = spacing.filter(|g| *g > 0.0 && w / g < 5_000.0 && h / g < 5_000.0) {
+        let mut v = Vec::new();
+        let mut x = 0.0;
+        while x <= w + 1e-6 {
+            v.push(line((x, 0.0), (x, h)));
+            x += g;
+        }
+        let mut y = 0.0;
+        while y <= h + 1e-6 {
+            v.push(line((0.0, y), (w, y)));
+            y += g;
+        }
+        push(v, 0.3, name);
+    }
+    if let Some((b, start)) = baseline.filter(|(b, _)| *b > 0.0 && h / *b < 5_000.0) {
+        let mut v = Vec::new();
+        let mut y = h - start;
+        while y >= -1e-6 {
+            v.push(line((0.0, y), (w, y)));
+            y -= b;
+        }
+        push(v, 0.5, "Linha base");
+    }
+    if objs.is_empty() {
+        return None;
+    }
+    let layer = Layer::new(name);
+    let lid = layer.id.clone();
+    ed.transaction(format!("Criar {name}"), |ed| {
+        ed.insert_layer(page, 0, layer);
+        for (i, o) in objs.into_iter().enumerate() {
+            ed.insert_object(
+                ObjLoc {
+                    page,
+                    layer: 0,
+                    index: i,
+                },
+                o,
+            );
+        }
+    });
+    Some(lid)
+}
+
 pub fn add_object(ed: &mut Editor, page: usize, layer: usize, o: Object, name: &str) -> String {
     let id = o.id.clone();
     let index = ed.objects(page, layer).len();
@@ -1790,6 +1866,38 @@ pub fn convert_to_bitmap(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// GD-GRD-01: a grade imprimível é uma camada no fundo com as linhas da
+    /// grade (11 + 6 numa página 100 × 50 mm a cada 10 mm) e da linha base.
+    #[test]
+    fn gd_grd_01_printable_grid() {
+        let mut d = crate::model::Document::new();
+        d.data
+            .pages
+            .push(crate::model::Page::new(100_000.0, 50_000.0));
+        let mut ed = Editor::new(d);
+        printable_grid(
+            &mut ed,
+            0,
+            100_000.0,
+            50_000.0,
+            Some(10_000.0),
+            Some((5_000.0, 0.0)),
+            "Grade",
+        )
+        .unwrap();
+        let l = &ed.doc.data.pages[0].layers[0];
+        assert_eq!(l.objects.len(), 2);
+        let ObjectKind::Path(p) = &l.objects[0].kind else {
+            panic!()
+        };
+        assert_eq!(p.subpaths.len(), 17);
+        let ObjectKind::Path(b) = &l.objects[1].kind else {
+            panic!()
+        };
+        assert_eq!(b.subpaths.len(), 11);
+        assert_eq!(ed.undo_len(), 1);
+    }
     use crate::model::{Color, Document, ObjectKind, Page, RectData};
     use serde_json::Map;
 

@@ -670,6 +670,7 @@ impl App {
         let mut canvas = CanvasState::default();
         canvas.snap = self.canvas.snap;
         canvas.show_grid = self.canvas.show_grid;
+        canvas.grid = self.canvas.grid;
         if !(pristine || self.doc.is_none() && !self.tabs.is_empty()) {
             if self.tabs.is_empty() {
                 self.tabs.push(DocTab::default());
@@ -1345,6 +1346,104 @@ impl App {
         self.canvas
             .view
             .zoom_at(factor, (s.x as f64 / 2.0, s.y as f64 / 2.0));
+    }
+
+    /// Submenu Grades (GD-GRD-01): documento (espaçamento ou frequência,
+    /// linhas ou pontos), linha base, pixels e grade imprimível.
+    fn grids_menu(&mut self, ui: &mut egui::Ui) {
+        let c = &mut self.canvas;
+        if ui
+            .checkbox(&mut c.show_grid, tr("Grade de documento", "Document grid"))
+            .changed()
+            && c.show_grid
+            && c.snap.grid.is_none()
+        {
+            c.snap.grid = Some(5_000.0);
+        }
+        ui.add_enabled_ui(c.show_grid, |ui| {
+            let g = c.snap.grid.unwrap_or(5_000.0);
+            ui.horizontal(|ui| {
+                ui.label(tr("Espaçamento", "Spacing"));
+                if let Some(v) = crate::widgets::length_field(ui, "grade-esp", g, None) {
+                    c.snap.grid = Some(v.max(10.0));
+                }
+            });
+            ui.horizontal(|ui| {
+                ui.label(tr("Frequência", "Frequency"));
+                let mut f = (10_000.0 / g * 100.0).round() / 100.0;
+                if ui
+                    .add(
+                        egui::DragValue::new(&mut f)
+                            .range(0.1..=100.0)
+                            .speed(0.1)
+                            .suffix(tr(" por cm", " per cm")),
+                    )
+                    .changed()
+                {
+                    c.snap.grid = Some((10_000.0 / f.max(0.1)).max(10.0));
+                }
+            });
+            ui.checkbox(&mut c.grid.dots, tr("Como pontos", "As dots"));
+        });
+        ui.separator();
+        let mut base = c.grid.baseline.is_some();
+        if ui
+            .checkbox(&mut base, tr("Grade de linha base", "Baseline grid"))
+            .changed()
+        {
+            c.grid.baseline = base.then_some(12.0 * graphdraw_core::units::UM_PER_PT);
+        }
+        if let Some(b) = c.grid.baseline {
+            ui.horizontal(|ui| {
+                ui.label(tr("Entrelinha", "Leading"));
+                if let Some(v) = crate::widgets::length_field(ui, "grade-base", b, None) {
+                    c.grid.baseline = Some(v.max(100.0));
+                }
+            });
+            ui.horizontal(|ui| {
+                ui.label(tr("Início no topo", "Start from top"));
+                if let Some(v) =
+                    crate::widgets::length_field(ui, "grade-base-ini", c.grid.baseline_start, None)
+                {
+                    c.grid.baseline_start = v.max(0.0);
+                }
+            });
+        }
+        ui.checkbox(
+            &mut c.grid.pixel,
+            tr(
+                "Grade de pixels (96 ppp, de perto)",
+                "Pixel grid (96 ppi, up close)",
+            ),
+        );
+        ui.separator();
+        let spacing = c.snap.grid.filter(|_| c.show_grid);
+        let baseline = c.grid.baseline.map(|b| (b, c.grid.baseline_start));
+        if ui
+            .add_enabled(
+                spacing.is_some() || baseline.is_some(),
+                egui::Button::new(tr("Criar grade imprimível", "Create printable grid")),
+            )
+            .on_hover_text(tr(
+                "Põe as linhas das grades visíveis numa camada nova, que imprime e exporta",
+                "Puts the visible grids' lines on a new layer that prints and exports",
+            ))
+            .clicked()
+            && let Some(d) = &mut self.doc
+        {
+            let (pw, ph) = d.page_size();
+            let page = d.page;
+            graphdraw_core::edit::ops::printable_grid(
+                &mut d.editor,
+                page,
+                pw,
+                ph,
+                spacing,
+                baseline,
+                tr("Grade", "Grid"),
+            );
+            ui.close();
+        }
     }
 
     fn set_tool(&mut self, t: Tool) {
@@ -2676,7 +2775,7 @@ impl App {
                     self.zoom_all();
                 }
                 ui.separator();
-                ui.checkbox(&mut self.canvas.show_grid, tr("Mostrar grade", "Show grid"));
+                ui.menu_button(tr("Grades", "Grids"), |ui| self.grids_menu(ui));
                 ui.checkbox(
                     &mut self.canvas.snap.enabled,
                     tr("Encaixe ligado", "Snapping on"),

@@ -710,6 +710,8 @@ pub struct CanvasState {
     pub snap_hit: Option<Snapped>,
     pub snap: SnapSettings,
     pub show_grid: bool,
+    /// Grades extras e estilo da grade (GD-GRD-01).
+    pub grid: GridView,
     right: Option<RightPress>,
     menu: Option<Menu>,
     /// Tipo do nó e se há dois extremos escolhidos (menu de nó).
@@ -833,6 +835,7 @@ impl Default for CanvasState {
                 ..Default::default()
             },
             show_grid: false,
+            grid: GridView::default(),
             right: None,
             menu: None,
             menu_node: None,
@@ -938,10 +941,11 @@ pub struct CanvasEvents {
 impl CanvasState {
     /// Novo documento: mantém encaixe e grade, zera vista e estado de arrasto.
     pub fn reset_for_new_document(&mut self) {
-        let (snap, grid) = (self.snap, self.show_grid);
+        let (snap, grid, extra) = (self.snap, self.show_grid, self.grid);
         *self = CanvasState::default();
         self.snap = snap;
         self.show_grid = grid;
+        self.grid = extra;
     }
 
     pub fn is_dragging(&self) -> bool {
@@ -2533,20 +2537,64 @@ impl CanvasState {
                 painter.line_segment([vy, vy + Vec2::new(0.0, dy * l)], mark);
             }
         }
-        // Grade (quando ligada e legível).
+        self.paint_grids(painter, rect, pw, ph);
+    }
+
+    /// Grades (GD-GRD-01): de pixels, de documento (linhas ou pontos) e de
+    /// linha base, só na parte visível da página e quando legíveis.
+    fn paint_grids(&self, painter: &egui::Painter, rect: Rect, pw: f64, ph: f64) {
+        let v = self.view;
+        let s = |x: f64, y: f64| {
+            let (a, b) = v.page_to_screen(ph, x, y);
+            rect.min + Vec2::new(a as f32, b as f32)
+        };
+        let (ax, ay) = v.screen_to_page(ph, 0.0, 0.0);
+        let (bx, by) = v.screen_to_page(ph, rect.width() as f64, rect.height() as f64);
+        let (x0, x1) = (ax.min(bx).max(0.0), ax.max(bx).min(pw));
+        let (y0, y1) = (ay.min(by).max(0.0), ay.max(by).min(ph));
+        if x0 >= x1 || y0 >= y1 {
+            return;
+        }
+        // Valores múltiplos de `g` em [a, b] (a partir de `origin`).
+        let steps = |a: f64, b: f64, g: f64, origin: f64| {
+            let first = ((a - origin) / g).ceil() as i64;
+            let last = ((b - origin) / g).floor() as i64;
+            (first..=last).map(move |k| origin + k as f64 * g)
+        };
+        if self.grid.pixel && PIXEL_UM * v.zoom >= 6.0 {
+            let stroke = EStroke::new(theme::GUIDE_WIDTH, theme::PIXEL_GRID);
+            for x in steps(x0, x1, PIXEL_UM, 0.0) {
+                painter.line_segment([s(x, y0), s(x, y1)], stroke);
+            }
+            for y in steps(y0, y1, PIXEL_UM, ph) {
+                painter.line_segment([s(x0, y), s(x1, y)], stroke);
+            }
+        }
         if self.show_grid
             && let Some(g) = self.snap.grid.filter(|g| *g * v.zoom >= 6.0)
         {
-            let stroke = EStroke::new(theme::GUIDE_WIDTH, theme::GRID_LINE);
-            let mut x = 0.0;
-            while x <= pw {
-                painter.line_segment([s(x, 0.0), s(x, ph)], stroke);
-                x += g;
+            let n = ((x1 - x0) / g + 1.0) * ((y1 - y0) / g + 1.0);
+            if self.grid.dots && n <= 60_000.0 {
+                for x in steps(x0, x1, g, 0.0) {
+                    for y in steps(y0, y1, g, 0.0) {
+                        painter.circle_filled(s(x, y), theme::GRID_DOT, theme::GRID_DOT_COLOR);
+                    }
+                }
+            } else {
+                let stroke = EStroke::new(theme::GUIDE_WIDTH, theme::GRID_LINE);
+                for x in steps(x0, x1, g, 0.0) {
+                    painter.line_segment([s(x, y0), s(x, y1)], stroke);
+                }
+                for y in steps(y0, y1, g, 0.0) {
+                    painter.line_segment([s(x0, y), s(x1, y)], stroke);
+                }
             }
-            let mut y = 0.0;
-            while y <= ph {
-                painter.line_segment([s(0.0, y), s(pw, y)], stroke);
-                y += g;
+        }
+        // Linha base: do topo da página para baixo.
+        if let Some(b) = self.grid.baseline.filter(|b| *b * v.zoom >= 4.0) {
+            let stroke = EStroke::new(theme::GUIDE_WIDTH, theme::BASELINE_GRID);
+            for y in steps(y0, y1, b, ph - self.grid.baseline_start) {
+                painter.line_segment([s(x0, y), s(x1, y)], stroke);
             }
         }
     }
@@ -6018,6 +6066,32 @@ impl CanvasState {
     }
 }
 
+/// Pixel de tela de referência (96 ppp) em µm, para a grade de pixels.
+pub const PIXEL_UM: f64 = 25_400.0 / 96.0;
+
+/// Grades extras e estilo da grade (GD-GRD-01).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GridView {
+    /// Grade de documento em pontos (cruzamentos) em vez de linhas.
+    pub dots: bool,
+    /// Grade de linha base: espaçamento (µm) e início a partir do topo.
+    pub baseline: Option<f64>,
+    pub baseline_start: f64,
+    /// Grade de pixels (96 ppp), visível de perto.
+    pub pixel: bool,
+}
+
+impl Default for GridView {
+    fn default() -> Self {
+        GridView {
+            dots: false,
+            baseline: None,
+            baseline_start: 0.0,
+            pixel: false,
+        }
+    }
+}
+
 /// Cursor desenhado sobre o canvas.
 enum Glyph {
     /// Ícone com o ponto ativo em coordenadas da grade 24×24.
@@ -7484,6 +7558,26 @@ mod tests {
         assert_eq!(doc.page().layers[0].objects.len(), n + 1);
         click(&mut cs, &mut doc, outside);
         assert_eq!(doc.page().layers[0].objects.len(), n + 1, "fora: nada");
+    }
+
+    /// GD-GRD-01 na tela: grade em pontos, linha base e pixels desenham sem
+    /// travar, mesmo bem de perto (só a parte visível).
+    #[test]
+    fn grids_paint() {
+        let (ctx, mut cs, mut doc, _id, _rect, _ph) = bdr_setup();
+        cs.show_grid = true;
+        cs.snap.grid = Some(5_000.0);
+        cs.grid = GridView {
+            dots: true,
+            baseline: Some(4_233.0),
+            baseline_start: 10_000.0,
+            pixel: true,
+        };
+        canvas_frame(&ctx, &mut cs, &mut doc, Tool::Select, vec![]);
+        cs.view.zoom = 0.5;
+        canvas_frame(&ctx, &mut cs, &mut doc, Tool::Select, vec![]);
+        cs.grid.dots = false;
+        canvas_frame(&ctx, &mut cs, &mut doc, Tool::Select, vec![]);
     }
 
     /// GD-FER-29 na tela: com o esboço contínuo, o segundo traço que começa

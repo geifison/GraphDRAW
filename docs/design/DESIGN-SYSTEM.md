@@ -549,6 +549,13 @@ Aba **Verificação** (ícone `preflight`) no painel direito:
     - a barra tem Uniforme e os perfis prontos (Afinar no fim, Afinar no
       início, Afinar nas pontas, Bojo), que também estão na seção Largura
       variável do diálogo de contorno.
+- Grades (GD-GRD-01; Exibir → Grades): grade de documento (espaçamento
+  ou frequência por cm; Como pontos), grade de linha base (entrelinha,
+  início no topo), grade de pixels (96 ppp, aparece com o pixel ≥ 6 px
+  na tela) e Criar grade imprimível (camada nova no fundo, fio de
+  0,1 mm). Tokens: `grid-line`; pontos `grid-dot` = 1 px em
+  `grid-dot-color`; `baseline-grid` (ciano a 27%); `pixel-grid`
+  (cinza a 18%). Só a parte visível da página é desenhada.
 - Simetria (GD-FER-33; Objeto → Simetria, menu de contexto com o ícone
   `symmetry`): cria o grupo de simetria com a seleção (ou vazio, no meio
   da página) e liga Desenhar dentro.
