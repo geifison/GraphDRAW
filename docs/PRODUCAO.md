@@ -69,8 +69,12 @@ Prioridade:
 - [x] Atualizar o README (ainda diz "M1 em validação").
 
 ## P0 — Qualidade
-- [ ] Definição de pronto do MVP: um arquivo `.gdr` de teste em
-  `tests/fixtures/` por requisito implementado.
+- [x] Definição de pronto do MVP: um arquivo `.gdr` de teste em
+  `tests/fixtures/` por requisito implementado. Auditoria (2026-10-17):
+  todo recurso que grava dado no documento tem o seu (28 arquivos, todos
+  validados pelo schema); os requisitos só de comportamento (desfazer,
+  encaixe, interface) são cobertos pelos testes automatizados listados no
+  ARCHITECTURE.
 - [ ] Rodada de uso real com arquivos de clientes. O relatório de
   fidelidade fica privado (GD-FID-31); no repositório só números
   agregados.

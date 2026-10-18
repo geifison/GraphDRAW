@@ -829,6 +829,373 @@ fn patterns() -> Document {
     d
 }
 
+/// GD-PRI-03..07, GD-FER-32: polígono, estrela, estrela complexa, espiral,
+/// papel gráfico e as 13 formas básicas.
+fn shapes() -> Document {
+    let mut ids = Ids::new(20);
+    let mut p = page(&mut ids, 297.0 * MM, 210.0 * MM);
+    let mut d = doc_with(vec![], "Formas paramétricas");
+    let fill = |c: f64| Fill::solid(Color::cmyk(c, 0.3, 0.0, 0.0));
+    for (i, (mode, sides, sharp)) in [("polygon", 6, 0.5), ("star", 5, 0.5), ("complex", 7, 0.6)]
+        .iter()
+        .enumerate()
+    {
+        let mut o = obj(
+            &mut ids,
+            ObjectKind::Polygon(PolygonData {
+                rx: 20.0 * MM,
+                ry: 20.0 * MM,
+                sides: *sides,
+                mode: (*mode).into(),
+                sharpness: *sharp,
+                extra: Map::new(),
+            }),
+        );
+        o.transform = Transform::translate((30.0 + 50.0 * i as f64) * MM, 180.0 * MM);
+        o.fill = Some(fill(0.2 * i as f64 + 0.3));
+        o.stroke = Some(Stroke::new(0.5 * MM, Color::cmyk(0.0, 0.0, 0.0, 1.0)));
+        p.layers[0].objects.push(o);
+    }
+    let mut sp = obj(
+        &mut ids,
+        ObjectKind::Path(graphdraw_core::edit::generate::spiral(
+            40.0 * MM,
+            40.0 * MM,
+            4.0,
+            false,
+            1.5,
+        )),
+    );
+    sp.transform = Transform::translate(175.0 * MM, 160.0 * MM);
+    sp.stroke = Some(Stroke::new(0.5 * MM, Color::cmyk(0.0, 0.0, 0.0, 1.0)));
+    p.layers[0].objects.push(sp);
+    let like = {
+        let mut o = obj(
+            &mut ids,
+            ObjectKind::Rectangle(RectData {
+                width: 1.0,
+                height: 1.0,
+                corners: None,
+                extra: Map::new(),
+            }),
+        );
+        o.stroke = Some(Stroke::new(0.3 * MM, Color::cmyk(0.0, 0.0, 0.0, 1.0)));
+        o
+    };
+    let mut gp = graphdraw_core::edit::generate::graph_paper(50.0 * MM, 40.0 * MM, 5, 4, &like);
+    gp.transform = Transform::translate(230.0 * MM, 160.0 * MM);
+    p.layers[0].objects.push(gp);
+    for (i, shape) in graphdraw_core::render::basic::SHAPES.iter().enumerate() {
+        let (col, row) = (i % 7, i / 7);
+        let mut o = obj(
+            &mut ids,
+            ObjectKind::Basic(BasicShapeData {
+                shape: (*shape).into(),
+                width: 32.0 * MM,
+                height: 26.0 * MM,
+                params: graphdraw_core::render::basic::default_params(shape),
+                extra: Map::new(),
+            }),
+        );
+        o.transform = Transform::translate(
+            (10.0 + 40.0 * col as f64) * MM,
+            (95.0 - 50.0 * row as f64) * MM,
+        );
+        o.fill = Some(fill(0.6));
+        o.stroke = Some(Stroke::new(0.4 * MM, Color::cmyk(0.0, 0.0, 0.0, 1.0)));
+        o.name = Some((*shape).into());
+        p.layers[0].objects.push(o);
+    }
+    d.data.pages.push(p);
+    d
+}
+
+/// GD-OUT-01..06: as seis pontas de seta, caneta caligráfica, posição do
+/// contorno, cantos, pontas da linha e atrás do preenchimento.
+fn strokes() -> Document {
+    let mut ids = Ids::new(21);
+    let mut p = page(&mut ids, 297.0 * MM, 210.0 * MM);
+    let mut d = doc_with(vec![], "Contornos");
+    let black = || Color::cmyk(0.0, 0.0, 0.0, 1.0);
+    let line = |ids: &mut Ids, a: (f64, f64), b: (f64, f64)| {
+        path(
+            ids,
+            vec![Subpath {
+                nodes: vec![node(a.0, a.1), node(b.0, b.1)],
+                closed: false,
+                extra: Map::new(),
+            }],
+        )
+    };
+    for (i, shape) in graphdraw_core::render::arrows::SHAPES.iter().enumerate() {
+        let y = 195.0 - 12.0 * i as f64;
+        let mut o = line(&mut ids, (15.0, y), (95.0, y));
+        let mut st = Stroke::new(0.8 * MM, black());
+        st.start_arrow = Some(Arrow::new(shape));
+        st.end_arrow = Some(Arrow::new(shape));
+        o.stroke = Some(st);
+        o.name = Some(format!("Seta {shape}"));
+        p.layers[0].objects.push(o);
+    }
+    for (i, (stretch, angle)) in [(1.0, 0.0), (0.3, 45.0), (0.15, 90.0)].iter().enumerate() {
+        let y = 195.0 - 25.0 * i as f64;
+        let mut o = path(
+            &mut ids,
+            vec![Subpath {
+                nodes: vec![
+                    node(115.0, y),
+                    smooth(150.0, (y - 15.0), [140.0, (y - 15.0)], [160.0, (y - 15.0)]),
+                    node(185.0, y),
+                ],
+                closed: false,
+                extra: Map::new(),
+            }],
+        );
+        let mut st = Stroke::new(4.0 * MM, Color::cmyk(1.0, 0.5, 0.0, 0.0));
+        st.nib_stretch = *stretch;
+        st.nib_angle = *angle;
+        st.cap = "round".into();
+        o.stroke = Some(st);
+        o.name = Some(format!("Bico {}%", (stretch * 100.0) as i32));
+        p.layers[0].objects.push(o);
+    }
+    for (i, pos) in ["inside", "center", "outside"].iter().enumerate() {
+        let mut r = rect(
+            &mut ids,
+            (205.0 + 30.0 * i as f64) * MM,
+            160.0 * MM,
+            22.0 * MM,
+            22.0 * MM,
+            Fill::solid(Color::cmyk(0.0, 0.0, 0.6, 0.0)),
+        );
+        let mut st = Stroke::new(3.0 * MM, black());
+        st.position = (*pos).into();
+        r.stroke = Some(st);
+        r.name = Some(format!("Posição {pos}"));
+        p.layers[0].objects.push(r);
+    }
+    for (i, (join, cap)) in [("miter", "butt"), ("round", "round"), ("bevel", "square")]
+        .iter()
+        .enumerate()
+    {
+        let x = 20.0 + 60.0 * i as f64;
+        let mut o = path(
+            &mut ids,
+            vec![Subpath {
+                nodes: vec![
+                    node(x, 40.0),
+                    node((x + 20.0), 80.0),
+                    node((x + 40.0), 40.0),
+                ],
+                closed: false,
+                extra: Map::new(),
+            }],
+        );
+        let mut st = Stroke::new(6.0 * MM, Color::cmyk(0.0, 0.8, 0.8, 0.0));
+        st.join = (*join).into();
+        st.cap = (*cap).into();
+        o.stroke = Some(st);
+        o.name = Some(format!("Canto {join}, ponta {cap}"));
+        p.layers[0].objects.push(o);
+    }
+    for (i, behind) in [false, true].iter().enumerate() {
+        let mut r = rect(
+            &mut ids,
+            (205.0 + 40.0 * i as f64) * MM,
+            40.0 * MM,
+            30.0 * MM,
+            30.0 * MM,
+            Fill::solid(Color::cmyk(0.0, 0.0, 1.0, 0.0)),
+        );
+        let mut st = Stroke::new(5.0 * MM, black());
+        st.behind_fill = *behind;
+        r.stroke = Some(st);
+        r.name = Some(if *behind {
+            "Atrás do preenchimento".into()
+        } else {
+            "Na frente".into()
+        });
+        p.layers[0].objects.push(r);
+    }
+    d.data.pages.push(p);
+    d
+}
+
+/// GD-TRA-02, GD-OBJ-05, GD-GUI-03, GD-TXT-09, GD-FIL-03 (opções) e
+/// textura: os 16 modos de mesclagem, dados do objeto, camada de guias,
+/// texto em caminho, gradiente com ponto médio, faixas e rota de cor e o
+/// padrão de textura.
+fn appearance() -> Document {
+    let mut ids = Ids::new(22);
+    let mut p = page(&mut ids, 297.0 * MM, 210.0 * MM);
+    let mut d = doc_with(vec![], "Aparência");
+    let back = rect(
+        &mut ids,
+        10.0 * MM,
+        120.0 * MM,
+        170.0 * MM,
+        80.0 * MM,
+        Fill::solid(Color::cmyk(0.0, 0.6, 1.0, 0.0)),
+    );
+    p.layers[0].objects.push(back);
+    for (i, b) in BlendMode::ALL.iter().enumerate() {
+        let (col, row) = (i % 8, i / 8);
+        let mut r = rect(
+            &mut ids,
+            (15.0 + 20.0 * col as f64) * MM,
+            (165.0 - 35.0 * row as f64) * MM,
+            16.0 * MM,
+            30.0 * MM,
+            Fill::solid(Color::cmyk(0.8, 0.0, 0.3, 0.0)),
+        );
+        r.blend = *b;
+        p.layers[0].objects.push(r);
+    }
+    let mut tagged = rect(
+        &mut ids,
+        200.0 * MM,
+        170.0 * MM,
+        30.0 * MM,
+        20.0 * MM,
+        Fill::solid(Color::cmyk(0.0, 0.0, 0.0, 0.3)),
+    );
+    tagged.user_data = Some(
+        [
+            ("cliente".to_string(), "Exemplo".to_string()),
+            ("pedido".to_string(), "123".to_string()),
+        ]
+        .into_iter()
+        .collect(),
+    );
+    tagged.name = Some("Com dados do objeto".into());
+    p.layers[0].objects.push(tagged);
+    let mut stops = vec![
+        GradientStop {
+            offset: 0.0,
+            color: Color::rgb(1.0, 0.0, 0.0),
+            opacity: 1.0,
+            midpoint: 0.25,
+            extra: Map::new(),
+        },
+        GradientStop {
+            offset: 1.0,
+            color: Color::rgb(0.0, 0.0, 1.0),
+            opacity: 1.0,
+            midpoint: 0.5,
+            extra: Map::new(),
+        },
+    ];
+    for (i, (steps, path)) in [(None, "direct"), (Some(8), "direct"), (None, "cw")]
+        .iter()
+        .enumerate()
+    {
+        let spec = graphdraw_core::edit::ops::GradientSpec {
+            kind: "linear".into(),
+            stops: stops.clone(),
+            steps: *steps,
+            color_path: (*path).into(),
+            ..Default::default()
+        };
+        let g = graphdraw_core::edit::ops::gradient_for(
+            &spec,
+            kurbo::Rect::new(0.0, 0.0, 80.0 * MM, 20.0 * MM),
+        );
+        let mut r = rect(
+            &mut ids,
+            200.0 * MM,
+            (130.0 - 25.0 * i as f64) * MM,
+            80.0 * MM,
+            20.0 * MM,
+            Fill::Gradient(g),
+        );
+        r.name = Some(format!(
+            "Gradiente {path} {}",
+            steps.map_or("contínuo".to_string(), |n| format!("{n} faixas"))
+        ));
+        p.layers[0].objects.push(r);
+    }
+    stops.clear();
+    let tex = Pattern {
+        kind: "texture".into(),
+        texture: Some(Texture {
+            style: "marble".into(),
+            seed: 7,
+            ..Texture::default()
+        }),
+        fg: Some(Color::cmyk(0.0, 0.0, 0.0, 0.8)),
+        bg: Some(Color::cmyk(0.0, 0.0, 0.0, 0.0)),
+        width: 40.0 * MM,
+        height: 40.0 * MM,
+        resolution: 150.0,
+        ..Pattern::default()
+    };
+    p.layers[0].objects.push(rect(
+        &mut ids,
+        200.0 * MM,
+        20.0 * MM,
+        80.0 * MM,
+        40.0 * MM,
+        Fill::Pattern(Box::new(tex)),
+    ));
+    // Texto em caminho sobre um arco.
+    let arc = vec![Subpath {
+        nodes: vec![
+            node(20.0, 40.0),
+            smooth(90.0, 90.0, [55.0, 90.0], [125.0, 90.0]),
+            node(160.0, 40.0),
+        ],
+        closed: false,
+        extra: Map::new(),
+    }];
+    let t = obj(
+        &mut ids,
+        ObjectKind::Text(TextData {
+            text_kind: "artistic".into(),
+            frame: None,
+            paragraphs: vec![Paragraph {
+                align: "left".into(),
+                spans: vec![span("Texto que segue o caminho", 18.0)],
+                extra: Map::new(),
+            }],
+            line_spacing: 1.2,
+            path: Some(TextPath {
+                subpaths: arc,
+                offset: 0.0,
+                distance: 1.0 * MM,
+                side: "above".into(),
+                orientation: "rotate".into(),
+                mirror: false,
+                guide: None,
+                detached: true,
+                extra: Map::new(),
+            }),
+            exclusions: Default::default(),
+            extra: Map::new(),
+        }),
+    );
+    p.layers[0].objects.push(t);
+    // Camada de guias: um círculo que vira guia (não imprime).
+    let mut g = layer(&mut ids, "Guias");
+    g.guides = true;
+    g.printable = false;
+    let mut c = obj(
+        &mut ids,
+        ObjectKind::Ellipse(EllipseData {
+            rx: 30.0 * MM,
+            ry: 30.0 * MM,
+            mode: "ellipse".into(),
+            start_angle: 0.0,
+            end_angle: 360.0,
+            extra: Map::new(),
+        }),
+    );
+    c.transform = Transform::translate(90.0 * MM, 60.0 * MM);
+    g.objects.push(c);
+    p.layers.push(g);
+    d.data.pages.push(p);
+    d
+}
+
 /// GD-OUT-03: tracejado nos cantos — padrão, alinhado e fixo.
 fn dash_corners() -> Document {
     let mut ids = Ids::new(19);
@@ -1246,6 +1613,9 @@ fn main() {
         ("text-wrap", text_wrap()),
         ("live-boolean", live_boolean()),
         ("dash-corners", dash_corners()),
+        ("shapes", shapes()),
+        ("strokes", strokes()),
+        ("appearance", appearance()),
     ];
     for (name, doc) in &docs {
         let path = dir.join(format!("{name}.gdr"));
