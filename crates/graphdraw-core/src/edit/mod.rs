@@ -10,6 +10,7 @@ pub mod dimension;
 pub mod drawing;
 pub mod eyedrop;
 pub mod fit;
+pub mod fonts;
 pub mod freexf;
 pub mod generate;
 pub mod gradtool;

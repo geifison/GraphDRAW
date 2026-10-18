@@ -16,6 +16,7 @@ mod doctabs;
 mod eyedrop;
 mod fillui;
 mod fontpicker;
+mod fontsui;
 mod guideui;
 mod i18n;
 mod icons;

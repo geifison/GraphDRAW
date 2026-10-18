@@ -20,6 +20,7 @@ basta ler o começo do arquivo para reconhecê-lo.
 | `metadata.json` | `title`, `author`, `keywords[]`, `notes`, `created`, `modified` (ISO 8601) |
 | `resources/colors.json` | `colors [{id, name, color}]` — cores globais/nomeadas |
 | `resources/images/<sha256>.<ext>` | imagens (PNG/JPEG/TIFF/WebP), nome = SHA-256 do conteúdo |
+| `resources/fonts/<sha256>.<ext>` | fontes inteiras (OTF/TTF/TTC) dos textos, gravadas com `settings.embedFonts` = `true` e só quando o fsType permite (instalável ou editável); ao ler, valem para o texto (GD-FNT-03) |
 | `thumbnails/page-1.png` | miniatura da primeira página, lado maior 256 px |
 
 Membros desconhecidos devem ser preservados por quem regrava o arquivo.

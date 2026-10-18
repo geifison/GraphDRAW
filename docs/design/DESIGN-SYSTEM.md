@@ -587,6 +587,16 @@ novos objetos.
   Sobreimprimir contorno.
 - **Rodapé**: OK, Cancelar e Ajuda (balão com a explicação).
 
+### 4.6.5 Fontes ausentes ao abrir (GD-FNT-02/03)
+
+Modal de `missing-fonts-width` = 640 px, depois de abrir um arquivo com
+fonte que não está instalada nem incorporada. Grade listrada: Fonte ·
+Textos (quantos) · O que fazer — Trocar por [lista das instaladas, a
+sugestão marcada com ★] · Converter em curvas · Manter (com dicas). A
+lista rola acima de `missing-fonts-list` = 320 px. Nota sobre ★ e sobre
+Arquivo → Incorporar fontes ao salvar. Rodapé: Aplicar (primário, um passo
+no histórico) e Manter todas (Esc).
+
 ### 4.6.2 Perfis de cor ao abrir (GD-CMS-04)
 
 - A janela Gerenciamento de cor ganha "Usar também como perfis de trabalho"

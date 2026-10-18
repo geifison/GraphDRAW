@@ -75,6 +75,7 @@
         },
         "guides": { "type": "array", "items": { "$ref": "#/$defs/guide" } },
         "fillOpenPaths": { "type": "boolean", "description": "Caminhos abertos recebem preenchimento (GD-FIL-12)." },
+        "embedFonts": { "type": "boolean" },
         "preflight": {
           "type": "object",
           "description": "Limites da verificação prévia (GD-PRE-02).",

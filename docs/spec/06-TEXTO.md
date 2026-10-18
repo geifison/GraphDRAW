@@ -27,7 +27,7 @@ Alinhamento (esquerda, centro, direita, justificado, forçado), recuos (primeira
 ## Fontes
 - **GD-FNT-01** Lista de fontes do sistema + pasta de fontes do usuário; prévia; filtros (serifa, monoespaçada, variável, script).
 - **GD-FNT-02** Fonte ausente ao abrir: substituição com mapeamento lembrado, aviso, texto preserva o nome original.
-- **GD-FNT-03** Incorporar fontes no `.gdr` (subconjunto) quando a licença permitir (fsType OS/2).
+- **GD-FNT-03** Incorporar fontes no `.gdr` — inteiras (P-11 a), quando a licença permitir (fsType OS/2: instalável ou editável); opção do documento, desligada por padrão. Ao abrir com fonte ausente: trocar (sugestão da mais parecida), converter em curvas ou manter.
 
 ## Ferramentas de texto
 - Inserir caractere especial (mapa Unicode), localizar/substituir (com atributos), estatísticas de texto, alterar caixa, colar texto sem formatação.

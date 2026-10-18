@@ -53,6 +53,10 @@ pub struct Settings {
     /// Caminhos abertos recebem preenchimento (GD-FIL-12).
     #[serde(default = "yes", skip_serializing_if = "is_true")]
     pub fill_open_paths: bool,
+    /// Incorporar as fontes inteiras ao salvar (GD-FNT-03), quando a licença
+    /// da fonte (fsType) permite: instalável ou editável.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub embed_fonts: bool,
     /// Limites da verificação prévia (GD-PRE-02).
     #[serde(default, skip_serializing_if = "is_default_preflight")]
     pub preflight: crate::preflight::PreflightSettings,
@@ -60,6 +64,9 @@ pub struct Settings {
     pub extra: Map<String, Value>,
 }
 
+fn is_false(b: &bool) -> bool {
+    !*b
+}
 fn is_true(b: &bool) -> bool {
     *b
 }
@@ -83,6 +90,7 @@ impl Default for Settings {
             color: Default::default(),
             preflight: Default::default(),
             fill_open_paths: true,
+            embed_fonts: false,
             guides: Vec::new(),
             extra: Map::new(),
         }

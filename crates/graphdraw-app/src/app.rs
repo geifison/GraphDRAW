@@ -204,6 +204,7 @@ pub struct App {
     cut_export: Option<crate::cutui::CutExport>,
     cut_line_dlg: Option<crate::cutui::CutLineDialog>,
     nest_dlg: Option<crate::cutui::NestDialog>,
+    fonts_dlg: Option<crate::fontsui::MissingFontsDialog>,
     nest_opts: graphdraw_core::edit::nest::NestOptions,
     /// Janela de gerenciamento de cor (GD-CMS-02).
     color_dlg: Option<crate::colorui::ColorDialog>,
@@ -290,6 +291,7 @@ impl App {
             cut_export: None,
             cut_line_dlg: None,
             nest_dlg: None,
+            fonts_dlg: None,
             nest_opts: Default::default(),
             color_dlg: None,
             preset_dlg: None,
@@ -709,6 +711,8 @@ impl App {
             self.active = 0;
         }
         self.style_dlg = None;
+        // Fontes ausentes (GD-FNT-02/03): trocar, curvas ou manter.
+        self.fonts_dlg = crate::fontsui::MissingFontsDialog::for_doc(&doc);
         self.doc = Some(doc);
         self.canvas = canvas;
         self.page_bar = Default::default();
@@ -2366,6 +2370,21 @@ impl App {
                 {
                     self.save(true);
                 }
+                if let Some(d) = &mut self.doc {
+                    let mut embed = d.doc().data.settings.embed_fonts;
+                    if ui
+                        .checkbox(&mut embed, tr("Incorporar fontes ao salvar", "Embed fonts when saving"))
+                        .on_hover_text(tr(
+                            "Leva as fontes inteiras dentro deste arquivo (só as que a licença permite), para abrir igual em outra máquina; o arquivo fica maior",
+                            "Carries the whole fonts inside this file (only those whose license allows it), to open the same on another machine; the file gets bigger",
+                        ))
+                        .changed()
+                    {
+                        d.editor.transaction(tr("Incorporar fontes", "Embed fonts"), |ed| {
+                            ed.edit_settings(|s| s.embed_fonts = embed)
+                        });
+                    }
+                }
                 ui.separator();
                 if ui
                     .add_enabled(
@@ -3559,6 +3578,11 @@ impl App {
     }
 
     fn dialogs(&mut self, ctx: &egui::Context) {
+        if let (Some(dlg), Some(doc)) = (&mut self.fonts_dlg, &mut self.doc)
+            && dlg.show(ctx, doc)
+        {
+            self.fonts_dlg = None;
+        }
         if let (Some(dlg), Some(doc)) = (&mut self.style_dlg, &self.doc) {
             dlg.set_palettes(|| self.palettes.all_lists(Some(doc)));
         }

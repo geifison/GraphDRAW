@@ -261,6 +261,10 @@ pub fn read_bytes(bytes: &[u8]) -> Result<(Document, ImportReport), Error> {
             }
             doc.images.insert(name, Arc::new(bytes));
         } else if !is_managed_member(&name) {
+            // Fonte incorporada (GD-FNT-03): passa a valer para o texto.
+            if name.starts_with("resources/fonts/") {
+                crate::render::text::register_font(&name, bytes.clone());
+            }
             doc.extra_members.insert(name, Arc::new(bytes));
         }
     }
@@ -269,6 +273,42 @@ pub fn read_bytes(bytes: &[u8]) -> Result<(Document, ImportReport), Error> {
     // Áreas do texto contornando objetos (derivadas, GD-TXT-10).
     crate::edit::textwrap::refresh_doc(&mut doc);
     Ok((doc, report))
+}
+
+/// Fontes usadas nos textos, inteiras, que a licença deixa incorporar
+/// (GD-FNT-03): `resources/fonts/<sha256>.<ext>` → bytes.
+pub fn embedded_fonts(doc: &Document) -> Vec<(String, Vec<u8>)> {
+    use sha2::Digest;
+    let mut want = std::collections::BTreeSet::new();
+    for page in &doc.data.pages {
+        for layer in &page.layers {
+            for obj in &layer.objects {
+                obj.walk(&mut |o| {
+                    if let ObjectKind::Text(t) = &o.kind {
+                        for p in &t.paragraphs {
+                            for s in &p.spans {
+                                want.insert((s.font.family.clone(), s.font.weight, s.font.italic));
+                            }
+                        }
+                    }
+                });
+            }
+        }
+    }
+    let mut out: Vec<(String, Vec<u8>)> = Vec::new();
+    for (family, weight, italic) in want {
+        if let Some((bytes, ext, ok)) = crate::render::text::font_file(&family, weight, italic)
+            && ok
+        {
+            let hash = sha2::Sha256::digest(&bytes);
+            let hex: String = hash.iter().map(|b| format!("{b:02x}")).collect();
+            let name = format!("resources/fonts/{hex}.{ext}");
+            if !out.iter().any(|(n, _)| *n == name) {
+                out.push((name, bytes));
+            }
+        }
+    }
+    out
 }
 
 /// Membros que o gravador regenera (não vão para `extra_members`).
@@ -384,6 +424,13 @@ pub fn write_bytes(doc: &Document, opts: &WriteOptions) -> Result<Vec<u8>, Error
     }
     for (name, bytes) in &doc.extra_members {
         entries.push((name.clone(), bytes.to_vec(), CompressionMethod::Deflated));
+    }
+    if doc.data.settings.embed_fonts {
+        for (name, bytes) in embedded_fonts(doc) {
+            if !doc.extra_members.contains_key(&name) {
+                entries.push((name, bytes, CompressionMethod::Deflated));
+            }
+        }
     }
     if opts.thumbnail
         && !doc.data.pages.is_empty()

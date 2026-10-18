@@ -13,7 +13,7 @@ resources/
   colors.json        cores nomeadas/globais, paletas do documento
   styles.json        (futuro)
   images/<sha256>.<ext>   bitmaps (PNG/JPEG/TIFF/WebP), deduplicados por hash
-  fonts/<sha256>.otf      subconjuntos de fontes incorporadas
+  fonts/<sha256>.<ext>    fontes inteiras incorporadas (otf/ttf/ttc, GD-FNT-03)
 thumbnails/
   page-1.png         miniatura 256 px (para explorador de arquivos)
 metadata.json        título, autor, datas, palavras-chave, notas

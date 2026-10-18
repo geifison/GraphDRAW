@@ -103,6 +103,10 @@ na fonte substituta.
 (instalável ou editável), aceitando arquivos maiores; (b) subconjunto com
 mapa de caracteres próprio (só para ver/imprimir, sem editar letras novas);
 ou (c) outra regra?
+**Resposta (2026-10-17):** (a), fonte inteira. Para não pesar todos os
+arquivos, é uma opção do documento (Arquivo → Incorporar fontes ao salvar,
+desligada por padrão); ao abrir um arquivo com fonte ausente, uma janela
+oferece trocar pela mais parecida, converter os textos em curvas ou manter.
 
 ## P-12 — Conta-gotas: fora da janela e Alt no gradiente (doc 27)
 **Contexto:**
@@ -122,3 +126,6 @@ ou (c) outra regra?
 **Pergunta:**
 - Pode entrar uma dependência de captura de tela por plataforma?
 - A regra do Alt serve?
+**Resposta (2026-10-17):** não; o conta-gotas fica só dentro da janela do
+programa (GD-CTG-04 fora da 1.0). A regra do Alt segue a decisão
+provisória.

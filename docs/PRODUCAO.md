@@ -58,7 +58,8 @@ Prioridade:
   - associação de `.gdr` (e `.cdr` opcional);
   - desinstalador;
   - a ponte libcdr e as DLLs junto.
-- [ ] Pacote Linux (AppImage ou .deb), se o Linux entrar na 1.0.
+- [x] ~~Pacote Linux~~ — decisão do responsável (2026-10-17): a 1.0 é só
+  Windows; o Linux fica para depois.
 - [x] Release no CI: gerar o instalador por tag, com o checksum (artefato
   do job; publicar como release do GitHub fica para quando houver o
   repositório público).
@@ -145,8 +146,10 @@ Para depois da 1.0, cada um com o motivo:
 - [ ] Hifenização (GD-TXT-07).
 - [ ] Corretor ortográfico (GD-TXT-08).
 - [ ] Desenho inteligente (GD-FER-27).
-- [ ] Fontes incorporadas no `.gdr` (GD-FNT-03; espera a resposta da
-  P-11).
-- [ ] Amostrar fora da janela (GD-CTG-04; espera a resposta da P-12).
+- [x] Fontes incorporadas no `.gdr` (GD-FNT-03, P-11 a): fonte inteira,
+  opcional por documento; ao abrir, janela de fontes ausentes (trocar,
+  curvas ou manter).
+- [x] ~~Amostrar fora da janela~~ (GD-CTG-04) — P-12: fica só dentro da
+  janela do programa; fora da 1.0.
 - [ ] Efeitos (doc 10), estilos (doc 11) e o resto que o MVP.md deixa de
   fora.

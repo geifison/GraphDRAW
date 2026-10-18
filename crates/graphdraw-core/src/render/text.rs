@@ -63,25 +63,83 @@ pub struct TextLayout {
     pub on_path: bool,
 }
 
-struct Fonts {
-    db: fontdb::Database,
-}
-
-fn fonts() -> &'static Fonts {
-    static FONTS: OnceLock<Fonts> = OnceLock::new();
+fn font_lock() -> &'static std::sync::RwLock<fontdb::Database> {
+    static FONTS: OnceLock<std::sync::RwLock<fontdb::Database>> = OnceLock::new();
     FONTS.get_or_init(|| {
         let mut db = fontdb::Database::new();
         db.load_system_fonts();
         if let Ok(dir) = std::env::var("GRAPHDRAW_FONT_DIR") {
             db.load_fonts_dir(dir);
         }
-        Fonts { db }
+        std::sync::RwLock::new(db)
+    })
+}
+
+/// Banco de fontes (as do sistema e as incorporadas nos documentos abertos).
+fn fonts() -> std::sync::RwLockReadGuard<'static, fontdb::Database> {
+    font_lock().read().unwrap_or_else(|e| e.into_inner())
+}
+
+/// Fontes incorporadas já registradas (pelo hash), para não repetir.
+fn registered() -> &'static std::sync::Mutex<std::collections::HashSet<String>> {
+    static R: OnceLock<std::sync::Mutex<std::collections::HashSet<String>>> = OnceLock::new();
+    R.get_or_init(Default::default)
+}
+
+/// Registra uma fonte incorporada no documento (GD-FNT-03); `key` é o nome
+/// do membro (com o hash). Devolve as famílias que ela trouxe.
+pub fn register_font(key: &str, data: Vec<u8>) -> Vec<String> {
+    if let Ok(mut r) = registered().lock() {
+        if !r.insert(key.to_string()) {
+            return Vec::new();
+        }
+    }
+    let mut db = font_lock().write().unwrap_or_else(|e| e.into_inner());
+    let before: std::collections::HashSet<fontdb::ID> = db.faces().map(|f| f.id).collect();
+    db.load_font_data(data);
+    db.faces()
+        .filter(|f| !before.contains(&f.id))
+        .filter_map(|f| f.families.first().map(|(n, _)| n.clone()))
+        .collect()
+}
+
+/// Permissão de incorporação (fsType do OS/2): pode ir inteira para o
+/// arquivo se for instalável ou editável (sem OS/2, instalável).
+pub fn embeddable(data: &[u8], index: u32) -> bool {
+    match ttf_parser::Face::parse(data, index)
+        .ok()
+        .and_then(|f| f.permissions())
+    {
+        None => true,
+        Some(p) => matches!(
+            p,
+            ttf_parser::Permissions::Installable | ttf_parser::Permissions::Editable
+        ),
+    }
+}
+
+/// Arquivo da fonte (inteiro) da família/estilo pedidos, se instalada sem
+/// substituição: bytes e extensão.
+pub fn font_file(family: &str, weight: u16, italic: bool) -> Option<(Vec<u8>, &'static str, bool)> {
+    let (id, _, substituted) = resolve_font(family, weight, italic)?;
+    if substituted {
+        return None;
+    }
+    fonts().with_face_data(id, |data, index| {
+        let ext = if data.starts_with(b"ttcf") {
+            "ttc"
+        } else if data.starts_with(b"OTTO") {
+            "otf"
+        } else {
+            "ttf"
+        };
+        (data.to_vec(), ext, embeddable(data, index))
     })
 }
 
 /// Fonte resolvida: (id da face, nome usado, era substituta?).
 fn resolve_font(family: &str, weight: u16, italic: bool) -> Option<(fontdb::ID, String, bool)> {
-    let db = &fonts().db;
+    let db = fonts();
     let style = if italic {
         fontdb::Style::Italic
     } else {
@@ -147,7 +205,7 @@ struct Shaped {
 
 /// Faz o shaping de `text`; glifos com origem na linha de base em (0,0).
 fn shape(id: fontdb::ID, text: &str, size: f64) -> Option<Shaped> {
-    fonts().db.with_face_data(id, |data, index| {
+    fonts().with_face_data(id, |data, index| {
         let face = rustybuzz::Face::from_slice(data, index)?;
         let scale = size / face.units_per_em() as f64;
         let mut buffer = rustybuzz::UnicodeBuffer::new();
@@ -208,7 +266,6 @@ pub fn family_outline(family: &str, text: &str, size: f64) -> Option<(BezPath, f
 /// mais leve ao mais pesado e o reto antes do itálico.
 pub fn font_styles(family: &str) -> Vec<(u16, bool)> {
     let mut v: Vec<(u16, bool)> = fonts()
-        .db
         .faces()
         .filter(|f| {
             f.families
@@ -245,7 +302,6 @@ pub fn style_name(weight: u16, italic: bool) -> String {
 /// Famílias de fonte instaladas, em ordem alfabética (GD-FNT-01).
 pub fn font_families() -> Vec<String> {
     let mut v: Vec<String> = fonts()
-        .db
         .faces()
         .filter_map(|f| f.families.first().map(|(n, _)| n.clone()))
         .collect();
@@ -256,13 +312,12 @@ pub fn font_families() -> Vec<String> {
 
 /// Dados da face da fonte usada num trecho (para incorporar no PDF).
 pub fn with_font_data<R>(id: fontdb::ID, f: impl FnOnce(&[u8], u32) -> R) -> Option<R> {
-    fonts().db.with_face_data(id, f)
+    fonts().with_face_data(id, f)
 }
 
 /// Nome PostScript da face (ou a família), para o PDF.
 pub fn font_postscript_name(id: fontdb::ID) -> String {
     fonts()
-        .db
         .face(id)
         .map(|f| {
             if f.post_script_name.is_empty() {
