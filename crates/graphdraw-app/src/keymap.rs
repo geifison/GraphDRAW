@@ -216,6 +216,7 @@ commands! {
     ToolEllipse = "tool.ellipse", "Ferramenta Elipse", "Ellipse tool", Tools, NotText, true;
     ToolArtboard = "tool.artboard", "Ferramenta Prancheta (tamanho da página)", "Artboard tool (page size)", Tools, NotText, true;
     ToolFreehand = "tool.freehand", "Ferramenta Mão Livre", "Freehand tool", Tools, NotText, true;
+    ToolSmartDraw = "tool.smart_draw", "Desenho inteligente", "Smart drawing", Tools, NotText, true;
     ToolPolyline = "tool.polyline", "Ferramenta Polilinha", "Polyline tool", Tools, NotText, true;
     ToolBSpline = "tool.bspline", "Ferramenta B-spline", "B-spline tool", Tools, NotText, true;
     ToolLine2 = "tool.line2", "Ferramenta Linha 2 pontos", "2-point line tool", Tools, NotText, true;

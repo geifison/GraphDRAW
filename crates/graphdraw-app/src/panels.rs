@@ -131,6 +131,28 @@ impl App {
                     );
                 })
             }
+            Tool::SmartDraw => widgets::single_line_bar(ui, "barra-desenho-inteligente", |ui| {
+                ui.label(tr("Reconhecimento", "Recognition"));
+                let mut v = self.canvas.smart_level * 100.0;
+                if ui
+                    .add(egui::Slider::new(&mut v, 0.0..=100.0).suffix(" %"))
+                    .on_hover_text(tr(
+                        "Baixo: só traços quase perfeitos viram forma; alto: aceita traços tortos",
+                        "Low: only near-perfect strokes become shapes; high: accepts crooked strokes",
+                    ))
+                    .changed()
+                {
+                    self.canvas.smart_level = v / 100.0;
+                }
+                ui.separator();
+                widgets::hint_line(
+                    ui,
+                    tr(
+                        "Desenhe à mão: retângulo, elipse, triângulo, reta ou seta (a ponta em V no fim); o resto fica à mão livre",
+                        "Draw by hand: rectangle, ellipse, triangle, line or arrow (the V tip at the end); anything else stays freehand",
+                    ),
+                );
+            }),
             Tool::Width => widgets::single_line_bar(ui, "barra-largura", |ui| {
                 let sel = doc.selection.clone();
                 let cur = sel

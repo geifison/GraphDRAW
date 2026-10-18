@@ -40,6 +40,8 @@ entre parênteses são os requisitos de `docs/spec/`.
   cores, suavizar e inverter; seletor de cor com roda de matiz, canais,
   hexadecimal, paletas com busca e conta-gotas na janela; amostra original
   × nova; F11 e Shift+F11.
+- Desenho inteligente: o traço à mão vira retângulo, elipse, triângulo,
+  reta ou seta, com nível de reconhecimento ajustável (GD-FER-27).
 - Hifenização no texto de parágrafo, com idioma: dicionário hyphen
   quando instalado, regras do português sem ele (GD-TXT-07).
 - Fontes: Arquivo → Incorporar fontes ao salvar leva as fontes inteiras no

@@ -23,6 +23,7 @@ pub mod pages;
 pub mod pagesize;
 pub mod palette;
 pub mod query;
+pub mod recognize;
 pub mod shapeops;
 pub mod smart;
 pub mod smartfill;

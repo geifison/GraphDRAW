@@ -587,6 +587,15 @@ novos objetos.
   Sobreimprimir contorno.
 - **Rodapé**: OK, Cancelar e Ajuda (balão com a explicação).
 
+### 4.6.7 Desenho inteligente (GD-FER-27)
+
+No grupo Curvas, depois da mão livre (ícone `tool-smart-draw`). Desenha
+como a mão livre; ao soltar, o traço vira retângulo, elipse, triângulo,
+reta ou seta (traço reto com a ponta em V desenhada no fim) com o estilo
+padrão; o que não for reconhecido fica à mão livre. A barra tem
+Reconhecimento % (baixo: só traços quase perfeitos; alto: aceita traços
+tortos) e a dica.
+
 ### 4.6.6 Hifenização (GD-TXT-07)
 
 Com texto de parágrafo selecionado, a barra de texto ganha, depois do texto

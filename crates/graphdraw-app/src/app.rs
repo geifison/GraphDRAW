@@ -2231,6 +2231,7 @@ impl App {
             C::ToolFreeTransform => self.set_tool(Tool::FreeTransform),
             C::ToolFreehand => self.set_tool(Tool::Freehand),
             C::ToolPolyline => self.set_tool(Tool::Polyline),
+            C::ToolSmartDraw => self.set_tool(Tool::SmartDraw),
             C::ToolBSpline => self.set_tool(Tool::BSpline),
             C::ToolLine2 => self.set_tool(Tool::Line2),
             C::ToolCurve3 => self.set_tool(Tool::Curve3),

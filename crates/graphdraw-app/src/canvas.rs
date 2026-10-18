@@ -80,6 +80,8 @@ pub enum Tool {
     BSpline,
     /// Largura variável (GD-VAR-01): arrastar no contorno muda a largura ali.
     Width,
+    /// Desenho inteligente (GD-FER-27): traço livre vira forma.
+    SmartDraw,
 }
 
 /// Cota sendo feita: tipo, pontos (página), ligações e segmento medido.
@@ -116,6 +118,17 @@ impl Tool {
                     crate::keymap::Command::ToolShape,
                 ),
                 "N",
+            ),
+            Tool::SmartDraw => (
+                "tool-smart-draw",
+                crate::keymap::hint(
+                    tr(
+                        "Desenho inteligente — desenhe à mão e o traço vira retângulo, elipse, triângulo, reta ou seta",
+                        "Smart drawing — draw by hand and the stroke becomes a rectangle, ellipse, triangle, line or arrow",
+                    ),
+                    crate::keymap::Command::ToolSmartDraw,
+                ),
+                "",
             ),
             Tool::Width => (
                 "tool-width",
@@ -364,7 +377,7 @@ impl Tool {
             ),
         }
     }
-    pub const ALL: [Tool; 27] = [
+    pub const ALL: [Tool; 28] = [
         Tool::Select,
         Tool::Shape,
         Tool::Zoom,
@@ -392,6 +405,7 @@ impl Tool {
         Tool::Connector,
         Tool::BSpline,
         Tool::Width,
+        Tool::SmartDraw,
     ];
 }
 
@@ -761,6 +775,9 @@ pub struct CanvasState {
     note: Option<String>,
     /// Suavização da mão livre (0–100) e modo da linha 2 pontos.
     pub freehand_smooth: f64,
+    /// Desenho inteligente: o traço atual é para reconhecer; nível 0–1.
+    smart_drawing: bool,
+    pub smart_level: f64,
     /// Esboço contínuo (GD-FER-29): ligado, tempo (s) e distância (px).
     pub sketch: bool,
     pub sketch_time: f64,
@@ -875,6 +892,8 @@ impl Default for CanvasState {
             crop_pending: None,
             note: None,
             freehand_smooth: 50.0,
+            smart_drawing: false,
+            smart_level: 0.5,
             sketch: false,
             sketch_time: 2.0,
             sketch_dist: 12.0,
@@ -2739,6 +2758,9 @@ impl CanvasState {
             Tool::Width => Glyph::Cross {
                 badge: "tool-width",
             },
+            Tool::SmartDraw => Glyph::Cross {
+                badge: "tool-smart-draw",
+            },
             Tool::FreeTransform => Glyph::Cross {
                 badge: "tool-free-transform",
             },
@@ -3474,7 +3496,8 @@ impl CanvasState {
                 self.drag = Drag::CropRect { start: p, cur: p };
             }
             Tool::Eraser => self.drag = Drag::Erase { pts: vec![p] },
-            Tool::Freehand => {
+            Tool::Freehand | Tool::SmartDraw => {
+                self.smart_drawing = tool == Tool::SmartDraw;
                 self.drag = Drag::Freehand {
                     pts: vec![p],
                     poly: false,
@@ -4067,6 +4090,91 @@ impl CanvasState {
         o.stroke = defaults.stroke.clone();
         if let Some(layer) = doc.layer_for_new_object() {
             let id = add_new(doc, layer, o, tr("Desenhar B-spline", "Draw B-spline"));
+            doc.selection = vec![id];
+        }
+    }
+
+    /// Desenho inteligente solto (GD-FER-27): a forma reconhecida, ou o
+    /// traço à mão livre se nada for reconhecido.
+    fn smart_end(&mut self, doc: &mut DocState, pts: &[Point], defaults: &Defaults) {
+        use graphdraw_core::edit::recognize::{Recognized, recognize};
+        use graphdraw_core::model::{EllipseData, RectData, Transform};
+        let Some(shape) = recognize(pts, self.smart_level) else {
+            self.freehand_end(doc, pts, defaults);
+            return;
+        };
+        let line = |nodes: Vec<Node>, closed: bool| {
+            Object::new(ObjectKind::Path(PathData {
+                subpaths: vec![Subpath {
+                    nodes,
+                    closed,
+                    extra: Map::new(),
+                }],
+                fill_rule: FillRule::Nonzero,
+                extra: Map::new(),
+            }))
+        };
+        let corner = |q: Point| Node::corner(q.x, q.y);
+        let (mut o, closed) = match shape {
+            Recognized::Rect {
+                center,
+                w,
+                h,
+                angle,
+            } => {
+                let mut o = Object::new(ObjectKind::Rectangle(RectData {
+                    width: w,
+                    height: h,
+                    corners: None,
+                    extra: Map::new(),
+                }));
+                o.transform = Transform::from_affine(
+                    Affine::translate(center.to_vec2())
+                        * Affine::rotate(angle)
+                        * Affine::translate((-w / 2.0, -h / 2.0)),
+                );
+                (o, true)
+            }
+            Recognized::Ellipse {
+                center,
+                rx,
+                ry,
+                angle,
+            } => {
+                let mut o = Object::new(ObjectKind::Ellipse(EllipseData {
+                    rx,
+                    ry,
+                    mode: "ellipse".into(),
+                    start_angle: 0.0,
+                    end_angle: 360.0,
+                    extra: Map::new(),
+                }));
+                o.transform = Transform::from_affine(
+                    Affine::translate(center.to_vec2()) * Affine::rotate(angle),
+                );
+                (o, true)
+            }
+            Recognized::Triangle(t) => (line(t.iter().map(|q| corner(*q)).collect(), true), true),
+            Recognized::Line(a, b) => (line(vec![corner(a), corner(b)], false), false),
+            Recognized::Arrow(a, b) => {
+                let mut o = line(vec![corner(a), corner(b)], false);
+                let mut st = defaults
+                    .stroke
+                    .clone()
+                    .unwrap_or_else(crate::doc::default_stroke);
+                st.end_arrow = Some(graphdraw_core::model::Arrow::new("triangle"));
+                o.stroke = Some(st);
+                (o, false)
+            }
+        };
+        if closed {
+            o.fill = defaults.fill.clone();
+        }
+        if o.stroke.is_none() {
+            o.stroke = defaults.stroke.clone();
+        }
+        if let Some(layer) = doc.layer_for_new_object() {
+            let id = add_new(doc, layer, o, tr("Desenho inteligente", "Smart drawing"));
             doc.selection = vec![id];
         }
     }
@@ -5540,6 +5648,8 @@ impl CanvasState {
                 pts.push(cur);
                 if poly {
                     self.polyline_stretch(&pts);
+                } else if std::mem::take(&mut self.smart_drawing) {
+                    self.smart_end(doc, &pts, defaults);
                 } else {
                     self.freehand_end(doc, &pts, defaults);
                 }
@@ -7709,6 +7819,78 @@ mod tests {
         canvas_frame(&ctx, &mut cs, &mut doc, Tool::Select, vec![]);
     }
 
+    /// GD-FER-27 na tela: um traço retangular vira retângulo; um rabisco
+    /// fica à mão livre.
+    #[test]
+    fn smart_draw_recognizes() {
+        let (ctx, mut cs, mut doc, _id, rect, ph) = bdr_setup();
+        let t = Tool::SmartDraw;
+        let stroke = |cs: &mut CanvasState, doc: &mut DocState, pts: &[(f64, f64)]| {
+            let mut all: Vec<Pos2> = Vec::new();
+            for w in pts.windows(2) {
+                for k in 0..10 {
+                    let f = k as f64 / 10.0;
+                    let q = Point::new(
+                        w[0].0 + (w[1].0 - w[0].0) * f,
+                        w[0].1 + (w[1].1 - w[0].1) * f,
+                    );
+                    all.push(cs.screen(rect, ph, q));
+                }
+            }
+            all.push(cs.screen(
+                rect,
+                ph,
+                Point::new(pts.last().unwrap().0, pts.last().unwrap().1),
+            ));
+            canvas_frame(&ctx, cs, doc, t, vec![egui::Event::PointerMoved(all[0])]);
+            canvas_frame(
+                &ctx,
+                cs,
+                doc,
+                t,
+                vec![button(all[0], PointerButton::Primary, true)],
+            );
+            for p in &all[1..] {
+                canvas_frame(&ctx, cs, doc, t, vec![egui::Event::PointerMoved(*p)]);
+            }
+            canvas_frame(
+                &ctx,
+                cs,
+                doc,
+                t,
+                vec![button(*all.last().unwrap(), PointerButton::Primary, false)],
+            );
+        };
+        stroke(
+            &mut cs,
+            &mut doc,
+            &[
+                (100_000.0, 150_000.0),
+                (160_000.0, 150_000.0),
+                (160_000.0, 190_000.0),
+                (100_000.0, 190_000.0),
+                (100_000.0, 150_500.0),
+            ],
+        );
+        let o = doc.page().layers[0].objects.last().unwrap();
+        assert!(matches!(o.kind, ObjectKind::Rectangle(_)), "{:?}", o.kind);
+        stroke(
+            &mut cs,
+            &mut doc,
+            &[
+                (20_000.0, 20_000.0),
+                (40_000.0, 80_000.0),
+                (60_000.0, 20_000.0),
+                (80_000.0, 80_000.0),
+            ],
+        );
+        let o = doc.page().layers[0].objects.last().unwrap();
+        assert!(
+            matches!(o.kind, ObjectKind::Path(_)),
+            "rabisco fica à mão livre"
+        );
+    }
+
     /// GD-FER-29 na tela: com o esboço contínuo, o segundo traço que começa
     /// no fim do primeiro vira o mesmo caminho; desligado, um objeto novo.
     #[test]
@@ -9429,7 +9611,8 @@ mod tests {
                 "mira+tool-smart-fill",
                 "mira+tool-connector",
                 "mira+tool-bspline",
-                "mira+tool-width"
+                "mira+tool-width",
+                "mira+tool-smart-draw"
             ]
         );
         assert_eq!(

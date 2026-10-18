@@ -151,7 +151,8 @@ Para depois da 1.0, cada um com o motivo:
   hyphen (`hyph_<idioma>.dic`) quando instalado, regras do português sem
   ele.
 - [ ] Corretor ortográfico (GD-TXT-08).
-- [ ] Desenho inteligente (GD-FER-27).
+- [x] Desenho inteligente (GD-FER-27): retângulo, elipse, triângulo, reta
+  e seta, com nível de reconhecimento.
 - [x] Fontes incorporadas no `.gdr` (GD-FNT-03, P-11 a): fonte inteira,
   opcional por documento; ao abrir, janela de fontes ausentes (trocar,
   curvas ou manter).
