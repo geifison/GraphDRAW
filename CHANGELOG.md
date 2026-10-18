@@ -47,6 +47,12 @@ entre parênteses são os requisitos de `docs/spec/`.
   cores, suavizar e inverter; seletor de cor com roda de matiz, canais,
   hexadecimal, paletas com busca e conta-gotas na janela; amostra original
   × nova; F11 e Shift+F11.
+- Ferramentas de efeito na caixa (grupo Efeitos): contorno, mistura, sombra
+  projetada, sombra de bloco e envelope, aplicados e ajustados arrastando
+  no objeto. A barra de propriedades edita todos os parâmetros — novos:
+  contorno até o centro, cantos e aceleração da cor; mistura com giro e
+  acelerações; tamanho da sombra; bloco em degradê e com perspectiva;
+  envelopes prontos — e tem Trocar efeito, Separar e Remover efeito.
 - Efeitos dinâmicos (menu Efeitos): contorno, mistura, sombra projetada,
   sombra de bloco e envelope; os parâmetros ficam na barra, o envelope se
   ajusta pelos 8 pontos na ferramenta Forma e Desagrupar congela o

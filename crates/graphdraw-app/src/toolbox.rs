@@ -198,6 +198,16 @@ pub fn slots() -> Vec<Slot> {
                 Variant::of(Tool::Eyedropper),
             ],
         ),
+        Slot::Group(
+            "efeitos",
+            vec![
+                Variant::of(Tool::FxContour),
+                Variant::of(Tool::FxBlend),
+                Variant::of(Tool::FxShadow),
+                Variant::of(Tool::FxBlock),
+                Variant::of(Tool::FxEnvelope),
+            ],
+        ),
         Slot::One(Tool::Artboard),
     ]
 }

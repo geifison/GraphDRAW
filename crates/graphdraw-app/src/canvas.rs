@@ -82,6 +82,13 @@ pub enum Tool {
     Width,
     /// Desenho inteligente (GD-FER-27): traço livre vira forma.
     SmartDraw,
+    /// Ferramentas de efeito (doc 10): arrastar no objeto cria ou ajusta o
+    /// efeito; o resto dos parâmetros fica na barra.
+    FxContour,
+    FxBlend,
+    FxShadow,
+    FxBlock,
+    FxEnvelope,
 }
 
 /// Cota sendo feita: tipo, pontos (página), ligações e segmento medido.
@@ -127,6 +134,61 @@ impl Tool {
                         "Smart drawing — draw by hand and the stroke becomes a rectangle, ellipse, triangle, line or arrow",
                     ),
                     crate::keymap::Command::ToolSmartDraw,
+                ),
+                "",
+            ),
+            Tool::FxContour => (
+                "tool-contour",
+                crate::keymap::hint(
+                    tr(
+                        "Contorno — arraste do objeto para fora ou para dentro",
+                        "Contour — drag from the object outwards or inwards",
+                    ),
+                    crate::keymap::Command::ToolFxContour,
+                ),
+                "",
+            ),
+            Tool::FxBlend => (
+                "tool-blend",
+                crate::keymap::hint(
+                    tr(
+                        "Mistura — arraste de um objeto até outro",
+                        "Blend — drag from one object to another",
+                    ),
+                    crate::keymap::Command::ToolFxBlend,
+                ),
+                "",
+            ),
+            Tool::FxShadow => (
+                "tool-shadow",
+                crate::keymap::hint(
+                    tr(
+                        "Sombra projetada — arraste do objeto até onde fica a sombra",
+                        "Drop shadow — drag from the object to where the shadow goes",
+                    ),
+                    crate::keymap::Command::ToolFxShadow,
+                ),
+                "",
+            ),
+            Tool::FxBlock => (
+                "tool-extrude",
+                crate::keymap::hint(
+                    tr(
+                        "Sombra de bloco — arraste para dar direção e volume",
+                        "Block shadow — drag to set direction and depth",
+                    ),
+                    crate::keymap::Command::ToolFxBlock,
+                ),
+                "",
+            ),
+            Tool::FxEnvelope => (
+                "tool-envelope",
+                crate::keymap::hint(
+                    tr(
+                        "Envelope — clique no objeto e arraste os 8 pontos",
+                        "Envelope — click the object and drag the 8 points",
+                    ),
+                    crate::keymap::Command::ToolFxEnvelope,
                 ),
                 "",
             ),
@@ -377,7 +439,7 @@ impl Tool {
             ),
         }
     }
-    pub const ALL: [Tool; 28] = [
+    pub const ALL: [Tool; 33] = [
         Tool::Select,
         Tool::Shape,
         Tool::Zoom,
@@ -406,7 +468,24 @@ impl Tool {
         Tool::BSpline,
         Tool::Width,
         Tool::SmartDraw,
+        Tool::FxContour,
+        Tool::FxBlend,
+        Tool::FxShadow,
+        Tool::FxBlock,
+        Tool::FxEnvelope,
     ];
+
+    /// Tipo do efeito da ferramenta interativa (doc 10).
+    pub fn effect_kind(self) -> Option<&'static str> {
+        Some(match self {
+            Tool::FxContour => "contour",
+            Tool::FxBlend => "blend",
+            Tool::FxShadow => "drop-shadow",
+            Tool::FxBlock => "block",
+            Tool::FxEnvelope => "envelope",
+            _ => return None,
+        })
+    }
 }
 
 /// Atributos aplicados aos objetos criados.
@@ -535,6 +614,17 @@ struct Menu {
 
 enum Drag {
     None,
+    /// Ferramenta de efeito: arrasto que cria ou ajusta o efeito do grupo
+    /// `gid`; a mistura liga `src` ao objeto onde o arrasto termina.
+    Effect {
+        kind: &'static str,
+        start: Point,
+        src: String,
+        gid: Option<String>,
+        base: Option<graphdraw_core::model::Effect>,
+        created: bool,
+        center: Point,
+    },
     /// Faca: pontos do traço (reta = início e ponto atual).
     Knife {
         pts: Vec<Point>,
@@ -988,6 +1078,172 @@ pub struct CanvasEvents {
 }
 
 impl CanvasState {
+    /// Ferramenta de efeito: arrastar a partir de um objeto cria o efeito
+    /// (ou ajusta o do mesmo tipo); a mistura vai de um objeto a outro; o
+    /// envelope arrasta os pontos. Fora dos objetos, seleção por área.
+    #[allow(clippy::too_many_arguments)]
+    fn start_effect_drag(
+        &mut self,
+        tool: Tool,
+        doc: &mut DocState,
+        p: Point,
+        origin: Pos2,
+        mods: egui::Modifiers,
+        tol: f64,
+        rect: Rect,
+        ph: f64,
+    ) {
+        use graphdraw_core::model::Effect;
+        let Some(kind) = tool.effect_kind() else {
+            return;
+        };
+        if tool == Tool::FxEnvelope {
+            if single_envelope(doc).is_some() {
+                self.start_shape_drag(doc, p, origin, mods, tol, rect, ph);
+            } else {
+                self.drag = Drag::Rubber {
+                    start: origin,
+                    lasso: None,
+                };
+            }
+            return;
+        }
+        let Some(id) = pick(doc, p, tol, false) else {
+            self.drag = Drag::Rubber {
+                start: origin,
+                lasso: None,
+            };
+            return;
+        };
+        let current = doc
+            .editor
+            .find(&id)
+            .and_then(|r| doc.editor.get(&r))
+            .and_then(|o| match &o.kind {
+                ObjectKind::Group(g) => g.effect.clone(),
+                _ => None,
+            });
+        let (gid, base, created) = match current {
+            Some(e) if e.kind() == kind => {
+                doc.editor.begin(tr("Ajustar efeito", "Adjust effect"));
+                (Some(id.clone()), Some(e), false)
+            }
+            _ if kind == "blend" => (None, None, true),
+            _ => {
+                doc.editor.begin(tr("Aplicar efeito", "Apply effect"));
+                let mut e = Effect::initial(kind).expect("tipo");
+                // O arrasto define o deslocamento (sombra) e o volume (bloco).
+                match &mut e {
+                    Effect::DropShadow { offset, .. } => *offset = [0.0, 0.0],
+                    Effect::Block { depth, .. } => *depth = 0.0,
+                    _ => {}
+                }
+                let g = graphdraw_core::edit::effects::apply(
+                    &mut doc.editor,
+                    std::slice::from_ref(&id),
+                    e.clone(),
+                );
+                (g, Some(e), true)
+            }
+        };
+        doc.selection = vec![gid.clone().unwrap_or_else(|| id.clone())];
+        let center = doc
+            .editor
+            .find(gid.as_deref().unwrap_or(&id))
+            .and_then(|r| ops::object_bounds(&doc.editor, &r, false))
+            .map_or(p, |b| b.center());
+        self.drag = Drag::Effect {
+            kind,
+            start: p,
+            src: id,
+            gid,
+            base,
+            created,
+            center,
+        };
+    }
+
+    /// Ferramentas de efeito: o vetor da sombra, do bloco ou do contorno do
+    /// grupo selecionado e a linha da mistura sendo puxada.
+    fn paint_effect(
+        &self,
+        painter: &egui::Painter,
+        doc: &DocState,
+        rect: Rect,
+        ph: f64,
+        tool: Tool,
+    ) {
+        use graphdraw_core::model::Effect;
+        let accent = theme::ACCENT_PRIMARY;
+        let stroke = EStroke::new(theme::FOCUS_WIDTH, accent);
+        if let Drag::Effect {
+            kind: "blend",
+            start,
+            ..
+        } = &self.drag
+            && let Some(c) = self.cursor_page
+        {
+            painter.add(egui::Shape::dashed_line(
+                &[self.screen(rect, ph, *start), self.screen(rect, ph, c)],
+                stroke,
+                6.0,
+                4.0,
+            ));
+            return;
+        }
+        let [id] = doc.selection.as_slice() else {
+            return;
+        };
+        let Some(r) = doc.editor.find(id) else { return };
+        let Some(o) = doc.editor.get(&r) else { return };
+        let ObjectKind::Group(g) = &o.kind else {
+            return;
+        };
+        let Some(e) = &g.effect else { return };
+        if Some(e.kind()) != tool.effect_kind() {
+            return;
+        }
+        let Some(b) = query::union_bounds(g.children.iter(), false) else {
+            return;
+        };
+        let m = doc.editor.parent_affine(&r) * o.transform.affine();
+        let c = b.center();
+        let (from, tip) = match e {
+            Effect::DropShadow { offset, .. } => (c, c + kurbo::Vec2::new(offset[0], offset[1])),
+            Effect::Block { angle, depth, .. } => {
+                let a = angle.to_radians();
+                (c, c + kurbo::Vec2::new(a.cos(), a.sin()) * *depth)
+            }
+            Effect::Contour {
+                direction,
+                steps,
+                distance,
+                ..
+            } => {
+                let d =
+                    distance * f64::from(*steps) * if direction == "outside" { 1.0 } else { -1.0 };
+                let edge = Point::new(b.x1, c.y);
+                (edge, edge + kurbo::Vec2::new(d, 0.0))
+            }
+            _ => return,
+        };
+        let (a, t) = (
+            self.screen(rect, ph, m * from),
+            self.screen(rect, ph, m * tip),
+        );
+        painter.line_segment([a, t], stroke);
+        for q in [a, t] {
+            let h = Rect::from_center_size(q, Vec2::splat(theme::HANDLE_SIZE));
+            painter.rect_filled(h, theme::RADIUS_XS, theme::HANDLE_FILL);
+            painter.rect_stroke(
+                h,
+                theme::RADIUS_XS,
+                handle_stroke(),
+                egui::StrokeKind::Middle,
+            );
+        }
+    }
+
     /// Novo documento: mantém encaixe e grade, zera vista e estado de arrasto.
     pub fn reset_for_new_document(&mut self) {
         let (snap, grid, extra) = (self.snap, self.show_grid, self.grid);
@@ -2767,6 +3023,21 @@ impl CanvasState {
             Tool::SmartDraw => Glyph::Cross {
                 badge: "tool-smart-draw",
             },
+            Tool::FxContour => Glyph::Cross {
+                badge: "tool-contour",
+            },
+            Tool::FxBlend => Glyph::Cross {
+                badge: "tool-blend",
+            },
+            Tool::FxShadow => Glyph::Cross {
+                badge: "tool-shadow",
+            },
+            Tool::FxBlock => Glyph::Cross {
+                badge: "tool-extrude",
+            },
+            Tool::FxEnvelope => Glyph::Cross {
+                badge: "tool-envelope",
+            },
             Tool::FreeTransform => Glyph::Cross {
                 badge: "tool-free-transform",
             },
@@ -3002,8 +3273,11 @@ impl CanvasState {
                 }
             }
         }
-        if tool == Tool::Shape {
+        if tool == Tool::Shape || (tool == Tool::FxEnvelope && single_envelope(doc).is_some()) {
             self.paint_nodes(painter, doc, rect, ph);
+        }
+        if tool.effect_kind().is_some() {
+            self.paint_effect(painter, doc, rect, ph, tool);
         }
         if tool == Tool::Gradient {
             self.paint_gradient(painter, doc, rect, ph);
@@ -3668,6 +3942,9 @@ impl CanvasState {
             | Tool::Dimension
             | Tool::SmartFill
             | Tool::BSpline => {}
+            Tool::FxContour | Tool::FxBlend | Tool::FxShadow | Tool::FxBlock | Tool::FxEnvelope => {
+                self.start_effect_drag(tool, doc, p, origin, mods, tol, rect, ph)
+            }
             Tool::Select => self.start_select_drag(doc, p, origin, mods, tol, rect, ph),
             Tool::Shape => self.start_shape_drag(doc, p, origin, mods, tol, rect, ph),
             Tool::Artboard => {
@@ -5616,6 +5893,26 @@ impl CanvasState {
                     doc.editor.replace_at(r, o);
                 }
             }
+            Drag::Effect {
+                start,
+                gid: Some(gid),
+                base: Some(base),
+                created,
+                center,
+                ..
+            } => {
+                if let Some(r) = doc.editor.find(gid)
+                    && let Some(mut o) = doc.editor.get(&r).cloned()
+                {
+                    let inv = (doc.editor.parent_affine(&r) * o.transform.affine()).inverse();
+                    let v = inv * cur - inv * *start;
+                    let out = inv * *start - inv * *center;
+                    if let ObjectKind::Group(g) = &mut o.kind {
+                        g.effect = Some(effect_from_drag(base, v, out, *created));
+                    }
+                    doc.editor.replace_at(&r, o);
+                }
+            }
             Drag::EnvelopePoint { index, r, original } => {
                 let m = doc.editor.parent_affine(r) * original.transform.affine();
                 let q = m.inverse() * cur;
@@ -5711,6 +6008,22 @@ impl CanvasState {
         self.smart_point = None;
         match drag {
             Drag::Knife { pts, .. } => self.knife_end(doc, &pts),
+            Drag::Effect { kind, src, gid, .. } => {
+                if kind == "blend" {
+                    let tol = 5.0 / self.view.zoom;
+                    if let Some(t) = pick(doc, cur, tol, false).filter(|t| *t != src)
+                        && let Some(g) = graphdraw_core::edit::effects::apply(
+                            &mut doc.editor,
+                            &[src, t],
+                            graphdraw_core::model::Effect::initial("blend").expect("tipo"),
+                        )
+                    {
+                        doc.selection = vec![g];
+                    }
+                } else if gid.is_some() {
+                    doc.editor.commit();
+                }
+            }
             Drag::Freehand { mut pts, poly } => {
                 pts.push(cur);
                 if poly {
@@ -6074,6 +6387,40 @@ impl CanvasState {
                 });
                 if !done {
                     ev.status = Some(tr("Clique sobre o contorno de um objeto", "Click on an object outline").into());
+                }
+            }
+            Tool::FxContour | Tool::FxBlend | Tool::FxShadow | Tool::FxBlock | Tool::FxEnvelope => {
+                match pick(doc, p, tol, false) {
+                    Some(id) => {
+                        let enveloped = doc
+                            .editor
+                            .find(&id)
+                            .and_then(|r| doc.editor.get(&r))
+                            .is_some_and(|o| {
+                                matches!(&o.kind, ObjectKind::Group(g)
+                                    if matches!(g.effect, Some(graphdraw_core::model::Effect::Envelope { .. })))
+                            });
+                        if tool == Tool::FxEnvelope && !enveloped {
+                            // Clique põe o envelope; os pontos aparecem em seguida.
+                            if let Some(g) = graphdraw_core::edit::effects::apply(
+                                &mut doc.editor,
+                                std::slice::from_ref(&id),
+                                graphdraw_core::model::Effect::initial("envelope").expect("tipo"),
+                            ) {
+                                doc.selection = vec![g];
+                            }
+                        } else if mods.shift {
+                            if let Some(i) = doc.selection.iter().position(|s| *s == id) {
+                                doc.selection.remove(i);
+                            } else {
+                                doc.selection.push(id);
+                            }
+                        } else {
+                            doc.selection = vec![id];
+                        }
+                    }
+                    None if !mods.shift => doc.selection.clear(),
+                    None => {}
                 }
             }
             Tool::Select => match self.pick_focus(doc, p, tol, mods.ctrl) {
@@ -6696,6 +7043,52 @@ fn width_target(doc: &DocState) -> Option<(ObjRef, Object, kurbo::BezPath, f64)>
         st.width
     };
     Some((r, o.clone(), path, (w / 2.0).max(1.0)))
+}
+
+/// Efeito ajustado pelo arrasto `v` (espaço do grupo); `out` vai do centro
+/// do efeito até onde o arrasto começou. Ao criar, o arrasto
+/// define o efeito do zero; ao ajustar, soma ao que havia.
+fn effect_from_drag(
+    base: &graphdraw_core::model::Effect,
+    v: kurbo::Vec2,
+    out: kurbo::Vec2,
+    created: bool,
+) -> graphdraw_core::model::Effect {
+    use graphdraw_core::model::Effect;
+    let mut e = base.clone();
+    match &mut e {
+        Effect::Contour {
+            direction,
+            steps,
+            distance,
+            ..
+        } => {
+            // Afastar do centro = para fora; aproximar = para dentro.
+            let s = (out + v).hypot() - out.hypot();
+            let n = f64::from((*steps).max(1));
+            if created {
+                *direction = if s >= 0.0 { "outside" } else { "inside" }.into();
+                *distance = (s.abs() / n).max(100.0);
+            } else {
+                let sign = if direction == "outside" { 1.0 } else { -1.0 };
+                *distance = (*distance + sign * s / n).max(100.0);
+            }
+        }
+        Effect::DropShadow { offset, .. } => {
+            offset[0] += v.x;
+            offset[1] += v.y;
+        }
+        Effect::Block { angle, depth, .. } => {
+            let a = angle.to_radians();
+            let b = kurbo::Vec2::new(a.cos(), a.sin()) * *depth + v;
+            *depth = b.hypot();
+            if *depth > 1e-6 {
+                *angle = b.y.atan2(b.x).to_degrees();
+            }
+        }
+        _ => {}
+    }
+    e
 }
 
 /// Envelope selecionado sozinho: referência, objeto, caixa, pontos e matriz.
@@ -7910,6 +8303,198 @@ mod tests {
 
     /// Envelope na tela: com a ferramenta Forma, arrastar o meio de cima
     /// sobe a borda e a forma cresce.
+    #[allow(clippy::too_many_arguments)]
+    fn fx_drag(
+        ctx: &egui::Context,
+        cs: &mut CanvasState,
+        doc: &mut DocState,
+        t: Tool,
+        rect: Rect,
+        ph: f64,
+        from: Point,
+        to: Point,
+    ) {
+        let (a, b) = (cs.screen(rect, ph, from), cs.screen(rect, ph, to));
+        canvas_frame(ctx, cs, doc, t, vec![egui::Event::PointerMoved(a)]);
+        canvas_frame(
+            ctx,
+            cs,
+            doc,
+            t,
+            vec![button(a, PointerButton::Primary, true)],
+        );
+        for k in 1..=4 {
+            canvas_frame(
+                ctx,
+                cs,
+                doc,
+                t,
+                vec![egui::Event::PointerMoved(a + (b - a) * (k as f32 / 4.0))],
+            );
+        }
+        canvas_frame(
+            ctx,
+            cs,
+            doc,
+            t,
+            vec![button(b, PointerButton::Primary, false)],
+        );
+    }
+
+    fn effect_of(doc: &DocState) -> Option<graphdraw_core::model::Effect> {
+        let [id] = doc.selection.as_slice() else {
+            return None;
+        };
+        match &doc.editor.get(&doc.editor.find(id)?)?.kind {
+            ObjectKind::Group(g) => g.effect.clone(),
+            _ => None,
+        }
+    }
+
+    /// Doc 10 na caixa de ferramentas: arrastar a partir do objeto cria a
+    /// sombra no ponto final e o bloco na direção do arrasto, num passo; um
+    /// segundo arrasto ajusta; a mistura liga dois objetos; o clique do
+    /// envelope põe o envelope.
+    #[test]
+    fn effect_tools_drag() {
+        use graphdraw_core::model::Effect;
+        let (ctx, mut cs, mut doc, _id, rect, ph) = bdr_setup();
+        let c = Point::new(60_000.0, 110_000.0);
+        let n = doc.editor.undo_len();
+        fx_drag(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::FxShadow,
+            rect,
+            ph,
+            c,
+            c + kurbo::Vec2::new(8_000.0, -6_000.0),
+        );
+        let Some(Effect::DropShadow { offset, .. }) = effect_of(&doc) else {
+            panic!("sem sombra")
+        };
+        assert!(
+            (offset[0] - 8_000.0).abs() < 600.0 && (offset[1] + 6_000.0).abs() < 600.0,
+            "{offset:?}"
+        );
+        assert_eq!(doc.editor.undo_len(), n + 1, "um passo");
+        // Ajuste: soma ao deslocamento.
+        fx_drag(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::FxShadow,
+            rect,
+            ph,
+            c,
+            c + kurbo::Vec2::new(20_000.0, 0.0),
+        );
+        let Some(Effect::DropShadow { offset, .. }) = effect_of(&doc) else {
+            panic!()
+        };
+        assert!((offset[0] - 28_000.0).abs() < 900.0, "{offset:?}");
+        // Remover volta ao retângulo solto.
+        let gid = doc.selection[0].clone();
+        doc.selection = graphdraw_core::edit::effects::remove(&mut doc.editor, &gid);
+        assert!(effect_of(&doc).is_none() && doc.editor.find(&gid).is_none());
+        // Bloco: direção e profundidade do arrasto.
+        fx_drag(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::FxBlock,
+            rect,
+            ph,
+            c,
+            c + kurbo::Vec2::new(0.0, -10_000.0),
+        );
+        let Some(Effect::Block { angle, depth, .. }) = effect_of(&doc) else {
+            panic!("sem bloco")
+        };
+        assert!(
+            (depth - 10_000.0).abs() < 900.0 && (angle + 90.0).abs() < 5.0,
+            "{angle} {depth}"
+        );
+        let gid = doc.selection[0].clone();
+        doc.selection = graphdraw_core::edit::effects::remove(&mut doc.editor, &gid);
+        // Contorno para fora.
+        fx_drag(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::FxContour,
+            rect,
+            ph,
+            c,
+            c + kurbo::Vec2::new(-15_000.0, 0.0),
+        );
+        let Some(Effect::Contour {
+            direction,
+            distance,
+            ..
+        }) = effect_of(&doc)
+        else {
+            panic!("sem contorno")
+        };
+        assert_eq!(direction, "outside");
+        assert!(distance > 1_000.0, "{distance}");
+        let gid = doc.selection[0].clone();
+        doc.selection = graphdraw_core::edit::effects::remove(&mut doc.editor, &gid);
+        // Mistura: de um objeto a outro.
+        let mut o2 = Object::new(ObjectKind::Rectangle(RectData {
+            width: 10_000.0,
+            height: 10_000.0,
+            corners: None,
+            extra: Map::new(),
+        }));
+        o2.transform = graphdraw_core::model::Transform::translate(120_000.0, 100_000.0);
+        o2.fill = Some(Fill::solid(graphdraw_core::model::Color::rgb(
+            1.0, 0.0, 0.0,
+        )));
+        ops::add_object(&mut doc.editor, 0, 0, o2, "b");
+        fx_drag(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::FxBlend,
+            rect,
+            ph,
+            c,
+            Point::new(125_000.0, 105_000.0),
+        );
+        assert!(
+            matches!(effect_of(&doc), Some(Effect::Blend { .. })),
+            "mistura"
+        );
+        // Envelope: clique põe o envelope e os pontos aparecem.
+        let gid = doc.selection[0].clone();
+        doc.selection = graphdraw_core::edit::effects::remove(&mut doc.editor, &gid);
+        let p = cs.screen(rect, ph, c);
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::FxEnvelope,
+            vec![egui::Event::PointerMoved(p)],
+        );
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::FxEnvelope,
+            vec![button(p, PointerButton::Primary, true)],
+        );
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            Tool::FxEnvelope,
+            vec![button(p, PointerButton::Primary, false)],
+        );
+        assert!(single_envelope(&doc).is_some(), "envelope aplicado");
+    }
+
     #[test]
     fn envelope_point_drag() {
         let (ctx, mut cs, mut doc, id, rect, ph) = bdr_setup();
@@ -9757,7 +10342,12 @@ mod tests {
                 "mira+tool-connector",
                 "mira+tool-bspline",
                 "mira+tool-width",
-                "mira+tool-smart-draw"
+                "mira+tool-smart-draw",
+                "mira+tool-contour",
+                "mira+tool-blend",
+                "mira+tool-shadow",
+                "mira+tool-extrude",
+                "mira+tool-envelope"
             ]
         );
         assert_eq!(

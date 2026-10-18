@@ -619,6 +619,12 @@ vazia mostra a dica em `text-weak`. Cada ação é um passo do histórico.
 
 ### 4.6.9 Efeitos (doc 10)
 
+A barra do efeito selecionado começa pelo tipo (lista para trocar),
+Separar e **Remover efeito** (texto em `accent-danger`) e segue com todos
+os parâmetros (doc 10, GD-EFX-02): acelerações em controle deslizante de
+−100 a 100, porcentagens em campo com " %", cores na amostra com o seletor
+no balão, prontos do envelope em botões.
+
 Menu Efeitos, depois de Objeto: Contorno, Mistura (dois objetos),
 Sombra projetada, Sombra de bloco, Envelope e a nota de que Desagrupar
 separa (congela) o efeito. Cada um cria o grupo com valores iniciais
@@ -741,6 +747,13 @@ Aba **Verificação** (ícone `preflight`) no painel direito:
     - na ferramenta Formato, os pontos da B-spline selecionada são alças:
       arrastar move, duplo clique fixa/solta.
   - **Medidas** (depois de Texto): Cota e Conector.
+  - **Efeitos** (antes da Prancheta; ícones `tool-contour`, `tool-blend`,
+    `tool-shadow`, `tool-extrude`, `tool-envelope`): arrastar a partir do
+    objeto cria ou ajusta o efeito (doc 10, GD-EFX-01); a mistura vai de um
+    objeto a outro; o envelope põe-se com um clique. Com o efeito do tipo
+    selecionado, a tela mostra o vetor dele em `accent-primary`
+    (`focus-width`) com alças nas pontas; a linha da mistura sendo puxada é
+    tracejada.
   - **Formato**: Forma e Largura (ícone `tool-width`):
     - arrastar no contorno do objeto selecionado põe ou ajusta um nó de
       largura ali: a distância do cursor à linha é a meia espessura;

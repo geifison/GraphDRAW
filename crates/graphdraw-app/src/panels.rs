@@ -77,6 +77,10 @@ impl App {
         let hint = |ui: &mut egui::Ui, t: &str| widgets::hint_line(ui, t);
         match self.tool {
             Tool::Shape => widgets::single_line_bar(ui, "barra-forma", |ui| shape_bar(ui, doc)),
+            Tool::FxContour | Tool::FxBlend | Tool::FxShadow | Tool::FxBlock | Tool::FxEnvelope => {
+                let t = self.tool;
+                widgets::single_line_bar(ui, "barra-efeito", |ui| fx_tool_bar(ui, doc, t));
+            }
             Tool::SolidFill => hint(
                 ui,
                 tr(
@@ -525,7 +529,7 @@ impl App {
                     symmetry_bar(ui, doc);
                     wrap_bar(ui, doc);
                     live_boolean_bar(ui, doc);
-                    effect_bar(ui, doc);
+                    effect_params(ui, doc, true);
                 });
             }
         }
@@ -3950,11 +3954,86 @@ fn bar_color(
     out
 }
 
-/// Efeito dinâmico selecionado (doc 10): os parâmetros na barra.
-fn effect_bar(ui: &mut egui::Ui, doc: &mut DocState) {
-    use graphdraw_core::model::Effect;
-    let [gid] = doc.selection.as_slice() else {
+/// Nome do efeito na barra.
+fn effect_label(kind: &str) -> &'static str {
+    match kind {
+        "contour" => tr("Contorno", "Contour"),
+        "blend" => tr("Mistura", "Blend"),
+        "drop-shadow" => tr("Sombra projetada", "Drop shadow"),
+        "block" => tr("Sombra de bloco", "Block shadow"),
+        _ => tr("Envelope", "Envelope"),
+    }
+}
+
+const EFFECT_KINDS: [&str; 5] = ["contour", "blend", "drop-shadow", "block", "envelope"];
+
+/// Barra das ferramentas de efeito: os parâmetros do efeito selecionado
+/// ou, sem ele, Aplicar à seleção e a dica do arrasto.
+fn fx_tool_bar(ui: &mut egui::Ui, doc: &mut DocState, tool: Tool) {
+    let Some(kind) = tool.effect_kind() else {
         return;
+    };
+    if effect_params(ui, doc, false) {
+        return;
+    }
+    let n = doc.selection.len();
+    let ok = if kind == "blend" { n == 2 } else { n >= 1 };
+    ui.strong(effect_label(kind));
+    if ui
+        .add_enabled(ok, egui::Button::new(tr("Aplicar", "Apply")))
+        .on_hover_text(tr(
+            "Aplica com os valores iniciais à seleção",
+            "Applies with the initial values to the selection",
+        ))
+        .on_disabled_hover_text(if kind == "blend" {
+            tr("Selecione dois objetos", "Select two objects")
+        } else {
+            tr("Selecione um objeto", "Select an object")
+        })
+        .clicked()
+        && let Some(e) = graphdraw_core::model::Effect::initial(kind)
+    {
+        let sel = doc.selection.clone();
+        if let Some(g) = graphdraw_core::edit::effects::apply(&mut doc.editor, &sel, e) {
+            doc.selection = vec![g];
+        }
+    }
+    ui.separator();
+    widgets::hint_line(
+        ui,
+        match kind {
+            "contour" => tr(
+                "Arraste do objeto para fora ou para dentro: a distância vira o espaço entre os anéis",
+                "Drag from the object outwards or inwards: the distance becomes the ring spacing",
+            ),
+            "blend" => tr(
+                "Arraste de um objeto até outro para misturá-los, ou selecione dois e use Aplicar",
+                "Drag from one object to another to blend them, or select two and use Apply",
+            ),
+            "drop-shadow" => tr(
+                "Arraste a partir do objeto: onde o arrasto termina fica a sombra",
+                "Drag from the object: the shadow goes where the drag ends",
+            ),
+            "block" => tr(
+                "Arraste a partir do objeto: a direção e o comprimento dão o volume",
+                "Drag from the object: direction and length set the depth",
+            ),
+            _ => tr(
+                "Clique num objeto para pôr o envelope; arraste os 8 pontos para deformar",
+                "Click an object to add the envelope; drag the 8 points to distort",
+            ),
+        },
+    );
+}
+
+/// Efeito dinâmico selecionado (doc 10): todos os parâmetros, trocar o
+/// tipo, Remover efeito (volta aos objetos) e Separar (congela). Devolve
+/// `true` quando havia um efeito.
+fn effect_params(ui: &mut egui::Ui, doc: &mut DocState, lead: bool) -> bool {
+    use graphdraw_core::edit::effects;
+    use graphdraw_core::model::{Color, Effect};
+    let [gid] = doc.selection.as_slice() else {
+        return false;
     };
     let gid = gid.clone();
     let Some(ObjectKind::Group(g)) = doc
@@ -3963,12 +4042,59 @@ fn effect_bar(ui: &mut egui::Ui, doc: &mut DocState) {
         .and_then(|r| doc.editor.get(&r))
         .map(|o| &o.kind)
     else {
-        return;
+        return false;
     };
     let Some(cur) = g.effect.clone() else {
-        return;
+        return false;
     };
+    let children = g.children.len();
     let mut e = cur.clone();
+    if lead {
+        ui.separator();
+    }
+    // Tipo: trocar por outro efeito sobre os mesmos objetos.
+    let mut kind = cur.kind();
+    egui::ComboBox::from_id_salt("fx-tipo")
+        .selected_text(effect_label(kind))
+        .show_ui(ui, |ui| {
+            for k in EFFECT_KINDS {
+                let ok = k != "blend" || children >= 2;
+                ui.add_enabled_ui(ok, |ui| ui.selectable_value(&mut kind, k, effect_label(k)));
+            }
+        });
+    if kind != cur.kind()
+        && let Some(n) = Effect::initial(kind)
+    {
+        effects::set(&mut doc.editor, &gid, n);
+        return true;
+    }
+    let mut done = None;
+    if ui
+        .button(tr("Separar", "Separate"))
+        .on_hover_text(tr(
+            "Congela o resultado em objetos comuns (como Desagrupar)",
+            "Freezes the result into plain objects (like Ungroup)",
+        ))
+        .clicked()
+    {
+        done = Some(ops::ungroup(&mut doc.editor, std::slice::from_ref(&gid)));
+    }
+    if ui
+        .add(egui::Button::new(
+            egui::RichText::new(tr("Remover efeito", "Remove effect")).color(theme::ACCENT_DANGER),
+        ))
+        .on_hover_text(tr(
+            "Volta aos objetos originais, sem o efeito",
+            "Back to the original objects, without the effect",
+        ))
+        .clicked()
+    {
+        done = Some(effects::remove(&mut doc.editor, &gid));
+    }
+    if let Some(sel) = done {
+        doc.selection = sel;
+        return true;
+    }
     ui.separator();
     let num = |ui: &mut egui::Ui, label: &str, v: &mut u32, max: u32| {
         ui.label(label);
@@ -3979,70 +4105,181 @@ fn effect_bar(ui: &mut egui::Ui, doc: &mut DocState) {
             *v = x;
         }
     };
+    let accel = |ui: &mut egui::Ui, label: &str, tip: &str, v: &mut f64| {
+        ui.label(label);
+        ui.add(
+            egui::Slider::new(v, -100.0..=100.0)
+                .show_value(true)
+                .max_decimals(0),
+        )
+        .on_hover_text(tip);
+    };
+    let pct = |ui: &mut egui::Ui, tip: &str, v: &mut f64, max: f64| {
+        let mut p = *v * 100.0;
+        if ui
+            .add(egui::DragValue::new(&mut p).range(0.0..=max).suffix(" %"))
+            .on_hover_text(tip)
+            .changed()
+        {
+            *v = p / 100.0;
+        }
+    };
     match &mut e {
         Effect::Contour {
             direction,
             steps,
             distance,
             end_color,
+            corners,
+            accel: ca,
         } => {
-            ui.strong(tr("Contorno", "Contour"));
-            for (k, l) in [
-                ("outside", tr("Para fora", "Outside")),
-                ("inside", tr("Para dentro", "Inside")),
+            for (k, l, tip) in [
+                (
+                    "outside",
+                    tr("Para fora", "Outside"),
+                    tr("Anéis em volta do objeto", "Rings around the object"),
+                ),
+                (
+                    "inside",
+                    tr("Para dentro", "Inside"),
+                    tr("Anéis dentro do objeto", "Rings inside the object"),
+                ),
+                (
+                    "center",
+                    tr("Até o centro", "To center"),
+                    tr("Para dentro até fechar", "Inwards until it closes"),
+                ),
             ] {
-                if ui.selectable_label(direction == k, l).clicked() {
+                if ui
+                    .selectable_label(direction == k, l)
+                    .on_hover_text(tip)
+                    .clicked()
+                {
                     *direction = k.into();
                 }
             }
-            num(ui, tr("Passos", "Steps"), steps, 200);
+            ui.add_enabled_ui(direction != "center", |ui| {
+                num(ui, tr("Passos", "Steps"), steps, 200)
+            });
             len(ui, tr("Distância", "Distance"), "fx-dist", distance);
+            ui.separator();
+            ui.label(tr("Cantos", "Corners"));
+            for (k, l) in [
+                ("round", tr("Redondos", "Round")),
+                ("miter", tr("Vivos", "Miter")),
+                ("bevel", tr("Chanfrados", "Bevel")),
+            ] {
+                if ui.selectable_label(corners == k, l).clicked() {
+                    *corners = k.into();
+                }
+            }
+            ui.separator();
             let mut on = end_color.is_some();
             if ui.checkbox(&mut on, tr("Cor final", "End color")).changed() {
-                *end_color = on.then(|| graphdraw_core::model::Color::cmyk(0.0, 0.0, 0.0, 1.0));
+                *end_color = on.then(|| Color::cmyk(0.0, 0.0, 0.0, 1.0));
             }
             if let Some(c) = end_color.clone()
                 && let Some(n) = bar_color(ui, "fx-fim", &c)
             {
                 *end_color = Some(n);
             }
+            ui.add_enabled_ui(end_color.is_some(), |ui| {
+                accel(
+                    ui,
+                    tr("Aceleração", "Acceleration"),
+                    tr(
+                        "Como a cor anda até a final",
+                        "How the color moves to the end one",
+                    ),
+                    ca,
+                )
+            });
         }
-        Effect::Blend { steps } => {
-            ui.strong(tr("Mistura", "Blend"));
+        Effect::Blend {
+            steps,
+            rotation,
+            accel: oa,
+            color_accel,
+        } => {
             num(ui, tr("Passos", "Steps"), steps, 500);
+            ui.label(tr("Giro", "Rotation"));
+            ui.add(
+                egui::DragValue::new(rotation)
+                    .range(-3600.0..=3600.0)
+                    .suffix("°"),
+            )
+            .on_hover_text(tr(
+                "Giro total dos passos, do primeiro ao último",
+                "Total rotation across the steps",
+            ));
+            accel(
+                ui,
+                tr("Objetos", "Objects"),
+                tr("Aceleração do espaçamento", "Spacing acceleration"),
+                oa,
+            );
+            accel(
+                ui,
+                tr("Cor", "Color"),
+                tr("Aceleração da cor", "Color acceleration"),
+                color_accel,
+            );
+            if ui
+                .button(tr("Inverter", "Reverse"))
+                .on_hover_text(tr(
+                    "Troca a ordem dos dois objetos",
+                    "Swaps the order of the two objects",
+                ))
+                .clicked()
+            {
+                ops::modify(
+                    &mut doc.editor,
+                    std::slice::from_ref(&gid),
+                    tr("Inverter mistura", "Reverse blend"),
+                    |o| {
+                        if let ObjectKind::Group(g) = &mut o.kind
+                            && g.children.len() >= 2
+                        {
+                            g.children.swap(0, 1);
+                            return true;
+                        }
+                        false
+                    },
+                );
+            }
         }
         Effect::DropShadow {
             offset,
             blur,
             color,
             opacity,
+            scale,
         } => {
-            ui.strong(tr("Sombra", "Shadow"));
             len(ui, "X", "fx-sx", &mut offset[0]);
             len(ui, "Y", "fx-sy", &mut offset[1]);
             len(ui, tr("Desfoque", "Blur"), "fx-blur", blur);
             if let Some(n) = bar_color(ui, "fx-sombra", &color.clone()) {
                 *color = n;
             }
-            let mut pct = *opacity * 100.0;
-            if ui
-                .add(
-                    egui::DragValue::new(&mut pct)
-                        .range(0.0..=100.0)
-                        .suffix(" %"),
-                )
-                .on_hover_text(tr("Opacidade", "Opacity"))
-                .changed()
-            {
-                *opacity = pct / 100.0;
-            }
+            pct(ui, tr("Opacidade", "Opacity"), opacity, 100.0);
+            ui.label(tr("Tamanho", "Size"));
+            pct(
+                ui,
+                tr(
+                    "Tamanho da sombra em relação ao objeto",
+                    "Shadow size relative to the object",
+                ),
+                scale,
+                2000.0,
+            );
         }
         Effect::Block {
             angle,
             depth,
             color,
+            end_color,
+            taper,
         } => {
-            ui.strong(tr("Bloco", "Block"));
             ui.label(tr("Direção", "Direction"));
             ui.add(
                 egui::DragValue::new(angle)
@@ -4050,12 +4287,66 @@ fn effect_bar(ui: &mut egui::Ui, doc: &mut DocState) {
                     .suffix("°"),
             );
             len(ui, tr("Profundidade", "Depth"), "fx-depth", depth);
+            ui.separator();
+            ui.label(if end_color.is_some() {
+                tr("Frente", "Front")
+            } else {
+                tr("Cor", "Color")
+            });
             if let Some(n) = bar_color(ui, "fx-bloco", &color.clone()) {
                 *color = n;
             }
+            let mut on = end_color.is_some();
+            if ui
+                .checkbox(&mut on, tr("Degradê", "Shaded"))
+                .on_hover_text(tr(
+                    "Cor da frente até a do fundo",
+                    "From the front color to the back one",
+                ))
+                .changed()
+            {
+                *end_color = on.then(|| Color::cmyk(0.0, 0.0, 0.0, 1.0));
+            }
+            if let Some(c) = end_color.clone()
+                && let Some(n) = bar_color(ui, "fx-bloco-fundo", &c)
+            {
+                *end_color = Some(n);
+            }
+            ui.separator();
+            ui.label(tr("Perspectiva", "Perspective"));
+            pct(
+                ui,
+                tr(
+                    "Tamanho do fundo: 100% = paralelo; menos some ao longe",
+                    "Back size: 100% = parallel; less vanishes",
+                ),
+                taper,
+                400.0,
+            );
         }
         Effect::Envelope { frame, points } => {
-            ui.strong(tr("Envelope", "Envelope"));
+            let key = ui.make_persistent_id("fx-env-quanto");
+            let mut amount: f64 = ui.data(|d| d.get_temp(key)).unwrap_or(0.2);
+            for (k, l) in [
+                ("arc-up", tr("Arco ↑", "Arc ↑")),
+                ("arc-down", tr("Arco ↓", "Arc ↓")),
+                ("bulge", tr("Inflar", "Bulge")),
+                ("pinch", tr("Apertar", "Pinch")),
+                ("wave", tr("Onda", "Wave")),
+                ("flag", tr("Bandeira", "Flag")),
+                ("perspective", tr("Perspectiva", "Perspective")),
+            ] {
+                if ui.button(l).clicked() {
+                    *points = effects::envelope_preset(*frame, k, amount);
+                }
+            }
+            pct(
+                ui,
+                tr("Intensidade dos prontos", "Preset strength"),
+                &mut amount,
+                100.0,
+            );
+            ui.data_mut(|d| d.insert_temp(key, amount));
             if ui
                 .button(tr("Restaurar", "Reset"))
                 .on_hover_text(tr(
@@ -4064,17 +4355,10 @@ fn effect_bar(ui: &mut egui::Ui, doc: &mut DocState) {
                 ))
                 .clicked()
             {
-                *points = graphdraw_core::edit::effects::envelope_points(kurbo::Rect::new(
+                *points = effects::envelope_points(kurbo::Rect::new(
                     frame[0], frame[1], frame[2], frame[3],
                 ));
             }
-            widgets::hint_line(
-                ui,
-                tr(
-                    "Arraste os 8 pontos com a ferramenta Forma",
-                    "Drag the 8 points with the Shape tool",
-                ),
-            );
         }
     }
     if e != cur {
@@ -4091,6 +4375,7 @@ fn effect_bar(ui: &mut egui::Ui, doc: &mut DocState) {
             },
         );
     }
+    true
 }
 
 /// Booleana não destrutiva selecionada: trocar a operação.

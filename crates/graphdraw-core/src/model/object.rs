@@ -208,13 +208,19 @@ pub struct GroupData {
     pub extra: Map<String, Value>,
 }
 
-/// Efeito dinâmico do grupo (doc 10). Medidas em µm, ângulos em graus.
-/// `contour`: `direction` = `outside`/`inside`, `steps` anéis a cada
-/// `distance`, cor da origem até `endColor`; `blend`: `steps` passos do
-/// primeiro ao segundo filho; `drop-shadow`: `offset`, `blur`, `color`,
-/// `opacity`; `block`: volume na direção `angle` com `depth`;
-/// `envelope`: a caixa `frame` (x0, y0, x1, y1) deformada pelos 8 `points`
-/// (cantos e meios, do canto de baixo à esquerda, sentido anti-horário).
+/// Efeito dinâmico do grupo (doc 10). Medidas em µm, ângulos em graus,
+/// acelerações de −100 a 100 (0 = linear).
+/// - `contour`: `direction` = `outside`/`inside`/`center` (para dentro até
+///   fechar), `steps` anéis a cada `distance`, cantos `corners`
+///   (`round`/`miter`/`bevel`), cor da origem até `endColor` com `accel`;
+/// - `blend`: `steps` passos do primeiro ao segundo filho, `rotation` total
+///   dos passos, `accel` no espaçamento e `colorAccel` na cor;
+/// - `drop-shadow`: `offset`, `blur`, `color`, `opacity`, `scale` (tamanho
+///   da sombra em relação à forma);
+/// - `block`: volume na direção `angle` com `depth`, `color` na frente até
+///   `endColor` no fundo (degradê) e `taper` (escala do fundo; 1 = paralelo);
+/// - `envelope`: a caixa `frame` (x0, y0, x1, y1) deformada pelos 8 `points`
+///   (cantos e meios, do canto de baixo à esquerda, sentido anti-horário).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum Effect {
@@ -226,9 +232,20 @@ pub enum Effect {
         distance: f64,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         end_color: Option<crate::model::Color>,
+        #[serde(default = "round", skip_serializing_if = "is_round")]
+        corners: String,
+        #[serde(default, skip_serializing_if = "fx_zero")]
+        accel: f64,
     },
+    #[serde(rename_all = "camelCase")]
     Blend {
         steps: u32,
+        #[serde(default, skip_serializing_if = "fx_zero")]
+        rotation: f64,
+        #[serde(default, skip_serializing_if = "fx_zero")]
+        accel: f64,
+        #[serde(default, skip_serializing_if = "fx_zero")]
+        color_accel: f64,
     },
     #[serde(rename_all = "camelCase")]
     DropShadow {
@@ -237,16 +254,92 @@ pub enum Effect {
         color: crate::model::Color,
         #[serde(default = "half")]
         opacity: f64,
+        #[serde(default = "fx_one", skip_serializing_if = "fx_is_one")]
+        scale: f64,
     },
+    #[serde(rename_all = "camelCase")]
     Block {
         angle: f64,
         depth: f64,
         color: crate::model::Color,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        end_color: Option<crate::model::Color>,
+        #[serde(default = "fx_one", skip_serializing_if = "fx_is_one")]
+        taper: f64,
     },
     Envelope {
         frame: [f64; 4],
         points: [[f64; 2]; 8],
     },
+}
+
+impl Effect {
+    /// Efeito com os valores iniciais (doc 10) pelo nome do tipo.
+    pub fn initial(kind: &str) -> Option<Effect> {
+        use crate::model::Color;
+        Some(match kind {
+            "contour" => Effect::Contour {
+                direction: "outside".into(),
+                steps: 3,
+                distance: 2_000.0,
+                end_color: None,
+                corners: "round".into(),
+                accel: 0.0,
+            },
+            "blend" => Effect::Blend {
+                steps: 8,
+                rotation: 0.0,
+                accel: 0.0,
+                color_accel: 0.0,
+            },
+            "drop-shadow" => Effect::DropShadow {
+                offset: [2_000.0, -2_000.0],
+                blur: 3_000.0,
+                color: Color::cmyk(0.0, 0.0, 0.0, 1.0),
+                opacity: 0.5,
+                scale: 1.0,
+            },
+            "block" => Effect::Block {
+                angle: -45.0,
+                depth: 5_000.0,
+                color: Color::cmyk(0.0, 0.0, 0.0, 0.6),
+                end_color: None,
+                taper: 1.0,
+            },
+            "envelope" => Effect::Envelope {
+                frame: [0.0; 4],
+                points: [[0.0; 2]; 8],
+            },
+            _ => return None,
+        })
+    }
+
+    /// Nome do tipo (`contour`, `blend`, …).
+    pub fn kind(&self) -> &'static str {
+        match self {
+            Effect::Contour { .. } => "contour",
+            Effect::Blend { .. } => "blend",
+            Effect::DropShadow { .. } => "drop-shadow",
+            Effect::Block { .. } => "block",
+            Effect::Envelope { .. } => "envelope",
+        }
+    }
+}
+
+fn round() -> String {
+    "round".into()
+}
+fn is_round(s: &str) -> bool {
+    s == "round"
+}
+fn fx_zero(v: &f64) -> bool {
+    *v == 0.0
+}
+fn fx_one() -> f64 {
+    1.0
+}
+fn fx_is_one(v: &f64) -> bool {
+    *v == 1.0
 }
 
 fn outside() -> String {

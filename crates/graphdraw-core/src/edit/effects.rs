@@ -45,18 +45,24 @@ fn lerp_color(a: &Color, b: &Color, t: f64) -> Color {
     )
 }
 
-fn fill_of(o: &mut Object, c: Color) {
-    o.fill = Some(Fill::solid(c));
+/// Curva de aceleração (−100 a 100; 0 = linear) aplicada a t ∈ [0, 1].
+pub fn accel_curve(t: f64, accel: f64) -> f64 {
+    t.clamp(0.0, 1.0)
+        .powf(2f64.powf(accel.clamp(-100.0, 100.0) / 50.0))
 }
 
-fn translate(s: &Shapes, d: Vec2) -> Shapes {
+fn map_shapes(s: &Shapes, f: impl Fn([f64; 2]) -> [f64; 2]) -> Shapes {
     s.iter()
         .map(|sh| {
             sh.iter()
-                .map(|c| c.iter().map(|p| [p[0] + d.x, p[1] + d.y]).collect())
+                .map(|c| c.iter().map(|p| f(*p)).collect())
                 .collect()
         })
         .collect()
+}
+
+fn fill_of(o: &mut Object, c: Color) {
+    o.fill = Some(Fill::solid(c));
 }
 
 /// Primeiro anel externo da forma, como pontos.
@@ -232,6 +238,8 @@ pub fn expand(g: &GroupData) -> Vec<Object> {
             steps,
             distance,
             end_color,
+            corners,
+            accel,
         } => {
             let Some(src) = g.children.first() else {
                 return Vec::new();
@@ -239,19 +247,34 @@ pub fn expand(g: &GroupData) -> Vec<Object> {
             let base = union_all(g.children.iter().map(|c| region(c, Affine::IDENTITY)));
             let c0 = solid_color(src).unwrap_or_else(Color::black);
             let c1 = end_color.clone().unwrap_or_else(|| c0.clone());
-            let outside = direction != "inside";
-            let n = (*steps).clamp(1, 200);
-            let mut rings: Vec<Object> = (1..=n)
-                .filter_map(|k| {
-                    let d = distance.abs() * k as f64 * if outside { 1.0 } else { -1.0 };
-                    let s = offset_region(&base, d, Join::Round);
-                    if s.is_empty() {
-                        return None;
-                    }
-                    let mut o = path_object(&shapes_to_path(&s), src, FillRule::Nonzero);
+            let center = direction == "center";
+            let outside = direction == "outside";
+            let join = match corners.as_str() {
+                "miter" => Join::Miter,
+                "bevel" => Join::Bevel,
+                _ => Join::Round,
+            };
+            // Até o centro: passos até a forma fechar (no máximo 200).
+            let n = if center { 200 } else { (*steps).clamp(1, 200) };
+            let mut shapes = Vec::new();
+            for k in 1..=n {
+                let d = distance.abs().max(1.0) * k as f64 * if outside { 1.0 } else { -1.0 };
+                let s = offset_region(&base, d, join);
+                if s.is_empty() {
+                    break;
+                }
+                shapes.push(s);
+            }
+            let total = shapes.len().max(1) as f64;
+            let mut rings: Vec<Object> = shapes
+                .iter()
+                .enumerate()
+                .map(|(i, s)| {
+                    let mut o = path_object(&shapes_to_path(s), src, FillRule::Nonzero);
                     o.transform = crate::model::Transform::IDENTITY;
-                    fill_of(&mut o, lerp_color(&c0, &c1, k as f64 / n as f64));
-                    Some(o)
+                    let t = accel_curve((i + 1) as f64 / total, *accel);
+                    fill_of(&mut o, lerp_color(&c0, &c1, t));
+                    o
                 })
                 .collect();
             if outside {
@@ -265,7 +288,12 @@ pub fn expand(g: &GroupData) -> Vec<Object> {
                 v
             }
         }
-        Effect::Blend { steps } => {
+        Effect::Blend {
+            steps,
+            rotation,
+            accel,
+            color_accel,
+        } => {
             let (Some(a), Some(b)) = (g.children.first(), g.children.get(1)) else {
                 return g.children.clone();
             };
@@ -302,15 +330,25 @@ pub fn expand(g: &GroupData) -> Vec<Object> {
             let n = (*steps).clamp(1, 500);
             let mut out = vec![a.clone()];
             for k in 1..=n {
-                let t = k as f64 / (n + 1) as f64;
-                let pts: Vec<Point> = pa
+                let u = k as f64 / (n + 1) as f64;
+                let t = accel_curve(u, *accel);
+                let tc = accel_curve(u, *color_accel);
+                let mut pts: Vec<Point> = pa
                     .iter()
                     .zip(&pb)
                     .map(|(p, q)| *p + (*q - *p) * t)
                     .collect();
+                if *rotation != 0.0 {
+                    // Giro em torno do centro do passo, proporcional a ele.
+                    let c = pts.iter().fold(Vec2::ZERO, |s, p| s + p.to_vec2()) / pts.len() as f64;
+                    let r = Affine::rotate_about((rotation * t).to_radians(), c.to_point());
+                    for p in &mut pts {
+                        *p = r * *p;
+                    }
+                }
                 let mut o = polygon_object(&pts, a);
                 if a.fill.is_some() || b.fill.is_some() {
-                    fill_of(&mut o, lerp_color(&ca_col, &cb_col, t));
+                    fill_of(&mut o, lerp_color(&ca_col, &cb_col, tc));
                 }
                 if let (Some(sa), Some(sb)) = (&a.stroke, &b.stroke) {
                     let mut s = sa.clone();
@@ -329,34 +367,55 @@ pub fn expand(g: &GroupData) -> Vec<Object> {
             angle,
             depth,
             color,
+            end_color,
+            taper,
         } => {
             let base = union_all(g.children.iter().map(|c| region(c, Affine::IDENTITY)));
             let a = angle.to_radians();
             let d = Vec2::new(a.cos(), a.sin()) * *depth;
-            // Varredura: a forma, a forma deslocada e um quadrilátero por aresta.
-            let mut parts = vec![base.clone(), translate(&base, d)];
-            for sh in &base {
-                for c in sh {
-                    let n = c.len();
-                    for i in 0..n {
-                        let (p, q) = (c[i], c[(i + 1) % n]);
-                        parts.push(vec![vec![vec![
-                            p,
-                            q,
-                            [q[0] + d.x, q[1] + d.y],
-                            [p[0] + d.x, p[1] + d.y],
-                        ]]]);
-                    }
-                }
-            }
-            let sweep = union_all(parts);
+            let c = shapes_to_path(&base).bounding_box().center();
+            let taper = taper.clamp(0.0, 4.0);
+            // Ponto da forma na fatia u (0 = frente, 1 = fundo).
+            let at = |p: [f64; 2], u: f64| {
+                let k = 1.0 + (taper - 1.0) * u;
+                [
+                    c.x + (p[0] - c.x) * k + d.x * u,
+                    c.y + (p[1] - c.y) * k + d.y * u,
+                ]
+            };
+            // Degradê: fatias da frente ao fundo; sem ele, uma só.
+            let n = if end_color.is_some() { 24 } else { 1 };
+            let c1 = end_color.clone().unwrap_or_else(|| color.clone());
             let mut out = Vec::new();
             if let Some(src) = g.children.first() {
-                let mut o = path_object(&shapes_to_path(&sweep), src, FillRule::Nonzero);
-                o.transform = crate::model::Transform::IDENTITY;
-                fill_of(&mut o, color.clone());
-                o.stroke = None;
-                out.push(o);
+                for j in (0..n).rev() {
+                    let (u0, u1) = (j as f64 / n as f64, (j + 1) as f64 / n as f64);
+                    // Varredura do trecho: as duas faces e um quadrilátero por aresta.
+                    let mut parts = vec![
+                        map_shapes(&base, |p| at(p, u0)),
+                        map_shapes(&base, |p| at(p, u1)),
+                    ];
+                    for sh in &base {
+                        for ring in sh {
+                            let m = ring.len();
+                            for i in 0..m {
+                                let (p, q) = (ring[i], ring[(i + 1) % m]);
+                                parts.push(vec![vec![vec![
+                                    at(p, u0),
+                                    at(q, u0),
+                                    at(q, u1),
+                                    at(p, u1),
+                                ]]]);
+                            }
+                        }
+                    }
+                    let sweep = union_all(parts);
+                    let mut o = path_object(&shapes_to_path(&sweep), src, FillRule::Nonzero);
+                    o.transform = crate::model::Transform::IDENTITY;
+                    fill_of(&mut o, lerp_color(color, &c1, (u0 + u1) / 2.0));
+                    o.stroke = None;
+                    out.push(o);
+                }
             }
             out.extend(g.children.iter().cloned());
             out
@@ -379,6 +438,7 @@ pub fn shadow_image(g: &GroupData, m: Affine) -> Option<(u32, u32, Vec<u8>, Affi
         blur,
         color,
         opacity,
+        scale,
     }) = &g.effect
     else {
         return None;
@@ -441,7 +501,15 @@ pub fn shadow_image(g: &GroupData, m: Affine) -> Option<(u32, u32, Vec<u8>, Affi
         rgba.extend([q(cr), q(cg), q(cb), q(v as f64 * opacity)]);
     }
     let (wu, hu) = (w as f64 * um_per_px, h as f64 * um_per_px);
-    let t = Affine::translate((b.x0 + offset[0], b.y1 - hu + offset[1]));
+    let mut t = Affine::translate((b.x0 + offset[0], b.y1 - hu + offset[1]));
+    if (*scale - 1.0).abs() > 1e-9 {
+        // Tamanho da sombra em torno do centro dela.
+        let c = b.center() + Vec2::new(offset[0], offset[1]);
+        t = Affine::translate(c.to_vec2())
+            * Affine::scale(scale.clamp(0.05, 20.0))
+            * Affine::translate(-c.to_vec2())
+            * t;
+    }
     Some((w, h, rgba, t, wu, hu))
 }
 
@@ -466,6 +534,104 @@ fn box_blur(a: &mut [f32], w: usize, h: usize, r: usize) {
             s += col(y + r + 1) - col(y.saturating_sub(r));
         }
     }
+}
+
+/// Remove o efeito sem congelar: os objetos de origem voltam soltos, como
+/// antes de aplicar, num passo. Devolve a seleção.
+pub fn remove(ed: &mut Editor, gid: &str) -> Vec<String> {
+    let mut out = vec![gid.to_string()];
+    ed.transaction("Remover efeito", |ed| {
+        super::ops::modify(ed, &[gid.to_string()], "Remover efeito", |o| {
+            if let ObjectKind::Group(g) = &mut o.kind {
+                g.effect = None;
+                return true;
+            }
+            false
+        });
+        out = super::ops::ungroup(ed, &[gid.to_string()]);
+    });
+    out
+}
+
+/// Troca o efeito do grupo (outro tipo ou outros parâmetros), num passo.
+/// O envelope novo (caixa zerada) começa na caixa do conteúdo.
+pub fn set(ed: &mut Editor, gid: &str, effect: Effect) {
+    let effect = match effect {
+        Effect::Envelope { frame, .. } if frame == [0.0; 4] => {
+            let b = ed
+                .find(gid)
+                .and_then(|r| ed.get(&r))
+                .and_then(|o| match &o.kind {
+                    ObjectKind::Group(g) => super::query::union_bounds(g.children.iter(), false),
+                    _ => None,
+                })
+                .unwrap_or(Rect::new(0.0, 0.0, 1.0, 1.0));
+            Effect::Envelope {
+                frame: [b.x0, b.y0, b.x1, b.y1],
+                points: envelope_points(b),
+            }
+        }
+        e => e,
+    };
+    super::ops::modify(ed, &[gid.to_string()], "Efeito", |o| {
+        if let ObjectKind::Group(g) = &mut o.kind {
+            g.effect = Some(effect.clone());
+            return true;
+        }
+        false
+    });
+}
+
+/// Envelopes prontos: `arc-up`, `arc-down`, `bulge`, `pinch`, `wave`,
+/// `perspective`, `flag`; `amount` em fração do lado.
+pub fn envelope_preset(frame: [f64; 4], preset: &str, amount: f64) -> [[f64; 2]; 8] {
+    let b = Rect::new(frame[0], frame[1], frame[2], frame[3]);
+    let mut p = envelope_points(b);
+    let (h, w) = (b.height() * amount, b.width() * amount);
+    match preset {
+        "arc-up" => {
+            p[5][1] += h;
+            p[1][1] += h;
+        }
+        "arc-down" => {
+            p[5][1] -= h;
+            p[1][1] -= h;
+        }
+        "bulge" => {
+            p[5][1] += h;
+            p[1][1] -= h;
+            p[3][0] += w;
+            p[7][0] -= w;
+        }
+        "pinch" => {
+            p[5][1] -= h;
+            p[1][1] += h;
+            p[3][0] -= w;
+            p[7][0] += w;
+        }
+        "wave" => {
+            p[5][1] += h;
+            p[1][1] -= h;
+            p[4][1] -= h * 0.5;
+            p[6][1] += h * 0.5;
+            p[0][1] += h * 0.5;
+            p[2][1] -= h * 0.5;
+        }
+        "perspective" => {
+            // Lado direito menor (fuga para a direita).
+            p[4][1] -= h;
+            p[2][1] += h;
+            p[3][0] -= w * 0.2;
+        }
+        "flag" => {
+            p[5][1] += h;
+            p[1][1] += h;
+            p[4][1] -= h * 0.5;
+            p[2][1] -= h * 0.5;
+        }
+        _ => {}
+    }
+    p
 }
 
 /// Aplica o efeito: agrupa `sel` (ou envolve um objeto só) num grupo com o
@@ -606,6 +772,118 @@ mod tests {
     }
 
     #[test]
+    fn extended_parameters() {
+        // Contorno até o centro: para sozinho quando a forma fecha.
+        let g = group(
+            vec![sq(0.0, 100_000.0, Color::rgb(1.0, 0.0, 0.0))],
+            Effect::Contour {
+                direction: "center".into(),
+                steps: 1,
+                distance: 10_000.0,
+                end_color: Some(Color::rgb(0.0, 0.0, 1.0)),
+                corners: "miter".into(),
+                accel: 50.0,
+            },
+        );
+        assert_eq!(expand(&g).len(), 1 + 4);
+        assert!(
+            (accel_curve(0.5, 50.0) - 0.25).abs() < 1e-9
+                && (accel_curve(0.5, 0.0) - 0.5).abs() < 1e-9
+        );
+        // Bloco em degradê com perspectiva: fatias e fundo menor.
+        let g = group(
+            vec![sq(0.0, 100.0, Color::black())],
+            Effect::Block {
+                angle: 0.0,
+                depth: 100.0,
+                color: Color::rgb(1.0, 0.0, 0.0),
+                end_color: Some(Color::rgb(0.0, 0.0, 1.0)),
+                taper: 0.5,
+            },
+        );
+        let v = expand(&g);
+        assert_eq!(v.len(), 24 + 1);
+        let far = bbox(&v[0]);
+        assert!(
+            (far.height() - 100.0 * (1.0 - 0.5 * (24.0 - 1.0) / 24.0)).abs() < 30.0,
+            "{far:?}"
+        );
+        // Mistura com giro: o passo do meio gira.
+        let g = group(
+            vec![
+                sq(0.0, 100.0, Color::black()),
+                sq(400.0, 100.0, Color::black()),
+            ],
+            Effect::Blend {
+                steps: 1,
+                rotation: 90.0,
+                accel: 0.0,
+                color_accel: 0.0,
+            },
+        );
+        let mid = bbox(&expand(&g)[1]);
+        assert!(mid.width() > 130.0, "girado 45°: {mid:?}");
+        // Sombra no dobro do tamanho.
+        let g = group(
+            vec![sq(0.0, 10_000.0, Color::black())],
+            Effect::DropShadow {
+                offset: [0.0, 0.0],
+                blur: 0.0,
+                color: Color::black(),
+                opacity: 1.0,
+                scale: 2.0,
+            },
+        );
+        let (_, _, _, t, wu, _) = shadow_image(&g, Affine::IDENTITY).unwrap();
+        let w = (t * Point::new(wu, 0.0) - t * Point::new(0.0, 0.0)).hypot();
+        assert!((w - 2.0 * wu).abs() < 1.0);
+        // Envelope pronto: o arco sobe o meio de cima.
+        let f = [0.0, 0.0, 100.0, 50.0];
+        let p = envelope_preset(f, "arc-up", 0.2);
+        assert!((p[5][1] - 60.0).abs() < 1e-9 && (p[1][1] - 10.0).abs() < 1e-9);
+        // Campos novos no JSON e arquivo antigo sem eles.
+        let o = Object::new(ObjectKind::Group(g));
+        assert_eq!(Object::from_value(o.to_value()), o);
+        let old: Effect = serde_json::from_str(
+            r#"{"kind":"block","angle":10,"depth":5,"color":{"model":"rgb","values":[0,0,0]}}"#,
+        )
+        .unwrap();
+        assert!(matches!(old, Effect::Block { taper, end_color: None, .. } if taper == 1.0));
+    }
+
+    #[test]
+    fn remove_and_switch() {
+        let mut d = Document::new();
+        d.data.pages.push(Page::new(100_000.0, 100_000.0));
+        let mut ed = Editor::new(d);
+        let id =
+            super::super::ops::add_object(&mut ed, 0, 0, sq(0.0, 10_000.0, Color::black()), "q");
+        let gid = apply(
+            &mut ed,
+            std::slice::from_ref(&id),
+            Effect::initial("contour").unwrap(),
+        )
+        .unwrap();
+        set(&mut ed, &gid, Effect::initial("envelope").unwrap());
+        let Some(ObjectKind::Group(g)) = ed
+            .find(&gid)
+            .and_then(|r| ed.get(&r))
+            .map(|o| o.kind.clone())
+        else {
+            panic!()
+        };
+        assert!(
+            matches!(g.effect, Some(Effect::Envelope { frame, .. }) if frame[2] > 9_000.0),
+            "caixa do conteúdo"
+        );
+        let n = ed.undo_len();
+        let back = remove(&mut ed, &gid);
+        assert_eq!(back, vec![id.clone()], "o objeto original volta");
+        assert_eq!(ed.undo_len(), n + 1, "um passo");
+        assert!(ed.find(&gid).is_none());
+    }
+
+    #[test]
     fn contour_outside_and_inside() {
         let g = group(
             vec![sq(0.0, 100_000.0, Color::rgb(1.0, 0.0, 0.0))],
@@ -614,6 +892,8 @@ mod tests {
                 steps: 3,
                 distance: 10_000.0,
                 end_color: Some(Color::rgb(0.0, 0.0, 1.0)),
+                corners: "round".into(),
+                accel: 0.0,
             },
         );
         let v = expand(&g);
@@ -631,6 +911,8 @@ mod tests {
                 steps: 10,
                 distance: 10_000.0,
                 end_color: None,
+                corners: "round".into(),
+                accel: 0.0,
             },
         );
         // Para dentro: a partir de 50 a forma some.
@@ -644,7 +926,12 @@ mod tests {
                 sq(0.0, 100.0, Color::rgb(1.0, 0.0, 0.0)),
                 sq(400.0, 50.0, Color::rgb(0.0, 0.0, 1.0)),
             ],
-            Effect::Blend { steps: 3 },
+            Effect::Blend {
+                steps: 3,
+                rotation: 0.0,
+                accel: 0.0,
+                color_accel: 0.0,
+            },
         );
         let v = expand(&g);
         assert_eq!(v.len(), 5);
@@ -666,6 +953,8 @@ mod tests {
                 angle: -45.0,
                 depth: 50.0,
                 color: Color::rgb(0.5, 0.5, 0.5),
+                end_color: None,
+                taper: 1.0,
             },
         );
         let v = expand(&g);
@@ -700,6 +989,7 @@ mod tests {
                 blur: 2_000.0,
                 color: Color::black(),
                 opacity: 0.5,
+                scale: 1.0,
             },
         );
         let (w, h, rgba, _, _, _) = shadow_image(&g, Affine::IDENTITY).unwrap();
@@ -719,13 +1009,23 @@ mod tests {
                 steps: 2,
                 distance: 1_000.0,
                 end_color: None,
+                corners: "round".into(),
+                accel: 0.0,
             },
         )
         .unwrap();
         assert_eq!(ed.undo_len(), 2);
         let out = super::super::ops::ungroup(&mut ed, std::slice::from_ref(&gid));
         assert_eq!(out.len(), 3, "congelado: anéis + origem");
-        let o = Object::new(ObjectKind::Group(group(vec![], Effect::Blend { steps: 4 })));
+        let o = Object::new(ObjectKind::Group(group(
+            vec![],
+            Effect::Blend {
+                steps: 4,
+                rotation: 0.0,
+                accel: 0.0,
+                color_accel: 0.0,
+            },
+        )));
         assert_eq!(Object::from_value(o.to_value()), o);
     }
 }

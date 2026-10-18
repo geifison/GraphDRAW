@@ -223,6 +223,11 @@ commands! {
     ToolArtboard = "tool.artboard", "Ferramenta Prancheta (tamanho da página)", "Artboard tool (page size)", Tools, NotText, true;
     ToolFreehand = "tool.freehand", "Ferramenta Mão Livre", "Freehand tool", Tools, NotText, true;
     ToolSmartDraw = "tool.smart_draw", "Desenho inteligente", "Smart drawing", Tools, NotText, true;
+    ToolFxContour = "tool.fx_contour", "Ferramenta Contorno", "Contour tool", Tools, NotText, true;
+    ToolFxBlend = "tool.fx_blend", "Ferramenta Mistura", "Blend tool", Tools, NotText, true;
+    ToolFxShadow = "tool.fx_shadow", "Ferramenta Sombra projetada", "Drop shadow tool", Tools, NotText, true;
+    ToolFxBlock = "tool.fx_block", "Ferramenta Sombra de bloco", "Block shadow tool", Tools, NotText, true;
+    ToolFxEnvelope = "tool.fx_envelope", "Ferramenta Envelope", "Envelope tool", Tools, NotText, true;
     ToolPolyline = "tool.polyline", "Ferramenta Polilinha", "Polyline tool", Tools, NotText, true;
     ToolBSpline = "tool.bspline", "Ferramenta B-spline", "B-spline tool", Tools, NotText, true;
     ToolLine2 = "tool.line2", "Ferramenta Linha 2 pontos", "2-point line tool", Tools, NotText, true;

@@ -954,6 +954,8 @@ fn effects() -> Document {
             steps: 4,
             distance: 3.0 * MM,
             end_color: Some(cmyk(0.0, 1.0, 0.6, 0.2)),
+            corners: "round".into(),
+            accel: 0.0,
         },
         "Contorno",
     );
@@ -982,7 +984,12 @@ fn effects() -> Document {
     let g2 = group(
         &mut ids,
         vec![circle, square],
-        Effect::Blend { steps: 6 },
+        Effect::Blend {
+            steps: 6,
+            rotation: 0.0,
+            accel: 0.0,
+            color_accel: 0.0,
+        },
         "Mistura",
     );
     p.layers[0].objects.push(g2);
@@ -1002,6 +1009,7 @@ fn effects() -> Document {
             blur: 4.0 * MM,
             color: cmyk(0.0, 0.0, 0.0, 1.0),
             opacity: 0.5,
+            scale: 1.0,
         },
         "Sombra projetada",
     );
@@ -1021,6 +1029,8 @@ fn effects() -> Document {
             angle: -35.0,
             depth: 15.0 * MM,
             color: cmyk(0.6, 0.3, 0.0, 0.5),
+            end_color: None,
+            taper: 1.0,
         },
         "Sombra de bloco",
     );

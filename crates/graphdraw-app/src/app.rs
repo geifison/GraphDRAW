@@ -1884,31 +1884,15 @@ impl App {
             | C::EffectDropShadow
             | C::EffectBlock
             | C::EffectEnvelope => {
-                use graphdraw_core::model::{Color, Effect};
-                let effect = match c {
-                    C::EffectContour => Effect::Contour {
-                        direction: "outside".into(),
-                        steps: 3,
-                        distance: 2_000.0,
-                        end_color: None,
-                    },
-                    C::EffectBlend => Effect::Blend { steps: 8 },
-                    C::EffectDropShadow => Effect::DropShadow {
-                        offset: [2_000.0, -2_000.0],
-                        blur: 3_000.0,
-                        color: Color::cmyk(0.0, 0.0, 0.0, 1.0),
-                        opacity: 0.5,
-                    },
-                    C::EffectBlock => Effect::Block {
-                        angle: -45.0,
-                        depth: 5_000.0,
-                        color: Color::cmyk(0.0, 0.0, 0.0, 0.6),
-                    },
-                    _ => Effect::Envelope {
-                        frame: [0.0; 4],
-                        points: [[0.0; 2]; 8],
-                    },
+                use graphdraw_core::model::Effect;
+                let kind = match c {
+                    C::EffectContour => "contour",
+                    C::EffectBlend => "blend",
+                    C::EffectDropShadow => "drop-shadow",
+                    C::EffectBlock => "block",
+                    _ => "envelope",
                 };
+                let effect = Effect::initial(kind).expect("tipo conhecido");
                 if c == C::EffectBlend && self.doc.as_ref().is_some_and(|d| d.selection.len() != 2)
                 {
                     self.status = tr(
@@ -2301,6 +2285,11 @@ impl App {
             C::ToolFreehand => self.set_tool(Tool::Freehand),
             C::ToolPolyline => self.set_tool(Tool::Polyline),
             C::ToolSmartDraw => self.set_tool(Tool::SmartDraw),
+            C::ToolFxContour => self.set_tool(Tool::FxContour),
+            C::ToolFxBlend => self.set_tool(Tool::FxBlend),
+            C::ToolFxShadow => self.set_tool(Tool::FxShadow),
+            C::ToolFxBlock => self.set_tool(Tool::FxBlock),
+            C::ToolFxEnvelope => self.set_tool(Tool::FxEnvelope),
             C::ToolBSpline => self.set_tool(Tool::BSpline),
             C::ToolLine2 => self.set_tool(Tool::Line2),
             C::ToolCurve3 => self.set_tool(Tool::Curve3),
@@ -4890,6 +4879,59 @@ mod tests {
             "{size:?}"
         );
         assert!(app.bitmap_dlg.is_some());
+    }
+
+    #[test]
+    #[ignore]
+    fn shot_effect_bars() {
+        use graphdraw_core::model::{Color, Effect, Fill, Object, ObjectKind, RectData};
+        let ctx = crate::theme::test_ctx();
+        let mut shot = crate::uishot::Shot::default();
+        for (name, tool, kind) in [
+            ("efeito-bloco", Tool::FxBlock, "block"),
+            ("efeito-contorno", Tool::FxContour, "contour"),
+            ("efeito-sombra", Tool::FxShadow, "drop-shadow"),
+            ("efeito-envelope", Tool::FxEnvelope, "envelope"),
+        ] {
+            let mut app = App::with_ctx(&ctx, None);
+            let d = app.doc.as_mut().unwrap();
+            let mut o = Object::new(ObjectKind::Rectangle(RectData {
+                width: 60_000.0,
+                height: 40_000.0,
+                corners: None,
+                extra: Default::default(),
+            }));
+            o.transform = graphdraw_core::model::Transform::translate(60_000.0, 150_000.0);
+            o.fill = Some(Fill::solid(Color::cmyk(0.0, 0.7, 1.0, 0.0)));
+            let id = ops::add_object(&mut d.editor, 0, 0, o, "r");
+            let mut e = Effect::initial(kind).unwrap();
+            if let Effect::Block {
+                depth, end_color, ..
+            } = &mut e
+            {
+                *depth = 20_000.0;
+                *end_color = Some(Color::cmyk(0.0, 0.3, 0.6, 0.6));
+            }
+            let g = graphdraw_core::edit::effects::apply(&mut d.editor, &[id], e).unwrap();
+            d.selection = vec![g];
+            app.tool = tool;
+            for k in 0..20 {
+                let input = egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::Vec2::new(1366.0, 768.0),
+                    )),
+                    time: Some(k as f64 / 30.0),
+                    ..Default::default()
+                };
+                let mut out = ctx.run_ui(input, |ui| app.frame(ui));
+                if k == 19 {
+                    shot.save(&ctx, out, name);
+                } else {
+                    shot.textures(&mut out);
+                }
+            }
+        }
     }
 
     /// GD-UI-15: exportar roda em segundo plano; a barra de status mostra o
