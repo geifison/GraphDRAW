@@ -10,7 +10,7 @@
 - **GD-TXT-05** Shaping com HarfBuzz; fontes OpenType (TTF/OTF/TTC/OTC), Type 1 opcional, fontes variáveis (eixos editáveis), cores (COLRv1/SVG-in-OT) quando suportado.
 - **GD-TXT-06** Unicode completo, bidirecional (UAX#9), quebra de linha (UAX#14), segmentação de grafemas; scripts complexos (árabe, devanágari) via HarfBuzz.
 - **GD-TXT-07** Hifenização por idioma (dicionários Hunspell/hyphen, licença livre). Idioma por parágrafo. Sem dicionário instalado (`%APPDATA%\GraphDraw\hifenizacao\hyph_<idioma>.dic`), o português usa regras de divisão silábica próprias; outros idiomas não hifenizam.
-- **GD-TXT-08** Corretor ortográfico por idioma (Hunspell), opcional.
+- **GD-TXT-08** Corretor ortográfico por idioma, opcional. No Windows usa o corretor do sistema (os dicionários de idioma do Windows, que também aceita dicionários Hunspell); em outros sistemas fica desligado.
 
 ## Atributos de caractere
 Fonte, estilo, tamanho, entrelinha-base, espaçamento entre caracteres (tracking), kerning (métrico/óptico/manual por par), deslocamento de linha base, sobrescrito/subscrito, versalete, caixa alta/baixa, sublinhado/tachado/sobrelinha (estilo e espessura), preenchimento e contorno por caractere, recursos OpenType (ligaduras, alternativos, frações, ordinais, numerais estilísticos, conjuntos estilísticos ss01–ss20), escala horizontal/vertical, rotação individual de caractere.

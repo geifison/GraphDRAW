@@ -308,6 +308,9 @@ pub const STROKE_DIALOG_WIDTH: f32 = 720.0;
 /// Fontes ausentes: largura e altura máxima da lista.
 pub const MISSING_FONTS_WIDTH: f32 = 640.0;
 pub const MISSING_FONTS_LIST: f32 = 320.0;
+/// Verificar ortografia: largura e altura da lista de sugestões.
+pub const SPELL_DIALOG_WIDTH: f32 = 520.0;
+pub const SPELL_LIST_HEIGHT: f32 = 140.0;
 pub const UNIT_COMBO_WIDTH: f32 = 56.0;
 pub const LINE_STYLE_COMBO_WIDTH: f32 = 170.0;
 pub const LINE_STYLE_LIST_HEIGHT: f32 = 260.0;

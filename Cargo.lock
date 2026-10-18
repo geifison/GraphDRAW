@@ -1767,6 +1767,7 @@ dependencies = [
  "rfd",
  "serde",
  "serde_json",
+ "windows",
 ]
 
 [[package]]

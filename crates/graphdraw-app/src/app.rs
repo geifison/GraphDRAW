@@ -205,6 +205,7 @@ pub struct App {
     cut_line_dlg: Option<crate::cutui::CutLineDialog>,
     nest_dlg: Option<crate::cutui::NestDialog>,
     fonts_dlg: Option<crate::fontsui::MissingFontsDialog>,
+    spell_dlg: Option<crate::spellui::SpellDialog>,
     nest_opts: graphdraw_core::edit::nest::NestOptions,
     /// Janela de gerenciamento de cor (GD-CMS-02).
     color_dlg: Option<crate::colorui::ColorDialog>,
@@ -292,6 +293,7 @@ impl App {
             cut_line_dlg: None,
             nest_dlg: None,
             fonts_dlg: None,
+            spell_dlg: None,
             nest_opts: Default::default(),
             color_dlg: None,
             preset_dlg: None,
@@ -1869,6 +1871,11 @@ impl App {
                 }
             }
             C::ExportSelection => self.export_selection(),
+            C::SpellCheck => {
+                if let Some(d) = &self.doc {
+                    self.spell_dlg = Some(crate::spellui::SpellDialog::new(d));
+                }
+            }
             C::EditOutline => {
                 if let Some(d) = &self.doc {
                     self.style_dlg = Some(crate::dialogs::StyleDialog::stroke(d, &self.defaults));
@@ -2896,6 +2903,9 @@ impl App {
                     ui.add_enabled(on, egui::Button::new(keymap::menu(label, cmd))).clicked()
                 };
                 let mut run = None;
+                if item(ui, tr("Verificar ortografia…", "Check spelling…"), Command::SpellCheck, self.doc.is_some()) {
+                    run = Some(Command::SpellCheck);
+                }
                 if item(ui, tr("Ferramenta Texto", "Text tool"), Command::ToolText, true) {
                     run = Some(Command::ToolText);
                 }
@@ -3579,6 +3589,11 @@ impl App {
     }
 
     fn dialogs(&mut self, ctx: &egui::Context) {
+        if let (Some(dlg), Some(doc)) = (&mut self.spell_dlg, &mut self.doc)
+            && dlg.show(ctx, doc)
+        {
+            self.spell_dlg = None;
+        }
         if let (Some(dlg), Some(doc)) = (&mut self.fonts_dlg, &mut self.doc)
             && dlg.show(ctx, doc)
         {

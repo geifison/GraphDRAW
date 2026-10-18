@@ -40,6 +40,9 @@ entre parênteses são os requisitos de `docs/spec/`.
   cores, suavizar e inverter; seletor de cor com roda de matiz, canais,
   hexadecimal, paletas com busca e conta-gotas na janela; amostra original
   × nova; F11 e Shift+F11.
+- Verificar ortografia (Texto): palavra desconhecida com o trecho em volta,
+  sugestões, Substituir, Substituir todas, Ignorar, Ignorar todas e
+  Adicionar ao dicionário, pelo corretor do Windows (GD-TXT-08).
 - Desenho inteligente: o traço à mão vira retângulo, elipse, triângulo,
   reta ou seta, com nível de reconhecimento ajustável (GD-FER-27).
 - Hifenização no texto de parágrafo, com idioma: dicionário hyphen

@@ -587,6 +587,16 @@ novos objetos.
   Sobreimprimir contorno.
 - **Rodapé**: OK, Cancelar e Ajuda (balão com a explicação).
 
+### 4.6.8 Verificar ortografia (GD-TXT-08)
+
+Texto → Verificar ortografia… Modal de `spell-dialog-width` = 520 px: a
+palavra desconhecida em negrito `accent-danger` entre os 30 caracteres de
+cada lado; Trocar por (campo); a lista de sugestões (rola acima de
+`spell-list-height` = 140 px); Substituir (primário), Substituir todas,
+Ignorar, Ignorar todas, Adicionar ao dicionário; Fechar. Verifica os
+textos selecionados, ou todos da página. Sem o idioma no corretor do
+sistema, aviso em `accent-warning`.
+
 ### 4.6.7 Desenho inteligente (GD-FER-27)
 
 No grupo Curvas, depois da mão livre (ícone `tool-smart-draw`). Desenha

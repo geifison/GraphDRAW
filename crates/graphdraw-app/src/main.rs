@@ -29,6 +29,8 @@ mod paletteui;
 mod panels;
 mod recovery;
 mod rulers;
+mod spell;
+mod spellui;
 mod strokeui;
 mod textedit;
 mod theme;

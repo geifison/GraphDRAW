@@ -150,7 +150,8 @@ Para depois da 1.0, cada um com o motivo:
 - [x] Hifenização (GD-TXT-07): por parágrafo, com idioma; dicionário
   hyphen (`hyph_<idioma>.dic`) quando instalado, regras do português sem
   ele.
-- [ ] Corretor ortográfico (GD-TXT-08).
+- [x] Corretor ortográfico (GD-TXT-08): Texto → Verificar ortografia,
+  pelo corretor do Windows com os idiomas instalados nele.
 - [x] Desenho inteligente (GD-FER-27): retângulo, elipse, triângulo, reta
   e seta, com nível de reconhecimento.
 - [x] Fontes incorporadas no `.gdr` (GD-FNT-03, P-11 a): fonte inteira,
