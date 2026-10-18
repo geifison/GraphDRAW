@@ -587,6 +587,21 @@ novos objetos.
   Sobreimprimir contorno.
 - **Rodapé**: OK, Cancelar e Ajuda (balão com a explicação).
 
+### 4.6.9 Efeitos (doc 10)
+
+Menu Efeitos, depois de Objeto: Contorno, Mistura (dois objetos),
+Sombra projetada, Sombra de bloco, Envelope e a nota de que Desagrupar
+separa (congela) o efeito. Cada um cria o grupo com valores iniciais
+(contorno: 3 passos de 2 mm para fora; mistura: 8 passos; sombra: 2 mm
+para baixo e à direita, desfoque 3 mm, preto a 50%; bloco: −45°, 5 mm,
+cinza 60%; envelope: a caixa do conteúdo). Com o grupo selecionado, a
+barra da Seleção ganha os parâmetros: Contorno (Para fora | Para dentro,
+Passos, Distância, Cor final), Mistura (Passos), Sombra (X, Y, Desfoque,
+cor, opacidade), Bloco (Direção, Profundidade, cor), Envelope (Restaurar e
+a dica). As cores usam a amostra com o seletor no balão. O envelope mostra,
+na ferramenta Forma, os 8 pontos como alças e a borda tracejada em
+`accent-primary` a 60%.
+
 ### 4.6.8 Verificar ortografia (GD-TXT-08)
 
 Texto → Verificar ortografia… Modal de `spell-dialog-width` = 520 px: a

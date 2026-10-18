@@ -675,6 +675,12 @@ enum Drag {
         r: ObjRef,
         original: Object,
     },
+    /// Ponto do envelope (doc 10).
+    EnvelopePoint {
+        index: usize,
+        r: ObjRef,
+        original: Object,
+    },
     /// Ponto de controle da B-spline (GD-BSP-01).
     BSplinePoint {
         index: usize,
@@ -3359,6 +3365,35 @@ impl CanvasState {
     }
 
     fn paint_nodes(&self, painter: &egui::Painter, doc: &DocState, rect: Rect, ph: f64) {
+        // Envelope: os 8 pontos e a borda deformada.
+        if let Some((_, _, _, pts, m)) = single_envelope(doc) {
+            let s: Vec<Pos2> = pts
+                .iter()
+                .map(|p| self.screen(rect, ph, m * Point::new(p[0], p[1])))
+                .collect();
+            let mut ring = s.clone();
+            ring.push(s[0]);
+            painter.add(egui::Shape::dashed_line(
+                &ring,
+                EStroke::new(
+                    theme::BORDER_WIDTH,
+                    theme::ACCENT_PRIMARY.gamma_multiply(0.6),
+                ),
+                4.0,
+                3.0,
+            ));
+            for q in &s {
+                let r = Rect::from_center_size(*q, Vec2::splat(theme::HANDLE_SIZE));
+                painter.rect_filled(r, theme::RADIUS_XS, theme::HANDLE_FILL);
+                painter.rect_stroke(
+                    r,
+                    theme::RADIUS_XS,
+                    handle_stroke(),
+                    egui::StrokeKind::Middle,
+                );
+            }
+            return;
+        }
         // Pontos de controle da B-spline: polígono tracejado e quadrados
         // (cheios = fixados).
         if let Some((_, _, b, m)) = single_bspline(doc) {
@@ -4998,6 +5033,26 @@ impl CanvasState {
         rect: Rect,
         ph: f64,
     ) {
+        // Envelope: arrastar um dos 8 pontos.
+        if let Some((r, o, _, pts, m)) = single_envelope(doc) {
+            if let Some(index) = pts.iter().position(|p| {
+                (self.screen(rect, ph, m * Point::new(p[0], p[1])) - origin).length()
+                    <= theme::HANDLE_HIT
+            }) {
+                doc.editor.begin(tr("Envelope", "Envelope"));
+                self.drag = Drag::EnvelopePoint {
+                    index,
+                    r,
+                    original: o,
+                };
+                return;
+            }
+            self.drag = Drag::Rubber {
+                start: origin,
+                lasso: None,
+            };
+            return;
+        }
         // B-spline: arrastar um ponto de controle (GD-BSP-01).
         if let Some((r, o, b, m)) = single_bspline(doc) {
             if let Some(index) = b.points.iter().position(|c| {
@@ -5561,6 +5616,18 @@ impl CanvasState {
                     doc.editor.replace_at(r, o);
                 }
             }
+            Drag::EnvelopePoint { index, r, original } => {
+                let m = doc.editor.parent_affine(r) * original.transform.affine();
+                let q = m.inverse() * cur;
+                let mut o = original.clone();
+                if let ObjectKind::Group(g) = &mut o.kind
+                    && let Some(graphdraw_core::model::Effect::Envelope { points, .. }) =
+                        &mut g.effect
+                {
+                    points[*index] = [q.x, q.y];
+                }
+                doc.editor.replace_at(r, o);
+            }
             Drag::BSplinePoint { index, r, original } => {
                 let m = doc.editor.parent_affine(r) * original.transform.affine();
                 let mut o = original.clone();
@@ -5792,7 +5859,8 @@ impl CanvasState {
             | Drag::PolyVertex { .. }
             | Drag::BasicHandle { .. }
             | Drag::BSplinePoint { .. }
-            | Drag::WidthNode { .. } => {
+            | Drag::WidthNode { .. }
+            | Drag::EnvelopePoint { .. } => {
                 doc.editor.commit();
             }
             Drag::GradHandle { r, .. } => {
@@ -6627,6 +6695,25 @@ fn width_target(doc: &DocState) -> Option<(ObjRef, Object, kurbo::BezPath, f64)>
         st.width
     };
     Some((r, o.clone(), path, (w / 2.0).max(1.0)))
+}
+
+/// Envelope selecionado sozinho: referência, objeto, caixa, pontos e matriz.
+type EnvelopeSel = (ObjRef, Object, [f64; 4], [[f64; 2]; 8], Affine);
+
+fn single_envelope(doc: &DocState) -> Option<EnvelopeSel> {
+    let [id] = doc.selection.as_slice() else {
+        return None;
+    };
+    let r = doc.editor.find(id)?;
+    let o = doc.editor.get(&r)?.clone();
+    let ObjectKind::Group(g) = &o.kind else {
+        return None;
+    };
+    let Some(graphdraw_core::model::Effect::Envelope { frame, points }) = &g.effect else {
+        return None;
+    };
+    let m = doc.editor.parent_affine(&r) * o.transform.affine();
+    Some((r, o.clone(), *frame, *points, m))
 }
 
 /// B-spline selecionada sozinha (referência, objeto, dados, matriz).
@@ -7818,6 +7905,62 @@ mod tests {
         canvas_frame(&ctx, &mut cs, &mut doc, Tool::Select, vec![]);
         cs.grid.dots = false;
         canvas_frame(&ctx, &mut cs, &mut doc, Tool::Select, vec![]);
+    }
+
+    /// Envelope na tela: com a ferramenta Forma, arrastar o meio de cima
+    /// sobe a borda e a forma cresce.
+    #[test]
+    fn envelope_point_drag() {
+        let (ctx, mut cs, mut doc, id, rect, ph) = bdr_setup();
+        let gid = graphdraw_core::edit::effects::apply(
+            &mut doc.editor,
+            std::slice::from_ref(&id),
+            graphdraw_core::model::Effect::Envelope {
+                frame: [0.0; 4],
+                points: [[0.0; 2]; 8],
+            },
+        )
+        .unwrap();
+        doc.selection = vec![gid.clone()];
+        let (_, _, _, pts, m) = single_envelope(&doc).unwrap();
+        let top = m * Point::new(pts[5][0], pts[5][1]);
+        let (a, b) = (
+            cs.screen(rect, ph, top),
+            cs.screen(rect, ph, top + kurbo::Vec2::new(0.0, 10_000.0)),
+        );
+        let s = Tool::Shape;
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            s,
+            vec![egui::Event::PointerMoved(a)],
+        );
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            s,
+            vec![button(a, PointerButton::Primary, true)],
+        );
+        for k in 1..=4 {
+            canvas_frame(
+                &ctx,
+                &mut cs,
+                &mut doc,
+                s,
+                vec![egui::Event::PointerMoved(a + (b - a) * (k as f32 / 4.0))],
+            );
+        }
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            s,
+            vec![button(b, PointerButton::Primary, false)],
+        );
+        let bb = ops::object_bounds(&doc.editor, &doc.editor.find(&gid).unwrap(), false).unwrap();
+        assert!(bb.height() > 25_000.0, "a borda subiu: {bb:?}");
     }
 
     /// GD-FER-27 na tela: um traço retangular vira retângulo; um rabisco

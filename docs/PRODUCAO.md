@@ -162,4 +162,7 @@ Para depois da 1.0, cada um com o motivo:
 - [x] ~~Amostrar fora da janela~~ (GD-CTG-04) — P-12: fica só dentro da
   janela do programa; fora da 1.0.
 - [ ] Efeitos (doc 10), estilos (doc 11) e o resto que o MVP.md deixa de
-  fora.
+  fora. Primeiro lote escolhido pelo responsável (2026-10-17):
+  - [x] contorno, mistura, sombra projetada, sombra de bloco, envelope
+    (efeitos dinâmicos; Desagrupar congela);
+  - [ ] estilos de objeto, estilos de texto, símbolos.

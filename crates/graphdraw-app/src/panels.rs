@@ -525,6 +525,7 @@ impl App {
                     symmetry_bar(ui, doc);
                     wrap_bar(ui, doc);
                     live_boolean_bar(ui, doc);
+                    effect_bar(ui, doc);
                 });
             }
         }
@@ -3919,6 +3920,175 @@ fn dimension_bar(ui: &mut egui::Ui, doc: &mut DocState, cs: &mut crate::canvas::
                 },
             );
         }
+    }
+}
+
+/// Cor numa amostra com o seletor no balão (barra de propriedades).
+fn bar_color(
+    ui: &mut egui::Ui,
+    id: &str,
+    c: &graphdraw_core::model::Color,
+) -> Option<graphdraw_core::model::Color> {
+    let pid = ui.make_persistent_id(("barra-cor", id));
+    let open = egui::Popup::is_id_open(ui.ctx(), pid);
+    let r =
+        crate::colorpick::color_button(ui, c, open).on_hover_text(crate::colorpick::color_text(c));
+    let mut out = None;
+    egui::Popup::menu(&r)
+        .id(pid)
+        .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
+        .show(|ui| {
+            ui.set_width(theme::PICKER_WIDTH);
+            let key = ui.make_persistent_id(("barra-cor-estado", id));
+            let mut picker: crate::colorpick::ColorPicker =
+                ui.data(|d| d.get_temp(key)).unwrap_or_default();
+            let o = picker.show(ui, id, c, &Vec::new());
+            ui.data_mut(|d| d.insert_temp(key, picker));
+            out = o.color;
+        });
+    out
+}
+
+/// Efeito dinâmico selecionado (doc 10): os parâmetros na barra.
+fn effect_bar(ui: &mut egui::Ui, doc: &mut DocState) {
+    use graphdraw_core::model::Effect;
+    let [gid] = doc.selection.as_slice() else {
+        return;
+    };
+    let gid = gid.clone();
+    let Some(ObjectKind::Group(g)) = doc
+        .editor
+        .find(&gid)
+        .and_then(|r| doc.editor.get(&r))
+        .map(|o| &o.kind)
+    else {
+        return;
+    };
+    let Some(cur) = g.effect.clone() else {
+        return;
+    };
+    let mut e = cur.clone();
+    ui.separator();
+    let num = |ui: &mut egui::Ui, label: &str, v: &mut u32, max: u32| {
+        ui.label(label);
+        ui.add(egui::DragValue::new(v).range(1..=max));
+    };
+    let len = |ui: &mut egui::Ui, label: &str, id: &str, v: &mut f64| {
+        if let Some(x) = widgets::labeled_length(ui, label, id, *v, None) {
+            *v = x;
+        }
+    };
+    match &mut e {
+        Effect::Contour {
+            direction,
+            steps,
+            distance,
+            end_color,
+        } => {
+            ui.strong(tr("Contorno", "Contour"));
+            for (k, l) in [
+                ("outside", tr("Para fora", "Outside")),
+                ("inside", tr("Para dentro", "Inside")),
+            ] {
+                if ui.selectable_label(direction == k, l).clicked() {
+                    *direction = k.into();
+                }
+            }
+            num(ui, tr("Passos", "Steps"), steps, 200);
+            len(ui, tr("Distância", "Distance"), "fx-dist", distance);
+            let mut on = end_color.is_some();
+            if ui.checkbox(&mut on, tr("Cor final", "End color")).changed() {
+                *end_color = on.then(|| graphdraw_core::model::Color::cmyk(0.0, 0.0, 0.0, 1.0));
+            }
+            if let Some(c) = end_color.clone()
+                && let Some(n) = bar_color(ui, "fx-fim", &c)
+            {
+                *end_color = Some(n);
+            }
+        }
+        Effect::Blend { steps } => {
+            ui.strong(tr("Mistura", "Blend"));
+            num(ui, tr("Passos", "Steps"), steps, 500);
+        }
+        Effect::DropShadow {
+            offset,
+            blur,
+            color,
+            opacity,
+        } => {
+            ui.strong(tr("Sombra", "Shadow"));
+            len(ui, "X", "fx-sx", &mut offset[0]);
+            len(ui, "Y", "fx-sy", &mut offset[1]);
+            len(ui, tr("Desfoque", "Blur"), "fx-blur", blur);
+            if let Some(n) = bar_color(ui, "fx-sombra", &color.clone()) {
+                *color = n;
+            }
+            let mut pct = *opacity * 100.0;
+            if ui
+                .add(
+                    egui::DragValue::new(&mut pct)
+                        .range(0.0..=100.0)
+                        .suffix(" %"),
+                )
+                .on_hover_text(tr("Opacidade", "Opacity"))
+                .changed()
+            {
+                *opacity = pct / 100.0;
+            }
+        }
+        Effect::Block {
+            angle,
+            depth,
+            color,
+        } => {
+            ui.strong(tr("Bloco", "Block"));
+            ui.label(tr("Direção", "Direction"));
+            ui.add(
+                egui::DragValue::new(angle)
+                    .range(-360.0..=360.0)
+                    .suffix("°"),
+            );
+            len(ui, tr("Profundidade", "Depth"), "fx-depth", depth);
+            if let Some(n) = bar_color(ui, "fx-bloco", &color.clone()) {
+                *color = n;
+            }
+        }
+        Effect::Envelope { frame, points } => {
+            ui.strong(tr("Envelope", "Envelope"));
+            if ui
+                .button(tr("Restaurar", "Reset"))
+                .on_hover_text(tr(
+                    "Volta a caixa sem deformação",
+                    "Back to the undistorted box",
+                ))
+                .clicked()
+            {
+                *points = graphdraw_core::edit::effects::envelope_points(kurbo::Rect::new(
+                    frame[0], frame[1], frame[2], frame[3],
+                ));
+            }
+            widgets::hint_line(
+                ui,
+                tr(
+                    "Arraste os 8 pontos com a ferramenta Forma",
+                    "Drag the 8 points with the Shape tool",
+                ),
+            );
+        }
+    }
+    if e != cur {
+        ops::modify(
+            &mut doc.editor,
+            std::slice::from_ref(&gid),
+            tr("Efeito", "Effect"),
+            |o| {
+                if let ObjectKind::Group(g) = &mut o.kind {
+                    g.effect = Some(e.clone());
+                    return true;
+                }
+                false
+            },
+        );
     }
 }
 

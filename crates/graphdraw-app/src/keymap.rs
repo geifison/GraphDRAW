@@ -164,6 +164,11 @@ commands! {
     UngroupAll = "obj.ungroup_all", "Desagrupar tudo", "Ungroup all", Object, Selection, true;
     ExtendToBleed = "obj.extend_bleed", "Estender até a sangria", "Extend to bleed", Object, Selection, true;
     EditFill = "obj.edit_fill", "Editar preenchimento (gradiente)", "Edit fill (gradient)", Object, NotText, true;
+    EffectContour = "fx.contour", "Contorno", "Contour", Object, Selection, true;
+    EffectBlend = "fx.blend", "Mistura", "Blend", Object, Multi, true;
+    EffectDropShadow = "fx.drop_shadow", "Sombra projetada", "Drop shadow", Object, Selection, true;
+    EffectBlock = "fx.block", "Sombra de bloco", "Block shadow", Object, Selection, true;
+    EffectEnvelope = "fx.envelope", "Envelope", "Envelope", Object, Selection, true;
     SpellCheck = "text.spell", "Verificar ortografia", "Check spelling", Text, Always, true;
     EditOutline = "obj.edit_outline", "Caneta de contorno", "Outline pen", Object, NotText, true;
     EditUniformFill = "obj.edit_uniform_fill", "Editar preenchimento uniforme", "Edit uniform fill", Object, NotText, true;

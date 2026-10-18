@@ -1871,6 +1871,49 @@ impl App {
                 }
             }
             C::ExportSelection => self.export_selection(),
+            C::EffectContour
+            | C::EffectBlend
+            | C::EffectDropShadow
+            | C::EffectBlock
+            | C::EffectEnvelope => {
+                use graphdraw_core::model::{Color, Effect};
+                let effect = match c {
+                    C::EffectContour => Effect::Contour {
+                        direction: "outside".into(),
+                        steps: 3,
+                        distance: 2_000.0,
+                        end_color: None,
+                    },
+                    C::EffectBlend => Effect::Blend { steps: 8 },
+                    C::EffectDropShadow => Effect::DropShadow {
+                        offset: [2_000.0, -2_000.0],
+                        blur: 3_000.0,
+                        color: Color::cmyk(0.0, 0.0, 0.0, 1.0),
+                        opacity: 0.5,
+                    },
+                    C::EffectBlock => Effect::Block {
+                        angle: -45.0,
+                        depth: 5_000.0,
+                        color: Color::cmyk(0.0, 0.0, 0.0, 0.6),
+                    },
+                    _ => Effect::Envelope {
+                        frame: [0.0; 4],
+                        points: [[0.0; 2]; 8],
+                    },
+                };
+                if c == C::EffectBlend && self.doc.as_ref().is_some_and(|d| d.selection.len() != 2)
+                {
+                    self.status = tr(
+                        "A mistura precisa de dois objetos selecionados",
+                        "Blend needs two selected objects",
+                    )
+                    .into();
+                } else {
+                    self.with_selection(|ed, s| {
+                        graphdraw_core::edit::effects::apply(ed, s, effect).map(|g| vec![g])
+                    });
+                }
+            }
             C::SpellCheck => {
                 if let Some(d) = &self.doc {
                     self.spell_dlg = Some(crate::spellui::SpellDialog::new(d));
@@ -2895,6 +2938,24 @@ impl App {
                 }
             });
             // Menu Texto: tudo o que é de texto num lugar só.
+            ui.menu_button(tr("Efeitos", "Effects"), |ui| {
+                theme::menu_density(ui);
+                let n = self.doc.as_ref().map_or(0, |d| d.selection.len());
+                for (label, cmd, on) in [
+                    (tr("Contorno", "Contour"), Command::EffectContour, n >= 1),
+                    (tr("Mistura (dois objetos)", "Blend (two objects)"), Command::EffectBlend, n == 2),
+                    (tr("Sombra projetada", "Drop shadow"), Command::EffectDropShadow, n >= 1),
+                    (tr("Sombra de bloco", "Block shadow"), Command::EffectBlock, n >= 1),
+                    (tr("Envelope", "Envelope"), Command::EffectEnvelope, n >= 1),
+                ] {
+                    if ui.add_enabled(on, egui::Button::new(keymap::menu(label, cmd))).clicked() {
+                        self.run_command(cmd, &ctx);
+                        ui.close();
+                    }
+                }
+                ui.separator();
+                ui.weak(tr("Separar o efeito: Desagrupar (congela o resultado)", "Separate the effect: Ungroup (freezes the result)"));
+            });
             ui.menu_button(tr("Texto", "Text"), |ui| {
                 theme::menu_density(ui);
                 let has_text = !self.text_targets().is_empty();
