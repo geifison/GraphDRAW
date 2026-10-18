@@ -596,6 +596,21 @@ novos objetos.
   Sobreimprimir contorno.
 - **Rodapé**: OK, Cancelar e Ajuda (balão com a explicação).
 
+### 4.6.12 Texto no caminho (GD-TXT-09)
+
+Com um texto em caminho selecionado (Seleção ou Texto), a tela mostra:
+losango `accent-danger` (lado `handle-size` × 1,8) no início do texto, ligado
+por uma linha `accent-success` de `focus-width` à barra verde (quadrado de
+`handle-size`) acima das letras; a seta dupla verde ao lado da barra; e os
+batentes `[` `]` em `accent-primary` nos extremos do intervalo, de pé
+sobre o traço. A ferramenta Texto, perto de uma curva, troca o selo do
+cursor para `text-path`. A barra traz, nesta ordem: orientação,
+alinhamento vertical, os quatro botões de alinhamento (`text-left`,
+`text-center`, `text-right`, `text-justify`), X, Y, espelhar
+(`mirror-h`, `mirror-v`), De/até %, cantos, Anticolisão, Selo
+superior/inferior (só em caminho fechado), Traço como construção,
+Desvincular e Endireitar.
+
 ### 4.6.11 Janela Imprimir (doc 29)
 
 Modal de `PRINT_DIALOG_WIDTH` (900 pt): opções à esquerda

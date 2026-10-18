@@ -201,6 +201,7 @@ impl Editor {
             super::dimension::refresh(self);
             super::connector::refresh(self);
             super::textwrap::refresh(self);
+            super::textpath::refresh(self);
         }
         self.depth -= 1;
         if self.depth > 0 {

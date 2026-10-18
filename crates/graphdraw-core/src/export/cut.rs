@@ -95,7 +95,7 @@ fn collect(
     opts: &CutOptions,
     out: &mut Vec<BezPath>,
 ) {
-    if !o.visible {
+    if !o.visible || o.construction {
         return;
     }
     let m = parent * o.transform.affine();

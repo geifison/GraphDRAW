@@ -31,6 +31,7 @@ pub fn new_text(x: f64, y: f64, frame: Option<[f64; 2]>, family: &str, size: f64
         line_spacing: 1.2,
         path: None,
         exclusions: Default::default(),
+        path_memory: None,
         extra: Map::new(),
     }));
     o.transform = Transform::translate(x, y);

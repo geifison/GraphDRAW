@@ -771,6 +771,22 @@ enum Drag {
     BezierHandle,
     /// Vértice de polígono/estrela sendo arrastado (GD-PRI-03): o externo
     /// muda tamanho e giro de todas as pontas, o interno a nitidez.
+    /// Texto em caminho: deslizar ao longo (losango), afastar (barra) ou
+    /// mover um batente do intervalo.
+    TextPathSlide {
+        r: ObjRef,
+        original: Object,
+        grab: f64,
+    },
+    TextPathDistance {
+        r: ObjRef,
+        original: Object,
+    },
+    TextPathStop {
+        r: ObjRef,
+        original: Object,
+        end: bool,
+    },
     /// Curvatura simétrica dos lados do polígono.
     PolyBend {
         r: ObjRef,
@@ -1117,6 +1133,67 @@ pub struct CanvasEvents {
 }
 
 impl CanvasState {
+    /// Alças do texto em caminho: losango vermelho no início (desliza),
+    /// barra verde perpendicular (afasta), seta dupla (troca de lado, no
+    /// clique) e os batentes [ e ] do intervalo.
+    fn paint_text_path(&self, painter: &egui::Painter, doc: &DocState, rect: Rect, ph: f64) {
+        let Some(h) = path_text_handles(doc) else {
+            return;
+        };
+        let s = |q: Point| self.screen(rect, ph, q);
+        let start = s(h.start);
+        let lift = s(h.lift);
+        let red = theme::ACCENT_DANGER;
+        let green = theme::ACCENT_SUCCESS;
+        let k = theme::HANDLE_SIZE * 0.9;
+        painter.line_segment([start, lift], EStroke::new(theme::FOCUS_WIDTH, green));
+        painter.add(egui::Shape::convex_polygon(
+            vec![
+                start + Vec2::new(0.0, -k),
+                start + Vec2::new(k, 0.0),
+                start + Vec2::new(0.0, k),
+                start + Vec2::new(-k, 0.0),
+            ],
+            red,
+            handle_stroke(),
+        ));
+        let bar = Rect::from_center_size(lift, Vec2::splat(theme::HANDLE_SIZE));
+        painter.rect_filled(bar, theme::RADIUS_XS, green);
+        painter.rect_stroke(
+            bar,
+            theme::RADIUS_XS,
+            handle_stroke(),
+            egui::StrokeKind::Middle,
+        );
+        // Seta dupla de trocar o lado.
+        let f = s(h.flip);
+        let st = EStroke::new(theme::BORDER_WIDTH * 1.5, green);
+        painter.line_segment([f + Vec2::new(0.0, -6.0), f + Vec2::new(0.0, 6.0)], st);
+        for d in [-1.0f32, 1.0] {
+            let tip = f + Vec2::new(0.0, 6.0 * d);
+            painter.line_segment([tip, tip + Vec2::new(-3.0, -3.0 * d)], st);
+            painter.line_segment([tip, tip + Vec2::new(3.0, -3.0 * d)], st);
+        }
+        // Batentes.
+        for (i, q) in h.stops.iter().enumerate() {
+            let c = s(*q);
+            let (pp, a) = h.track.at(if i == 0 {
+                h.span.range.0
+            } else {
+                h.span.range.1
+            });
+            let dir = h.m * (pp + kurbo::Vec2::new(a.cos(), a.sin())) - h.m * pp;
+            let ang = -dir.angle() as f32;
+            let (dx, dy) = (ang.cos(), ang.sin());
+            let along = Vec2::new(dx, dy) * if i == 0 { 4.0 } else { -4.0 };
+            let up = Vec2::new(-dy, dx) * 7.0;
+            painter.add(egui::Shape::line(
+                vec![c - up + along, c - up, c + up, c + up + along],
+                EStroke::new(theme::FOCUS_WIDTH, theme::ACCENT_PRIMARY),
+            ));
+        }
+    }
+
     /// Alça de lados do polígono selecionado: à direita da caixa, na tela.
     fn poly_sides_handle(&self, doc: &DocState, rect: Rect, ph: f64) -> Option<Pos2> {
         let (r, ..) = single_polygon(doc)?;
@@ -1474,6 +1551,19 @@ impl CanvasState {
             o,
         );
         self.text = Some(crate::textedit::TextEditing::start(doc, id, 0, true));
+    }
+
+    /// Texto novo já no caminho `curve`, começando no ponto clicado.
+    fn new_text_on_path(&mut self, doc: &mut DocState, at: Point, curve: &str) {
+        self.new_text(doc, at, None);
+        let Some(id) = self.text.as_ref().map(|t| t.id.clone()) else {
+            return;
+        };
+        if ops::fit_text_to_path(&mut doc.editor, &id, curve)
+            && let Some(s) = path_s_at(doc, &id, at)
+        {
+            ops::edit_text_path(&mut doc.editor, std::slice::from_ref(&id), |p| p.offset = s);
+        }
     }
 
     /// Descarta o retângulo/elipse de 3 pontos pela metade.
@@ -2042,7 +2132,11 @@ impl CanvasState {
                                     ctxmenu::node_entries(k, ends)
                                 }
                                 Target::Segment(..) => ctxmenu::segment_entries(),
-                                Target::Drop { over, .. } => ctxmenu::drop_entries(over.is_some()),
+                                Target::Drop { over, .. } => {
+                                    let text_on_curve =
+                                        over.as_deref().is_some_and(|o| text_can_go_on(doc, o));
+                                    ctxmenu::drop_entries(over.is_some(), text_on_curve)
+                                }
                             };
                             chosen = ctxmenu::show(ui, &entries);
                         }
@@ -2194,6 +2288,28 @@ impl CanvasState {
                 doc.selection = vec![tid.clone()];
                 ev.switch_tool = Some(Tool::Text);
                 self.edit_text(doc, tid, None);
+            }
+            Cmd::FitToPathHere => {
+                let Target::Drop {
+                    over: Some(over), ..
+                } = target
+                else {
+                    return;
+                };
+                let Some(text) = sel.first().cloned() else {
+                    return;
+                };
+                doc.editor.begin(tr("Ajustar ao caminho", "Fit to path"));
+                if ops::fit_text_to_path(&mut doc.editor, &text, &over) {
+                    // O texto começa no ponto do caminho mais perto da soltura.
+                    if let Some(s) = path_s_at(doc, &text, m.at) {
+                        ops::edit_text_path(&mut doc.editor, std::slice::from_ref(&text), |p| {
+                            p.offset = s
+                        });
+                    }
+                    doc.selection = vec![text];
+                }
+                doc.editor.commit();
             }
             Cmd::MoveHere | Cmd::CopyHere => {
                 let Target::Drop { delta, .. } = target else {
@@ -3146,6 +3262,12 @@ impl CanvasState {
             Tool::Ellipse => Glyph::Cross {
                 badge: "tool-ellipse",
             },
+            // Perto de uma curva: o texto vai nascer nela (GD-TXT-09).
+            Tool::Text
+                if curve_near(doc, self.page_of(rect, ph, pos), 5.0 / self.view.zoom).is_some() =>
+            {
+                Glyph::Cross { badge: "text-path" }
+            }
             Tool::Text => Glyph::Cross { badge: "tool-text" },
             Tool::Gradient => Glyph::Cross {
                 badge: "tool-gradient",
@@ -3423,6 +3545,9 @@ impl CanvasState {
         }
         if tool.effect_kind().is_some() {
             self.paint_effect(painter, doc, rect, ph, tool);
+        }
+        if matches!(tool, Tool::Select | Tool::Text) {
+            self.paint_text_path(painter, doc, rect, ph);
         }
         if tool == Tool::Gradient {
             self.paint_gradient(painter, doc, rect, ph);
@@ -5357,6 +5482,39 @@ impl CanvasState {
         rect: Rect,
         ph: f64,
     ) {
+        // Texto em caminho selecionado: as alças na tela.
+        if let Some(h) = path_text_handles(doc) {
+            let near = |q: Point| (self.screen(rect, ph, q) - origin).length() <= theme::HANDLE_HIT;
+            let (r, o) = (h.r.clone(), h.object.clone());
+            let which = if near(h.lift) {
+                Some(1)
+            } else if near(h.start) {
+                Some(0)
+            } else if near(h.stops[0]) {
+                Some(2)
+            } else if near(h.stops[1]) {
+                Some(3)
+            } else {
+                None
+            };
+            if let Some(w) = which {
+                doc.editor.begin(tr("Texto em caminho", "Text on path"));
+                self.drag = match w {
+                    0 => Drag::TextPathSlide {
+                        r,
+                        original: o,
+                        grab: h.s_at(p),
+                    },
+                    1 => Drag::TextPathDistance { r, original: o },
+                    k => Drag::TextPathStop {
+                        r,
+                        original: o,
+                        end: k == 3,
+                    },
+                };
+                return;
+            }
+        }
         // Alt + arrastar: laço à mão livre (GD-SEL-03, GD-FER-01).
         if mods.alt {
             if !mods.shift {
@@ -6179,6 +6337,59 @@ impl CanvasState {
                 }
                 doc.editor.replace_at(r, o);
             }
+            Drag::TextPathSlide { r, original, grab } => {
+                if let Some(h) = path_text_handles_of(doc, r, original) {
+                    let s = h.s_at(cur);
+                    let mut d = s - *grab;
+                    // Ímã: início, meio e fim do intervalo (8 px).
+                    let w = h.span.end - h.span.start;
+                    let snap = 8.0 / self.view.zoom;
+                    let new_start = h.span.start + d;
+                    let (r0, r1) = h.span.range;
+                    for target in [r0, (r0 + r1) / 2.0 - w / 2.0, r1 - w] {
+                        if (new_start - target).abs() <= snap {
+                            d = target - h.span.start;
+                        }
+                    }
+                    let base = h.tp.offset;
+                    let mut o = original.clone();
+                    if let ObjectKind::Text(t) = &mut o.kind
+                        && let Some(p) = &mut t.path
+                    {
+                        p.offset = base + d;
+                    }
+                    doc.editor.replace_at(r, o);
+                }
+            }
+            Drag::TextPathDistance { r, original } => {
+                if let Some(h) = path_text_handles_of(doc, r, original) {
+                    let q = h.m.inverse() * cur;
+                    let (pp, a) = h.track.at(h.span.start);
+                    let n = kurbo::Vec2::new(-a.sin(), a.cos());
+                    let lift = h.lift_height;
+                    let mut o = original.clone();
+                    if let ObjectKind::Text(t) = &mut o.kind
+                        && let Some(p) = &mut t.path
+                    {
+                        p.distance = (q - pp).dot(n) - lift;
+                    }
+                    doc.editor.replace_at(r, o);
+                }
+            }
+            Drag::TextPathStop { r, original, end } => {
+                if let Some(h) = path_text_handles_of(doc, r, original) {
+                    let f = (h.s_at(cur) / h.span.total.max(1e-9)).clamp(0.0, 1.0);
+                    let mut o = original.clone();
+                    if let ObjectKind::Text(t) = &mut o.kind
+                        && let Some(p) = &mut t.path
+                    {
+                        let mut rg = p.range.unwrap_or([0.0, 1.0]);
+                        rg[usize::from(*end)] = f;
+                        p.range = Some(rg);
+                    }
+                    doc.editor.replace_at(r, o);
+                }
+            }
             Drag::PolyBend { r, original } => {
                 if let ObjectKind::Polygon(p0) = &original.kind {
                     let m = doc.editor.parent_affine(r) * original.transform.affine();
@@ -6460,6 +6671,9 @@ impl CanvasState {
             | Drag::Segment { .. }
             | Drag::PolyVertex { .. }
             | Drag::PolyBend { .. }
+            | Drag::TextPathSlide { .. }
+            | Drag::TextPathDistance { .. }
+            | Drag::TextPathStop { .. }
             | Drag::PolySides { .. }
             | Drag::PolyFree { .. }
             | Drag::BasicHandle { .. }
@@ -6715,6 +6929,14 @@ impl CanvasState {
                     None => {}
                 }
             }
+            Tool::Select
+                if path_text_handles(doc).is_some_and(|h| (self.screen(rect, ph, h.flip) - pos).length() <= theme::HANDLE_HIT) =>
+            {
+                let ids = doc.selection.clone();
+                ops::edit_text_path(&mut doc.editor, &ids, |p| {
+                    p.side = if p.side == "below" { "above" } else { "below" }.into();
+                });
+            }
             Tool::Select => match self.pick_focus(doc, p, tol, mods.ctrl) {
                 Some(id) => {
                     if mods.shift {
@@ -6804,7 +7026,10 @@ impl CanvasState {
                         self.end_text(doc);
                         // Clique fora do texto em edição só termina a edição.
                         if !was_editing {
-                            self.new_text(doc, p, None);
+                            match curve_near(doc, p, tol) {
+                                Some(curve) => self.new_text_on_path(doc, p, &curve),
+                                None => self.new_text(doc, p, None),
+                            }
                         }
                     }
                 }
@@ -7503,6 +7728,154 @@ fn single_polygon(
     Some((r, o.clone(), p.clone(), m))
 }
 
+/// Texto em caminho selecionado sozinho: trilho, trecho ocupado e as
+/// posições das alças (página).
+struct PathTextHandles {
+    r: ObjRef,
+    object: Object,
+    tp: graphdraw_core::model::TextPath,
+    track: graphdraw_core::render::text::Track,
+    span: graphdraw_core::render::text::PathSpan,
+    /// Texto local → página.
+    m: Affine,
+    /// Altura da barra verde acima da linha de base (µm locais).
+    lift_height: f64,
+    start: Point,
+    lift: Point,
+    flip: Point,
+    stops: [Point; 2],
+}
+
+impl PathTextHandles {
+    /// Comprimento do caminho mais perto do ponto da página.
+    fn s_at(&self, p: Point) -> f64 {
+        self.track.project(self.m.inverse() * p)
+    }
+}
+
+fn path_text_handles(doc: &DocState) -> Option<PathTextHandles> {
+    let [id] = doc.selection.as_slice() else {
+        return None;
+    };
+    let r = doc.editor.find(id)?;
+    let o = doc.editor.get(&r)?.clone();
+    path_text_handles_of(doc, &r, &o)
+}
+
+fn path_text_handles_of(doc: &DocState, r: &ObjRef, o: &Object) -> Option<PathTextHandles> {
+    let ObjectKind::Text(t) = &o.kind else {
+        return None;
+    };
+    let tp = t.path.clone()?;
+    let size = t
+        .paragraphs
+        .first()
+        .and_then(|p| p.spans.first())
+        .map_or(10_000.0, |s| s.font.size);
+    let track = graphdraw_core::render::text::path_track(&tp, size)?;
+    let span = graphdraw_core::render::text::layout_text(t).path_span?;
+    let m = doc.editor.parent_affine(r) * o.transform.affine();
+    let (p0, a) = track.at(span.start);
+    let n = kurbo::Vec2::new(-a.sin(), a.cos());
+    let tan = kurbo::Vec2::new(a.cos(), a.sin());
+    let lift_height = size * 1.1;
+    let lift = p0 + n * (tp.distance + lift_height);
+    Some(PathTextHandles {
+        r: r.clone(),
+        object: o.clone(),
+        start: m * p0,
+        lift: m * lift,
+        flip: m * (lift + tan * size * 0.8),
+        stops: [m * track.at(span.range.0).0, m * track.at(span.range.1).0],
+        tp,
+        track,
+        span,
+        m,
+        lift_height,
+    })
+}
+
+/// Comprimento do caminho do texto `id` mais perto do ponto da página.
+fn path_s_at(doc: &DocState, id: &str, p: Point) -> Option<f64> {
+    let r = doc.editor.find(id)?;
+    let o = doc.editor.get(&r)?;
+    let ObjectKind::Text(t) = &o.kind else {
+        return None;
+    };
+    let tp = t.path.as_ref()?;
+    let size = t
+        .paragraphs
+        .first()
+        .and_then(|p| p.spans.first())
+        .map_or(10_000.0, |s| s.font.size);
+    let track = graphdraw_core::render::text::path_track(tp, size)?;
+    let m = doc.editor.parent_affine(&r) * o.transform.affine();
+    Some(track.project(m.inverse() * p))
+}
+
+/// Objeto com contorno (curva, forma) cujo traço passa perto de `p`.
+fn curve_near(doc: &DocState, p: Point, tol: f64) -> Option<String> {
+    let id = pick(doc, p, tol * 2.0, false)?;
+    let r = doc.editor.find(&id)?;
+    let o = doc.editor.get(&r)?;
+    if matches!(
+        o.kind,
+        ObjectKind::Text(_) | ObjectKind::Group(_) | ObjectKind::Image(_)
+    ) {
+        return None;
+    }
+    let mut path = query::local_outline(o)?;
+    path.apply_affine(doc.editor.parent_affine(&r) * o.transform.affine());
+    let mut best = f64::INFINITY;
+    let mut last: Option<Point> = None;
+    let mut first: Option<Point> = None;
+    kurbo::flatten(&path, tol / 4.0, |el| {
+        let seg = |a: Point, b: Point| {
+            let d = b - a;
+            let t = ((p - a).dot(d) / d.hypot2().max(1e-18)).clamp(0.0, 1.0);
+            (p - (a + d * t)).hypot()
+        };
+        match el {
+            kurbo::PathEl::MoveTo(q) => {
+                last = Some(q);
+                first = Some(q);
+            }
+            kurbo::PathEl::LineTo(q) => {
+                if let Some(a) = last {
+                    best = best.min(seg(a, q));
+                }
+                last = Some(q);
+            }
+            kurbo::PathEl::ClosePath => {
+                if let (Some(a), Some(f)) = (last, first) {
+                    best = best.min(seg(a, f));
+                }
+            }
+            _ => {}
+        }
+    });
+    (best <= tol * 1.5).then_some(id)
+}
+
+/// Texto selecionado sozinho e `over` com contorno: dá para ajustar.
+fn text_can_go_on(doc: &DocState, over: &str) -> bool {
+    let is_text = doc.selection.len() == 1
+        && doc
+            .editor
+            .find(&doc.selection[0])
+            .and_then(|r| doc.editor.get(&r))
+            .is_some_and(|o| matches!(o.kind, ObjectKind::Text(_)));
+    is_text
+        && doc
+            .editor
+            .find(over)
+            .and_then(|r| doc.editor.get(&r))
+            .is_some_and(|o| {
+                !matches!(o.kind, ObjectKind::Text(_) | ObjectKind::Group(_))
+                    && query::local_outline(o).is_some()
+            })
+}
+
 /// Alça da curvatura (espaço local): o controle do primeiro lado; reta =
 /// o meio do lado.
 fn polygon_bend_handle(p: &graphdraw_core::model::PolygonData) -> Point {
@@ -7907,6 +8280,111 @@ mod tests {
         // Os outros seguem: o segundo vértice externo continua no raio.
         let v = graphdraw_core::render::scene::polygon_vertices(&p)[0][2];
         assert!(((v.x.hypot(v.y)) - p.rx).abs() < 1.0);
+    }
+
+    /// GD-TXT-09 na tela: a ferramenta Texto clicando na borda de uma forma
+    /// cria o texto nela; o losango desliza o texto; a seta dupla troca o
+    /// lado.
+    #[test]
+    fn text_on_path_click_and_handles() {
+        let (ctx, mut cs, mut doc, rid, rect, ph) = bdr_setup();
+        let edge = Point::new(50_000.0, 110_000.0);
+        let p = cs.screen(rect, ph, edge);
+        let click = |cs: &mut CanvasState, doc: &mut DocState, t: Tool, at: Pos2| {
+            canvas_frame(&ctx, cs, doc, t, vec![egui::Event::PointerMoved(at)]);
+            canvas_frame(
+                &ctx,
+                cs,
+                doc,
+                t,
+                vec![button(at, PointerButton::Primary, true)],
+            );
+            canvas_frame(
+                &ctx,
+                cs,
+                doc,
+                t,
+                vec![button(at, PointerButton::Primary, false)],
+            );
+        };
+        click(&mut cs, &mut doc, Tool::Text, p);
+        let tid = cs
+            .text
+            .as_ref()
+            .map(|t| t.id.clone())
+            .expect("editando o texto novo");
+        ops::modify(
+            &mut doc.editor,
+            std::slice::from_ref(&tid),
+            "digitar",
+            |o| {
+                if let ObjectKind::Text(t) = &mut o.kind {
+                    graphdraw_core::edit::text::insert(t, 0, "TEXTO NA BORDA");
+                    return true;
+                }
+                false
+            },
+        );
+        cs.end_text(&mut doc);
+        let tp = |doc: &DocState| match &doc
+            .editor
+            .get(&doc.editor.find(&tid).unwrap())
+            .unwrap()
+            .kind
+        {
+            ObjectKind::Text(t) => t.path.clone(),
+            _ => None,
+        };
+        let first = tp(&doc).expect("texto no caminho");
+        assert_eq!(first.guide.as_deref(), Some(rid.as_str()));
+        // Losango: desliza ao longo do caminho.
+        doc.selection = vec![tid.clone()];
+        let h = path_text_handles(&doc).unwrap();
+        let a = cs.screen(rect, ph, h.start);
+        let b = cs.screen(rect, ph, h.m * h.track.at(h.span.start + 15_000.0).0);
+        let s = Tool::Select;
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            s,
+            vec![egui::Event::PointerMoved(a)],
+        );
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            s,
+            vec![button(a, PointerButton::Primary, true)],
+        );
+        for k in 1..=4 {
+            canvas_frame(
+                &ctx,
+                &mut cs,
+                &mut doc,
+                s,
+                vec![egui::Event::PointerMoved(a + (b - a) * (k as f32 / 4.0))],
+            );
+        }
+        canvas_frame(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            s,
+            vec![button(b, PointerButton::Primary, false)],
+        );
+        let moved = tp(&doc).unwrap();
+        assert!(
+            (moved.offset - first.offset).abs() > 5_000.0,
+            "{} → {}",
+            first.offset,
+            moved.offset
+        );
+        // Seta dupla: troca o lado.
+        let h = path_text_handles(&doc).unwrap();
+        let f = cs.screen(rect, ph, h.flip);
+        click(&mut cs, &mut doc, s, f);
+        assert_eq!(tp(&doc).unwrap().side, "below");
     }
 
     #[test]

@@ -47,6 +47,16 @@ entre parênteses são os requisitos de `docs/spec/`.
   cores, suavizar e inverter; seletor de cor com roda de matiz, canais,
   hexadecimal, paletas com busca e conta-gotas na janela; amostra original
   × nova; F11 e Shift+F11.
+- Texto no caminho refeito (GD-TXT-09): vínculo vivo com a curva-guia;
+  ferramenta Texto clica direto na curva; texto arrastado com o botão direito
+  sobre a curva oferece Ajustar ao caminho; alças na tela (deslizar com ímã,
+  afastar, trocar de lado, batentes do intervalo); alinhamento horizontal
+  (início/centro/fim/justificar) e vertical (base, descendentes, altura-x,
+  maiúsculas, centro); orientação Deformar; cantos vivos (pular, dobrar,
+  partes por face); anticolisão nos côncavos; caminho fechado dando a volta
+  e Selo superior/inferior; linhas concêntricas; Endireitar guardando o
+  caminho e Reativar caminho de origem; traço-guia como linha de construção
+  (fora da impressão, do PDF e do corte).
 - Formas paramétricas (doc 03): polígono e estrela com curvatura simétrica
   dos lados, cantos das pontas e dos vales, nós isolados da simetria (Alt +
   arrastar; Voltar à simetria), alça de lados na tela e Delete tirando um

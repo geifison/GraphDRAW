@@ -236,6 +236,7 @@ mod tests {
             line_spacing: 1.2,
             path: None,
             exclusions: Default::default(),
+            path_memory: None,
             extra: Default::default(),
         }));
         let id = t.id.clone();
@@ -298,6 +299,7 @@ mod embed_tests {
             line_spacing: 1.2,
             path: None,
             exclusions: Default::default(),
+            path_memory: None,
             extra: Default::default(),
         }));
         d.data.pages[0].layers[0].objects.push(t);

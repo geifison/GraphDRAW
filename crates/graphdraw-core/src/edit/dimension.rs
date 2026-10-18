@@ -276,6 +276,7 @@ fn text_object(o: &Object, d: &DimensionData, label: &str, at: Point, angle: f64
         line_spacing: 1.2,
         path: None,
         exclusions: Default::default(),
+        path_memory: None,
         extra: Default::default(),
     };
     let layout = crate::render::text::layout_text(&t);

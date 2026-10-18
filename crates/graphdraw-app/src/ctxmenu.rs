@@ -56,6 +56,8 @@ pub enum Cmd {
     Trim,
     Intersect,
     CenterOnTarget,
+    /// Texto solto sobre a curva: ajustar a ela, perto do ponto.
+    FitToPathHere,
     Cancel,
     /// Itens Beta (desabilitados; nada a executar).
     ClipInside,
@@ -246,6 +248,12 @@ pub fn object_entries(doc: &DocState, clicked: &str, focus: bool) -> Vec<Entry> 
             Cmd::Run(Command::FitTextToPath),
         ));
     }
+    if n == 1 && graphdraw_core::edit::textpath::can_reattach(o) {
+        text.push(item(
+            tr("Reativar caminho de origem", "Reactivate source path"),
+            Cmd::Run(Command::ReattachTextPath),
+        ));
+    }
     if !text.is_empty() {
         out.push(Entry::Sep);
         out.extend(text);
@@ -357,8 +365,16 @@ pub fn segment_entries() -> Vec<Entry> {
 }
 
 /// Menu ao soltar o arrasto direito (GD-BDR-22..34).
-pub fn drop_entries(over_object: bool) -> Vec<Entry> {
+pub fn drop_entries(over_object: bool, text_on_curve: bool) -> Vec<Entry> {
     let mut out = Vec::new();
+    if text_on_curve {
+        // Texto solto sobre uma curva: o texto vai para ela (GD-TXT-09).
+        out.push(item(
+            tr("Ajustar ao caminho", "Fit to path"),
+            Cmd::FitToPathHere,
+        ));
+        out.push(Entry::Sep);
+    }
     if over_object {
         out.push(beta(
             tr("Colocar dentro (recorte)", "Place inside (clip)"),
@@ -442,6 +458,7 @@ pub fn icon_of(c: &Cmd) -> &'static str {
         Cmd::Trim => "bool-trim",
         Cmd::Intersect => "bool-intersect",
         Cmd::CenterOnTarget => "center-on",
+        Cmd::FitToPathHere => "text-path",
         Cmd::ClipInside => "clip-inside",
         Cmd::LinkedInstance => "instance",
         Cmd::Cancel => "cancel",
@@ -577,8 +594,8 @@ mod tests {
             empty_entries(true, true),
             node_entries(NodeKind::Corner, true),
             segment_entries(),
-            drop_entries(true),
-            drop_entries(false),
+            drop_entries(true, true),
+            drop_entries(false, false),
         ] {
             walk(&v, &mut cmds);
         }
@@ -592,7 +609,7 @@ mod tests {
 
     #[test]
     fn drop_menu_has_beta_items_disabled() {
-        let v = drop_entries(true);
+        let v = drop_entries(true, true);
         let disabled: Vec<_> = v
             .iter()
             .filter_map(|e| match e {
@@ -608,7 +625,7 @@ mod tests {
             disabled,
             vec![tr("Colocar dentro (recorte)", "Place inside (clip)")]
         );
-        assert!(labels(&drop_entries(false)).contains(&tr("Mover para cá", "Move here")));
-        assert!(!labels(&drop_entries(false)).contains(&tr("Soldar", "Weld")));
+        assert!(labels(&drop_entries(false, false)).contains(&tr("Mover para cá", "Move here")));
+        assert!(!labels(&drop_entries(false, false)).contains(&tr("Soldar", "Weld")));
     }
 }

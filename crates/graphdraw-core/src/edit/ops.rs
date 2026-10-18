@@ -1499,31 +1499,19 @@ pub fn fit_text_to_path(ed: &mut Editor, text_id: &str, path_id: &str) -> bool {
         };
         td.text_kind = "artistic".into();
         td.frame = None;
-        td.path = Some(crate::model::TextPath {
-            subpaths: subpaths.clone(),
-            offset: 0.0,
-            distance: 0.0,
-            side: "above".into(),
-            orientation: "rotate".into(),
-            mirror: false,
-            guide: Some(path_id.to_string()),
-            detached: false,
-            extra: Default::default(),
-        });
+        td.path = Some(crate::model::TextPath::new(
+            subpaths.clone(),
+            Some(path_id.to_string()),
+        ));
         true
     });
     true
 }
 
-/// Separar o texto do caminho: volta a ser texto em linha reta.
+/// Separar o texto do caminho: volta a ser texto em linha reta, guardando
+/// o caminho para "Reativar caminho de origem".
 pub fn detach_text_path(ed: &mut Editor, sel: &[String]) {
-    modify(ed, sel, "Separar texto do caminho", |o| match &mut o.kind {
-        ObjectKind::Text(t) if t.path.is_some() => {
-            t.path = None;
-            true
-        }
-        _ => false,
-    });
+    super::textpath::straighten(ed, sel);
 }
 
 /// Muda as opções do texto em caminho (posição, distância, lado,

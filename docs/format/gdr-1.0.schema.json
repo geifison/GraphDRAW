@@ -336,6 +336,7 @@
         "userData": { "type": "object", "additionalProperties": { "type": "string" } },
         "blendMode": { "enum": ["normal", "multiply", "screen", "overlay", "darken", "lighten", "color-dodge", "color-burn", "hard-light", "soft-light", "difference", "exclusion", "hue", "saturation", "color", "luminosity"] },
         "objectStyle": { "type": "string", "description": "ID do estilo de objeto em resources/styles.json." },
+        "construction": { "type": "boolean", "description": "Linha de construção: aparece na tela, não sai na impressão, no PDF/SVG nem no corte." },
         "textStyle": { "type": "string", "description": "ID do estilo de texto em resources/styles.json." },
         "textWrap": {
           "type": "object",
@@ -488,7 +489,12 @@
                   "offset": { "type": "number" },
                   "distance": { "type": "number" },
                   "side": { "enum": ["above", "below"] },
-                  "orientation": { "enum": ["rotate", "skew-v", "skew-h", "upright"] },
+                  "orientation": { "enum": ["rotate", "skew-v", "skew-h", "upright", "warp"] },
+                  "align": { "enum": ["start", "center", "end", "justify"] },
+                  "vertical": { "enum": ["baseline", "descender", "x-height", "cap", "center"] },
+                  "range": { "type": "array", "items": { "type": "number", "minimum": 0, "maximum": 1 }, "minItems": 2, "maxItems": 2 },
+                  "corners": { "enum": ["jump", "wrap", "split"] },
+                  "relax": { "type": "boolean" },
                   "mirror": { "type": "boolean" },
                   "guide": { "type": "string", "description": "ID do objeto de onde veio a forma do caminho." },
                   "detached": { "type": "boolean", "description": "Já separado do caminho guia (GD-CMB-03): mantém a curva, independente." }
