@@ -155,6 +155,7 @@ commands! {
     BreakApart = "obj.break_apart", "Separar", "Break apart", Object, Selection, true;
     Offset = "obj.offset", "Contorno de deslocamento", "Offset path", Object, Selection, true;
     CutLine = "cut.line", "Gerar linha de corte", "Create cut line", Object, Selection, true;
+    Nest = "cut.nest", "Aninhar na chapa", "Nest on sheet", Object, Selection, true;
     RegistrationMarks = "cut.registration_marks", "Marcas de registro", "Registration marks", Object, NotText, true;
     Ungroup = "obj.ungroup", "Desagrupar", "Ungroup", Object, Selection, true;
     UngroupAll = "obj.ungroup_all", "Desagrupar tudo", "Ungroup all", Object, Selection, true;

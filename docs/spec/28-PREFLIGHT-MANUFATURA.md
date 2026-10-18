@@ -77,8 +77,9 @@ Fase: **MVP** (entra na 1.0), exceto onde indicado.
 
 ## 4. Fora da 1.0
 - **GD-PRE-30** Aninhamento (nesting) em chapa: rotações permitidas,
-  sentido da fibra, folga da ferramenta. Fase: Beta (P1 de
-  `docs/PRODUCAO.md`).
+  sentido da fibra, folga da ferramenta. Feito: Objeto → Aninhar na chapa
+  (grade de células, forma real com furos cheios, preenchimento
+  inferior-esquerdo, várias chapas).
 - **GD-PRE-31** Mapa de cobertura de tinta por pixel, em falso tom, para
   imagens e transparências: depende da prévia de separações (doc 16).
   Fase: Beta.

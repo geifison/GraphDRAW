@@ -271,6 +271,76 @@ impl CutExport {
     }
 }
 
+/// Opções de "Aninhar na chapa" (GD-PRE-30).
+pub struct NestDialog {
+    pub opts: graphdraw_core::edit::nest::NestOptions,
+}
+
+impl NestDialog {
+    /// `Some(true)` = aninhar; `Some(false)` = cancelar.
+    pub fn show(&mut self, ctx: &egui::Context) -> Option<bool> {
+        let mut out = None;
+        let o = &mut self.opts;
+        widgets::modal(ctx, egui::Id::unique("aninhar")).show(ctx, |ui| {
+            ui.heading(tr("Aninhar na chapa", "Nest on sheet"));
+            ui.add_space(theme::SPACE_300);
+            egui::Grid::new("aninhar-grade").num_columns(2).show(ui, |ui| {
+                let len = |ui: &mut egui::Ui, id: &str, label: &str, v: &mut f64, min: f64| {
+                    ui.label(label);
+                    if let Some(n) = widgets::length_field(ui, id, *v, None) {
+                        *v = n.max(min);
+                    }
+                    ui.end_row();
+                };
+                len(ui, "aninhar-w", tr("Largura da chapa", "Sheet width"), &mut o.sheet_w, 1_000.0);
+                len(ui, "aninhar-h", tr("Altura da chapa", "Sheet height"), &mut o.sheet_h, 1_000.0);
+                len(ui, "aninhar-gap", tr("Folga entre peças", "Gap between pieces"), &mut o.gap, 0.0);
+                len(ui, "aninhar-margin", tr("Margem da chapa", "Sheet margin"), &mut o.margin, 0.0);
+                ui.label(tr("Rotação", "Rotation"));
+                ui.horizontal(|ui| {
+                    for (k, label) in [
+                        ("none", tr("Nenhuma", "None")),
+                        ("180", "180°"),
+                        ("90", "90°"),
+                        ("free", tr("Livre", "Free")),
+                    ] {
+                        if ui.selectable_label(o.rotation == k, label).clicked() {
+                            o.rotation = k.into();
+                        }
+                    }
+                    if o.rotation == "free" {
+                        ui.add(egui::DragValue::new(&mut o.step).range(1.0..=90.0).suffix("°"));
+                    }
+                });
+                ui.end_row();
+            });
+            ui.checkbox(
+                &mut o.grain,
+                tr("Respeitar o sentido da fibra (só 0° e 180°)", "Keep the grain direction (0° and 180° only)"),
+            );
+            ui.checkbox(&mut o.outline, tr("Desenhar o contorno da chapa", "Draw the sheet outline"));
+            ui.weak(tr(
+                "As peças vão para a chapa a partir do canto da página; o que não cabe abre outra chapa ao lado.",
+                "Pieces go onto the sheet from the page corner; what does not fit opens another sheet beside it.",
+            ));
+            ui.add_space(theme::SPACE_300);
+            widgets::footer(ui, |ui| {
+                if ui.add(widgets::primary_button(tr("Aninhar", "Nest"))).clicked()
+                    || ui.input(|i| i.key_pressed(egui::Key::Enter))
+                {
+                    out = Some(true);
+                }
+                if ui.add(widgets::secondary_button(tr("Cancelar", "Cancel"))).clicked()
+                    || ui.input(|i| i.key_pressed(egui::Key::Escape))
+                {
+                    out = Some(false);
+                }
+            });
+        });
+        out
+    }
+}
+
 /// Opções de "Gerar linha de corte" (GD-CRT-02).
 pub struct CutLineDialog {
     pub distance: f64,

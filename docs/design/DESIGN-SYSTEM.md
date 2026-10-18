@@ -549,6 +549,12 @@ Aba **Verificação** (ícone `preflight`) no painel direito:
     - a barra tem Uniforme e os perfis prontos (Afinar no fim, Afinar no
       início, Afinar nas pontas, Bojo), que também estão na seção Largura
       variável do diálogo de contorno.
+- Aninhar na chapa (GD-PRE-30; Objeto e menu de contexto, ícone
+  `cut-line`): modal com Largura/Altura da chapa, Folga entre peças,
+  Margem, Rotação (Nenhuma | 180° | 90° | Livre + passo), Respeitar o
+  sentido da fibra e Desenhar o contorno da chapa (retângulo travado, não
+  imprime). O resultado vai para a barra de estado: peças, chapas,
+  aproveitamento e quantas não cabem.
 - Amostras compostas (GD-BDR-12): no alto da aba Paletas, Gradientes e
   padrões do documento em amostras de `swatch` (gradiente em faixas
   pelas paradas; padrão com o ícone `fill-pattern` sobre `page-paper`).

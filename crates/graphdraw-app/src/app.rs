@@ -186,6 +186,8 @@ pub struct App {
     /// Exportar para corte (PLT/DXF) e gerar linha de corte (doc 17).
     cut_export: Option<crate::cutui::CutExport>,
     cut_line_dlg: Option<crate::cutui::CutLineDialog>,
+    nest_dlg: Option<crate::cutui::NestDialog>,
+    nest_opts: graphdraw_core::edit::nest::NestOptions,
     /// Janela de gerenciamento de cor (GD-CMS-02).
     color_dlg: Option<crate::colorui::ColorDialog>,
     /// Guias predefinidas (GD-GUI-02).
@@ -268,6 +270,8 @@ impl App {
             bitmap_dlg: None,
             cut_export: None,
             cut_line_dlg: None,
+            nest_dlg: None,
+            nest_opts: Default::default(),
             color_dlg: None,
             preset_dlg: None,
             new_doc: None,
@@ -1962,6 +1966,13 @@ impl App {
                     .into();
                 }
             }
+            C::Nest => {
+                if self.doc.as_ref().is_some_and(|d| !d.selection.is_empty()) {
+                    self.nest_dlg = Some(crate::cutui::NestDialog {
+                        opts: self.nest_opts.clone(),
+                    });
+                }
+            }
             C::CutLine => {
                 if self.doc.as_ref().is_some_and(|d| !d.selection.is_empty()) {
                     self.cut_line_dlg = Some(Default::default());
@@ -2504,6 +2515,11 @@ impl App {
                     (
                         tr("Gerar linha de corte…", "Create cut line…"),
                         Command::CutLine,
+                        has_sel,
+                    ),
+                    (
+                        tr("Aninhar na chapa…", "Nest on sheet…"),
+                        Command::Nest,
                         has_sel,
                     ),
                     (
@@ -3613,6 +3629,36 @@ impl App {
                     self.cut_export = None;
                     self.save_cut(format, &opts);
                 }
+            }
+        }
+        if let Some(dlg) = &mut self.nest_dlg
+            && let Some(ok) = dlg.show(ctx)
+        {
+            let opts = dlg.opts.clone();
+            self.nest_dlg = None;
+            self.nest_opts = opts.clone();
+            if ok && let Some(doc) = &mut self.doc {
+                let sel = doc.selection.clone();
+                let page = doc.page;
+                let r = graphdraw_core::edit::nest::nest(&mut doc.editor, page, &sel, &opts);
+                self.status = format!(
+                    "{} {} {} {} · {} {:.0}%{}",
+                    r.placed,
+                    tr("peças em", "pieces on"),
+                    r.sheets,
+                    tr("chapa(s)", "sheet(s)"),
+                    tr("aproveitamento", "usage"),
+                    r.usage * 100.0,
+                    if r.unplaced.is_empty() {
+                        String::new()
+                    } else {
+                        format!(
+                            " · {} {}",
+                            r.unplaced.len(),
+                            tr("não cabem na chapa", "do not fit the sheet")
+                        )
+                    }
+                );
             }
         }
         if let Some(dlg) = &mut self.cut_line_dlg

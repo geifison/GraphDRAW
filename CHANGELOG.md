@@ -32,6 +32,9 @@ entre parênteses são os requisitos de `docs/spec/`.
   - horizontal, vertical, paralela, angular, raio, diâmetro e segmento;
   - ligadas aos nós medidos, com a escala de desenho (GD-FER-40,
     GD-COT-01..03).
+- Aninhar na chapa: encaixa as peças pela forma real em chapas de tamanho
+  dado, com rotações (nenhuma, 180°, 90°, livre), sentido da fibra, folga
+  e margem; abre chapas novas e informa o aproveitamento (GD-PRE-30).
 - Gradientes e padrões do documento na aba Paletas: clique aplica;
   toque longo com o direito abre o miniseletor de destino (GD-BDR-12).
 - Texto contornando objeto: contorno ou quadrado, dos dois lados, à

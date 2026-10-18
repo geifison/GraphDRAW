@@ -259,6 +259,10 @@ pub fn object_entries(doc: &DocState, clicked: &str, focus: bool) -> Vec<Entry> 
         Cmd::Run(Command::CutLine),
     ));
     out.push(item(
+        tr("Aninhar na chapa…", "Nest on sheet…"),
+        Cmd::Run(Command::Nest),
+    ));
+    out.push(item(
         tr("Exportar seleção…", "Export selection…"),
         Cmd::Run(Command::ExportSelection),
     ));
@@ -435,6 +439,7 @@ pub fn icon_of(c: &Cmd) -> &'static str {
             K::ConvertTextKind => "text-convert",
             K::FitTextToPath => "text-path",
             K::CutLine => "cut-line",
+            K::Nest => "cut-line",
             K::ExportSelection => "export-selection",
             K::ExtendToBleed => "bleed",
             K::ToGuides => "guide-object",

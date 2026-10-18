@@ -15,6 +15,7 @@ pub mod generate;
 pub mod gradtool;
 pub mod guides;
 pub mod history;
+pub mod nest;
 pub mod nodes;
 pub mod ops;
 pub mod pages;
