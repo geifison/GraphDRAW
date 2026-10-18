@@ -128,7 +128,8 @@
       "properties": {
         "offset": { "type": "number", "minimum": 0, "maximum": 1 },
         "color": { "$ref": "#/$defs/color" },
-        "opacity": { "type": "number", "minimum": 0, "maximum": 1 }
+        "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "midpoint": { "type": "number", "minimum": 0, "maximum": 1 }
       }
     },
     "fill": {
@@ -154,7 +155,17 @@
           "then": {
             "required": ["kind", "width", "height"],
             "properties": {
-              "kind": { "enum": ["vector", "bitmap", "two-color"] },
+              "kind": { "enum": ["vector", "bitmap", "two-color", "texture"] },
+              "texture": {
+                "type": "object",
+                "properties": {
+                  "style": { "enum": ["clouds", "marble", "wood", "granite"] },
+                  "seed": { "type": "integer", "minimum": 0 },
+                  "frequency": { "type": "number", "minimum": 1 },
+                  "detail": { "type": "integer", "minimum": 1, "maximum": 8 },
+                  "contrast": { "type": "number", "minimum": 0, "maximum": 1 }
+                }
+              },
               "tile": { "type": "array", "items": { "$ref": "#/$defs/object" } },
               "src": { "type": "string", "pattern": "^resources/images/[0-9a-f]{64}\\.(png|jpg|jpeg|tif|tiff|webp)$" },
               "cells": { "type": "array", "items": { "type": "string", "pattern": "^[01]*$" } },
@@ -186,7 +197,10 @@
               "radius": { "type": "number", "exclusiveMinimum": 0 },
               "radiusY": { "type": "number", "exclusiveMinimum": 0 },
               "angle": { "type": "number" },
-              "spread": { "enum": ["pad", "repeat", "reflect"] }
+              "spread": { "enum": ["pad", "repeat", "reflect"] },
+              "steps": { "type": "integer", "minimum": 1 },
+              "smooth": { "type": "boolean" },
+              "colorPath": { "enum": ["direct", "cw", "ccw"] }
             },
             "allOf": [
               {

@@ -800,20 +800,48 @@ pub fn move_to_layer(ed: &mut Editor, sel: &[String], page: usize, layer: usize)
 /// centro/raio) é calculada pela caixa de cada objeto.
 #[derive(Debug, Clone, PartialEq)]
 pub struct GradientSpec {
-    /// `linear` ou `radial`.
+    /// `linear`, `radial`, `elliptic`, `conic` ou `rectangular`.
     pub kind: String,
     pub stops: Vec<crate::model::GradientStop>,
     pub angle: f64,
     /// `pad`, `repeat` ou `reflect`.
     pub spread: String,
+    /// Deslocamento do centro em fração da meia caixa (−1 a 1 = borda).
+    pub center: [f64; 2],
+    /// Tamanho em relação ao que cobre a caixa (1 = 100%).
+    pub scale: f64,
+    pub steps: Option<u32>,
+    pub smooth: bool,
+    pub color_path: String,
+}
+
+impl Default for GradientSpec {
+    fn default() -> Self {
+        GradientSpec {
+            kind: "linear".into(),
+            stops: Vec::new(),
+            angle: 0.0,
+            spread: "pad".into(),
+            center: [0.0, 0.0],
+            scale: 1.0,
+            steps: None,
+            smooth: false,
+            color_path: "direct".into(),
+        }
+    }
 }
 
 /// Gradiente com a geometria ajustada à caixa `b` (coordenadas locais).
 pub fn gradient_for(spec: &GradientSpec, b: Rect) -> crate::model::Gradient {
-    let c = b.center();
+    let s = spec.scale.max(1e-6);
+    let c = b.center()
+        + Vec2::new(
+            spec.center[0] * b.width() / 2.0,
+            spec.center[1] * b.height() / 2.0,
+        );
     let (mut radius_y, mut angle) = (None, None);
     let (start, end, center, radius) = if spec.kind == "radial" {
-        let r = (b.width().hypot(b.height()) / 2.0).max(1e-9);
+        let r = (b.width().hypot(b.height()) / 2.0 * s).max(1e-9);
         (None, None, Some([c.x, c.y]), Some(r))
     } else if matches!(spec.kind.as_str(), "elliptic" | "rectangular" | "conic") {
         // Elíptico chega aos cantos; retangular às bordas; cônico só usa o
@@ -823,18 +851,18 @@ pub fn gradient_for(spec: &GradientSpec, b: Rect) -> crate::model::Gradient {
         } else {
             1.0
         };
-        radius_y = Some((b.height() / 2.0 * k).max(1e-9));
+        radius_y = Some((b.height() / 2.0 * k * s).max(1e-9));
         angle = (spec.angle != 0.0).then_some(spec.angle);
         (
             None,
             None,
             Some([c.x, c.y]),
-            Some((b.width() / 2.0 * k).max(1e-9)),
+            Some((b.width() / 2.0 * k * s).max(1e-9)),
         )
     } else {
         let a = spec.angle.to_radians();
         let d = Vec2::new(a.cos(), a.sin());
-        let half = (b.width() / 2.0 * a.cos()).abs() + (b.height() / 2.0 * a.sin()).abs();
+        let half = ((b.width() / 2.0 * a.cos()).abs() + (b.height() / 2.0 * a.sin()).abs()) * s;
         let (p0, p1) = (c - d * half, c + d * half);
         (Some([p0.x, p0.y]), Some([p1.x, p1.y]), None, None)
     };
@@ -848,24 +876,67 @@ pub fn gradient_for(spec: &GradientSpec, b: Rect) -> crate::model::Gradient {
         radius_y,
         angle,
         spread: spec.spread.clone(),
+        steps: spec.steps,
+        smooth: spec.smooth,
+        color_path: spec.color_path.clone(),
         extra: Default::default(),
     }
 }
 
 /// Lê de volta o pedido de um gradiente existente (ângulo pelo início/fim).
 pub fn gradient_spec(g: &crate::model::Gradient) -> GradientSpec {
+    gradient_spec_in(g, None)
+}
+
+/// Como [`gradient_spec`]; com a caixa local `b` do objeto, recupera
+/// também o deslocamento do centro e a escala.
+pub fn gradient_spec_in(g: &crate::model::Gradient, b: Option<Rect>) -> GradientSpec {
     let angle = match (g.start, g.end) {
         (Some(a), Some(b)) => (b[1] - a[1]).atan2(b[0] - a[0]).to_degrees(),
         _ => g.angle.unwrap_or(0.0),
     };
+    let kind: String = match g.kind.as_str() {
+        k @ ("radial" | "elliptic" | "conic" | "rectangular") => k.into(),
+        _ => "linear".into(),
+    };
+    let (mut center, mut scale) = ([0.0, 0.0], 1.0);
+    if let Some(b) = b.filter(|b| b.width() > 0.0 && b.height() > 0.0) {
+        let bc = b.center();
+        let (hw, hh) = (b.width() / 2.0, b.height() / 2.0);
+        let mid = match (g.start, g.end, g.center) {
+            (Some(a), Some(e), _) => Some(Point::new((a[0] + e[0]) / 2.0, (a[1] + e[1]) / 2.0)),
+            (_, _, Some(c)) => Some(Point::new(c[0], c[1])),
+            _ => None,
+        };
+        if let Some(m) = mid {
+            center = [(m.x - bc.x) / hw, (m.y - bc.y) / hh];
+        }
+        let def = gradient_for(
+            &GradientSpec {
+                kind: kind.clone(),
+                angle,
+                ..Default::default()
+            },
+            b,
+        );
+        scale = match (g.start, g.end, def.start, def.end) {
+            (Some(a), Some(e), Some(da), Some(de)) => {
+                let len = |p: [f64; 2], q: [f64; 2]| (q[0] - p[0]).hypot(q[1] - p[1]);
+                len(a, e) / len(da, de).max(1e-9)
+            }
+            _ => g.radius.unwrap_or(1.0) / def.radius.unwrap_or(1.0).max(1e-9),
+        };
+    }
     GradientSpec {
-        kind: match g.kind.as_str() {
-            k @ ("radial" | "elliptic" | "conic" | "rectangular") => k.into(),
-            _ => "linear".into(),
-        },
+        kind,
         stops: g.stops.clone(),
         angle,
         spread: g.spread.clone(),
+        center,
+        scale,
+        steps: g.steps,
+        smooth: g.smooth,
+        color_path: g.color_path.clone(),
     }
 }
 
@@ -2371,12 +2442,14 @@ mod tests {
                 offset: 0.0,
                 color: Color::black(),
                 opacity: 1.0,
+                midpoint: 0.5,
                 extra: Map::new(),
             },
             GradientStop {
                 offset: 1.0,
                 color: Color::rgb(1.0, 1.0, 1.0),
                 opacity: 1.0,
+                midpoint: 0.5,
                 extra: Map::new(),
             },
         ];
@@ -2385,7 +2458,26 @@ mod tests {
             stops: stops.clone(),
             angle: 0.0,
             spread: "pad".into(),
+            ..Default::default()
         };
+        // Centro deslocado e escala voltam pela caixa.
+        for kind in ["linear", "elliptic"] {
+            let b = Rect::new(0.0, 0.0, 40.0, 20.0);
+            let s = GradientSpec {
+                kind: kind.into(),
+                center: [0.5, -0.25],
+                scale: 0.6,
+                steps: Some(5),
+                ..spec.clone()
+            };
+            let back = gradient_spec_in(&gradient_for(&s, b), Some(b));
+            assert!(
+                (back.center[0] - 0.5).abs() < 1e-9 && (back.center[1] + 0.25).abs() < 1e-9,
+                "{kind}"
+            );
+            assert!((back.scale - 0.6).abs() < 1e-9, "{kind}: {}", back.scale);
+            assert_eq!(back.steps, Some(5));
+        }
         let g = gradient_for(&spec, Rect::new(0.0, 0.0, 40.0, 20.0));
         assert_eq!((g.start, g.end), (Some([0.0, 10.0]), Some([40.0, 10.0])));
         let v = gradient_for(

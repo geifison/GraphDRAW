@@ -99,6 +99,7 @@ pub fn add_stop(g: &Gradient, p: Point) -> Option<(Gradient, usize)> {
             offset: t,
             color,
             opacity,
+            midpoint: 0.5,
             extra: Default::default(),
         },
     );
@@ -132,6 +133,7 @@ pub fn linear_from(a: Point, b: Point, current: Option<&Fill>) -> Gradient {
         offset,
         color,
         opacity: 1.0,
+        midpoint: 0.5,
         extra: Default::default(),
     };
     let stops = match current {
@@ -159,6 +161,9 @@ pub fn linear_from(a: Point, b: Point, current: Option<&Fill>) -> Gradient {
         radius_y: None,
         angle: None,
         spread,
+        steps: None,
+        smooth: false,
+        color_path: "direct".into(),
         extra: Default::default(),
     }
 }

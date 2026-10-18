@@ -67,12 +67,14 @@ fn sample() -> Document {
                 offset: 0.0,
                 color: Color::rgb(1.0, 0.0, 0.0),
                 opacity: 1.0,
+                midpoint: 0.5,
                 extra: Map::new(),
             },
             GradientStop {
                 offset: 1.0,
                 color: Color::rgb(0.0, 0.0, 1.0),
                 opacity: 1.0,
+                midpoint: 0.5,
                 extra: Map::new(),
             },
         ],
@@ -83,6 +85,9 @@ fn sample() -> Document {
         radius_y: None,
         angle: None,
         spread: "pad".into(),
+        steps: None,
+        smooth: false,
+        color_path: "direct".into(),
         extra: Map::new(),
     }));
     // Imagem com alfa: 20 px em 40 mm ≈ 12,7 ppp (abaixo de 300).

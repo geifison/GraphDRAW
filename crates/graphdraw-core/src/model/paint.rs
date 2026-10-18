@@ -12,8 +12,25 @@ pub struct GradientStop {
     pub color: Color,
     #[serde(default = "one", skip_serializing_if = "is_one")]
     pub opacity: f64,
+    /// Ponto médio do trecho até a parada seguinte (0–1 do trecho): onde a
+    /// mistura chega a 50/50. 0,5 = no meio.
+    #[serde(default = "half", skip_serializing_if = "is_half")]
+    pub midpoint: f64,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
+}
+
+fn half() -> f64 {
+    0.5
+}
+fn is_half(v: &f64) -> bool {
+    *v == 0.5
+}
+fn direct() -> String {
+    "direct".into()
+}
+fn is_direct(s: &String) -> bool {
+    s == "direct"
 }
 
 /// Gradiente em coordenadas locais do objeto (µm).
@@ -42,8 +59,44 @@ pub struct Gradient {
     /// `pad` (padrão), `repeat` ou `reflect`.
     #[serde(default = "pad", skip_serializing_if = "is_pad")]
     pub spread: String,
+    /// Número de faixas da transição; `None` = contínua.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub steps: Option<u32>,
+    /// Suavizar: pontilhado contra faixas visíveis na tela e no raster.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub smooth: bool,
+    /// Rota da mistura entre paradas: `direct` (padrão) ou pela roda de
+    /// matiz, `cw` (matiz crescente) ou `ccw` (decrescente).
+    #[serde(default = "direct", skip_serializing_if = "is_direct")]
+    pub color_path: String,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
+}
+
+/// Textura procedural do padrão (`kind` = `texture`): ruído fractal
+/// periódico (o ladrilho emenda) entre `bg` e `fg`. `style` = `clouds`,
+/// `marble`, `wood` ou `granite`; `frequency` = células do ruído por
+/// ladrilho; `detail` = oitavas; `contrast` 0–1.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Texture {
+    pub style: String,
+    pub seed: u32,
+    pub frequency: f64,
+    pub detail: u32,
+    pub contrast: f64,
+}
+
+impl Default for Texture {
+    fn default() -> Self {
+        Texture {
+            style: "clouds".into(),
+            seed: 1,
+            frequency: 4.0,
+            detail: 5,
+            contrast: 0.5,
+        }
+    }
 }
 
 /// Padrão de preenchimento (GD-FIL-04/05/06, GD-FIL-10). `kind`:
@@ -77,6 +130,8 @@ pub struct Pattern {
     pub mirror: bool,
     pub transform_with_object: bool,
     pub resolution: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub texture: Option<Texture>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }
@@ -100,6 +155,7 @@ impl Default for Pattern {
             mirror: false,
             transform_with_object: true,
             resolution: 300.0,
+            texture: None,
             extra: Map::new(),
         }
     }

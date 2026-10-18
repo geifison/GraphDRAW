@@ -174,6 +174,7 @@ fn main() {
             offset: o,
             color: c,
             opacity: 1.0,
+            midpoint: 0.5,
             extra: Map::new(),
         };
         let grad = |kind: &str, c: [f64; 2], r: f64| Gradient {
@@ -189,6 +190,9 @@ fn main() {
             radius_y: Some(r * 0.6),
             angle: Some(30.0),
             spread: "pad".into(),
+            steps: None,
+            smooth: false,
+            color_path: "direct".into(),
             extra: Map::new(),
         };
         for (i, o) in page.layers[0].objects.iter_mut().enumerate() {

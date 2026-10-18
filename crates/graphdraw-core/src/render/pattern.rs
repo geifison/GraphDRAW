@@ -174,6 +174,24 @@ fn base_tile(
                 }
             }
         }
+        "texture" => {
+            let tx = p.texture.clone().unwrap_or_default();
+            let to = |c: &Option<crate::model::Color>, d: [f64; 3]| {
+                c.as_ref().map_or(d, |c| c.to_srgb())
+            };
+            let (fg, bg) = (to(&p.fg, [0.0, 0.0, 0.0]), to(&p.bg, [1.0, 1.0, 1.0]));
+            let data = pm.pixels_mut();
+            for y in 0..h {
+                for x in 0..w {
+                    let v = texture_value(&tx, x as f64 / w as f64, y as f64 / h as f64);
+                    let m = |i: usize| {
+                        ((bg[i] + (fg[i] - bg[i]) * v).clamp(0.0, 1.0) * 255.0).round() as u8
+                    };
+                    data[(y * w + x) as usize] =
+                        sk::ColorU8::from_rgba(m(0), m(1), m(2), 255).premultiply();
+                }
+            }
+        }
         _ => {
             // Vetorial: os objetos do ladrilho numa página do tamanho dele.
             let mut page = Page::new(tw, th);
@@ -184,6 +202,54 @@ fn base_tile(
         }
     }
     Some(pm)
+}
+
+/// Valor (0–1) da textura procedural em (u, v) do ladrilho (0–1): ruído de
+/// valor fractal com a grade repetida a cada ladrilho, para emendar.
+pub fn texture_value(t: &crate::model::Texture, u: f64, v: f64) -> f64 {
+    let hash = |x: i64, y: i64, o: u32| -> f64 {
+        let mut h = (x as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15)
+            ^ (y as u64).wrapping_mul(0xC2B2_AE3D_27D4_EB4F)
+            ^ ((t.seed as u64) << 32 | o as u64).wrapping_mul(0x1656_67B1_9E37_79F9);
+        h ^= h >> 29;
+        h = h.wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        h ^= h >> 32;
+        (h >> 11) as f64 / (1u64 << 53) as f64
+    };
+    let noise = |x: f64, y: f64, period: i64, o: u32| -> f64 {
+        let (xi, yi) = (x.floor(), y.floor());
+        let (fx, fy) = (x - xi, y - yi);
+        let s = |f: f64| f * f * (3.0 - 2.0 * f);
+        let (sx, sy) = (s(fx), s(fy));
+        let w = |a: f64| (a as i64).rem_euclid(period.max(1));
+        let c = |dx: f64, dy: f64| hash(w(xi + dx), w(yi + dy), o);
+        let top = c(0.0, 0.0) + (c(1.0, 0.0) - c(0.0, 0.0)) * sx;
+        let bot = c(0.0, 1.0) + (c(1.0, 1.0) - c(0.0, 1.0)) * sx;
+        top + (bot - top) * sy
+    };
+    let f = t.frequency.round().max(1.0);
+    let (mut sum, mut amp, mut norm, mut freq) = (0.0, 1.0, 0.0, f);
+    for o in 0..t.detail.clamp(1, 8) {
+        let n = noise(u * freq, v * freq, freq as i64, o);
+        sum += if t.style == "granite" {
+            (n * 2.0 - 1.0).abs() * amp
+        } else {
+            n * amp
+        };
+        norm += amp;
+        amp *= 0.5;
+        freq *= 2.0;
+    }
+    let n = sum / norm;
+    let raw = match t.style.as_str() {
+        "marble" => 0.5 + 0.5 * ((u * f + n * 4.0) * std::f64::consts::TAU).sin(),
+        // Veios na vertical, ondulados pelo ruído (emenda nos dois sentidos).
+        "wood" => ((v * f + n * 2.0).fract() * 2.0 - 1.0).abs(),
+        _ => n,
+    };
+    // Contraste em torno do meio.
+    let k = 1.0 + t.contrast.clamp(0.0, 1.0) * 4.0;
+    (0.5 + (raw - 0.5) * k).clamp(0.0, 1.0)
 }
 
 fn render_tile(doc: &Document, p: &Pattern, images: &ImageCache) -> Option<PatternTile> {
@@ -246,6 +312,35 @@ mod tests {
     }
 
     /// GD-FIL-06: xadrez de duas cores; o superladrilho tem 2 × 2 ladrilhos.
+    #[test]
+    fn texture_tile_is_seamless_and_seeded() {
+        let t = crate::model::Texture::default();
+        for style in ["clouds", "marble", "granite", "wood"] {
+            let s = crate::model::Texture {
+                style: style.into(),
+                ..t.clone()
+            };
+            for y in [0.1, 0.5, 0.9] {
+                let a = texture_value(&s, 0.0, y);
+                let b = texture_value(&s, 1.0, y);
+                assert!((a - b).abs() < 1e-9, "{style}: emenda em x");
+            }
+        }
+        let other = crate::model::Texture {
+            seed: 2,
+            ..t.clone()
+        };
+        assert_ne!(texture_value(&t, 0.3, 0.3), texture_value(&other, 0.3, 0.3));
+        assert_eq!(texture_value(&t, 0.3, 0.7), texture_value(&t, 0.3, 0.7));
+        let p = Pattern {
+            kind: "texture".into(),
+            texture: Some(t),
+            fg: Some(crate::model::Color::black()),
+            ..Pattern::default()
+        };
+        assert!(tile(&Document::new(), &p, &ImageCache::default()).is_some());
+    }
+
     #[test]
     fn gd_fil_06_two_color_tile() {
         let doc = Document::new();

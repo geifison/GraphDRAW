@@ -372,6 +372,7 @@ impl Mapper<'_> {
                     offset: st.ratio("svg:offset").unwrap_or(0.0).clamp(0.0, 1.0),
                     color: Color::from_hex(st.str("svg:stop-color")?)?,
                     opacity: st.ratio("svg:stop-opacity").unwrap_or(1.0).clamp(0.0, 1.0),
+                    midpoint: 0.5,
                     extra: Map::new(),
                 })
             })
@@ -380,6 +381,7 @@ impl Mapper<'_> {
             offset,
             color,
             opacity,
+            midpoint: 0.5,
             extra: Map::new(),
         };
         let style = s.str("draw:style").unwrap_or("linear");
@@ -425,6 +427,9 @@ impl Mapper<'_> {
                     radius_y,
                     angle,
                     spread: "pad".into(),
+                    steps: None,
+                    smooth: false,
+                    color_path: "direct".into(),
                     extra: Map::new(),
                 })
             }
@@ -465,6 +470,9 @@ impl Mapper<'_> {
                     radius_y: None,
                     angle: None,
                     spread: "pad".into(),
+                    steps: None,
+                    smooth: false,
+                    color_path: "direct".into(),
                     extra: Map::new(),
                 })
             }

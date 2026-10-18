@@ -338,6 +338,7 @@ mod tests {
             offset,
             color: Color::from_hex(hex).unwrap(),
             opacity: 1.0,
+            midpoint: 0.5,
             extra: Map::new(),
         };
         Gradient {
@@ -350,6 +351,9 @@ mod tests {
             radius_y: None,
             angle: None,
             spread: "pad".into(),
+            steps: None,
+            smooth: false,
+            color_path: "direct".into(),
             extra: Map::new(),
         }
     }

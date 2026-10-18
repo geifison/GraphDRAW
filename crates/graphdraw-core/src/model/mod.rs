@@ -19,4 +19,4 @@ pub use object::{
     Object, ObjectKind, Paragraph, PathData, PolygonData, RectData, Symmetry, TextData, TextPath,
     TextSpan, TextWrap, WrapZone, new_id,
 };
-pub use paint::{Arrow, Fill, Gradient, GradientStop, Pattern, Stroke, WidthNode};
+pub use paint::{Arrow, Fill, Gradient, GradientStop, Pattern, Stroke, Texture, WidthNode};

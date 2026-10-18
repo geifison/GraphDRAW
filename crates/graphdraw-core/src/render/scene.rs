@@ -692,7 +692,7 @@ pub fn resolve_fill(f: &Fill, m: Affine, alpha: f64) -> Option<Paint> {
         }),
         Fill::Gradient(g) if g.stops.is_empty() => None,
         Fill::Gradient(g) => Some(Paint::Gradient {
-            gradient: g.clone(),
+            gradient: super::gradient::effective(g),
             transform: m,
             alpha,
         }),

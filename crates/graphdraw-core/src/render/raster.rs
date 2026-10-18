@@ -316,7 +316,24 @@ fn fill_computed(
         for x in 0..w {
             let q = inv * kurbo::Point::new(x0 as f64 + x as f64 + 0.5, y0 as f64 + y as f64 + 0.5);
             let t = crate::render::gradient::param(g, q);
-            let [r, gg, bb, a] = lut[(t * 255.0).round().clamp(0.0, 255.0) as usize];
+            // Suavizar: escolhe entre as duas cores vizinhas da tabela pelo
+            // limiar de Bayer 4 × 4 (pontilhado, sem faixas).
+            let f = t * 255.0;
+            let i = if g.smooth {
+                const BAYER: [f64; 16] = [
+                    0.0, 8.0, 2.0, 10.0, 12.0, 4.0, 14.0, 6.0, 3.0, 11.0, 1.0, 9.0, 15.0, 7.0,
+                    13.0, 5.0,
+                ];
+                let th = (BAYER[((y % 4) * 4 + x % 4) as usize] + 0.5) / 16.0;
+                if f - f.floor() > th {
+                    f.floor() + 1.0
+                } else {
+                    f.floor()
+                }
+            } else {
+                f.round()
+            };
+            let [r, gg, bb, a] = lut[i.clamp(0.0, 255.0) as usize];
             let c = sk::ColorU8::from_rgba(r, gg, bb, a).premultiply();
             data[(y * w + x) as usize] = c;
         }
@@ -351,7 +368,7 @@ fn fill_path(
         transform,
         alpha,
     } = paint
-        && !crate::render::gradient::is_native(gradient)
+        && (!crate::render::gradient::is_native(gradient) || gradient.smooth)
     {
         let Some(sp) = to_sk_path(path, view) else {
             return;

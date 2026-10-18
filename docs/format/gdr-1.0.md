@@ -160,9 +160,17 @@ Tipos desconhecidos são preservados e não exibidos.
   elíptico: t = distância elíptica (rx, ry); retangular: t = maior entre |u|/rx e |v|/ry; cônico: t = ângulo
   (0 em `angle`, sentido anti-horário) ÷ 360°. Eixos u, v girados por `angle`. Tipo desconhecido de
   gradiente é desenhado como linear.
+- Opcionais de todo gradiente: `steps` (número de faixas de cor única; ausente = contínuo),
+  `smooth` (pontilhado contra faixas na tela e no raster; o PDF e o SVG já são contínuos) e
+  `colorPath` (`direct`, padrão, mistura em linha reta; `cw`/`ccw` pela roda de matiz, matiz
+  crescente/decrescente). Cada parada pode ter `midpoint` (0–1, padrão 0,5): onde, no trecho até
+  a parada seguinte, a mistura chega a 50/50. Quem lê sem suporte desenha a transição simples.
 
-- `{"type": "pattern", "kind": "vector|bitmap|two-color", "width", "height", ...}` — padrão
+- `{"type": "pattern", "kind": "vector|bitmap|two-color|texture", "width", "height", ...}` — padrão
   (GD-FIL-04..06):
+  - `texture` = textura procedural: `texture: {style: clouds|marble|wood|granite, seed, frequency
+    (células por ladrilho), detail (oitavas, 1–8), contrast (0–1)}` entre `bg` e `fg`; o ruído se
+    repete a cada ladrilho, então emenda;
   - ladrilho: `tile` (objetos em `[0,width]×[0,height]`), `src` (imagem dos
     recursos) ou `cells` (linhas de `0`/`1`, a de cima primeiro) com `fg`/`bg`;
   - `origin`, `scale`, `rotation` (graus);

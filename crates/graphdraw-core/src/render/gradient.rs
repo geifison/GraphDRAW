@@ -77,14 +77,43 @@ pub fn param(g: &Gradient, p: Point) -> f64 {
     spread(g, raw(g, p))
 }
 
-fn lerp_color(a: &Color, b: &Color, t: f64) -> Color {
+/// Mistura de `a` a `b` em `t`: direta em sRGB ou pela roda de matiz
+/// (`cw` = matiz crescente, `ccw` = decrescente).
+fn lerp_color(a: &Color, b: &Color, t: f64, path: &str) -> Color {
     let (ca, cb) = (a.to_srgb(), b.to_srgb());
+    if matches!(path, "cw" | "ccw") {
+        use crate::model::color::{hsb_to_rgb, rgb_to_hsb};
+        let (ha, hb) = (rgb_to_hsb(ca), rgb_to_hsb(cb));
+        let mut dh = hb[0] - ha[0];
+        if path == "cw" && dh < 0.0 {
+            dh += 1.0;
+        } else if path == "ccw" && dh > 0.0 {
+            dh -= 1.0;
+        }
+        let h = (ha[0] + dh * t).rem_euclid(1.0);
+        let [r, g, b] = hsb_to_rgb(h, ha[1] + (hb[1] - ha[1]) * t, ha[2] + (hb[2] - ha[2]) * t);
+        return Color::rgb(r, g, b);
+    }
     let m = |i: usize| ca[i] + (cb[i] - ca[i]) * t;
     Color::rgb(m(0), m(1), m(2))
 }
 
-/// Cor e opacidade do gradiente no parâmetro `t`.
+/// Ponto médio: leva `k` (0–1 do trecho) de forma que `m` vá a 0,5.
+pub fn bias(k: f64, m: f64) -> f64 {
+    let m = m.clamp(0.01, 0.99);
+    if (m - 0.5).abs() < 1e-9 {
+        return k;
+    }
+    k.clamp(0.0, 1.0).powf(0.5f64.ln() / m.ln())
+}
+
+/// Cor e opacidade do gradiente no parâmetro `t` (com faixas, ponto médio
+/// e rota de cor).
 pub fn color_at(g: &Gradient, t: f64) -> (Color, f64) {
+    let t = match g.steps {
+        Some(n) if n >= 1 => (((t * n as f64).floor() + 0.5) / n as f64).clamp(0.0, 1.0),
+        _ => t,
+    };
     let mut stops: Vec<&GradientStop> = g.stops.iter().collect();
     stops.sort_by(|a, b| a.offset.total_cmp(&b.offset));
     let (Some(first), Some(last)) = (stops.first(), stops.last()) else {
@@ -100,12 +129,12 @@ pub fn color_at(g: &Gradient, t: f64) -> (Color, f64) {
         let (a, b) = (w[0], w[1]);
         if t >= a.offset && t <= b.offset {
             let k = if b.offset > a.offset {
-                (t - a.offset) / (b.offset - a.offset)
+                bias((t - a.offset) / (b.offset - a.offset), a.midpoint)
             } else {
                 0.0
             };
             return (
-                lerp_color(&a.color, &b.color, k),
+                lerp_color(&a.color, &b.color, k, &g.color_path),
                 a.opacity + (b.opacity - a.opacity) * k,
             );
         }
@@ -129,9 +158,12 @@ fn lut_key(g: &Gradient, alpha: f64) -> u64 {
     crate::cms::current()
         .map(|c| std::sync::Arc::as_ptr(&c) as usize)
         .hash(&mut h);
+    g.steps.hash(&mut h);
+    g.color_path.hash(&mut h);
     for s in &g.stops {
         s.offset.to_bits().hash(&mut h);
         s.opacity.to_bits().hash(&mut h);
+        s.midpoint.to_bits().hash(&mut h);
         s.color.model.hash(&mut h);
         for v in &s.color.values {
             v.to_bits().hash(&mut h);
@@ -168,6 +200,53 @@ pub fn lut(g: &Gradient, alpha: f64) -> Vec<[u8; 4]> {
             [q(r), q(gg), q(b), q(o * alpha)]
         })
         .collect()
+}
+
+/// Precisa assar as paradas (ponto médio, faixas ou rota de cor)?
+pub fn needs_bake(g: &Gradient) -> bool {
+    g.steps.is_some() || g.color_path != "direct" || g.stops.iter().any(|s| s.midpoint != 0.5)
+}
+
+/// Gradiente com ponto médio, faixas e rota de cor assados em paradas
+/// comuns: os desenhos nativos (tela, PDF, SVG) ficam iguais a [`color_at`].
+pub fn effective(g: &Gradient) -> Gradient {
+    if !needs_bake(g) {
+        return g.clone();
+    }
+    let stop = |offset: f64, (color, opacity): (Color, f64)| GradientStop {
+        offset,
+        color,
+        opacity,
+        midpoint: 0.5,
+        extra: Default::default(),
+    };
+    let mut stops = Vec::new();
+    match g.steps {
+        Some(n) if n >= 1 => {
+            // Faixas: cada uma de cor única, com bordas duras.
+            for k in 0..n {
+                let (a, b) = (k as f64 / n as f64, (k + 1) as f64 / n as f64);
+                let c = color_at(g, (a + b) / 2.0);
+                stops.push(stop(a, c.clone()));
+                stops.push(stop(b, c));
+            }
+        }
+        _ => {
+            let mut ts: Vec<f64> = (0..=128).map(|i| i as f64 / 128.0).collect();
+            ts.extend(g.stops.iter().map(|s| s.offset.clamp(0.0, 1.0)));
+            ts.sort_by(|a, b| a.total_cmp(b));
+            ts.dedup_by(|a, b| (*a - *b).abs() < 1e-9);
+            for t in ts {
+                stops.push(stop(t, color_at(g, t)));
+            }
+        }
+    }
+    Gradient {
+        stops,
+        steps: None,
+        color_path: "direct".into(),
+        ..g.clone()
+    }
 }
 
 fn num(v: f64) -> String {
@@ -274,12 +353,14 @@ mod tests {
                     offset: 0.0,
                     color: Color::black(),
                     opacity: 1.0,
+                    midpoint: 0.5,
                     extra: Default::default(),
                 },
                 GradientStop {
                     offset: 1.0,
                     color: Color::rgb(1.0, 1.0, 1.0),
                     opacity: 1.0,
+                    midpoint: 0.5,
                     extra: Default::default(),
                 },
             ],
@@ -290,8 +371,47 @@ mod tests {
             radius_y: Some(50.0),
             angle: None,
             spread: "pad".into(),
+            steps: None,
+            smooth: false,
+            color_path: "direct".into(),
             extra: Default::default(),
         }
+    }
+
+    /// Ponto médio, faixas e rota de cor; assar preserva as cores.
+    #[test]
+    fn midpoint_steps_and_hue_path() {
+        let mut l = g("linear");
+        l.start = Some([0.0, 0.0]);
+        l.end = Some([1.0, 0.0]);
+        let gray = |g: &Gradient, t: f64| color_at(g, t).0.to_srgb()[0];
+        assert!((gray(&l, 0.5) - 0.5).abs() < 1e-6);
+        l.stops[0].midpoint = 0.2;
+        assert!((gray(&l, 0.2) - 0.5).abs() < 1e-6, "50/50 em 20%");
+        let e = effective(&l);
+        for t in [0.1, 0.33, 0.7] {
+            assert!((gray(&e, t) - gray(&l, t)).abs() < 0.02, "assado em {t}");
+        }
+        l.stops[0].midpoint = 0.5;
+        l.steps = Some(4);
+        assert_eq!(gray(&l, 0.01), gray(&l, 0.24), "faixa constante");
+        assert!(gray(&l, 0.26) > gray(&l, 0.24));
+        assert_eq!(effective(&l).stops.len(), 8);
+        // Vermelho → azul pela roda: horário passa pelo verde, anti-horário
+        // pelo magenta.
+        let mut h = g("linear");
+        h.stops[0].color = Color::rgb(1.0, 0.0, 0.0);
+        h.stops[1].color = Color::rgb(0.0, 0.0, 1.0);
+        h.color_path = "cw".into();
+        let mid = color_at(&h, 0.5).0.to_srgb();
+        assert!(mid[1] > 0.9 && mid[0] < 0.1, "verde: {mid:?}");
+        h.color_path = "ccw".into();
+        let mid = color_at(&h, 0.5).0.to_srgb();
+        assert!(
+            mid[0] > 0.9 && mid[2] > 0.9 && mid[1] < 0.1,
+            "magenta: {mid:?}"
+        );
+        assert!(!needs_bake(&g("linear")));
     }
 
     /// GD-FIL-03: elíptico pelos dois raios, retangular pela maior razão,

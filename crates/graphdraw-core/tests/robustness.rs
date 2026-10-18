@@ -169,12 +169,14 @@ fn gdr_round_trip_with_new_fields() {
                 offset: 0.0,
                 color: Color::black(),
                 opacity: 1.0,
+                midpoint: 0.5,
                 extra: Default::default(),
             },
             GradientStop {
                 offset: 1.0,
                 color: Color::rgb(1.0, 0.5, 0.0),
                 opacity: 0.8,
+                midpoint: 0.5,
                 extra: Default::default(),
             },
         ],
@@ -185,6 +187,9 @@ fn gdr_round_trip_with_new_fields() {
         radius_y: Some(5_000.0),
         angle: Some(45.0),
         spread: "reflect".into(),
+        steps: None,
+        smooth: false,
+        color_path: "direct".into(),
         extra: Default::default(),
     }));
     let mut text = graphdraw_core::edit::text::new_text(0.0, 50_000.0, None, "Arial", 5_000.0);

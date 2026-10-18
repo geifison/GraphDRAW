@@ -24,6 +24,7 @@ fn doc(kind: &str, ry: f64) -> Document {
         offset,
         color: c,
         opacity: 1.0,
+        midpoint: 0.5,
         extra: Map::new(),
     };
     o.fill = Some(Fill::Gradient(Gradient {
@@ -39,6 +40,9 @@ fn doc(kind: &str, ry: f64) -> Document {
         radius_y: Some(ry * MM),
         angle: None,
         spread: "pad".into(),
+        steps: None,
+        smooth: false,
+        color_path: "direct".into(),
         extra: Map::new(),
     }));
     p.layers[0].objects.push(o);
@@ -160,6 +164,7 @@ fn postscript_function_edge_cases() {
                     offset: 0.0,
                     color: Color::rgb(1.0, 0.0, 0.0),
                     opacity: 1.0,
+                    midpoint: 0.5,
                     extra: Map::new(),
                 },
             );

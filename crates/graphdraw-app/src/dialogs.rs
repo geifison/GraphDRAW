@@ -876,6 +876,7 @@ fn stop(offset: f64, color: Color) -> graphdraw_core::model::GradientStop {
         offset,
         color,
         opacity: 1.0,
+        midpoint: 0.5,
         extra: Map::new(),
     }
 }
@@ -952,6 +953,7 @@ impl FillDialog {
             stops,
             angle: self.angle,
             spread: self.spread.clone(),
+            ..Default::default()
         }
     }
 
@@ -1843,6 +1845,7 @@ mod tests {
             ],
             angle: 0.0,
             spread: "reflect".into(),
+            ..Default::default()
         };
         let g = Fill::Gradient(ops::gradient_for(
             &spec,

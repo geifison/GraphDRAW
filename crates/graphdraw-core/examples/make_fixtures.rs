@@ -318,12 +318,14 @@ fn gradients() -> Document {
                 offset: 0.0,
                 color: a,
                 opacity: 1.0,
+                midpoint: 0.5,
                 extra: Map::new(),
             },
             GradientStop {
                 offset: 1.0,
                 color: b,
                 opacity: 1.0,
+                midpoint: 0.5,
                 extra: Map::new(),
             },
         ]
@@ -338,6 +340,7 @@ fn gradients() -> Document {
                     offset: 0.5,
                     color: Color::rgb(1.0, 1.0, 0.0),
                     opacity: 1.0,
+                    midpoint: 0.5,
                     extra: Map::new(),
                 },
             );
@@ -350,6 +353,9 @@ fn gradients() -> Document {
         radius_y: None,
         angle: None,
         spread: "pad".into(),
+        steps: None,
+        smooth: false,
+        color_path: "direct".into(),
         extra: Map::new(),
     };
     p.layers[0].objects.push(rect(
@@ -370,6 +376,9 @@ fn gradients() -> Document {
         radius_y: None,
         angle: None,
         spread: "pad".into(),
+        steps: None,
+        smooth: false,
+        color_path: "direct".into(),
         extra: Map::new(),
     };
     p.layers[0].objects.push(rect(
