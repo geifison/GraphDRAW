@@ -1209,10 +1209,12 @@ impl CanvasState {
                                         .cloned()
                                         && !o.locked
                                     {
-                                        if let Some(a) = crate::layertree::name_field(ui, &o) {
+                                        let (a, done) =
+                                            crate::layertree::name_field(ui, "canvas", &o);
+                                        if let Some(a) = a {
                                             crate::layertree::apply(doc, a);
-                                            close = true;
                                         }
+                                        close |= done;
                                         ui.separator();
                                     }
                                     ctxmenu::object_entries(doc, id, focus)
@@ -1240,10 +1242,24 @@ impl CanvasState {
             && !area.response.contains_pointer()
             && !on_popup
             && ctx.cumulative_frame_nr() > m.opened + 1;
+        let closing = chosen.is_some() || close || outside;
+        // Fechando o menu de um objeto com nome digitado e não confirmado:
+        // grava o nome antes (clicar fora ou num comando não perde o texto).
+        if closing
+            && let MenuTarget::Ctx(Target::Object(id)) = &m.target
+            && let Some(o) = doc
+                .editor
+                .find(id)
+                .and_then(|r| doc.editor.get(&r))
+                .cloned()
+            && let Some(a) = crate::layertree::take_pending_name(ctx, "canvas", &o)
+        {
+            crate::layertree::apply(doc, a);
+        }
         if let Some(c) = chosen {
             self.menu = None;
             self.exec_menu(c, &m, doc, ev);
-        } else if close || outside {
+        } else if closing {
             self.menu = None;
         }
     }
@@ -5745,6 +5761,87 @@ mod tests {
         ops::object_bounds(&doc.editor, &doc.editor.find(id).unwrap(), false)
             .unwrap()
             .x0
+    }
+
+    /// Renomear pelo menu do botão direito grava o nome no objeto (o mesmo
+    /// que o painel de camadas mostra): com Enter ou clicando fora do menu.
+    #[test]
+    fn rename_from_context_menu() {
+        let name_of = |doc: &DocState, id: &str| {
+            doc.editor
+                .get(&doc.editor.find(id).unwrap())
+                .unwrap()
+                .name
+                .clone()
+        };
+        for confirm in ["enter", "fora"] {
+            let (ctx, mut cs, mut doc, id, rect, ph) = bdr_setup();
+            let at = cs.screen(rect, ph, Point::new(60_000.0, 110_000.0));
+            let f = |cs: &mut CanvasState, doc: &mut DocState, ev: Vec<egui::Event>| {
+                canvas_frame(&ctx, cs, doc, Tool::Select, ev)
+            };
+            f(&mut cs, &mut doc, vec![egui::Event::PointerMoved(at)]);
+            f(
+                &mut cs,
+                &mut doc,
+                vec![button(at, PointerButton::Secondary, true)],
+            );
+            f(
+                &mut cs,
+                &mut doc,
+                vec![button(at, PointerButton::Secondary, false)],
+            );
+            assert!(cs.menu.is_some(), "menu aberto");
+            f(&mut cs, &mut doc, vec![]);
+            let area = ctx
+                .memory(|m| m.area_rect(egui::Id::unique("menu-botao-direito")))
+                .expect("área do menu");
+            // Campo Nome: primeira linha do menu, à direita do rótulo.
+            let field = area.left_top() + Vec2::new(area.width() * 0.6, 16.0);
+            f(&mut cs, &mut doc, vec![egui::Event::PointerMoved(field)]);
+            f(
+                &mut cs,
+                &mut doc,
+                vec![button(field, PointerButton::Primary, true)],
+            );
+            f(
+                &mut cs,
+                &mut doc,
+                vec![button(field, PointerButton::Primary, false)],
+            );
+            f(&mut cs, &mut doc, vec![egui::Event::Text("Logo".into())]);
+            f(&mut cs, &mut doc, vec![]);
+            if confirm == "enter" {
+                let enter = egui::Event::Key {
+                    key: egui::Key::Enter,
+                    physical_key: None,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: egui::Modifiers::NONE,
+                };
+                f(&mut cs, &mut doc, vec![enter]);
+            } else {
+                let away = Pos2::new(5.0, 700.0);
+                f(&mut cs, &mut doc, vec![egui::Event::PointerMoved(away)]);
+                f(
+                    &mut cs,
+                    &mut doc,
+                    vec![button(away, PointerButton::Primary, true)],
+                );
+                f(
+                    &mut cs,
+                    &mut doc,
+                    vec![button(away, PointerButton::Primary, false)],
+                );
+            }
+            f(&mut cs, &mut doc, vec![]);
+            assert_eq!(name_of(&doc, &id).as_deref(), Some("Logo"), "{confirm}");
+            assert!(cs.menu.is_none(), "{confirm}: o menu fecha");
+            assert_eq!(
+                doc.editor.history().last().map(|h| h.0.as_str()),
+                Some("Renomear objeto")
+            );
+        }
     }
 
     /// Bloqueado: o esquerdo não seleciona; o direito abre o menu dele

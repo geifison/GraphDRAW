@@ -212,11 +212,18 @@ impl LayerTree {
         if r.drag_started() {
             self.drag = Some(o.id.clone());
         }
-        r.context_menu(|ui| {
+        let open = r.context_menu(|ui| {
             if let Some(a) = object_menu(ui, o) {
                 *act = Some(a);
             }
         });
+        // Menu fechado (clique fora) com nome digitado: grava.
+        if open.is_none()
+            && act.is_none()
+            && let Some(a) = take_pending_name(ui.ctx(), "camadas", o)
+        {
+            *act = Some(a);
+        }
     }
 
     /// Quadrado 1:1 com a miniatura do objeto.
@@ -325,7 +332,7 @@ impl LayerTree {
 /// Menu de edição rápida do objeto (botão direito no painel ou no canvas):
 /// travar/destravar, mostrar/ocultar e o nome (Enter confirma).
 pub fn object_menu(ui: &mut egui::Ui, o: &Object) -> Option<TreeAction> {
-    let mut act = name_field(ui, o);
+    let (mut act, _) = name_field(ui, "camadas", o);
     if act.is_some() {
         return act;
     }
@@ -335,9 +342,28 @@ pub fn object_menu(ui: &mut egui::Ui, o: &Object) -> Option<TreeAction> {
 }
 
 /// Campo Nome do menu de objeto (Enter confirma).
-pub fn name_field(ui: &mut egui::Ui, o: &Object) -> Option<TreeAction> {
+/// Onde o campo Nome está (canvas ou painel de camadas): cada menu guarda o
+/// seu texto em edição.
+pub fn name_key(menu: &str, o: &Object) -> egui::Id {
+    egui::Id::unique(("menu-nome-objeto", menu, &o.id))
+}
+
+/// Nome digitado e ainda não gravado (o menu fechou sem Enter): vira a
+/// ação de renomear, se mudou. Tira o texto guardado.
+pub fn take_pending_name(ctx: &egui::Context, menu: &str, o: &Object) -> Option<TreeAction> {
+    let buf = ctx.data_mut(|d| d.remove_temp::<String>(name_key(menu, o)))?;
+    let t = buf.trim().to_string();
+    let name = (!t.is_empty()).then_some(t);
+    (name != o.name).then(|| TreeAction::Rename(o.id.clone(), name))
+}
+
+/// Campo Nome do menu de objeto: grava com Enter, ao sair do campo ou ao
+/// fechar o menu (ver [`take_pending_name`]); Esc descarta. O segundo
+/// valor diz se o menu deve fechar (Enter ou Esc no campo).
+pub fn name_field(ui: &mut egui::Ui, menu: &str, o: &Object) -> (Option<TreeAction>, bool) {
     let mut act = None;
-    let key = egui::Id::unique(("menu-nome-objeto", &o.id));
+    let mut done = false;
+    let key = name_key(menu, o);
     let mut buf: String = ui
         .data_mut(|d| d.get_temp::<String>(key))
         .unwrap_or_else(|| o.name.clone().unwrap_or_default());
@@ -349,17 +375,25 @@ pub fn name_field(ui: &mut egui::Ui, o: &Object) -> Option<TreeAction> {
                 .desired_width(theme::MENU_FIELD_WIDTH),
         );
         ui.data_mut(|d| d.insert_temp(key, buf.clone()));
-        if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-            let t = buf.trim().to_string();
-            act = Some(TreeAction::Rename(
-                o.id.clone(),
-                (!t.is_empty()).then_some(t),
-            ));
-            ui.data_mut(|d| d.remove::<String>(key));
-            ui.close();
+        if r.lost_focus() {
+            let (enter, esc) = ui.input(|i| {
+                (
+                    i.key_pressed(egui::Key::Enter),
+                    i.key_pressed(egui::Key::Escape),
+                )
+            });
+            if esc {
+                ui.data_mut(|d| d.remove::<String>(key));
+            } else {
+                act = take_pending_name(ui.ctx(), menu, o);
+            }
+            if enter || esc {
+                done = true;
+                ui.close();
+            }
         }
     });
-    act
+    (act, done)
 }
 
 fn object_menu_rest(ui: &mut egui::Ui, o: &Object, act: &mut Option<TreeAction>) {
