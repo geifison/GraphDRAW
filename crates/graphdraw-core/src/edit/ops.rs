@@ -503,6 +503,7 @@ pub fn group(ed: &mut Editor, sel: &[String]) -> Option<String> {
     let children: Vec<Object> = refs.iter().map(|r| ed.get(r).unwrap().clone()).collect();
     let g = Object::new(ObjectKind::Group(GroupData {
         children,
+        boolean: None,
         symmetry: None,
         extra: Default::default(),
     }));

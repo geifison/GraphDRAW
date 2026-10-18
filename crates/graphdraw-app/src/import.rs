@@ -102,6 +102,7 @@ fn drawing_object(doc: &mut DocState, path: &Path) -> Result<Object, String> {
     }
     let mut g = Object::new(ObjectKind::Group(GroupData {
         children,
+        boolean: None,
         symmetry: None,
         extra: Default::default(),
     }));

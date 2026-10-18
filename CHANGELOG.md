@@ -32,6 +32,9 @@ entre parênteses são os requisitos de `docs/spec/`.
   - horizontal, vertical, paralela, angular, raio, diâmetro e segmento;
   - ligadas aos nós medidos, com a escala de desenho (GD-FER-40,
     GD-COT-01..03).
+- Booleanas não destrutivas: Soldar, Aparar e Interseção ao vivo; as
+  formas continuam editáveis, a operação troca na barra, Converter em
+  curvas fecha o resultado e Desagrupar devolve as formas.
 - Aninhar na chapa: encaixa as peças pela forma real em chapas de tamanho
   dado, com rotações (nenhuma, 180°, 90°, livre), sentido da fibra, folga
   e margem; abre chapas novas e informa o aproveitamento (GD-PRE-30).

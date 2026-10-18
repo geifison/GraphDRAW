@@ -101,7 +101,7 @@ corte; cada um vira requisito em spec nova (doc 28) antes do código.
 ## P1 — Da mesma avaliação
 - [x] Aninhamento (nesting): encaixar as peças numa chapa de tamanho dado,
   com rotações permitidas, sentido da fibra e folga da ferramenta.
-- [ ] Booleanas não destrutivas: soldar, aparar e interseção como
+- [x] Booleanas não destrutivas: soldar, aparar e interseção como
   modificador. As formas originais continuam editáveis; "converter em
   curvas" fecha o resultado.
 

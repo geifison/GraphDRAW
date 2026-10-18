@@ -382,6 +382,7 @@
             "required": ["children"],
             "properties": {
               "children": { "type": "array", "items": { "$ref": "#/$defs/object" } },
+              "boolean": { "enum": ["weld", "trim", "intersect"] },
               "symmetry": {
                 "type": "object",
                 "required": ["kind", "count", "center"],

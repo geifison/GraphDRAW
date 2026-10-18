@@ -187,6 +187,11 @@ fn half() -> f64 {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GroupData {
     pub children: Vec<Object>,
+    /// Booleana não destrutiva: `weld`, `trim` (os de cima aparam o de
+    /// baixo) ou `intersect`; o grupo mostra só o resultado, com o estilo do
+    /// filho de baixo, e os filhos continuam editáveis.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub boolean: Option<String>,
     /// Simetria ao vivo (GD-FER-33): o grupo desenha também as cópias.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub symmetry: Option<Symmetry>,

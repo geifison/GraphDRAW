@@ -410,6 +410,14 @@ impl Builder<'_> {
             ObjectKind::Polygon(p) => Some((polygon_path(p), polygon_fill_rule(p))),
             ObjectKind::Basic(b) => Some((super::basic::path(b), FillRule::Nonzero)),
             ObjectKind::BSpline(b) => Some((super::bspline::path(b), FillRule::Nonzero)),
+            // Booleana não destrutiva: só o resultado aparece.
+            ObjectKind::Group(g) if g.boolean.is_some() => {
+                if let Some(mut r) = crate::edit::shapeops::live_object(g, m) {
+                    r.id = o.id.clone();
+                    self.object_items(&r, Affine::IDENTITY, alpha);
+                }
+                None
+            }
             ObjectKind::Group(g) => {
                 for c in &g.children {
                     self.object(c, m, alpha);

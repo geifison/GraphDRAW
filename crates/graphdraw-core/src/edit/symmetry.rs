@@ -77,6 +77,7 @@ pub fn create(
         // Um objeto só: grupo de um filho.
         let g = Object::new(ObjectKind::Group(GroupData {
             children: vec![o],
+            boolean: None,
             symmetry: None,
             extra: Default::default(),
         }));
@@ -90,6 +91,7 @@ pub fn create(
             layer,
             Object::new(ObjectKind::Group(GroupData {
                 children: Vec::new(),
+                boolean: None,
                 symmetry: None,
                 extra: Default::default(),
             })),

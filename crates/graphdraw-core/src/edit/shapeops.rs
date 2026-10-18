@@ -70,10 +70,14 @@ pub(crate) fn contours(path: &BezPath) -> Vec<Contour> {
 }
 
 /// Área preenchida do objeto em coordenadas da página, já normalizada
-/// (externos anti-horários, furos horários). Grupos = união dos filhos.
+/// (externos anti-horários, furos horários). Grupos = união dos filhos;
+/// booleana ao vivo = o resultado.
 pub fn region(o: &Object, parent: Affine) -> Shapes {
     let m = parent * o.transform.affine();
     if let ObjectKind::Group(g) = &o.kind {
+        if g.boolean.is_some() {
+            return live_shapes(g, m);
+        }
         return union_all(g.children.iter().map(|c| region(c, m)));
     }
     let Some(mut path) = local_outline(o) else {
@@ -188,6 +192,66 @@ pub(crate) fn path_object(path: &BezPath, like: &Object, rule: FillRule) -> Obje
     o.opacity = like.opacity;
     o.printable = like.printable;
     o
+}
+
+/// Resultado da booleana ao vivo do grupo (`m` = matriz do grupo na
+/// página): soldar une, aparar tira do filho de baixo os de cima,
+/// interseção fica com o comum.
+pub fn live_shapes(g: &crate::model::GroupData, m: Affine) -> Shapes {
+    let regs: Vec<Shapes> = g.children.iter().map(|c| region(c, m)).collect();
+    let Some((first, rest)) = regs.split_first() else {
+        return Vec::new();
+    };
+    match g.boolean.as_deref() {
+        Some("trim") => overlay(
+            first,
+            &union_all(rest.iter().cloned()),
+            OverlayRule::Difference,
+        ),
+        Some("intersect") => rest
+            .iter()
+            .fold(first.clone(), |a, s| overlay(&a, s, OverlayRule::Intersect)),
+        _ => union_all(regs.iter().cloned()),
+    }
+}
+
+/// O resultado como caminho (página), com o estilo do filho de baixo.
+pub fn live_object(g: &crate::model::GroupData, m: Affine) -> Option<Object> {
+    let first = g.children.first()?;
+    let shapes = live_shapes(g, m);
+    if area(&shapes) <= 0.0 {
+        return None;
+    }
+    Some(path_object(
+        &shapes_to_path(&shapes),
+        first,
+        FillRule::Nonzero,
+    ))
+}
+
+/// Booleana não destrutiva: agrupa `sel` como `op` (`weld`, `trim`,
+/// `intersect`) num passo; devolve o ID do grupo.
+pub fn live_boolean(ed: &mut Editor, sel: &[String], op: &str) -> Option<String> {
+    if sel.len() < 2 {
+        return None;
+    }
+    ed.begin(match op {
+        "trim" => "Aparar ao vivo",
+        "intersect" => "Interseção ao vivo",
+        _ => "Soldar ao vivo",
+    });
+    let gid = super::ops::group(ed, sel);
+    if let Some(gid) = &gid {
+        super::ops::modify(ed, std::slice::from_ref(gid), "Booleana", |o| {
+            if let ObjectKind::Group(g) = &mut o.kind {
+                g.boolean = Some(op.into());
+                return true;
+            }
+            false
+        });
+    }
+    ed.commit();
+    gid
 }
 
 /// Objeto de primeiro nível que contém `r` (o resultado entra ao lado dele).
@@ -839,6 +903,79 @@ pub fn registration_marks(
         }
     });
     Some(ids)
+}
+
+#[cfg(test)]
+mod live_tests {
+    use super::*;
+    use crate::model::{Document, Page, RectData, Transform};
+
+    fn sq(x: f64) -> Object {
+        let mut o = Object::new(ObjectKind::Rectangle(RectData {
+            width: 100.0,
+            height: 100.0,
+            corners: None,
+            extra: Default::default(),
+        }));
+        o.transform = Transform::translate(x, 0.0);
+        o.fill = Some(crate::model::Fill::solid(crate::model::Color::black()));
+        o
+    }
+
+    /// Booleana não destrutiva: o grupo vale pelo resultado (área, caixa);
+    /// mexer num filho muda o resultado; trocar a operação também;
+    /// converter em curvas fecha; desagrupar devolve as formas.
+    #[test]
+    fn live_boolean_stays_editable() {
+        let mut d = Document::new();
+        d.data.pages.push(Page::new(1000.0, 1000.0));
+        let mut ed = Editor::new(d);
+        let a = super::super::ops::add_object(&mut ed, 0, 0, sq(0.0), "a");
+        let b = super::super::ops::add_object(&mut ed, 0, 0, sq(50.0), "b");
+        let undo = ed.undo_len();
+        let gid = live_boolean(&mut ed, &[a.clone(), b.clone()], "trim").unwrap();
+        assert_eq!(ed.undo_len(), undo + 1);
+        let g = |ed: &Editor| ed.get(&ed.find(&gid).unwrap()).unwrap().clone();
+        let reg = |ed: &Editor| area(&region(&g(ed), Affine::IDENTITY));
+        assert!((reg(&ed) - 5_000.0).abs() < 50.0, "aparado: {}", reg(&ed));
+        let bb = super::super::query::bounds(&g(&ed), Affine::IDENTITY, false).unwrap();
+        assert!((bb.x1 - 50.0).abs() < 1.0, "caixa do resultado: {bb:?}");
+        // O filho de cima se afasta: nada a aparar.
+        super::super::ops::transform(
+            &mut ed,
+            std::slice::from_ref(&b),
+            Affine::translate((200.0, 0.0)),
+            "Mover",
+        );
+        assert!((reg(&ed) - 10_000.0).abs() < 50.0);
+        super::super::ops::transform(
+            &mut ed,
+            std::slice::from_ref(&b),
+            Affine::translate((-200.0, 0.0)),
+            "Mover",
+        );
+        super::super::ops::modify(&mut ed, std::slice::from_ref(&gid), "op", |o| {
+            if let ObjectKind::Group(g) = &mut o.kind {
+                g.boolean = Some("weld".into());
+            }
+            true
+        });
+        assert!((reg(&ed) - 15_000.0).abs() < 50.0, "soldado: {}", reg(&ed));
+        let c = super::super::convert::to_curves(&g(&ed)).unwrap();
+        assert!(matches!(c.kind, ObjectKind::Path(_)));
+        assert_eq!(c.id, gid);
+        let back = super::super::ops::ungroup(&mut ed, std::slice::from_ref(&gid));
+        assert_eq!(back, vec![a, b]);
+        // Ida e volta no JSON.
+        let mut o = sq(0.0);
+        o.kind = ObjectKind::Group(crate::model::GroupData {
+            children: vec![sq(0.0)],
+            boolean: Some("intersect".into()),
+            symmetry: None,
+            extra: Default::default(),
+        });
+        assert_eq!(Object::from_value(o.to_value()), o);
+    }
 }
 
 #[cfg(test)]

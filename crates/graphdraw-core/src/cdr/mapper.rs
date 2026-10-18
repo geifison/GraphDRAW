@@ -208,6 +208,7 @@ impl Mapper<'_> {
                     if !children.is_empty() {
                         self.push(Object::new(ObjectKind::Group(GroupData {
                             children,
+                            boolean: None,
                             symmetry: None,
                             extra: Map::new(),
                         })));
@@ -272,6 +273,7 @@ impl Mapper<'_> {
                 .unwrap()
                 .push(Object::new(ObjectKind::Group(GroupData {
                     children,
+                    boolean: None,
                     symmetry: None,
                     extra: Map::new(),
                 })));

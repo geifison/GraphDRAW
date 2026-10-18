@@ -99,6 +99,14 @@ fn collect(
         return;
     }
     let m = parent * o.transform.affine();
+    if let ObjectKind::Group(g) = &o.kind
+        && g.boolean.is_some()
+    {
+        if let Some(r) = crate::edit::shapeops::live_object(g, m) {
+            collect(&r, Affine::IDENTITY, layer_is_cut, opts, out);
+        }
+        return;
+    }
     if let ObjectKind::Group(g) = &o.kind {
         let copies = crate::edit::symmetry::copies(g.symmetry.as_ref());
         for t in std::iter::once(Affine::IDENTITY).chain(copies) {

@@ -145,6 +145,9 @@ commands! {
     Weld = "obj.weld", "Soldar", "Weld", Object, Multi, true;
     Trim = "obj.trim", "Aparar", "Trim", Object, Multi, true;
     Intersect = "obj.intersect", "Interseção", "Intersect", Object, Multi, true;
+    LiveWeld = "obj.live_weld", "Soldar ao vivo", "Live weld", Object, Multi, true;
+    LiveTrim = "obj.live_trim", "Aparar ao vivo", "Live trim", Object, Multi, true;
+    LiveIntersect = "obj.live_intersect", "Interseção ao vivo", "Live intersect", Object, Multi, true;
     Simplify = "obj.simplify", "Simplificar", "Simplify", Object, Multi, true;
     FrontMinusBack = "obj.front_minus_back", "Frente menos trás", "Front minus back", Object, Multi, true;
     BackMinusFront = "obj.back_minus_front", "Trás menos frente", "Back minus front", Object, Multi, true;

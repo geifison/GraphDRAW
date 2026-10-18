@@ -462,6 +462,7 @@ mod tests {
         let ids = [a.id.clone(), b.id.clone(), String::new()];
         let group = Object::new(ObjectKind::Group(GroupData {
             children: vec![a, b],
+            boolean: None,
             symmetry: None,
             extra: serde_json::Map::new(),
         }));
@@ -553,6 +554,7 @@ mod tests {
             name(&doc, &g),
             crate::app::kind_label(&ObjectKind::Group(GroupData {
                 children: vec![],
+                boolean: None,
                 symmetry: None,
                 extra: serde_json::Map::new(),
             }))

@@ -549,6 +549,10 @@ Aba **Verificação** (ícone `preflight`) no painel direito:
     - a barra tem Uniforme e os perfis prontos (Afinar no fim, Afinar no
       início, Afinar nas pontas, Bojo), que também estão na seção Largura
       variável do diálogo de contorno.
+- Booleanas ao vivo (Objeto → Soldar/Aparar/Interseção ao vivo): o
+  grupo mostra o resultado; com ele selecionado, a barra da Seleção tem
+  Soldar | Aparar | Interseção para trocar a operação. As formas se
+  editam por Ctrl+clique; Converter em curvas fecha; Desagrupar devolve.
 - Aninhar na chapa (GD-PRE-30; Objeto e menu de contexto, ícone
   `cut-line`): modal com Largura/Altura da chapa, Folga entre peças,
   Margem, Rotação (Nenhuma | 180° | 90° | Livre + passo), Respeitar o

@@ -1603,6 +1603,9 @@ impl App {
                 | C::Weld
                 | C::Trim
                 | C::Intersect
+                | C::LiveWeld
+                | C::LiveTrim
+                | C::LiveIntersect
                 | C::Simplify
                 | C::FrontMinusBack
                 | C::BackMinusFront
@@ -1890,6 +1893,16 @@ impl App {
                 (!n.is_empty()).then_some(n)
             }),
             C::Group_ => self.group(),
+            C::LiveWeld | C::LiveTrim | C::LiveIntersect => {
+                let op = match c {
+                    C::LiveWeld => "weld",
+                    C::LiveTrim => "trim",
+                    _ => "intersect",
+                };
+                self.with_selection(|ed, s| {
+                    graphdraw_core::edit::shapeops::live_boolean(ed, s, op).map(|g| vec![g])
+                });
+            }
             C::Weld | C::Trim | C::Intersect => {
                 use graphdraw_core::edit::shapeops::{self, BoolOp};
                 let op = match c {
@@ -2487,6 +2500,9 @@ impl App {
                     (tr("Soldar", "Weld"), Command::Weld, multi),
                     (tr("Aparar", "Trim"), Command::Trim, multi),
                     (tr("Interseção", "Intersect"), Command::Intersect, multi),
+                    (tr("Soldar ao vivo", "Live weld"), Command::LiveWeld, multi),
+                    (tr("Aparar ao vivo", "Live trim"), Command::LiveTrim, multi),
+                    (tr("Interseção ao vivo", "Live intersect"), Command::LiveIntersect, multi),
                     (tr("Simplificar", "Simplify"), Command::Simplify, multi),
                     (
                         tr("Frente menos trás", "Front minus back"),

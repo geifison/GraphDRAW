@@ -492,6 +492,7 @@ impl App {
                     );
                     symmetry_bar(ui, doc);
                     wrap_bar(ui, doc);
+                    live_boolean_bar(ui, doc);
                 });
             }
         }
@@ -3814,6 +3815,57 @@ fn dimension_bar(ui: &mut egui::Ui, doc: &mut DocState, cs: &mut crate::canvas::
                 },
             );
         }
+    }
+}
+
+/// Booleana não destrutiva selecionada: trocar a operação.
+fn live_boolean_bar(ui: &mut egui::Ui, doc: &mut DocState) {
+    let [gid] = doc.selection.as_slice() else {
+        return;
+    };
+    let gid = gid.clone();
+    let Some(ObjectKind::Group(g)) = doc
+        .editor
+        .find(&gid)
+        .and_then(|r| doc.editor.get(&r))
+        .map(|o| &o.kind)
+    else {
+        return;
+    };
+    let Some(cur) = g.boolean.clone() else {
+        return;
+    };
+    ui.separator();
+    let mut next = cur.clone();
+    for (k, label) in [
+        ("weld", tr("Soldar", "Weld")),
+        ("trim", tr("Aparar", "Trim")),
+        ("intersect", tr("Interseção", "Intersect")),
+    ] {
+        if ui
+            .selectable_label(next == k, label)
+            .on_hover_text(tr(
+                "Booleana ao vivo: as formas continuam editáveis (Ctrl+clique); Converter em curvas fecha o resultado; Desagrupar devolve as formas",
+                "Live boolean: the shapes stay editable (Ctrl+click); Convert to curves closes the result; Ungroup gives the shapes back",
+            ))
+            .clicked()
+        {
+            next = k.into();
+        }
+    }
+    if next != cur {
+        ops::modify(
+            &mut doc.editor,
+            std::slice::from_ref(&gid),
+            tr("Booleana", "Boolean"),
+            |o| {
+                if let ObjectKind::Group(g) = &mut o.kind {
+                    g.boolean = Some(next.clone());
+                    return true;
+                }
+                false
+            },
+        );
     }
 }
 

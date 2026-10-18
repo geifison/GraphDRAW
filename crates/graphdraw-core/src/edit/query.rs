@@ -43,6 +43,10 @@ pub fn local_outline(o: &Object) -> Option<BezPath> {
 pub fn bounds(o: &Object, parent: Affine, visual: bool) -> Option<Rect> {
     let m = parent * o.transform.affine();
     let r = match &o.kind {
+        ObjectKind::Group(g) if g.boolean.is_some() => {
+            let o = super::shapeops::live_object(g, m)?;
+            return bounds(&o, Affine::IDENTITY, visual);
+        }
         ObjectKind::Group(g) => std::iter::once(Affine::IDENTITY)
             .chain(super::symmetry::copies(g.symmetry.as_ref()))
             .flat_map(|t| {
@@ -102,6 +106,9 @@ pub fn hits(o: &Object, parent: Affine, p: Point, tol: f64) -> bool {
     }
     let m = parent * o.transform.affine();
     match &o.kind {
+        ObjectKind::Group(g) if g.boolean.is_some() => {
+            super::shapeops::live_object(g, m).is_some_and(|r| hits(&r, Affine::IDENTITY, p, tol))
+        }
         ObjectKind::Group(g) => std::iter::once(Affine::IDENTITY)
             .chain(super::symmetry::copies(g.symmetry.as_ref()))
             .any(|t| g.children.iter().any(|c| hits(c, m * t, p, tol))),
@@ -382,6 +389,7 @@ mod tests {
         inner.locked = true;
         let g = Object::new(ObjectKind::Group(GroupData {
             children: vec![inner.clone(), rect(40.0, 0.0, 10.0, 10.0)],
+            boolean: None,
             symmetry: None,
             extra: Map::new(),
         }));
@@ -424,6 +432,7 @@ mod tests {
         // Grupo = união dos filhos.
         let g = Object::new(ObjectKind::Group(GroupData {
             children: vec![rect(0.0, 0.0, 1.0, 1.0), rect(5.0, 5.0, 1.0, 1.0)],
+            boolean: None,
             symmetry: None,
             extra: Map::new(),
         }));
@@ -492,6 +501,7 @@ mod tests {
         let b_id = b.id.clone();
         let mut g = Object::new(ObjectKind::Group(GroupData {
             children: vec![a, b],
+            boolean: None,
             symmetry: None,
             extra: Map::new(),
         }));

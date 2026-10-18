@@ -61,6 +61,15 @@ pub fn mark_smooth_nodes(sp: &mut Subpath) {
 /// Converte primitivas paramétricas em caminho, mantendo matriz, cor e
 /// demais atributos. Caminhos e outros tipos são devolvidos sem mudança.
 pub fn to_curves(o: &Object) -> Option<Object> {
+    // Booleana não destrutiva: fecha o resultado num caminho (GD-BOL).
+    if let ObjectKind::Group(g) = &o.kind
+        && g.boolean.is_some()
+    {
+        let mut r = super::shapeops::live_object(g, o.transform.affine())?;
+        r.id = o.id.clone();
+        r.name = o.name.clone();
+        return Some(r);
+    }
     let bez = match &o.kind {
         ObjectKind::Rectangle(r) => rect_path(r),
         ObjectKind::Ellipse(e) => ellipse_path(e),
@@ -128,6 +137,7 @@ fn text_to_curves(o: &Object, t: &crate::model::TextData) -> Option<Object> {
         .collect();
     out.kind = ObjectKind::Group(crate::model::GroupData {
         children,
+        boolean: None,
         symmetry: None,
         extra: Map::new(),
     });

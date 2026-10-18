@@ -253,6 +253,7 @@ fn basic_shapes() -> Document {
         &mut ids,
         ObjectKind::Group(GroupData {
             children: vec![line, small],
+            boolean: None,
             symmetry: None,
             extra: Map::new(),
         }),
@@ -713,6 +714,7 @@ fn m1_editing() -> Document {
         &mut ids,
         ObjectKind::Group(GroupData {
             children: vec![circle, square],
+            boolean: None,
             symmetry: None,
             extra: Map::new(),
         }),
@@ -731,6 +733,7 @@ fn m1_editing() -> Document {
         &mut ids,
         ObjectKind::Group(GroupData {
             children: vec![base, inner],
+            boolean: None,
             symmetry: None,
             extra: Map::new(),
         }),
@@ -812,6 +815,51 @@ fn patterns() -> Document {
             60.0 * MM,
             Fill::Pattern(Box::new(pat)),
         ));
+    }
+    d.data.pages.push(p);
+    d
+}
+
+/// Booleanas não destrutivas: soldar, aparar e interseção de um quadrado
+/// e um círculo, com as formas originais nos filhos.
+fn live_boolean() -> Document {
+    let mut ids = Ids::new(18);
+    let mut p = page(&mut ids, 200.0 * MM, 80.0 * MM);
+    let mut d = doc_with(vec![], "Booleanas ao vivo");
+    for (i, op) in ["weld", "trim", "intersect"].iter().enumerate() {
+        let x = 10.0 + 65.0 * i as f64;
+        let sq = rect(
+            &mut ids,
+            x * MM,
+            15.0 * MM,
+            40.0 * MM,
+            40.0 * MM,
+            Fill::solid(Color::cmyk(0.0, 0.7, 1.0, 0.0)),
+        );
+        let mut c = obj(
+            &mut ids,
+            ObjectKind::Ellipse(EllipseData {
+                rx: 15.0 * MM,
+                ry: 15.0 * MM,
+                mode: "ellipse".into(),
+                start_angle: 0.0,
+                end_angle: 360.0,
+                extra: Map::new(),
+            }),
+        );
+        c.transform = Transform::translate((x + 40.0) * MM, 55.0 * MM);
+        c.fill = Some(Fill::solid(Color::cmyk(1.0, 0.0, 0.0, 0.0)));
+        let mut g = obj(
+            &mut ids,
+            ObjectKind::Group(GroupData {
+                children: vec![sq, c],
+                boolean: Some((*op).into()),
+                symmetry: None,
+                extra: Map::new(),
+            }),
+        );
+        g.name = Some(format!("Booleana {op}"));
+        p.layers[0].objects.push(g);
     }
     d.data.pages.push(p);
     d
@@ -944,6 +992,7 @@ fn symmetry() -> Document {
             &mut ids,
             ObjectKind::Group(GroupData {
                 children: vec![r],
+                boolean: None,
                 symmetry: Some(Symmetry {
                     kind: kind.into(),
                     count,
@@ -1159,6 +1208,7 @@ fn main() {
         ("symmetry", symmetry()),
         ("variable-width", variable_width()),
         ("text-wrap", text_wrap()),
+        ("live-boolean", live_boolean()),
     ];
     for (name, doc) in &docs {
         let path = dir.join(format!("{name}.gdr"));
