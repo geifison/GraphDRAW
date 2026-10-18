@@ -35,6 +35,9 @@ pub struct Object {
     pub blend: BlendMode,
     /// Afasta o texto de parágrafo (GD-TXT-10).
     pub wrap: Option<TextWrap>,
+    /// Linha de construção (GD-TXT-09): aparece na tela, mas não sai na
+    /// impressão, no PDF/SVG nem no corte (ex.: o traço que guia um texto).
+    pub construction: bool,
     /// Estilo de objeto e estilo de texto ligados (doc 11).
     pub style: Option<String>,
     pub text_style: Option<String>,
@@ -473,6 +476,10 @@ pub struct TextData {
     /// Texto em caminho (GD-TXT-09).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub path: Option<TextPath>,
+    /// Caminho de antes de endireitar o texto ("caminho fantasma"): permite
+    /// reativar o caminho de origem depois.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub path_memory: Option<TextPath>,
     /// Áreas que afastam o texto de parágrafo (GD-TXT-10), no espaço do
     /// texto. Derivado dos objetos com `wrap`; não é gravado.
     #[serde(skip)]
@@ -513,13 +520,23 @@ pub struct TextWrap {
 }
 
 /// Caminho do texto (GD-TXT-09), em coordenadas locais do texto. A linha
-/// de base corre sobre o primeiro subcaminho a partir de `offset` (µm);
-/// `distance` afasta do caminho; `side` = `above` ou `below`;
-/// `orientation` = `rotate` (gira cada letra), `skew-v`/`skew-h`
-/// (inclina mantendo as verticais/horizontais) ou `upright` (de pé);
-/// `mirror` percorre o caminho ao contrário. `guide` = ID do objeto de
-/// onde a forma veio; `detached` = já separado dele (GD-CMB-03): o texto
-/// mantém a curva, independente.
+/// de base corre sobre o primeiro subcaminho (por comprimento de arco),
+/// deslocada `offset` (µm) a partir do alinhamento; `distance` afasta do
+/// caminho; `side` = `above` ou `below` (o texto passa para o outro lado
+/// sem inverter a leitura); `orientation` = `rotate` (gira cada letra),
+/// `skew-v`/`skew-h` (perspectiva: inclina mantendo as verticais ou as
+/// horizontais), `upright` (de pé) ou `warp` (deformação plena: a base
+/// segue o traço e o topo o arco externo); `mirror` percorre o caminho ao
+/// contrário. `align` = `start`, `center`, `end` ou `justify` dentro do
+/// intervalo `range` [início, fim] (frações do comprimento); `vertical` =
+/// linha que casa com o traço (`baseline`, `descender`, `x-height`,
+/// `cap`, `center`); `corners` = nos cantos vivos, `jump` (o glifo
+/// pula para a face seguinte), `wrap` (o glifo dobra) ou `split` (cada
+/// face recebe uma parte igual); `relax` abre o espaço nos côncavos para
+/// os topos não se tocarem. Em caminho fechado o texto dá a volta. `guide`
+/// = ID do objeto de onde a forma veio (vínculo vivo: mexer nele refaz o
+/// texto); `detached` = já separado dele (GD-CMB-03): o texto mantém a
+/// curva, independente.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TextPath {
@@ -538,8 +555,65 @@ pub struct TextPath {
     pub guide: Option<String>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub detached: bool,
+    #[serde(default = "tp_start", skip_serializing_if = "tp_is_start")]
+    pub align: String,
+    #[serde(default = "tp_baseline", skip_serializing_if = "tp_is_baseline")]
+    pub vertical: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub range: Option<[f64; 2]>,
+    #[serde(default = "tp_jump", skip_serializing_if = "tp_is_jump")]
+    pub corners: String,
+    #[serde(default = "tp_yes", skip_serializing_if = "tp_is_yes")]
+    pub relax: bool,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
+}
+
+impl TextPath {
+    /// Caminho novo com os valores iniciais.
+    pub fn new(subpaths: Vec<Subpath>, guide: Option<String>) -> TextPath {
+        TextPath {
+            subpaths,
+            offset: 0.0,
+            distance: 0.0,
+            side: "above".into(),
+            orientation: "rotate".into(),
+            mirror: false,
+            guide,
+            detached: false,
+            align: "start".into(),
+            vertical: "baseline".into(),
+            range: None,
+            corners: "jump".into(),
+            relax: true,
+            extra: Map::new(),
+        }
+    }
+}
+
+fn tp_start() -> String {
+    "start".into()
+}
+fn tp_is_start(s: &str) -> bool {
+    s == "start"
+}
+fn tp_baseline() -> String {
+    "baseline".into()
+}
+fn tp_is_baseline(s: &str) -> bool {
+    s == "baseline"
+}
+fn tp_jump() -> String {
+    "jump".into()
+}
+fn tp_is_jump(s: &str) -> bool {
+    s == "jump"
+}
+fn tp_yes() -> bool {
+    true
+}
+fn tp_is_yes(v: &bool) -> bool {
+    *v
 }
 
 fn above() -> String {
@@ -727,6 +801,7 @@ const COMMON_KEYS: &[&str] = &[
     "blendMode",
     "textWrap",
     "objectStyle",
+    "construction",
     "textStyle",
 ];
 
@@ -745,6 +820,7 @@ impl Object {
             user_data: None,
             blend: BlendMode::Normal,
             wrap: None,
+            construction: false,
             style: None,
             text_style: None,
             kind,
@@ -841,6 +917,10 @@ impl Object {
             .and_then(|b| serde_json::from_value(b).ok())
             .unwrap_or_default();
         let wrap = de("textWrap")?.and_then(|w| serde_json::from_value(w).ok());
+        let construction = map
+            .get("construction")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
         let style = map
             .get("objectStyle")
             .and_then(Value::as_str)
@@ -889,6 +969,7 @@ impl Object {
             user_data,
             blend,
             wrap,
+            construction,
             style,
             text_style,
             kind,
@@ -928,6 +1009,9 @@ impl Object {
         }
         if let Some(s) = &self.style {
             m.insert("objectStyle".into(), s.clone().into());
+        }
+        if self.construction {
+            m.insert("construction".into(), true.into());
         }
         if let Some(s) = &self.text_style {
             m.insert("textStyle".into(), s.clone().into());

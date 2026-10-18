@@ -32,6 +32,7 @@ pub mod snap;
 pub mod styles;
 pub mod symmetry;
 pub mod text;
+pub mod textpath;
 pub mod textwrap;
 pub mod tree;
 

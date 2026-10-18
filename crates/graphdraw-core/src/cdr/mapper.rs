@@ -804,6 +804,7 @@ impl Mapper<'_> {
             line_spacing: 1.2,
             path: None,
             exclusions: Default::default(),
+            path_memory: None,
             extra: Map::new(),
         };
         self.text = Some(TextBuild {

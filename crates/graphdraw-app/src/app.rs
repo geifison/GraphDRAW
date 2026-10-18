@@ -2108,6 +2108,15 @@ impl App {
                     }
                 }
             }
+            C::ReattachTextPath => {
+                if let Some(d) = &mut self.doc {
+                    self.canvas.end_text(d);
+                    let ids = d.selection.clone();
+                    for id in ids {
+                        graphdraw_core::edit::textpath::reattach(&mut d.editor, &id);
+                    }
+                }
+            }
             C::DetachTextPath => {
                 let ids = self.text_targets();
                 if let Some(d) = &mut self.doc {

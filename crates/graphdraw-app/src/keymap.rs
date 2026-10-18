@@ -186,6 +186,7 @@ commands! {
     ExportSelection = "file.export_selection", "Exportar seleção…", "Export selection…", File, Selection, true;
     FitTextToPath = "text.fit_to_path", "Ajustar texto ao caminho", "Fit text to path", Object, Multi, true;
     DetachTextPath = "text.detach_path", "Separar texto do caminho", "Detach text from path", Object, Selection, true;
+    ReattachTextPath = "text.reattach_path", "Reativar caminho de origem", "Reactivate source path", Object, Selection, true;
     ConvertTextKind = "text.convert_kind", "Converter texto artístico/parágrafo", "Convert artistic/paragraph text", Object, Selection, true;
     ConvertToBitmap = "obj.convert_to_bitmap", "Converter em bitmap", "Convert to bitmap", Object, Selection, true;
     ClearTransformations = "obj.clear_transformations", "Limpar transformações", "Clear transformations", Object, Selection, true;
@@ -952,6 +953,7 @@ impl Command {
             Command::ExportSelection => "export-selection",
             Command::FitTextToPath => "text-path",
             Command::DetachTextPath => "text-path-detach",
+            Command::ReattachTextPath => "text-path",
             Command::ConvertTextKind => "text-convert",
             Command::ConvertToBitmap => "to-bitmap",
             Command::ClearTransformations => "clear-transform",

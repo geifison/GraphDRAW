@@ -437,6 +437,7 @@ fn text() -> Document {
             line_spacing: 1.2,
             path: None,
             exclusions: Default::default(),
+            path_memory: None,
             extra: Map::new(),
         }),
     );
@@ -462,6 +463,7 @@ fn text() -> Document {
             line_spacing: 1.3,
             path: None,
             exclusions: Default::default(),
+            path_memory: None,
             extra: Map::new(),
         }),
     );
@@ -484,6 +486,7 @@ fn text() -> Document {
             line_spacing: 1.2,
             path: None,
             exclusions: Default::default(),
+            path_memory: None,
             extra: Map::new(),
         }),
     );
@@ -833,6 +836,136 @@ fn patterns() -> Document {
             Fill::Pattern(Box::new(pat)),
         ));
     }
+    d.data.pages.push(p);
+    d
+}
+
+/// GD-TXT-09: selo com texto de cima e de baixo no mesmo círculo (guia
+/// como linha de construção), onda justificada, canto vivo com salto e
+/// deformação plena num arco.
+fn text_path() -> Document {
+    use graphdraw_core::edit::convert::bez_to_subpaths;
+    use graphdraw_core::model::TextPath;
+    let mut ids = Ids::new(26);
+    let mut p = page(&mut ids, 297.0 * MM, 210.0 * MM);
+    let mut d = doc_with(vec![], "Texto no caminho");
+    let ink = Color::cmyk(0.0, 0.0, 0.0, 1.0);
+    let label = |ids: &mut Ids, s: &str, size: f64, tp: TextPath| {
+        let mut o = graphdraw_core::edit::text::new_text(0.0, 0.0, None, "Arial", size);
+        o.id = ids.next();
+        if let ObjectKind::Text(t) = &mut o.kind {
+            graphdraw_core::edit::text::insert(t, 0, s);
+            t.path = Some(tp);
+        }
+        o.fill = Some(Fill::solid(Color::cmyk(0.0, 0.8, 1.0, 0.1)));
+        o
+    };
+    // Selo: círculo (construção) + texto de cima por fora e de baixo por dentro.
+    let mut ring = obj(
+        &mut ids,
+        ObjectKind::Ellipse(EllipseData {
+            rx: 40.0 * MM,
+            ry: 40.0 * MM,
+            mode: "ellipse".into(),
+            start_angle: 0.0,
+            end_angle: 360.0,
+            extra: Map::new(),
+        }),
+    );
+    ring.transform = Transform::translate(70.0 * MM, 130.0 * MM);
+    ring.stroke = Some(Stroke::new(0.3 * MM, ink.clone()));
+    ring.construction = true;
+    let mut circle = graphdraw_core::render::scene::ellipse_path(match &ring.kind {
+        ObjectKind::Ellipse(e) => e,
+        _ => unreachable!(),
+    });
+    circle.apply_affine(ring.transform.affine());
+    let sub = bez_to_subpaths(&circle);
+    let size = 7.0 * 352.778;
+    let mut top = TextPath::new(sub.clone(), Some(ring.id.clone()));
+    top.mirror = true;
+    top.align = "center".into();
+    let tr_top = graphdraw_core::render::text::path_track(&top, size).unwrap();
+    top.offset = tr_top.extreme(true) - tr_top.total() / 2.0;
+    let mut bottom = TextPath::new(sub, Some(ring.id.clone()));
+    bottom.align = "center".into();
+    bottom.vertical = "cap".into();
+    let tr_bot = graphdraw_core::render::text::path_track(&bottom, size).unwrap();
+    bottom.offset = tr_bot.extreme(false) - tr_bot.total() / 2.0;
+    p.layers[0].objects.push(ring);
+    p.layers[0]
+        .objects
+        .push(label(&mut ids, "GRÁFICA EXPRESSA", size, top));
+    p.layers[0]
+        .objects
+        .push(label(&mut ids, "DESDE 1998", size, bottom));
+    // Onda justificada.
+    let mut wave = kurbo::BezPath::new();
+    wave.move_to((140.0 * MM, 150.0 * MM));
+    wave.curve_to(
+        (170.0 * MM, 185.0 * MM),
+        (200.0 * MM, 115.0 * MM),
+        (230.0 * MM, 150.0 * MM),
+    );
+    wave.curve_to(
+        (250.0 * MM, 175.0 * MM),
+        (270.0 * MM, 140.0 * MM),
+        (285.0 * MM, 150.0 * MM),
+    );
+    let mut wo = obj(
+        &mut ids,
+        ObjectKind::Path(PathData {
+            subpaths: bez_to_subpaths(&wave),
+            fill_rule: Default::default(),
+            extra: Map::new(),
+        }),
+    );
+    wo.stroke = Some(Stroke::new(0.3 * MM, ink.clone()));
+    let mut wt = TextPath::new(bez_to_subpaths(&wave), Some(wo.id.clone()));
+    wt.align = "justify".into();
+    p.layers[0].objects.push(wo);
+    p.layers[0]
+        .objects
+        .push(label(&mut ids, "ONDA JUSTIFICADA", 8.0 * 352.778, wt));
+    // Canto vivo: salta o glifo para a face seguinte.
+    let mut corner = kurbo::BezPath::new();
+    corner.move_to((140.0 * MM, 40.0 * MM));
+    corner.line_to((200.0 * MM, 40.0 * MM));
+    corner.line_to((200.0 * MM, 95.0 * MM));
+    let mut co = obj(
+        &mut ids,
+        ObjectKind::Path(PathData {
+            subpaths: bez_to_subpaths(&corner),
+            fill_rule: Default::default(),
+            extra: Map::new(),
+        }),
+    );
+    co.stroke = Some(Stroke::new(0.3 * MM, ink.clone()));
+    let ct = TextPath::new(bez_to_subpaths(&corner), Some(co.id.clone()));
+    p.layers[0].objects.push(co);
+    p.layers[0]
+        .objects
+        .push(label(&mut ids, "CANTO VIVO SEM CORTE", 7.0 * 352.778, ct));
+    // Deformação plena num arco.
+    let mut arc = kurbo::BezPath::new();
+    arc.move_to((215.0 * MM, 50.0 * MM));
+    arc.quad_to((250.0 * MM, 90.0 * MM), (285.0 * MM, 50.0 * MM));
+    let mut ao = obj(
+        &mut ids,
+        ObjectKind::Path(PathData {
+            subpaths: bez_to_subpaths(&arc),
+            fill_rule: Default::default(),
+            extra: Map::new(),
+        }),
+    );
+    ao.stroke = Some(Stroke::new(0.3 * MM, ink));
+    let mut at = TextPath::new(bez_to_subpaths(&arc), Some(ao.id.clone()));
+    at.orientation = "warp".into();
+    at.align = "center".into();
+    p.layers[0].objects.push(ao);
+    p.layers[0]
+        .objects
+        .push(label(&mut ids, "RETRÔ", 16.0 * 352.778, at));
     d.data.pages.push(p);
     d
 }
@@ -1518,9 +1651,15 @@ fn appearance() -> Document {
                 mirror: false,
                 guide: None,
                 detached: true,
+                align: "start".into(),
+                vertical: "baseline".into(),
+                range: None,
+                corners: "jump".into(),
+                relax: true,
                 extra: Map::new(),
             }),
             exclusions: Default::default(),
+            path_memory: None,
             extra: Map::new(),
         }),
     );
@@ -1541,6 +1680,7 @@ fn appearance() -> Document {
             line_spacing: 1.2,
             path: None,
             exclusions: Default::default(),
+            path_memory: None,
             extra: Map::new(),
         }),
     );
@@ -1664,6 +1804,7 @@ fn text_wrap() -> Document {
             line_spacing: 1.2,
             path: None,
             exclusions: Default::default(),
+            path_memory: None,
             extra: Map::new(),
         }),
     );
@@ -1997,6 +2138,7 @@ fn main() {
         ("effects", effects()),
         ("styles", styles()),
         ("parametric", parametric()),
+        ("text-path", text_path()),
     ];
     for (name, doc) in &docs {
         let path = dir.join(format!("{name}.gdr"));

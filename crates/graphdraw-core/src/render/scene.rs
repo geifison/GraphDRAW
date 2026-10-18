@@ -398,7 +398,7 @@ impl Builder<'_> {
     }
 
     fn object_items(&mut self, o: &Object, parent: Affine, parent_alpha: f64) {
-        if !o.visible || (self.opts.print && o.printable == Some(false)) {
+        if !o.visible || (self.opts.print && (o.printable == Some(false) || o.construction)) {
             return;
         }
         let m = parent * o.transform.affine();

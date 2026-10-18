@@ -208,6 +208,7 @@ mod tests {
             line_spacing: 1.2,
             path: None,
             exclusions: Default::default(),
+            path_memory: None,
             extra: Default::default(),
         }));
         graphdraw_core::edit::ops::add_object(&mut doc.editor, 0, 0, t, "t");

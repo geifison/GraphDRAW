@@ -61,6 +61,18 @@ pub struct TextLayout {
     pub overflow: bool,
     /// Glifos colocados num caminho (GD-TXT-09): no PDF/SVG saem em curvas.
     pub on_path: bool,
+    /// Texto em caminho: onde ele ocupa o caminho (alças na tela).
+    pub path_span: Option<PathSpan>,
+}
+
+/// Trecho do caminho ocupado pelo texto (comprimentos, no sentido de
+/// leitura): início e fim do texto, intervalo útil e comprimento total.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PathSpan {
+    pub start: f64,
+    pub end: f64,
+    pub range: (f64, f64),
+    pub total: f64,
 }
 
 fn font_lock() -> &'static std::sync::RwLock<fontdb::Database> {
@@ -825,17 +837,24 @@ pub fn layout_text(t: &TextData) -> TextLayout {
     out
 }
 
-/// Polilinha do primeiro subcaminho com o comprimento acumulado.
-struct Track {
+/// Polilinha do primeiro subcaminho com o comprimento acumulado
+/// (parametrização por comprimento de arco), os cantos vivos e se é
+/// fechada.
+pub struct Track {
     pts: Vec<kurbo::Point>,
     len: Vec<f64>,
+    pub closed: bool,
+    /// Comprimentos onde a direção vira mais de ~25° de uma vez (nós de
+    /// canto, C⁰).
+    pub corners: Vec<f64>,
 }
 
 impl Track {
-    fn new(path: &BezPath, tol: f64) -> Option<Track> {
+    pub fn new(path: &BezPath, tol: f64) -> Option<Track> {
         let mut pts: Vec<kurbo::Point> = Vec::new();
         let mut started = false;
         let mut done = false;
+        let mut closed = false;
         kurbo::flatten(path.iter(), tol, |el| {
             if done {
                 return;
@@ -854,6 +873,7 @@ impl Track {
                     if let Some(f) = pts.first().copied() {
                         pts.push(f);
                     }
+                    closed = true;
                     done = true;
                 }
                 _ => {}
@@ -867,12 +887,53 @@ impl Track {
         for w in pts.windows(2) {
             len.push(len.last().unwrap() + (w[1] - w[0]).hypot());
         }
-        Some(Track { pts, len })
+        let mut corners = Vec::new();
+        let angles: Vec<f64> = pts
+            .windows(2)
+            .map(|w| {
+                let d = w[1] - w[0];
+                d.y.atan2(d.x)
+            })
+            .collect();
+        for (i, w) in angles.windows(2).enumerate() {
+            let i = i + 1;
+            let mut t = w[1] - w[0];
+            while t > std::f64::consts::PI {
+                t -= std::f64::consts::TAU;
+            }
+            while t < -std::f64::consts::PI {
+                t += std::f64::consts::TAU;
+            }
+            if t.abs() > 0.45 {
+                corners.push(len[i]);
+            }
+        }
+        Some(Track {
+            pts,
+            len,
+            closed,
+            corners,
+        })
     }
 
-    /// Ponto e ângulo da tangente no comprimento `s` (fora das pontas,
-    /// segue reto pela tangente da ponta).
-    fn at(&self, s: f64) -> (kurbo::Point, f64) {
+    pub fn total(&self) -> f64 {
+        *self.len.last().unwrap_or(&0.0)
+    }
+
+    /// Comprimento levado para dentro do caminho fechado (dá a volta).
+    fn wrap(&self, s: f64) -> f64 {
+        let t = self.total();
+        if self.closed && t > 0.0 {
+            s.rem_euclid(t)
+        } else {
+            s
+        }
+    }
+
+    /// Ponto e ângulo da tangente no comprimento `s` (fora das pontas do
+    /// caminho aberto, segue reto pela tangente da ponta).
+    pub fn at(&self, s: f64) -> (kurbo::Point, f64) {
+        let s = self.wrap(s);
         let n = self.pts.len();
         let total = self.len[n - 1];
         let seg = if s <= 0.0 {
@@ -890,55 +951,265 @@ impl Track {
         let t = (s - self.len[seg]) / d.hypot().max(1e-12);
         (a + d * t, d.y.atan2(d.x))
     }
+
+    /// Curvatura com sinal em `s` (positiva = vira para a esquerda), média
+    /// num trecho de ±`h`.
+    pub fn curvature(&self, s: f64, h: f64) -> f64 {
+        let h = h.max(1e-6);
+        let (_, a) = self.at(s - h);
+        let (_, b) = self.at(s + h);
+        let mut d = b - a;
+        while d > std::f64::consts::PI {
+            d -= std::f64::consts::TAU;
+        }
+        while d < -std::f64::consts::PI {
+            d += std::f64::consts::TAU;
+        }
+        d / (2.0 * h)
+    }
+
+    /// Comprimento do ponto do caminho mais perto de `p`.
+    pub fn project(&self, p: kurbo::Point) -> f64 {
+        let mut best = (f64::INFINITY, 0.0);
+        for (i, w) in self.pts.windows(2).enumerate() {
+            let d = w[1] - w[0];
+            let l2 = d.hypot2().max(1e-18);
+            let t = ((p - w[0]).dot(d) / l2).clamp(0.0, 1.0);
+            let q = w[0] + d * t;
+            let dist = (p - q).hypot();
+            if dist < best.0 {
+                best = (dist, self.len[i] + t * d.hypot());
+            }
+        }
+        best.1
+    }
+
+    /// Comprimento do ponto mais alto (`top`) ou mais baixo do caminho.
+    pub fn extreme(&self, top: bool) -> f64 {
+        let mut best = 0;
+        for (i, p) in self.pts.iter().enumerate() {
+            let b = self.pts[best];
+            if (top && p.y > b.y) || (!top && p.y < b.y) {
+                best = i;
+            }
+        }
+        self.len[best]
+    }
+
+    /// Primeiro canto dentro de (a, b), sem contar as pontas.
+    fn corner_in(&self, a: f64, b: f64) -> Option<f64> {
+        let (a, b) = (self.wrap(a), self.wrap(b));
+        self.corners.iter().copied().find(|c| {
+            (a < b && *c > a + 1e-6 && *c < b - 1e-6) || (a > b && (*c > a + 1e-6 || *c < b - 1e-6))
+        })
+    }
 }
 
-/// Texto em caminho (GD-TXT-09): cada glifo vai para o ponto do caminho no
-/// meio do seu avanço, com a orientação pedida; linhas seguintes ficam
-/// paralelas, afastadas pela entrelinha.
-fn place_on_path(out: &mut TextLayout, tp: &crate::model::TextPath) {
+/// Trilho do texto em caminho, já no sentido de leitura (espelho aplicado).
+pub fn path_track(tp: &crate::model::TextPath, size: f64) -> Option<Track> {
     let mut path = crate::model::geom::subpaths_to_bez(&tp.subpaths);
     if tp.mirror {
         path = path.reverse_subpaths();
     }
+    Track::new(&path, (size / 400.0).max(0.5))
+}
+
+/// Intervalo útil do caminho em comprimento (batentes, GD-TXT-09).
+pub fn path_range(tp: &crate::model::TextPath, total: f64) -> (f64, f64) {
+    let [a, b] = tp.range.unwrap_or([0.0, 1.0]);
+    let (a, b) = (a.clamp(0.0, 1.0), b.clamp(0.0, 1.0));
+    (a.min(b) * total, a.max(b) * total)
+}
+
+/// Deslocamento da linha do caminho em relação à linha de base, pela
+/// linha tipográfica escolhida (no sentido "para cima" do glifo).
+fn vertical_shift(vertical: &str, size: f64) -> f64 {
+    match vertical {
+        "descender" => 0.21 * size,
+        "x-height" => -0.5 * size,
+        "cap" => -0.72 * size,
+        "center" => -0.36 * size,
+        _ => 0.0,
+    }
+}
+
+/// Texto em caminho (GD-TXT-09): cada glifo vai para o ponto do caminho
+/// pelo comprimento de arco, com a orientação pedida, dentro do intervalo
+/// útil e alinhado nele; nos côncavos o espaço abre para os topos não se
+/// tocarem; os cantos vivos seguem a regra escolhida. Linhas seguintes
+/// ficam paralelas (concêntricas), afastadas pela entrelinha.
+fn place_on_path(out: &mut TextLayout, tp: &crate::model::TextPath) {
     let size = out.lines.first().map_or(1000.0, |l| l.size);
-    let Some(track) = Track::new(&path, (size / 400.0).max(0.5)) else {
+    let Some(track) = path_track(tp, size) else {
         return;
     };
+    let total = track.total();
+    let (r0, r1) = path_range(tp, total);
+    let avail = (r1 - r0).max(0.0);
     let b0 = out.lines.first().map_or(0.0, |l| l.baseline);
+    let mut span: Option<(f64, f64)> = None;
     for line in &mut out.lines {
-        for run in &mut line.runs {
-            let mut outline = BezPath::new();
-            for (g, go) in run.glyphs.iter_mut().zip(&run.glyph_outlines) {
-                let cx = g.x + g.advance / 2.0;
-                let (p, a) = track.at(tp.offset + cx);
-                let normal = kurbo::Vec2::new(-a.sin(), a.cos());
-                let below = if tp.side == "below" {
-                    -run.size * 0.75
+        // Glifos da linha na ordem: (trecho, glifo, x, avanço).
+        let mut items: Vec<(usize, usize, f64, f64)> = Vec::new();
+        for (ri, run) in line.runs.iter().enumerate() {
+            for (gi, g) in run.glyphs.iter().enumerate() {
+                items.push((ri, gi, g.x, g.advance));
+            }
+        }
+        if items.is_empty() {
+            continue;
+        }
+        let x0 = items[0].2;
+        let last = items[items.len() - 1];
+        let w = last.2 + last.3 - x0;
+        let n = items.len();
+        let justify = tp.align == "justify" && n > 1 && avail > w;
+        let extra = if justify {
+            (avail - w) / (n - 1) as f64
+        } else {
+            0.0
+        };
+        let start = match tp.align.as_str() {
+            "center" => r0 + (avail - w) / 2.0,
+            "end" => r1 - w,
+            _ => r0,
+        } + tp.offset;
+        let lsize = line.size;
+        // Afastamento da linha de base: distância, linha tipográfica, lado
+        // e as linhas seguintes (concêntricas).
+        let below = if tp.side == "below" {
+            -0.72 * lsize
+        } else {
+            0.0
+        };
+        let off = tp.distance + vertical_shift(&tp.vertical, lsize) + below + (line.baseline - b0);
+        let top = off + 0.72 * lsize;
+        // Faces entre cantos (regra "por face").
+        let mut faces: Vec<(f64, f64)> = Vec::new();
+        if tp.corners == "split" {
+            let mut a = r0;
+            for c in track.corners.iter().copied().filter(|c| *c > r0 && *c < r1) {
+                faces.push((a, c));
+                a = c;
+            }
+            faces.push((a, r1));
+        }
+        let mut s = start;
+        let mut positions: Vec<(f64, bool)> = Vec::with_capacity(n);
+        for k in 0..n {
+            let adv = items[k].3;
+            let mut sc = s;
+            let mut warp_here = tp.orientation == "warp";
+            match tp.corners.as_str() {
+                "split" if faces.len() > 1 => {
+                    let f = ((items[k].2 + adv / 2.0 - x0) / w.max(1e-9)).clamp(0.0, 0.999_999);
+                    let j = (f * faces.len() as f64).floor() as usize;
+                    let local = f * faces.len() as f64 - j as f64;
+                    let (fa, fb) = faces[j];
+                    sc = fa + local * (fb - fa) - adv / 2.0;
+                }
+                "wrap" => {
+                    if track.corner_in(sc, sc + adv).is_some() {
+                        warp_here = true;
+                    }
+                }
+                _ => {
+                    // Salto: o glifo que cairia sobre o canto passa inteiro
+                    // para a face seguinte.
+                    if let Some(c) = track.corner_in(sc, sc + adv) {
+                        sc = c;
+                    }
+                }
+            }
+            positions.push((sc, warp_here));
+            let step = if k + 1 < n {
+                items[k + 1].2 - items[k].2
+            } else {
+                adv
+            };
+            let mut next = sc + step + extra;
+            if tp.relax && k + 1 < n && tp.corners != "split" {
+                // Côncavo: os topos se aproximam; abre o espaço na razão
+                // entre a largura no topo e na base.
+                let kappa = track.curvature(sc + adv, (adv * 0.5).max(lsize * 0.1));
+                let base = 1.0 - kappa * off;
+                let ratio = if base.abs() > 1e-9 {
+                    (1.0 - kappa * top) / base
                 } else {
-                    0.0
+                    1.0
                 };
-                let base = p + normal * (tp.distance + below + (line.baseline - b0));
-                let tan = a.tan().clamp(-10.0, 10.0);
+                if ratio < 1.0 {
+                    next += step * (1.0 / ratio.max(0.25) - 1.0);
+                }
+            }
+            s = next;
+        }
+        let first = positions.first().map_or(start, |p| p.0);
+        let end = positions.last().map_or(start, |p| p.0) + last.3;
+        span = Some(span.map_or((first, end), |(a, b)| (a.min(first), b.max(end))));
+        let tan_of = |a: f64| a.tan().clamp(-10.0, 10.0);
+        for (k, (ri, gi, gx, adv)) in items.iter().copied().enumerate() {
+            let (sc, warp_here) = positions[k];
+            let run = &mut line.runs[ri];
+            let go = run.glyph_outlines[gi].clone();
+            let baseline = line.baseline;
+            let placed = if warp_here {
+                // Deformação plena: cada ponto do glifo vai para o caminho
+                // (a base acompanha o traço; o topo, o arco externo).
+                let mut p = BezPath::new();
+                kurbo::flatten(go.iter(), (lsize / 300.0).max(0.2), |el| {
+                    let map = |q: kurbo::Point| {
+                        let (pp, a) = track.at(sc + (q.x - gx));
+                        let nrm = kurbo::Vec2::new(-a.sin(), a.cos());
+                        pp + nrm * (off + (q.y - baseline))
+                    };
+                    match el {
+                        kurbo::PathEl::MoveTo(q) => p.move_to(map(q)),
+                        kurbo::PathEl::LineTo(q) => p.line_to(map(q)),
+                        kurbo::PathEl::ClosePath => p.close_path(),
+                        _ => {}
+                    }
+                });
+                let (pp, _) = track.at(sc);
+                let g = &mut run.glyphs[gi];
+                g.x = pp.x;
+                g.y = pp.y;
+                p
+            } else {
+                let cx = gx + adv / 2.0;
+                let (p, a) = track.at(sc + adv / 2.0);
+                let nrm = kurbo::Vec2::new(-a.sin(), a.cos());
+                let base = p + nrm * off;
                 let orient = match tp.orientation.as_str() {
                     "upright" => Affine::IDENTITY,
-                    "skew-v" => Affine::new([1.0, tan, 0.0, 1.0, 0.0, 0.0]),
-                    "skew-h" => Affine::new([1.0, 0.0, -tan, 1.0, 0.0, 0.0]),
+                    "skew-v" => Affine::new([1.0, tan_of(a), 0.0, 1.0, 0.0, 0.0]),
+                    "skew-h" => Affine::new([1.0, 0.0, -tan_of(a), 1.0, 0.0, 0.0]),
                     _ => Affine::rotate(a),
                 };
                 let m = Affine::translate(base.to_vec2())
                     * orient
-                    * Affine::translate((-cx, -line.baseline));
-                let mut o = go.clone();
+                    * Affine::translate((-cx, -baseline));
+                let mut o = go;
                 o.apply_affine(m);
-                outline.extend(o);
-                let q = m * kurbo::Point::new(g.x, line.baseline);
+                let q = m * kurbo::Point::new(gx, baseline);
+                let g = &mut run.glyphs[gi];
                 g.x = q.x;
                 g.y = q.y;
+                o
+            };
+            if k == 0 || items[k - 1].0 != ri {
+                run.outline = BezPath::new();
             }
-            run.outline = outline;
+            run.outline.extend(placed);
         }
     }
     out.on_path = true;
+    out.path_span = span.map(|(a, b)| PathSpan {
+        start: a,
+        end: b,
+        range: (r0, r1),
+        total,
+    });
 }
 
 impl TextLayout {
@@ -1009,12 +1280,114 @@ mod tests {
             line_spacing: 1.2,
             path: None,
             exclusions: Default::default(),
+            path_memory: None,
             extra: Map::new(),
         }
     }
 
     fn has_font() -> bool {
         resolve_font("Arial", 400, false).is_some()
+    }
+
+    fn on_path(
+        s: &str,
+        path: kurbo::BezPath,
+        edit: impl Fn(&mut crate::model::TextPath),
+    ) -> TextLayout {
+        let mut t = text("artistic", "left", s, None);
+        let mut tp =
+            crate::model::TextPath::new(crate::edit::convert::bez_to_subpaths(&path), None);
+        edit(&mut tp);
+        t.path = Some(tp);
+        layout_text(&t)
+    }
+
+    fn line(len: f64) -> kurbo::BezPath {
+        let mut p = kurbo::BezPath::new();
+        p.move_to((0.0, 0.0));
+        p.line_to((len, 0.0));
+        p
+    }
+
+    fn circle(r: f64) -> kurbo::BezPath {
+        use kurbo::Shape;
+        kurbo::Circle::new((0.0, 0.0), r).to_path(0.1)
+    }
+
+    /// GD-TXT-09: alinhamentos dentro do intervalo, justificar, batentes e
+    /// a volta no caminho fechado.
+    #[test]
+    fn on_path_alignment_range_and_closed_wrap() {
+        if !has_font() {
+            return;
+        }
+        let start = on_path("ABC", line(200_000.0), |_| {}).path_span.unwrap();
+        assert!(start.start.abs() < 1.0);
+        let c = on_path("ABC", line(200_000.0), |p| p.align = "center".into())
+            .path_span
+            .unwrap();
+        assert!(((c.start + c.end) / 2.0 - 100_000.0).abs() < 500.0, "{c:?}");
+        let e = on_path("ABC", line(200_000.0), |p| p.align = "end".into())
+            .path_span
+            .unwrap();
+        assert!((e.end - 200_000.0).abs() < 500.0, "{e:?}");
+        let j = on_path("ABC", line(200_000.0), |p| p.align = "justify".into())
+            .path_span
+            .unwrap();
+        assert!(j.start.abs() < 1.0 && j.end > 190_000.0, "{j:?}");
+        // Batentes: só a metade de cima do intervalo.
+        let r = on_path("ABC", line(200_000.0), |p| {
+            p.align = "center".into();
+            p.range = Some([0.5, 1.0]);
+        })
+        .path_span
+        .unwrap();
+        assert!(((r.start + r.end) / 2.0 - 150_000.0).abs() < 500.0, "{r:?}");
+        // Caminho fechado: começar perto do fim dá a volta (glifos no início).
+        let w = on_path("ABCDEF", circle(50_000.0), |p| p.offset = 300_000.0);
+        let b = kurbo::Shape::bounding_box(&w.lines[0].runs[0].outline);
+        assert!(b.width() < 120_000.0 && b.width() > 1.0, "{b:?}");
+    }
+
+    /// Côncavo: o anticolisão abre o espaço (o texto ocupa mais caminho);
+    /// cantos vivos: o glifo pula para a face seguinte; deformação plena
+    /// curva os glifos.
+    #[test]
+    fn on_path_relax_corners_and_warp() {
+        if !has_font() {
+            return;
+        }
+        // Por dentro do círculo (sentido anti-horário, o "para cima" do glifo
+        // aponta para o centro): os topos se aproximam.
+        let tight = on_path("HHHHHH", circle(20_000.0), |p| p.relax = false)
+            .path_span
+            .unwrap();
+        let loose = on_path("HHHHHH", circle(20_000.0), |_| {})
+            .path_span
+            .unwrap();
+        assert!(
+            loose.end - loose.start > tight.end - tight.start + 100.0,
+            "{tight:?} {loose:?}"
+        );
+        // Quadrado: o canto em 100 mm não corta um glifo ao meio.
+        let mut sq = kurbo::BezPath::new();
+        sq.move_to((0.0, 0.0));
+        sq.line_to((100_000.0, 0.0));
+        sq.line_to((100_000.0, 100_000.0));
+        let jumped = on_path(
+            "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW",
+            sq.clone(),
+            |_| {},
+        );
+        let plain = on_path("WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW", sq, |p| {
+            p.corners = "split".into()
+        });
+        assert!(jumped.path_span.unwrap().end >= plain.path_span.unwrap().end - 1.0);
+        // Deformação plena: o contorno deixa de ser só giro (mais pontos).
+        let rigid = on_path("O", circle(30_000.0), |_| {});
+        let warped = on_path("O", circle(30_000.0), |p| p.orientation = "warp".into());
+        let count = |l: &TextLayout| l.lines[0].runs[0].outline.elements().len();
+        assert!(count(&warped) > count(&rigid));
     }
 
     #[test]

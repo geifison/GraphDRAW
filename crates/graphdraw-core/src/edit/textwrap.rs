@@ -256,6 +256,7 @@ mod tests {
             line_spacing: 1.2,
             path: None,
             exclusions: Default::default(),
+            path_memory: None,
             extra: Default::default(),
         }));
         text.transform = Transform::translate(0.0, 150_000.0);
