@@ -416,6 +416,28 @@ pub struct Defaults {
     pub grid_rows: u32,
     /// Forma da família "Formas básicas" (GD-PRI-07).
     pub basic_shape: String,
+    /// Retângulo e elipse no modo 3 pontos (GD-FER-30/31), cada um o seu.
+    pub rect_three: bool,
+    pub ellipse_three: bool,
+}
+
+impl Defaults {
+    /// A ferramenta desenha por 3 pontos (base em qualquer ângulo + altura)?
+    pub fn three_point(&self, tool: Tool) -> bool {
+        match tool {
+            Tool::Rect => self.rect_three,
+            Tool::Ellipse => self.ellipse_three,
+            _ => false,
+        }
+    }
+
+    pub fn set_three_point(&mut self, tool: Tool, on: bool) {
+        match tool {
+            Tool::Rect => self.rect_three = on,
+            Tool::Ellipse => self.ellipse_three = on,
+            _ => {}
+        }
+    }
 }
 
 impl Default for Defaults {
@@ -433,6 +455,8 @@ impl Default for Defaults {
             grid_cols: 4,
             grid_rows: 3,
             basic_shape: "arrow".into(),
+            rect_three: false,
+            ellipse_three: false,
         }
     }
 }
@@ -1573,10 +1597,12 @@ impl CanvasState {
                                         .cloned()
                                         && !o.locked
                                     {
-                                        if let Some(a) = crate::layertree::name_field(ui, &o) {
+                                        let (a, done) =
+                                            crate::layertree::name_field(ui, "canvas", &o);
+                                        if let Some(a) = a {
                                             crate::layertree::apply(doc, a);
-                                            close = true;
                                         }
+                                        close |= done;
                                         ui.separator();
                                     }
                                     ctxmenu::object_entries(doc, id, focus)
@@ -1604,10 +1630,24 @@ impl CanvasState {
             && !area.response.contains_pointer()
             && !on_popup
             && ctx.cumulative_frame_nr() > m.opened + 1;
+        let closing = chosen.is_some() || close || outside;
+        // Fechando o menu de um objeto com nome digitado e não confirmado:
+        // grava o nome antes (clicar fora ou num comando não perde o texto).
+        if closing
+            && let MenuTarget::Ctx(Target::Object(id)) = &m.target
+            && let Some(o) = doc
+                .editor
+                .find(id)
+                .and_then(|r| doc.editor.get(&r))
+                .cloned()
+            && let Some(a) = crate::layertree::take_pending_name(ctx, "canvas", &o)
+        {
+            crate::layertree::apply(doc, a);
+        }
         if let Some(c) = chosen {
             self.menu = None;
             self.exec_menu(c, &m, doc, ev);
-        } else if close || outside {
+        } else if closing {
             self.menu = None;
         }
     }
@@ -6348,6 +6388,13 @@ fn add_shape(doc: &mut DocState, prim: Prim, w: f64, h: f64, m: Affine, defaults
     }
 }
 
+/// Retângulo do tamanho exato da página atual (duplo clique na ferramenta
+/// Retângulo, GD-FER-30), com os atributos padrão; fica selecionado.
+pub fn add_page_rect(doc: &mut DocState, defaults: &Defaults) {
+    let (w, h) = doc.page_size();
+    add_shape(doc, Prim::Rect, w, h, Affine::IDENTITY, defaults);
+}
+
 /// Espiral (caminho aberto, só contorno) ou papel gráfico (grupo de
 /// retângulos) no quadro levado à página por `m`.
 fn add_generated(doc: &mut DocState, prim: Prim, w: f64, h: f64, m: Affine, defaults: &Defaults) {
@@ -7364,6 +7411,87 @@ mod tests {
         ops::object_bounds(&doc.editor, &doc.editor.find(id).unwrap(), false)
             .unwrap()
             .x0
+    }
+
+    /// Renomear pelo menu do botão direito grava o nome no objeto (o mesmo
+    /// que o painel de camadas mostra): com Enter ou clicando fora do menu.
+    #[test]
+    fn rename_from_context_menu() {
+        let name_of = |doc: &DocState, id: &str| {
+            doc.editor
+                .get(&doc.editor.find(id).unwrap())
+                .unwrap()
+                .name
+                .clone()
+        };
+        for confirm in ["enter", "fora"] {
+            let (ctx, mut cs, mut doc, id, rect, ph) = bdr_setup();
+            let at = cs.screen(rect, ph, Point::new(60_000.0, 110_000.0));
+            let f = |cs: &mut CanvasState, doc: &mut DocState, ev: Vec<egui::Event>| {
+                canvas_frame(&ctx, cs, doc, Tool::Select, ev)
+            };
+            f(&mut cs, &mut doc, vec![egui::Event::PointerMoved(at)]);
+            f(
+                &mut cs,
+                &mut doc,
+                vec![button(at, PointerButton::Secondary, true)],
+            );
+            f(
+                &mut cs,
+                &mut doc,
+                vec![button(at, PointerButton::Secondary, false)],
+            );
+            assert!(cs.menu.is_some(), "menu aberto");
+            f(&mut cs, &mut doc, vec![]);
+            let area = ctx
+                .memory(|m| m.area_rect(egui::Id::unique("menu-botao-direito")))
+                .expect("área do menu");
+            // Campo Nome: primeira linha do menu, à direita do rótulo.
+            let field = area.left_top() + Vec2::new(area.width() * 0.6, 16.0);
+            f(&mut cs, &mut doc, vec![egui::Event::PointerMoved(field)]);
+            f(
+                &mut cs,
+                &mut doc,
+                vec![button(field, PointerButton::Primary, true)],
+            );
+            f(
+                &mut cs,
+                &mut doc,
+                vec![button(field, PointerButton::Primary, false)],
+            );
+            f(&mut cs, &mut doc, vec![egui::Event::Text("Logo".into())]);
+            f(&mut cs, &mut doc, vec![]);
+            if confirm == "enter" {
+                let enter = egui::Event::Key {
+                    key: egui::Key::Enter,
+                    physical_key: None,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: egui::Modifiers::NONE,
+                };
+                f(&mut cs, &mut doc, vec![enter]);
+            } else {
+                let away = Pos2::new(5.0, 700.0);
+                f(&mut cs, &mut doc, vec![egui::Event::PointerMoved(away)]);
+                f(
+                    &mut cs,
+                    &mut doc,
+                    vec![button(away, PointerButton::Primary, true)],
+                );
+                f(
+                    &mut cs,
+                    &mut doc,
+                    vec![button(away, PointerButton::Primary, false)],
+                );
+            }
+            f(&mut cs, &mut doc, vec![]);
+            assert_eq!(name_of(&doc, &id).as_deref(), Some("Logo"), "{confirm}");
+            assert!(cs.menu.is_none(), "{confirm}: o menu fecha");
+            assert_eq!(
+                doc.editor.history().last().map(|h| h.0.as_str()),
+                Some("Renomear objeto")
+            );
+        }
     }
 
     /// Bloqueado: o esquerdo não seleciona; o direito abre o menu dele
@@ -8987,6 +9115,29 @@ mod tests {
         assert!((bb.x0 - 10.0).abs() < 1e-9 && (bb.x1 - 25.0).abs() < 1e-9);
         assert!(m2.determinant() > 0.0);
         assert!(three_point_frame(a, a, b).is_none());
+    }
+
+    /// GD-FER-30: duplo clique na ferramenta cria um retângulo que cobre a
+    /// página exatamente, selecionado, num passo do histórico.
+    #[test]
+    fn page_size_rectangle() {
+        let mut doc = DocState::new_blank();
+        let (w, h) = doc.page_size();
+        let undo = doc.editor.undo_len();
+        add_page_rect(&mut doc, &Defaults::default());
+        assert_eq!(doc.editor.undo_len(), undo + 1);
+        let [id] = doc.selection.as_slice() else {
+            panic!("selecionado")
+        };
+        let r = doc.editor.find(id).unwrap();
+        let b = ops::object_bounds(&doc.editor, &r, false).unwrap();
+        assert!(
+            b.x0.abs() < 1e-6
+                && b.y0.abs() < 1e-6
+                && (b.x1 - w).abs() < 1e-6
+                && (b.y1 - h).abs() < 1e-6,
+            "{b:?}"
+        );
     }
 
     /// GD-FER-30: no modo 3 pontos, arrastar a base e clicar na altura cria

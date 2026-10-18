@@ -295,6 +295,16 @@ pub enum AlignTo {
     Selection,
 }
 
+/// Referência efetiva do alinhamento (GD-ALI-06): com um só objeto não há
+/// outro para servir de base, então ele se alinha pela página.
+pub fn align_target(to: AlignTo, count: usize, page: Rect) -> AlignTo {
+    match to {
+        AlignTo::Page(_) => to,
+        _ if count == 1 => AlignTo::Page(page),
+        _ => to,
+    }
+}
+
 pub fn align(ed: &mut Editor, sel: &[String], how: Align, to: AlignTo, visual: bool) {
     let objs: Vec<(String, Rect)> = sel
         .iter()
@@ -1754,6 +1764,36 @@ pub fn selection_document(ed: &Editor, sel: &[String]) -> Option<crate::model::D
     Some(d)
 }
 
+/// Documento só com a arte (GD-EXP-08, PNG): cada página pedida (vazio =
+/// todas) vira uma página do tamanho da caixa visual dos seus objetos
+/// visíveis em camadas visíveis, sem a página, a página mestra nem fundo.
+/// Páginas sem arte ficam de fora; `None` se nenhuma tiver.
+pub fn artwork_document(ed: &Editor, pages: &[usize]) -> Option<crate::model::Document> {
+    let all: Vec<usize> = ed.page_indices().collect();
+    let pages = if pages.is_empty() { &all[..] } else { pages };
+    let mut out = Vec::new();
+    for &p in pages {
+        let ids: Vec<String> = ed
+            .layers(p)
+            .iter()
+            .filter(|l| l.visible)
+            .flat_map(|l| l.objects.iter())
+            .filter(|o| o.visible)
+            .map(|o| o.id.clone())
+            .collect();
+        if let Some(mut d) = selection_document(ed, &ids) {
+            out.append(&mut d.data.pages);
+        }
+    }
+    if out.is_empty() {
+        return None;
+    }
+    let mut d = ed.doc.clone();
+    d.data.master_page.layers.clear();
+    d.data.pages = out;
+    Some(d)
+}
+
 /// Primeiro objeto acima de `at` (na mesma camada) que não está em
 /// `removed`: os resultados que substituem os removidos entram logo abaixo
 /// dele, mantendo o lugar na pilha mesmo com removidos espalhados.
@@ -2007,6 +2047,24 @@ mod tests {
         assert!(ids.iter().all(|id| (b(&ed, id).y1 - 100.0).abs() < 1e-9));
         ed.undo();
         assert!((b(&ed, &ids[0]).y0 - 5.0).abs() < 1e-9);
+    }
+
+    /// GD-ALI-06: um objeto só se alinha pela página; dois ou mais, entre si.
+    #[test]
+    fn gd_ali_06_single_object_aligns_to_page() {
+        let (mut ed, ids) = setup();
+        let page = Rect::new(0.0, 0.0, 200.0, 100.0);
+        let one = &ids[..1];
+        let to = align_target(AlignTo::LastSelected, one.len(), page);
+        assert_eq!(to, AlignTo::Page(page));
+        align(&mut ed, one, Align::Right, to, false);
+        assert!((b(&ed, &ids[0]).x1 - 200.0).abs() < 1e-9);
+        align(&mut ed, one, Align::Top, to, false);
+        assert!((b(&ed, &ids[0]).y1 - 100.0).abs() < 1e-9);
+        assert_eq!(
+            align_target(AlignTo::LastSelected, 2, page),
+            AlignTo::LastSelected
+        );
     }
 
     #[test]
@@ -2738,5 +2796,49 @@ mod tests {
         assert_eq!(p.layers[0].objects.len(), 1);
         let t = p.layers[0].objects[0].transform.affine().as_coeffs();
         assert!(t[4].abs() < 1e-9 && t[5].abs() < 1e-9);
+    }
+
+    /// GD-EXP-08: o PNG leva só a arte — página do tamanho dos objetos
+    /// visíveis, sem os ocultos nem a página mestra.
+    #[test]
+    fn gd_exp_08_artwork_document() {
+        let mut ed = bdr_editor();
+        let _a = bdr_rect(&mut ed, 20_000.0, 30_000.0, 10_000.0, 5_000.0);
+        let _b = bdr_rect(&mut ed, 50_000.0, 40_000.0, 10_000.0, 5_000.0);
+        let c = bdr_rect(&mut ed, 150_000.0, 150_000.0, 10_000.0, 5_000.0);
+        set_visible(&mut ed, std::slice::from_ref(&c), false);
+        let d = artwork_document(&ed, &[0]).unwrap();
+        assert_eq!(d.data.pages.len(), 1);
+        let p = &d.data.pages[0];
+        assert_eq!(
+            (p.width, p.height),
+            (40_000.0, 15_000.0),
+            "só a arte visível"
+        );
+        assert_eq!(p.layers[0].objects.len(), 2);
+        assert!(d.data.master_page.layers.is_empty());
+        assert_eq!(
+            artwork_document(&ed, &[]).map(|d| d.data.pages.len()),
+            Some(1)
+        );
+        // O PNG sai do tamanho da arte, com o fundo transparente.
+        let dir = std::env::temp_dir().join(format!("gd-exp08-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let out = dir.join("arte.png");
+        let opts = crate::export::ExportOptions {
+            dpi: 254.0,
+            ..Default::default()
+        };
+        crate::export::export_with_report(&d, &out, crate::export::ExportFormat::Png, &opts)
+            .unwrap();
+        let img = image::open(&out).unwrap().to_rgba8();
+        // 40 × 15 mm a 254 ppp = 400 × 150 px.
+        assert_eq!((img.width(), img.height()), (400, 150));
+        assert_eq!(
+            img.get_pixel(399, 0)[3],
+            0,
+            "entre os retângulos: transparente"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

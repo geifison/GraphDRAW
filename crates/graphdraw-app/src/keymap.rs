@@ -183,12 +183,12 @@ commands! {
     TransformPosition = "panel.transform_position", "Transformar: posição", "Transform: position", Object, Always, true;
     TransformRotate = "panel.transform_rotate", "Transformar: girar", "Transform: rotate", Object, Always, true;
 
-    AlignTop = "align.top", "Alinhar pelo topo", "Align top", Align, Multi, true;
-    AlignBottom = "align.bottom", "Alinhar pela base", "Align bottom", Align, Multi, true;
-    AlignLeft = "align.left", "Alinhar pela esquerda", "Align left", Align, Multi, true;
-    AlignRight = "align.right", "Alinhar pela direita", "Align right", Align, Multi, true;
-    AlignCentersV = "align.centers_vertical", "Alinhar centros na vertical", "Align centers vertically", Align, Multi, true;
-    AlignCentersH = "align.centers_horizontal", "Alinhar centros na horizontal", "Align centers horizontally", Align, Multi, true;
+    AlignTop = "align.top", "Alinhar pelo topo", "Align top", Align, Selection, true;
+    AlignBottom = "align.bottom", "Alinhar pela base", "Align bottom", Align, Selection, true;
+    AlignLeft = "align.left", "Alinhar pela esquerda", "Align left", Align, Selection, true;
+    AlignRight = "align.right", "Alinhar pela direita", "Align right", Align, Selection, true;
+    AlignCentersV = "align.centers_vertical", "Alinhar centros na vertical", "Align centers vertically", Align, Selection, true;
+    AlignCentersH = "align.centers_horizontal", "Alinhar centros na horizontal", "Align centers horizontally", Align, Selection, true;
     CenterOnPage = "align.center_page", "Centralizar na página", "Center on page", Align, Selection, true;
 
     ToFront = "order.front", "Trazer para a frente de tudo", "Bring to front", Order, Selection, true;
@@ -504,6 +504,7 @@ impl Keymap {
                 (ToBack, "Shift+PageDown"),
                 (Forward, "Ctrl+PageUp"),
                 (Backward, "Ctrl+PageDown"),
+                (CenterOnPage, "P"),
                 (ZoomObjects, "Shift+0"),
                 (ZoomPage, "0"),
                 (ActualSize, "1"),
@@ -561,7 +562,7 @@ impl Keymap {
                 (ToolMeshFill, "M"),
                 (ToolPan, "H"),
                 (ToolEraser, "X"),
-                // Alinhamento (dois ou mais objetos)
+                // Alinhamento (um objeto só: pela página)
                 (AlignTop, "T"),
                 (AlignBottom, "B"),
                 (AlignLeft, "L"),
@@ -1072,9 +1073,15 @@ mod tests {
             "fora do texto, Ctrl+R repete"
         );
         assert_eq!(press(&alt, Key::T, none, 2), [Command::AlignTop]);
-        assert!(
-            press(&alt, Key::T, none, 1).is_empty(),
-            "alinhar pede 2 ou mais"
+        assert_eq!(
+            press(&alt, Key::T, none, 1),
+            [Command::AlignTop],
+            "um objeto só alinha pela página (GD-ALI-06)"
+        );
+        assert!(press(&alt, Key::T, none, 0).is_empty(), "sem seleção, nada");
+        assert_eq!(
+            press(&Keymap::graphdraw(), Key::P, none, 1),
+            [Command::CenterOnPage]
         );
         assert_eq!(
             press(&alt, Key::F7, Modifiers::ALT, 0),

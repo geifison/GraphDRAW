@@ -42,6 +42,7 @@ impl DocState {
         let mut page = Page::new(210_000.0, 297_000.0);
         page.name = Some("Página 1".into());
         doc.data.pages.push(page);
+        doc.data.settings.color.cmyk_profile = Some(graphdraw_core::cms::FOGRA39.into());
         DocState::from_document(doc, None, ImportReport::new("gdr"))
     }
 

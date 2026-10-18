@@ -73,8 +73,10 @@ impl ColorDialog {
             ui.heading(tr("Gerenciamento de cor", "Color management"));
             ui.add_space(theme::SPACE_300);
             profile_row(ui, tr("Perfil RGB", "RGB profile"), &mut self.cm.rgb_profile, tr("sRGB IEC61966-2.1 (embutido)", "sRGB IEC61966-2.1 (built in)"));
-            profile_row(ui, tr("Perfil CMYK", "CMYK profile"), &mut self.cm.cmyk_profile, tr("Sem perfil (conversão por fórmula)", "No profile (formula conversion)"));
-            if let (Some(n), Some(_)) = (&self.cmyk_name, &self.cm.cmyk_profile) {
+            cmyk_row(ui, &mut self.cm.cmyk_profile);
+            if let (Some(n), Some(p)) = (&self.cmyk_name, &self.cm.cmyk_profile)
+                && graphdraw_core::cms::builtin(p).is_none()
+            {
                 ui.label(egui::RichText::new(n).weak());
             }
             ui.horizontal(|ui| {
@@ -133,6 +135,39 @@ impl ColorDialog {
     }
 }
 
+/// Perfil CMYK: os embutidos (GD-CMS-01), sem perfil ou um arquivo ICC.
+fn cmyk_row(ui: &mut egui::Ui, slot: &mut Option<String>) {
+    use graphdraw_core::cms::{BUILTIN_CMYK, builtin};
+    ui.label(egui::RichText::new(tr("Perfil CMYK", "CMYK profile")).strong());
+    for b in &BUILTIN_CMYK {
+        if ui
+            .radio(slot.as_deref() == Some(b.id), b.name)
+            .on_hover_text(b.detail)
+            .clicked()
+        {
+            *slot = Some(b.id.into());
+        }
+    }
+    if ui
+        .radio(
+            slot.is_none(),
+            tr(
+                "Sem perfil (conversão por fórmula)",
+                "No profile (formula conversion)",
+            ),
+        )
+        .clicked()
+    {
+        *slot = None;
+    }
+    let mut file = slot.clone().filter(|p| builtin(p).is_none());
+    let before = file.clone();
+    file_row(ui, &mut file);
+    if file != before {
+        *slot = file;
+    }
+}
+
 fn profile_row(ui: &mut egui::Ui, label: &str, slot: &mut Option<String>, builtin: &str) {
     ui.label(egui::RichText::new(label).strong());
     ui.horizontal(|ui| {
@@ -140,6 +175,11 @@ fn profile_row(ui: &mut egui::Ui, label: &str, slot: &mut Option<String>, builti
             *slot = None;
         }
     });
+    file_row(ui, slot);
+}
+
+/// Linha "arquivo ICC…" com o botão Escolher.
+fn file_row(ui: &mut egui::Ui, slot: &mut Option<String>) {
     ui.horizontal(|ui| {
         let shown = slot
             .as_deref()

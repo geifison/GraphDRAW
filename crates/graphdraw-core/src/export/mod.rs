@@ -56,12 +56,15 @@ pub enum PrintCondition {
     Fogra47,
     /// SWOP (publicações nos EUA).
     Swop,
+    /// GRACoL 2013 (CGATS 21-2 CRPC6), offset couché pelo método G7.
+    Gracol2013,
 }
 
 impl PrintCondition {
-    pub const ALL: [PrintCondition; 3] = [
+    pub const ALL: [PrintCondition; 4] = [
         PrintCondition::Fogra39,
         PrintCondition::Fogra47,
+        PrintCondition::Gracol2013,
         PrintCondition::Swop,
     ];
     pub fn identifier(self) -> &'static str {
@@ -69,6 +72,7 @@ impl PrintCondition {
             PrintCondition::Fogra39 => "FOGRA39",
             PrintCondition::Fogra47 => "FOGRA47",
             PrintCondition::Swop => "CGATS TR 001",
+            PrintCondition::Gracol2013 => "CGATS21_CRPC6",
         }
     }
     pub fn description(self) -> &'static str {
@@ -76,6 +80,7 @@ impl PrintCondition {
             PrintCondition::Fogra39 => "Coated FOGRA39 (ISO 12647-2:2004)",
             PrintCondition::Fogra47 => "Uncoated FOGRA47 (ISO 12647-2:2004)",
             PrintCondition::Swop => "SWOP (CGATS TR 001)",
+            PrintCondition::Gracol2013 => "GRACoL 2013 (CGATS 21-2 CRPC6)",
         }
     }
     pub fn from_name(s: &str) -> Option<PrintCondition> {
@@ -83,6 +88,7 @@ impl PrintCondition {
             "fogra39" | "couche" | "coated" => Some(PrintCondition::Fogra39),
             "fogra47" | "naocouche" | "uncoated" => Some(PrintCondition::Fogra47),
             "swop" | "cgatstr001" => Some(PrintCondition::Swop),
+            "gracol" | "gracol2013" | "crpc6" | "cgats21crpc6" => Some(PrintCondition::Gracol2013),
             _ => None,
         }
     }

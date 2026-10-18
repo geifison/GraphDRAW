@@ -532,6 +532,10 @@ Aba **Verificação** (ícone `preflight`) no painel direito:
   ferramentas do grupo em linha, ao lado do botão, em `shadow-popover`.
   Escolher na gaveta usa e passa a mostrar aquela; clique fora ou Esc fecha.
 - Grupos:
+  - **Retângulo** (2 pontos, 3 pontos; duplo clique no botão cria um
+    retângulo do tamanho da página e passa para a Seleção) e **Elipse**
+    (2 pontos, 3 pontos; cada ferramenta guarda o seu modo, o mesmo da
+    barra de propriedades).
   - **Curvas**: B-spline (ícone `tool-bspline`):
     - cliques põem pontos de controle; Ctrl+clique põe ponto fixado (a
       curva passa por ele); Enter ou duplo clique termina, clique no

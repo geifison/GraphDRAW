@@ -185,6 +185,235 @@ pub fn colors_used(ed: &Editor) -> Vec<Color> {
     out
 }
 
+// ---- paletas prontas para produção (GD-PAL-06) -------------------------------
+
+/// Cores de processo em CMYK: os valores vão direto para as chapas, sem
+/// conversão, então saem iguais em qualquer gráfica que imprima no padrão
+/// (a tela mostra pela simulação do perfil CMYK do documento). Tons de cada
+/// tinta e das secundárias, cinzas em K, preto rico e cores comuns; nenhuma
+/// passa de 300% de tinta total (limite do FOGRA39).
+pub fn process_cmyk_palette() -> Palette {
+    let mut colors = Vec::new();
+    let mut add = |name: String, c: f64, m: f64, y: f64, k: f64| {
+        colors.push(PaletteColor {
+            name,
+            color: Color::cmyk(c / 100.0, m / 100.0, y / 100.0, k / 100.0),
+        });
+    };
+    let inks: [(&str, [f64; 4]); 7] = [
+        ("Ciano", [100.0, 0.0, 0.0, 0.0]),
+        ("Magenta", [0.0, 100.0, 0.0, 0.0]),
+        ("Amarelo", [0.0, 0.0, 100.0, 0.0]),
+        ("Vermelho", [0.0, 100.0, 100.0, 0.0]),
+        ("Verde", [100.0, 0.0, 100.0, 0.0]),
+        ("Azul", [100.0, 100.0, 0.0, 0.0]),
+        ("Preto", [0.0, 0.0, 0.0, 100.0]),
+    ];
+    for (name, v) in inks {
+        for pct in [100.0, 80.0, 60.0, 40.0, 20.0, 10.0] {
+            let s = pct / 100.0;
+            let label = if pct == 100.0 {
+                name.to_string()
+            } else {
+                format!("{name} {pct:.0}%")
+            };
+            add(label, v[0] * s, v[1] * s, v[2] * s, v[3] * s);
+        }
+    }
+    for (name, [c, m, y, k]) in [
+        ("Preto rico", [60.0, 40.0, 40.0, 100.0]),
+        ("Laranja", [0.0, 50.0, 100.0, 0.0]),
+        ("Ouro", [0.0, 20.0, 100.0, 10.0]),
+        ("Vinho", [0.0, 100.0, 60.0, 40.0]),
+        ("Marrom", [0.0, 60.0, 100.0, 50.0]),
+        ("Rosa", [0.0, 60.0, 0.0, 0.0]),
+        ("Roxo", [70.0, 100.0, 0.0, 0.0]),
+        ("Azul-marinho", [100.0, 80.0, 0.0, 30.0]),
+        ("Azul-celeste", [60.0, 10.0, 0.0, 0.0]),
+        ("Verde-limão", [40.0, 0.0, 100.0, 0.0]),
+        ("Verde-bandeira", [90.0, 0.0, 100.0, 20.0]),
+        ("Verde-escuro", [90.0, 30.0, 100.0, 40.0]),
+        ("Turquesa", [80.0, 0.0, 40.0, 0.0]),
+        ("Bege", [0.0, 10.0, 30.0, 5.0]),
+    ] {
+        add(name.to_string(), c, m, y, k);
+    }
+    Palette {
+        name: "CMYK de processo".into(),
+        colors,
+    }
+}
+
+/// Cores RGB que imprimem como aparecem: cada matiz em vários tons, levada
+/// para dentro da gama do perfil CMYK (ida e volta pelo perfil), sem
+/// repetidas. Sem perfil CMYK disponível, usa o FOGRA39 embutido.
+pub fn print_safe_rgb_palette(cms: Option<&crate::cms::Cms>) -> Palette {
+    let own;
+    let cms = match cms.filter(|c| c.has_cmyk_profile()) {
+        Some(c) => c,
+        None => {
+            own = crate::cms::Cms::new(&crate::cms::ColorManagement {
+                cmyk_profile: Some(crate::cms::FOGRA39.into()),
+                ..Default::default()
+            });
+            &own
+        }
+    };
+    let hues = [
+        (0.0, "Vermelho"),
+        (30.0, "Laranja"),
+        (55.0, "Amarelo"),
+        (90.0, "Verde-limão"),
+        (130.0, "Verde"),
+        (170.0, "Turquesa"),
+        (195.0, "Ciano"),
+        (215.0, "Azul-celeste"),
+        (240.0, "Azul"),
+        (270.0, "Violeta"),
+        (300.0, "Roxo"),
+        (330.0, "Rosa"),
+    ];
+    let tones = [
+        (1.0, 1.0, ""),
+        (0.85, 0.75, " escuro"),
+        (0.7, 0.5, " profundo"),
+        (0.55, 1.0, " médio"),
+        (0.3, 1.0, " claro"),
+    ];
+    let mut out: Vec<PaletteColor> = Vec::new();
+    let mut push = |name: String, rgb: [f64; 3]| {
+        let Some(p) = cms.to_print_gamut(rgb) else {
+            return;
+        };
+        if out.iter().all(|c| {
+            let q = [c.color.v(0), c.color.v(1), c.color.v(2)];
+            crate::cms::delta_e(q, p) > 3.0
+        }) {
+            out.push(PaletteColor {
+                name,
+                color: Color::rgb(p[0], p[1], p[2]),
+            });
+        }
+    };
+    for (h, name) in hues {
+        for (s, v, suffix) in tones {
+            push(format!("{name}{suffix}"), hsv(h, s, v));
+        }
+    }
+    for k in [0.0, 0.2, 0.4, 0.6, 0.8, 0.9, 1.0] {
+        let g = 1.0 - k;
+        push(format!("Cinza {:.0}%", k * 100.0), [g, g, g]);
+    }
+    Palette {
+        name: "RGB seguro para impressão".into(),
+        colors: out,
+    }
+}
+
+fn hsv(h: f64, s: f64, v: f64) -> [f64; 3] {
+    let c = v * s;
+    let x = c * (1.0 - ((h / 60.0) % 2.0 - 1.0).abs());
+    let (r, g, b) = match (h / 60.0) as u32 {
+        0 => (c, x, 0.0),
+        1 => (x, c, 0.0),
+        2 => (0.0, c, x),
+        3 => (0.0, x, c),
+        4 => (x, 0.0, c),
+        _ => (c, 0.0, x),
+    };
+    let m = v - c;
+    [r + m, g + m, b + m]
+}
+
+// ---- tons derivados (GD-PAL-07) ----------------------------------------------
+
+/// Colunas do mosaico de tons derivados.
+pub const TONE_COLUMNS: usize = 6;
+
+/// A cor é só preto (K puro, cinza, registro ou RGB neutro)?
+fn black_only(c: &Color) -> bool {
+    let v = |i| c.v(i);
+    match c.model.as_str() {
+        "cmyk" => v(0) < 1e-9 && v(1) < 1e-9 && v(2) < 1e-9,
+        "gray" | "registration" => true,
+        "rgb" => (v(0) - v(1)).abs() < 1e-9 && (v(1) - v(2)).abs() < 1e-9,
+        _ => false,
+    }
+}
+
+/// Mesma cor com `s` (0–1) da sua tinta: CMYK, cor especial e registro
+/// escalam as tintas; cinza e RGB clareiam em direção ao branco.
+fn with_strength(c: &Color, s: f64) -> Color {
+    let mut n = c.clone();
+    n.reference = None;
+    match c.model.as_str() {
+        "gray" | "rgb" => {
+            for v in &mut n.values {
+                *v = 1.0 - (1.0 - *v) * s;
+            }
+        }
+        _ => {
+            for v in &mut n.values {
+                *v *= s;
+            }
+        }
+    }
+    n
+}
+
+/// Tons derivados de `c` (GD-PAL-07), do mais claro ao mais escuro.
+///
+/// - Cor só de preto (e cor especial, que não escurece sem trocar de tinta):
+///   6 tons, da cor como está até zero dela.
+/// - As outras: 36 (mosaico 6×6) — 17 clareadas, a própria cor e 18
+///   escurecidas. CMYK fica em CMYK (escurece com K, sem passar de 300% de
+///   tinta); os demais modelos viram RGB.
+pub fn derived_tones(c: &Color) -> Vec<Color> {
+    if black_only(c) || c.model == "spot" {
+        return (0..TONE_COLUMNS)
+            .map(|n| with_strength(c, 1.0 - n as f64 / (TONE_COLUMNS - 1) as f64))
+            .collect();
+    }
+    const LIGHT: usize = 17;
+    const DARK: usize = 18;
+    if c.model == "cmyk" {
+        let [cy, m, y, k] = [c.v(0), c.v(1), c.v(2), c.v(3)];
+        let mut out: Vec<Color> = (0..LIGHT)
+            .map(|i| with_strength(c, (i + 1) as f64 / (LIGHT + 1) as f64))
+            .collect();
+        out.push(Color::cmyk(cy, m, y, k));
+        for j in 1..=DARK {
+            let d = j as f64 / DARK as f64 * 0.85;
+            let k2 = k + (1.0 - k) * d;
+            // Tinta total até 300%: o que passar sai do CMY.
+            let cmy = cy + m + y;
+            let room = (3.0 - k2).max(0.0);
+            let f = if cmy > room { room / cmy } else { 1.0 };
+            out.push(Color::cmyk(cy * f, m * f, y * f, k2));
+        }
+        return out;
+    }
+    let rgb = if c.model == "rgb" {
+        [c.v(0), c.v(1), c.v(2)]
+    } else {
+        c.to_srgb()
+    };
+    let base = Color::rgb(rgb[0], rgb[1], rgb[2]);
+    let mut out: Vec<Color> = (0..LIGHT)
+        .map(|i| with_strength(&base, (i + 1) as f64 / (LIGHT + 1) as f64))
+        .collect();
+    out.push(base);
+    for j in 1..=DARK {
+        let d = j as f64 / DARK as f64 * 0.85;
+        out.push(Color::rgb(
+            rgb[0] * (1.0 - d),
+            rgb[1] * (1.0 - d),
+            rgb[2] * (1.0 - d),
+        ));
+    }
+    out
+}
+
 // ---- arquivos de paleta (GD-PAL-02) ------------------------------------------
 
 /// Paleta de arquivo: nome e cores nomeadas (o modelo original é mantido).
@@ -546,6 +775,115 @@ mod tests {
 
     use super::*;
     use crate::model::{Document, Page, RectData, Stroke};
+
+    /// Claridade (L*) pela fórmula do modelo, sem perfil.
+    fn lightness(c: &Color) -> f64 {
+        let rgb = match c.model.as_str() {
+            "cmyk" => {
+                let k = c.v(3);
+                [0, 1, 2].map(|i| (1.0 - c.v(i)) * (1.0 - k))
+            }
+            "gray" => [c.v(0); 3],
+            _ => [c.v(0), c.v(1), c.v(2)],
+        };
+        crate::cms::srgb_to_lab(rgb)[0]
+    }
+
+    /// GD-PAL-07: 6×6 do mais claro ao mais escuro, com a própria cor no
+    /// meio e o modelo mantido; CMYK sem passar de 300%.
+    #[test]
+    fn gd_pal_07_derived_tones_mosaic() {
+        for c in [
+            Color::cmyk(0.0, 1.0, 1.0, 0.0),
+            Color::cmyk(0.6, 0.4, 0.4, 0.3),
+            Color::rgb(0.2, 0.5, 0.9),
+            Color::new("hsb", vec![0.3, 0.8, 0.8]),
+        ] {
+            let t = derived_tones(&c);
+            assert_eq!(t.len(), TONE_COLUMNS * TONE_COLUMNS, "{c:?}");
+            let want = if c.model == "cmyk" { "cmyk" } else { "rgb" };
+            assert!(t.iter().all(|x| x.model == want));
+            for w in t.windows(2) {
+                assert!(lightness(&w[0]) >= lightness(&w[1]) - 1e-6, "{c:?}: {w:?}");
+            }
+            assert!(
+                lightness(&t[0]) > 90.0,
+                "canto superior esquerdo quase branco"
+            );
+            if c.model == "cmyk" {
+                assert_eq!(t[17].values, c.values, "a própria cor no meio");
+                assert!(t.iter().all(|x| x.values.iter().sum::<f64>() <= 3.0 + 1e-9));
+            }
+        }
+    }
+
+    /// GD-PAL-07: cor só de preto (e cor especial) dá 6 tons, dela até zero.
+    #[test]
+    fn gd_pal_07_black_only_scale() {
+        let k = derived_tones(&Color::cmyk(0.0, 0.0, 0.0, 1.0));
+        let ks: Vec<f64> = k.iter().map(|c| (c.values[3] * 100.0).round()).collect();
+        assert_eq!(ks, [100.0, 80.0, 60.0, 40.0, 20.0, 0.0]);
+        assert!(
+            k.iter()
+                .all(|c| c.model == "cmyk" && c.values[..3].iter().all(|v| *v == 0.0))
+        );
+        let k60 = derived_tones(&Color::cmyk(0.0, 0.0, 0.0, 0.6));
+        assert!((k60[0].values[3] - 0.6).abs() < 1e-9 && k60[5].values[3] == 0.0);
+        let g = derived_tones(&Color::gray(0.0));
+        assert_eq!(g.len(), 6);
+        assert!(g[0].values[0] < 1e-9 && (g[5].values[0] - 1.0).abs() < 1e-9);
+        assert_eq!(derived_tones(&Color::rgb(0.3, 0.3, 0.3)).len(), 6);
+        let mut spot = Color::new("spot", vec![1.0]);
+        spot.name = Some("Ouro".into());
+        let s = derived_tones(&spot);
+        assert_eq!(s.len(), 6);
+        assert!(
+            s.iter()
+                .all(|c| c.model == "spot" && c.name.as_deref() == Some("Ouro"))
+        );
+    }
+
+    /// GD-PAL-06: a paleta CMYK é toda em CMYK, sem passar de 300% de tinta.
+    #[test]
+    fn gd_pal_06_process_cmyk_palette() {
+        let p = process_cmyk_palette();
+        assert!(p.colors.len() > 50);
+        for c in &p.colors {
+            assert_eq!(c.color.model, "cmyk", "{}", c.name);
+            let tac: f64 = c.color.values.iter().sum();
+            assert!(tac <= 3.0 + 1e-9, "{}: {tac}", c.name);
+        }
+        let names: Vec<&str> = p.colors.iter().map(|c| c.name.as_str()).collect();
+        assert!(names.contains(&"Ciano") && names.contains(&"Preto rico"));
+        let mut uniq = names.clone();
+        uniq.sort();
+        uniq.dedup();
+        assert_eq!(uniq.len(), names.len(), "nomes repetidos");
+    }
+
+    /// GD-PAL-06: cada cor da paleta RGB segura imprime como aparece
+    /// (ida e volta pelo FOGRA39 com ΔE pequeno) e não há quase-repetidas.
+    #[test]
+    fn gd_pal_06_print_safe_rgb_palette() {
+        let cms = crate::cms::Cms::new(&crate::cms::ColorManagement {
+            cmyk_profile: Some(crate::cms::FOGRA39.into()),
+            ..Default::default()
+        });
+        let p = print_safe_rgb_palette(Some(&cms));
+        assert!(p.colors.len() > 30, "{}", p.colors.len());
+        for c in &p.colors {
+            assert_eq!(c.color.model, "rgb");
+            let rgb = [c.color.v(0), c.color.v(1), c.color.v(2)];
+            assert_eq!(
+                cms.in_print_gamut(rgb, 1.0),
+                Some(true),
+                "{} {rgb:?}",
+                c.name
+            );
+        }
+        // Sem perfil, usa o FOGRA39 embutido: mesmo resultado.
+        assert_eq!(print_safe_rgb_palette(None), p);
+    }
 
     fn sample() -> Palette {
         let mut spot = Color::new("spot", vec![1.0]);

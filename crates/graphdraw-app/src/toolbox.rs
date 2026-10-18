@@ -15,6 +15,8 @@ pub struct Variant {
     pub tool: Tool,
     /// Família e modo da ferramenta Polígono (`shape_family`, `polygon_mode`).
     pub shape: Option<(&'static str, &'static str)>,
+    /// Retângulo/elipse: `Some(true)` = 3 pontos, `Some(false)` = 2 pontos.
+    pub three: Option<bool>,
 }
 
 impl Variant {
@@ -25,6 +27,18 @@ impl Variant {
             tip,
             tool,
             shape: None,
+            three: None,
+        }
+    }
+
+    /// Retângulo ou elipse no modo 2 ou 3 pontos.
+    fn points(tool: Tool, three: bool, icon: &'static str, tip: &'static str) -> Variant {
+        Variant {
+            icon,
+            tip,
+            tool,
+            shape: None,
+            three: Some(three),
         }
     }
 
@@ -34,10 +48,14 @@ impl Variant {
             && self.shape.is_none_or(|(family, mode)| {
                 d.shape_family == family && (family != "polygon" || d.polygon_mode == mode)
             })
+            && self.three.is_none_or(|t| d.three_point(tool) == t)
     }
 
     /// Passa a usar esta escolha (a ferramenta é trocada por quem chama).
     pub fn apply(&self, d: &mut Defaults) {
+        if let Some(t) = self.three {
+            d.set_three_point(self.tool, t);
+        }
         if let Some((family, mode)) = self.shape {
             d.shape_family = family.into();
             if family == "polygon" {
@@ -60,7 +78,9 @@ pub fn slots() -> Vec<Slot> {
         tip,
         tool: Tool::Polygon,
         shape: Some((family, mode)),
+        three: None,
     };
+    use crate::keymap::{Command, hint};
     vec![
         Slot::Group(
             "selecao",
@@ -92,8 +112,46 @@ pub fn slots() -> Vec<Slot> {
                 Variant::of(Tool::Curve3),
             ],
         ),
-        Slot::One(Tool::Rect),
-        Slot::One(Tool::Ellipse),
+        Slot::Group(
+            "retangulo",
+            vec![
+                Variant::points(
+                    Tool::Rect,
+                    false,
+                    "tool-rect",
+                    hint(
+                        tr("Retângulo 2 pontos", "2-point rectangle"),
+                        Command::ToolRect,
+                    ),
+                ),
+                Variant::points(
+                    Tool::Rect,
+                    true,
+                    "tool-rect-3pt",
+                    tr("Retângulo 3 pontos", "3-point rectangle"),
+                ),
+            ],
+        ),
+        Slot::Group(
+            "elipse",
+            vec![
+                Variant::points(
+                    Tool::Ellipse,
+                    false,
+                    "tool-ellipse",
+                    hint(
+                        tr("Elipse 2 pontos", "2-point ellipse"),
+                        Command::ToolEllipse,
+                    ),
+                ),
+                Variant::points(
+                    Tool::Ellipse,
+                    true,
+                    "tool-ellipse-3pt",
+                    tr("Elipse 3 pontos", "3-point ellipse"),
+                ),
+            ],
+        ),
         Slot::Group(
             "formas",
             vec![
@@ -191,6 +249,30 @@ mod tests {
         for t in Tool::ALL {
             assert_eq!(seen.iter().filter(|x| **x == t).count(), 1, "{t:?}");
         }
+    }
+
+    /// GD-FER-30/31: retângulo e elipse têm 2 e 3 pontos na gaveta, cada
+    /// ferramenta com o seu modo.
+    #[test]
+    fn rect_and_ellipse_two_and_three_points() {
+        let group = |n: &str| match slots()
+            .into_iter()
+            .find(|s| matches!(s, Slot::Group(g, _) if *g == n))
+        {
+            Some(Slot::Group(_, v)) => v,
+            _ => panic!("{n}"),
+        };
+        let (r, e) = (group("retangulo"), group("elipse"));
+        assert_eq!((r.len(), e.len()), (2, 2));
+        let mut d = Defaults::default();
+        assert!(r[0].active(Tool::Rect, &d) && !r[1].active(Tool::Rect, &d));
+        r[1].apply(&mut d);
+        assert!(d.three_point(Tool::Rect) && r[1].active(Tool::Rect, &d));
+        assert!(!d.three_point(Tool::Ellipse), "elipse continua 2 pontos");
+        assert!(!d.three_point(Tool::Polygon));
+        e[1].apply(&mut d);
+        r[0].apply(&mut d);
+        assert!(!d.three_point(Tool::Rect) && d.three_point(Tool::Ellipse));
     }
 
     /// Escolher estrela ou espiral na gaveta ajusta a ferramenta Polígono.

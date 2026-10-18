@@ -42,6 +42,8 @@ pub fn get(name: &str) -> ImageSource<'static> {
         "tool-pan" => icon!("tool-pan"),
         "tool-bezier" => icon!("tool-bezier"),
         "tool-rect" => icon!("tool-rect"),
+        "tool-rect-3pt" => icon!("tool-rect-3pt"),
+        "tool-ellipse-3pt" => icon!("tool-ellipse-3pt"),
         "tool-ellipse" => icon!("tool-ellipse"),
         "tool-artboard" => icon!("tool-artboard"),
         "tool-text" => icon!("tool-text"),

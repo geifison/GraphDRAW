@@ -69,7 +69,8 @@ impl Color {
         ))
     }
 
-    fn v(&self, i: usize) -> f64 {
+    /// Componente `i` (0–1; ausente = 0).
+    pub fn v(&self, i: usize) -> f64 {
         self.values.get(i).copied().unwrap_or(0.0).clamp(0.0, 1.0)
     }
 

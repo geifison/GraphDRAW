@@ -363,7 +363,10 @@ impl App {
                 );
             }
             Tool::Rect | Tool::Ellipse => {
-                let three = &mut self.canvas.three_point;
+                // Modo de cada ferramenta (o mesmo da gaveta da caixa).
+                let tool = self.tool;
+                let mut on = self.defaults.three_point(tool);
+                let three = &mut on;
                 widgets::single_line_bar(ui, "barra-forma-basica", |ui| {
                     // Modo de desenho (GD-FER-30/31): 2 pontos (caixa) ou 3 pontos
                     // (base em qualquer ângulo + altura).
@@ -395,6 +398,11 @@ impl App {
                         },
                     );
                 });
+                if on != self.defaults.three_point(tool) {
+                    self.defaults.set_three_point(tool, on);
+                    self.canvas.three_point = on;
+                    self.canvas.drop_three();
+                }
             }
             Tool::Zoom => {
                 hint(
@@ -790,6 +798,9 @@ impl App {
                 if let Some(a) = crate::paletteui::swatch_action(ui, &r, c) {
                     act = Some(a);
                 }
+            }
+            if let Some(a) = crate::paletteui::show_mosaic(ui.ctx()) {
+                act = Some(a);
             }
             if let Some(a) = act {
                 self.apply_pal(a);
@@ -2744,15 +2755,20 @@ fn align_panel(ui: &mut egui::Ui, doc: &mut DocState, al: &mut AlignUi) {
     );
     ui.separator();
     let sel = doc.selection.clone();
-    let min = if al.to < 2 { 2 } else { 1 };
-    let enabled = sel.len() >= min;
+    let enabled = !sel.is_empty();
     let (pw, ph) = doc.page_size();
-    let to = match al.to {
-        0 => AlignTo::LastSelected,
-        1 => AlignTo::FirstSelected,
-        2 => AlignTo::Page(kurbo::Rect::new(0.0, 0.0, pw, ph)),
-        _ => AlignTo::Selection,
-    };
+    let page = kurbo::Rect::new(0.0, 0.0, pw, ph);
+    // Um objeto só: alinha pela página (GD-ALI-06).
+    let to = ops::align_target(
+        match al.to {
+            0 => AlignTo::LastSelected,
+            1 => AlignTo::FirstSelected,
+            2 => AlignTo::Page(page),
+            _ => AlignTo::Selection,
+        },
+        sel.len(),
+        page,
+    );
     ui.horizontal(|ui| {
         for (icon, tip, how) in [
             (
@@ -2811,11 +2827,12 @@ fn align_panel(ui: &mut egui::Ui, doc: &mut DocState, al: &mut AlignUi) {
         }
     });
     if !enabled {
-        ui.weak(if min == 2 {
-            tr("Selecione ao menos 2 objetos", "Select at least 2 objects")
-        } else {
-            tr("Selecione objetos", "Select objects")
-        });
+        ui.weak(tr("Selecione objetos", "Select objects"));
+    } else if sel.len() == 1 && al.to != 2 {
+        ui.weak(tr(
+            "Um objeto só: alinha pela página",
+            "Single object: aligns to the page",
+        ));
     }
     // Distribuir (GD-ALI-03).
     ui.separator();
