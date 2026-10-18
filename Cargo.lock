@@ -1811,6 +1811,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "graphdraw-thumbs"
+version = "0.1.0"
+dependencies = [
+ "graphdraw-core",
+ "png 0.18.1",
+ "windows",
+ "windows-core",
+ "zip",
+]
+
+[[package]]
 name = "guillotiere"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -15,7 +15,7 @@ resources/
   images/<sha256>.<ext>   bitmaps (PNG/JPEG/TIFF/WebP), deduplicados por hash
   fonts/<sha256>.<ext>    fontes inteiras incorporadas (otf/ttf/ttc, GD-FNT-03)
 thumbnails/
-  page-1.png         miniatura 256 px (para explorador de arquivos)
+  page-1.png         miniatura 512 px da página 1 (para o explorador de arquivos)
 metadata.json        título, autor, datas, palavras-chave, notas
 ```
 - **GD-GDR-03** Versão semântica do formato (`formatVersion: "1.0"`). Leitor aceita mesma versão maior; campos desconhecidos são **preservados** ao salvar (round-trip).
@@ -31,4 +31,5 @@ metadata.json        título, autor, datas, palavras-chave, notas
 - **GD-GDR-09** Salvamento atômico: grava em arquivo temporário no mesmo diretório e renomeia.
 - **GD-GDR-10** Leitura tolerante: membro corrompido/ausente → abre o resto, avisa o usuário, nunca trava.
 - **GD-GDR-11** Arquivos grandes: `document.json` pode ser dividido em `pages/page-<n>.json` (carregamento sob demanda) — obrigatório acima de 20 MB.
+- **GD-GDR-12** Pré-visualização no explorador de arquivos: no Windows, a DLL `graphdraw_thumbs.dll` (gerador de miniaturas do shell, registrada por usuário pelo instalador ou `regsvr32`) mostra no ícone do `.gdr` a miniatura `thumbnails/page-1.png` — a página 1 com o desenho, para achar o arquivo pelo conteúdo. No canto inferior direito vai o ícone do GraphDraw (cerca de 1/4 da largura, de 12 a 96 px; some em miniaturas pequenas demais), desenhado só na exibição — o arquivo não muda. Arquivo sem miniatura ou danificado mostra o ícone comum (a DLL nunca derruba o Explorador).
 - Aceite: abrir → salvar → abrir um `.gdr` produz `document.json` semanticamente idêntico (ignorando ordem de chaves).
