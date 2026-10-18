@@ -8,7 +8,6 @@
 //! a janela edita o estilo dos próximos objetos.
 
 use eframe::egui::{self, Color32, Vec2};
-use graphdraw_core::edit::ops;
 use graphdraw_core::model::{
     Color, Document, Fill, FillRule, Node, Object, ObjectKind, Page, PathData, Stroke, Subpath,
 };
@@ -18,15 +17,14 @@ use kurbo::Affine;
 use serde_json::Map;
 
 use crate::canvas::Defaults;
-use crate::doc::{DocState, default_stroke};
+use crate::doc::DocState;
 use crate::i18n::tr;
-use crate::icons;
 use crate::theme;
-use crate::widgets::{color_editor, fmt_mm, length_field, to_color32};
+use crate::widgets::{fmt_mm, to_color32};
 
 #[allow(clippy::large_enum_variant)]
 pub enum StyleDialog {
-    Stroke(StrokeDialog),
+    Stroke(crate::strokeui::StrokeDialog),
     Fill(FillDialog),
 }
 
@@ -55,7 +53,7 @@ pub fn current_style(doc: &DocState, defaults: &Defaults) -> (Option<Fill>, Opti
 impl StyleDialog {
     pub fn stroke(doc: &DocState, defaults: &Defaults) -> StyleDialog {
         let (_, stroke, for_defaults) = current_style(doc, defaults);
-        StyleDialog::Stroke(StrokeDialog::new(stroke, for_defaults))
+        StyleDialog::Stroke(crate::strokeui::StrokeDialog::new(stroke, for_defaults))
     }
 
     /// Janela de preenchimento já em cor sólida (ferramenta Preenchimento
@@ -87,10 +85,10 @@ impl StyleDialog {
 
     /// Paletas do seletor de cor (uma vez, ao abrir).
     pub fn set_palettes(&mut self, make: impl FnOnce() -> crate::colorpick::PaletteList) {
-        if let StyleDialog::Fill(d) = self
-            && d.palettes.is_empty()
-        {
-            d.palettes = make();
+        match self {
+            StyleDialog::Fill(d) if d.palettes.is_empty() => d.palettes = make(),
+            StyleDialog::Stroke(d) if d.palettes.is_empty() => d.palettes = make(),
+            _ => {}
         }
     }
 
@@ -119,57 +117,6 @@ impl StyleDialog {
     }
 }
 
-enum Close {
-    No,
-    Cancel,
-    Ok,
-}
-
-fn buttons(ui: &mut egui::Ui) -> Close {
-    let mut out = Close::No;
-    // Rodapé (DESIGN-SYSTEM 4.4): Cancelar (secundário) e OK (primário) à direita.
-    crate::widgets::footer(ui, |ui| {
-        if ui
-            .add(crate::widgets::primary_button(tr("OK", "OK")))
-            .clicked()
-        {
-            out = Close::Ok;
-        }
-        if ui
-            .add(crate::widgets::secondary_button(tr("Cancelar", "Cancel")))
-            .clicked()
-        {
-            out = Close::Cancel;
-        }
-    });
-    if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
-        out = Close::Cancel;
-    }
-    out
-}
-
-fn section(ui: &mut egui::Ui, title: &str, body: impl FnOnce(&mut egui::Ui)) {
-    ui.label(egui::RichText::new(title).text_style(theme::section_style()));
-    ui.indent(title, body);
-    ui.add_space(theme::SPACE_300);
-}
-
-/// Grupo de botões de ícone mutuamente exclusivos.
-fn icon_choice(
-    ui: &mut egui::Ui,
-    value: &mut String,
-    options: &[(&str, &str, &str)],
-    enabled: bool,
-) {
-    ui.horizontal(|ui| {
-        for (key, icon, tip) in options {
-            if icons::button(ui, icon, tip, value == key, enabled).clicked() {
-                *value = (*key).to_string();
-            }
-        }
-    });
-}
-
 // ---- contorno ------------------------------------------------------------------
 
 /// Padrões de traço em múltiplos da espessura (mínimo 0,25 mm, para que
@@ -181,7 +128,6 @@ pub(crate) const DASHES: &[(&str, &str, &[f64])] = &[
     ("Pontilhado", "Dotted", &[1.0, 2.0]),
     ("Traço e ponto", "Dash-dot", &[5.0, 2.0, 1.0, 2.0]),
 ];
-const CUSTOM: usize = DASHES.len();
 
 fn dash_unit(width: f64) -> f64 {
     width.max(250.0)
@@ -203,371 +149,12 @@ pub(crate) fn detect_dash(s: &Stroke) -> usize {
                         .zip(d)
                         .all(|(k, v)| (k * dash_unit(s.width) - v).abs() < 1.0)
             })
-            .unwrap_or(CUSTOM),
-    }
-}
-
-fn dash_text(d: &Option<Vec<f64>>) -> String {
-    d.as_ref()
-        .map(|d| d.iter().map(|v| fmt_mm(*v)).collect::<Vec<_>>().join(" "))
-        .unwrap_or_default()
-}
-
-/// "4 2" (mm) → µm; aceita vírgula decimal.
-fn parse_dash(t: &str) -> Option<Vec<f64>> {
-    let v: Option<Vec<f64>> = t
-        .split_whitespace()
-        .map(|s| {
-            s.replace(',', ".")
-                .parse::<f64>()
-                .ok()
-                .filter(|x| *x >= 0.0)
-        })
-        .map(|x| x.map(|mm| mm * 1000.0))
-        .collect();
-    v.filter(|v| !v.is_empty() && v.iter().any(|x| *x > 0.0))
-}
-
-pub struct StrokeDialog {
-    initial: Option<Stroke>,
-    draft: Stroke,
-    enabled: bool,
-    preset: usize,
-    custom: String,
-    for_defaults: bool,
-    preview: Option<((Stroke, bool), egui::TextureHandle)>,
-    /// Área ocupada no último quadro (usada nos testes de layout).
-    rect: egui::Rect,
-}
-
-impl StrokeDialog {
-    fn new(initial: Option<Stroke>, for_defaults: bool) -> StrokeDialog {
-        let draft = initial.clone().unwrap_or_else(default_stroke);
-        StrokeDialog {
-            enabled: initial.is_some(),
-            preset: detect_dash(&draft),
-            custom: dash_text(&draft.dash),
-            initial,
-            draft,
-            for_defaults,
-            preview: None,
-            rect: egui::Rect::NOTHING,
-        }
-    }
-
-    fn result(&self) -> Option<Stroke> {
-        self.enabled.then(|| self.draft.clone())
-    }
-
-    fn show(&mut self, ctx: &egui::Context, doc: &mut DocState, defaults: &mut Defaults) -> bool {
-        let title = if self.for_defaults {
-            tr("Contorno dos novos objetos", "Outline for new objects")
-        } else {
-            tr("Contorno", "Outline")
-        };
-        let resp =
-            crate::widgets::modal(ctx, egui::Id::unique("janela-contorno")).show(ctx, |ui| {
-                ui.set_width(560.0);
-                ui.heading(title);
-                ui.separator();
-                // Sem separador vertical: ele pede a altura toda e o modal sai da tela.
-                let max_h = (ui.ctx().content_rect().height() * theme::MODAL_MAX_HEIGHT).max(240.0);
-                ui.horizontal_top(|ui| {
-                    ui.vertical(|ui| {
-                        ui.set_width(300.0);
-                        egui::ScrollArea::vertical()
-                            .max_height(max_h)
-                            .auto_shrink([false, true])
-                            .show(ui, |ui| self.form(ui));
-                    });
-                    ui.add_space(theme::SPACE_400);
-                    ui.vertical(|ui| {
-                        ui.label(tr("Prévia", "Preview"));
-                        self.preview(ui);
-                        ui.weak(tr(
-                            "Prévia em tamanho real aproximado (cerca de 4 px por mm).",
-                            "Approximately real-size preview (about 4 px per mm).",
-                        ));
-                    });
-                });
-                ui.separator();
-                buttons(ui)
-            });
-        self.rect = resp.response.rect;
-        match resp.inner {
-            Close::No => false,
-            Close::Cancel => true,
-            Close::Ok => {
-                self.apply(doc, defaults);
-                true
-            }
-        }
-    }
-
-    fn form(&mut self, ui: &mut egui::Ui) {
-        ui.checkbox(&mut self.enabled, tr("Com contorno", "Has outline"));
-        let on = self.enabled;
-        ui.add_enabled_ui(on, |ui| {
-            let s = &mut self.draft;
-            section(ui, tr("Espessura", "Width"), |ui| {
-                ui.horizontal(|ui| {
-                    let hair = s.width <= 0.0;
-                    if !hair
-                        && let Some(w) = length_field(ui, "dlg-espessura", s.width, None) {
-                            s.width = w.max(0.0);
-                            if self.preset > 0 && self.preset < CUSTOM {
-                                s.dash = dash_for(self.preset, s.width);
-                            }
-                        }
-                    let mut h = hair;
-                    if ui
-                        .checkbox(&mut h, tr("Fio de cabelo", "Hairline"))
-                        .on_hover_text(tr(
-                            "A linha mais fina que o dispositivo consegue imprimir",
-                            "The thinnest line the output device can print",
-                        ))
-                        .changed()
-                    {
-                        s.width = if h { 0.0 } else { 200.0 };
-                    }
-                });
-                ui.weak(tr(
-                    "Aceita contas e unidades: 0,5  ·  1pt  ·  0.02in",
-                    "Accepts math and units: 0.5  ·  1pt  ·  0.02in",
-                ));
-            });
-            section(ui, tr("Cor", "Color"), |ui| {
-                if let Some(c) = color_editor(ui, &s.color) {
-                    s.color = c;
-                }
-                let mut op = (s.opacity * 100.0).round();
-                if ui
-                    .add(egui::Slider::new(&mut op, 0.0..=100.0).text(tr("Opacidade %", "Opacity %")))
-                    .changed()
-                {
-                    s.opacity = op / 100.0;
-                }
-            });
-            section(ui, tr("Estilo da linha", "Line style"), |ui| {
-                let names: Vec<&str> = DASHES
-                    .iter()
-                    .map(|d| tr(d.0, d.1))
-                    .chain([tr("Personalizado", "Custom")])
-                    .collect();
-                let mut p = self.preset;
-                egui::ComboBox::from_id_salt("dlg-tracejado")
-                    .selected_text(names[p])
-                    .width(160.0)
-                    .show_ui(ui, |ui| {
-                        for (i, n) in names.iter().enumerate() {
-                            ui.horizontal(|ui| {
-                                dash_sample(ui, i);
-                                ui.selectable_value(&mut p, i, *n);
-                            });
-                        }
-                    });
-                if p != self.preset {
-                    self.preset = p;
-                    if p < CUSTOM {
-                        s.dash = dash_for(p, s.width);
-                        if p == 3 {
-                            s.cap = "round".into();
-                        }
-                    } else if s.dash.is_none() {
-                        s.dash = dash_for(1, s.width);
-                    }
-                    self.custom = dash_text(&s.dash);
-                }
-                if self.preset == CUSTOM {
-                    ui.horizontal(|ui| {
-                        ui.label(tr("Traço e espaço (mm):", "Dash and gap (mm):"));
-                        let r = ui.add(egui::TextEdit::singleline(&mut self.custom).desired_width(110.0));
-                        if r.lost_focus() {
-                            match parse_dash(&self.custom) {
-                                Some(d) => s.dash = Some(d),
-                                None => self.custom = dash_text(&s.dash),
-                            }
-                        }
-                    });
-                    ui.weak(tr(
-                        "Valores alternados de traço e espaço, ex.: 3 1 0,5 1",
-                        "Alternating dash and gap values, e.g. 3 1 0.5 1",
-                    ));
-                }
-            });
-            section(ui, tr("Cantos", "Corners"), |ui| {
-                icon_choice(
-                    ui,
-                    &mut s.join,
-                    &[
-                        ("miter", "join-miter", tr("Agudo", "Miter")),
-                        ("round", "join-round", tr("Arredondado", "Round")),
-                        ("bevel", "join-bevel", tr("Chanfrado", "Bevel")),
-                    ],
-                    true,
-                );
-                ui.add_enabled_ui(s.join == "miter", |ui| {
-                    ui.horizontal(|ui| {
-                        ui.label(tr("Limite do canto agudo", "Miter limit"));
-                        ui.add(egui::DragValue::new(&mut s.miter_limit).range(1.0..=100.0).speed(0.1));
-                    })
-                    .response
-                    .on_hover_text(tr(
-                        "Cantos mais fechados que isso viram chanfro, para a ponta não crescer demais",
-                        "Sharper corners than this become bevels so the tip does not grow too long",
-                    ));
-                });
-            });
-            section(ui, tr("Pontas da linha", "Line ends"), |ui| {
-                icon_choice(
-                    ui,
-                    &mut s.cap,
-                    &[
-                        ("butt", "cap-butt", tr("Reta, no fim do caminho", "Flat, at the path end")),
-                        ("round", "cap-round", tr("Redonda", "Round")),
-                        ("square", "cap-square", tr("Quadrada, passa do fim", "Square, past the end")),
-                    ],
-                    true,
-                );
-            });
-            section(ui, tr("Caneta caligráfica", "Calligraphic pen"), |ui| {
-                ui.horizontal(|ui| {
-                    ui.label(tr("Bico", "Nib"));
-                    let mut pct = (s.nib_stretch * 100.0).round();
-                    if ui
-                        .add(egui::DragValue::new(&mut pct).range(1.0..=100.0).suffix("%"))
-                        .on_hover_text(tr(
-                            "Largura do bico; 100% = bico redondo (contorno comum)",
-                            "Nib width; 100% = round nib (regular outline)",
-                        ))
-                        .changed()
-                    {
-                        s.nib_stretch = pct / 100.0;
-                    }
-                    ui.label(tr("Ângulo", "Angle"));
-                    ui.add_enabled(
-                        s.nib_stretch < 0.999,
-                        egui::DragValue::new(&mut s.nib_angle).range(-360.0..=360.0).suffix("°"),
-                    );
-                });
-            });
-            section(ui, tr("Largura variável", "Variable width"), |ui| {
-                ui.horizontal_wrapped(|ui| {
-                    if ui.selectable_label(s.widths.is_empty(), tr("Uniforme", "Uniform")).clicked() {
-                        s.widths.clear();
-                    }
-                    for name in graphdraw_core::render::varwidth::PRESETS {
-                        let nodes = graphdraw_core::render::varwidth::preset(name);
-                        if ui.selectable_label(s.widths == nodes, width_label(name)).clicked() {
-                            s.widths = nodes;
-                        }
-                    }
-                });
-                ui.weak(tr(
-                    "Ajuste ponto a ponto com a ferramenta Largura.",
-                    "Fine-tune point by point with the Width tool.",
-                ));
-            });
-            section(ui, tr("Pontas de seta", "Arrowheads"), |ui| {
-                arrow_row(ui, "seta-inicio", tr("Início", "Start"), &mut s.start_arrow);
-                arrow_row(ui, "seta-fim", tr("Fim", "End"), &mut s.end_arrow);
-                ui.weak(tr(
-                    "Só em curvas abertas; o tamanho acompanha a espessura.",
-                    "Open curves only; the size follows the width.",
-                ));
-            });
-            section(ui, tr("Posição", "Position"), |ui| {
-                icon_choice(
-                    ui,
-                    &mut s.position,
-                    &[
-                        ("center", "pos-center", tr("Centrada na borda", "Centered on the edge")),
-                        ("inside", "pos-inside", tr("Por dentro da borda", "Inside the edge")),
-                        ("outside", "pos-outside", tr("Por fora da borda", "Outside the edge")),
-                    ],
-                    true,
-                );
-                ui.weak(tr(
-                    "Curvas abertas sempre usam centrada.",
-                    "Open curves always use centered.",
-                ));
-            });
-            section(ui, tr("Opções", "Options"), |ui| {
-                ui.horizontal(|ui| {
-                    icons::button(ui, "behind-fill", "", s.behind_fill, false);
-                    ui.checkbox(&mut s.behind_fill, tr("Atrás do preenchimento", "Behind the fill"))
-                        .on_hover_text(tr(
-                            "O preenchimento cobre a metade de dentro do contorno",
-                            "The fill covers the inner half of the outline",
-                        ));
-                });
-                ui.checkbox(&mut s.overprint, tr("Sobreimprimir", "Overprint"))
-                    .on_hover_text(tr(
-                        "O contorno imprime por cima das outras tintas, sem vazar (GD-PRE-08)",
-                        "The outline prints over the other inks, without knocking out (GD-PRE-08)",
-                    ));
-                ui.horizontal(|ui| {
-                    icons::button(ui, "scale-stroke", "", s.scale_with_object, false);
-                    ui.checkbox(
-                        &mut s.scale_with_object,
-                        tr("Escalar com o objeto", "Scale with object"),
-                    )
-                    .on_hover_text(tr(
-                        "Ao aumentar ou reduzir o objeto, a espessura acompanha",
-                        "When the object is resized, the width follows",
-                    ));
-                });
-            });
-        });
-    }
-
-    fn preview(&mut self, ui: &mut egui::Ui) {
-        let key = (self.draft.clone(), self.enabled);
-        let stale = self.preview.as_ref().is_none_or(|(k, _)| *k != key);
-        if stale {
-            let img = stroke_preview(self.result().as_ref());
-            match &mut self.preview {
-                Some((k, tex)) => {
-                    tex.set(img, egui::TextureOptions::LINEAR);
-                    *k = key;
-                }
-                None => {
-                    let tex =
-                        ui.ctx()
-                            .load_texture("previa-contorno", img, egui::TextureOptions::LINEAR);
-                    self.preview = Some((key, tex));
-                }
-            }
-        }
-        if let Some((_, tex)) = &self.preview {
-            let size = tex.size_vec2() / ui.ctx().pixels_per_point();
-            ui.add(egui::Image::new((tex.id(), size)));
-        }
-    }
-
-    fn apply(&self, doc: &mut DocState, defaults: &mut Defaults) {
-        let result = self.result();
-        if self.for_defaults {
-            defaults.stroke = result;
-            return;
-        }
-        if result == self.initial {
-            return;
-        }
-        let sel = doc.selection.clone();
-        match (result, &self.initial) {
-            (None, _) => ops::set_stroke(&mut doc.editor, &sel, None),
-            (Some(new), None) => ops::set_stroke(&mut doc.editor, &sel, Some(new)),
-            (Some(new), Some(old)) => {
-                let old = old.clone();
-                ops::edit_stroke(&mut doc.editor, &sel, move |s| merge_changes(s, &old, &new));
-            }
-        }
+            .unwrap_or(DASHES.len()),
     }
 }
 
 /// Copia para `s` só os campos em que `new` difere de `old`.
-fn merge_changes(s: &mut Stroke, old: &Stroke, new: &Stroke) {
+pub(crate) fn merge_changes(s: &mut Stroke, old: &Stroke, new: &Stroke) {
     macro_rules! take {
         ($($f:ident),*) => {$(
             if new.$f != old.$f {
@@ -592,6 +179,7 @@ fn merge_changes(s: &mut Stroke, old: &Stroke, new: &Stroke) {
         nib_stretch,
         nib_angle,
         overprint,
+        dash_corners,
         widths
     );
 }
@@ -619,113 +207,6 @@ pub(crate) fn arrow_label(shape: &str) -> &'static str {
     }
 }
 
-/// Uma linha de ponta de seta (GD-OUT-05): forma, escala, giro, espelho e
-/// afastamento.
-fn arrow_row(
-    ui: &mut egui::Ui,
-    id: &str,
-    label: &str,
-    a: &mut Option<graphdraw_core::model::Arrow>,
-) {
-    use graphdraw_core::model::Arrow;
-    ui.horizontal(|ui| {
-        ui.label(label);
-        let text = a
-            .as_ref()
-            .map_or(tr("Nenhuma", "None"), |x| arrow_label(&x.shape));
-        egui::ComboBox::from_id_salt(id)
-            .selected_text(text)
-            .width(theme::ARROW_COMBO_WIDTH)
-            .show_ui(ui, |ui| {
-                if ui
-                    .selectable_label(a.is_none(), tr("Nenhuma", "None"))
-                    .clicked()
-                {
-                    *a = None;
-                }
-                for shape in graphdraw_core::render::arrows::SHAPES {
-                    let on = a.as_ref().is_some_and(|x| x.shape == shape);
-                    if ui.selectable_label(on, arrow_label(shape)).clicked() {
-                        match a {
-                            Some(x) => x.shape = shape.into(),
-                            None => *a = Some(Arrow::new(shape)),
-                        }
-                    }
-                }
-            });
-        if let Some(x) = a {
-            let mut pct = (x.scale * 100.0).round();
-            if ui
-                .add(
-                    egui::DragValue::new(&mut pct)
-                        .range(5.0..=5000.0)
-                        .suffix("%"),
-                )
-                .on_hover_text(tr("Tamanho", "Size"))
-                .changed()
-            {
-                x.scale = pct / 100.0;
-            }
-            ui.add(
-                egui::DragValue::new(&mut x.rotation)
-                    .range(-360.0..=360.0)
-                    .suffix("°"),
-            )
-            .on_hover_text(tr("Giro", "Rotation"));
-            ui.checkbox(&mut x.mirror, tr("Espelhar", "Mirror"));
-            if let Some(v) = crate::widgets::labeled_length(
-                ui,
-                tr("Afast.", "Offset"),
-                &format!("{id}-afast"),
-                x.offset,
-                None,
-            ) {
-                x.offset = v;
-            }
-        }
-    });
-}
-
-/// Amostra do padrão de traço para a lista.
-fn dash_sample(ui: &mut egui::Ui, preset: usize) {
-    let (rect, _) = ui.allocate_exact_size(Vec2::new(60.0, 12.0), egui::Sense::hover());
-    let color = ui.visuals().text_color();
-    let y = rect.center().y;
-    let stroke = egui::Stroke::new(2.0, color);
-    match DASHES.get(preset).map(|d| d.2) {
-        Some([]) => {
-            ui.painter().line_segment(
-                [egui::pos2(rect.left(), y), egui::pos2(rect.right(), y)],
-                stroke,
-            );
-        }
-        Some(p) => {
-            let unit = 2.0;
-            let mut x = rect.left();
-            let mut i = 0;
-            while x < rect.right() {
-                let len = p[i % p.len()] as f32 * unit;
-                if i % 2 == 0 {
-                    let end = (x + len.max(1.0)).min(rect.right());
-                    ui.painter()
-                        .line_segment([egui::pos2(x, y), egui::pos2(end, y)], stroke);
-                }
-                x += len.max(1.0);
-                i += 1;
-            }
-        }
-        None => {
-            ui.painter().text(
-                rect.center(),
-                egui::Align2::CENTER_CENTER,
-                "…",
-                theme::font_body(),
-                color,
-            );
-        }
-    }
-}
-
 const MM: f64 = 1000.0;
 const PREVIEW_PX_PER_MM: f64 = 4.0;
 
@@ -747,7 +228,46 @@ fn poly(points: &[(f64, f64)], closed: bool) -> PathData {
 /// Desenha um triângulo preenchido (cantos fechados) e um zigue-zague aberto
 /// (pontas e cantos) com o contorno dado, pelo mesmo renderizador da
 /// exportação.
-fn stroke_preview(stroke: Option<&Stroke>) -> egui::ColorImage {
+/// Miniatura da ponta de seta `shape` (nenhuma = só a linha), no início ou
+/// no fim de uma linha horizontal, pelo renderizador da exportação.
+pub(crate) fn arrow_thumb(shape: Option<&str>, start: bool) -> egui::ColorImage {
+    let (w, h) = (16.0, 5.0);
+    let mut page = Page::new(w * MM, h * MM);
+    let mut line = Object::new(ObjectKind::Path(poly(&[(2.5, 2.5), (13.5, 2.5)], false)));
+    let mut st = Stroke::new(0.5 * MM, Color::black());
+    let a = shape.map(graphdraw_core::model::Arrow::new);
+    if start {
+        st.start_arrow = a;
+    } else {
+        st.end_arrow = a;
+    }
+    line.stroke = Some(st);
+    page.layers[0].objects = vec![line];
+    let mut doc = Document::new();
+    doc.data.pages.push(page);
+    let scene = build_scene(
+        &doc,
+        &doc.data.pages[0],
+        SceneOptions { print: true },
+        &ImageCache::default(),
+    );
+    let px = 4.0;
+    let s = px / MM;
+    let (pw, ph) = ((w * px) as u32, (h * px) as u32);
+    let view = Affine::new([s, 0.0, 0.0, -s, 0.0, h * MM * s]);
+    let opts = RasterOptions {
+        antialias: true,
+        background: Some([255, 255, 255, 255]),
+    };
+    match raster::render(&scene, view, pw, ph, &opts) {
+        Some(pm) => {
+            egui::ColorImage::from_rgba_premultiplied([pw as usize, ph as usize], pm.data())
+        }
+        None => egui::ColorImage::new([1, 1], vec![Color32::WHITE]),
+    }
+}
+
+pub(crate) fn stroke_preview(stroke: Option<&Stroke>) -> egui::ColorImage {
     let (w, h) = (70.0, 42.0);
     let mut page = Page::new(w * MM, h * MM);
     let mut tri = Object::new(ObjectKind::Path(poly(
@@ -901,20 +421,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn dash_presets_round_trip_and_custom_parse() {
+    fn dash_presets_round_trip() {
         let mut s = Stroke::new(500.0, Color::black());
-        for p in 0..CUSTOM {
+        for p in 0..DASHES.len() {
             s.dash = dash_for(p, s.width);
             assert_eq!(detect_dash(&s), p);
         }
         s.dash = Some(vec![3000.0, 1000.0, 500.0]);
-        assert_eq!(detect_dash(&s), CUSTOM);
-        assert_eq!(
-            parse_dash("3 1 0,5 1"),
-            Some(vec![3000.0, 1000.0, 500.0, 1000.0])
-        );
-        assert_eq!(parse_dash("0 0"), None);
-        assert_eq!(parse_dash("a"), None);
+        assert_eq!(detect_dash(&s), DASHES.len());
     }
 
     #[test]

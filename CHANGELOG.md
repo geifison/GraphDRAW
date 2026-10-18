@@ -40,6 +40,12 @@ entre parênteses são os requisitos de `docs/spec/`.
   cores, suavizar e inverter; seletor de cor com roda de matiz, canais,
   hexadecimal, paletas com busca e conta-gotas na janela; amostra original
   × nova; F11 e Shift+F11.
+- Janela Caneta de contorno refeita em duas colunas: cor com o seletor e
+  conta-gotas, espessura com unidade e espessuras prontas, estilo de linha
+  com editor de tracejado (estilos do usuário guardados), tracejado
+  padrão/alinhado/fixo nos cantos, cantos, pontas, posição, pontas de seta
+  com miniaturas e opções (trocar, tamanho, giro, afastamento), bico
+  caligráfico interativo, largura variável e prévia; F12.
 - Textura procedural como padrão (nuvens, mármore, madeira, granito).
 - Booleanas não destrutivas: Soldar, Aparar e Interseção ao vivo; as
   formas continuam editáveis, a operação troca na barra, Converter em

@@ -829,6 +829,33 @@ fn patterns() -> Document {
     d
 }
 
+/// GD-OUT-03: tracejado nos cantos — padrão, alinhado e fixo.
+fn dash_corners() -> Document {
+    let mut ids = Ids::new(19);
+    let mut p = page(&mut ids, 200.0 * MM, 80.0 * MM);
+    let mut d = doc_with(vec![], "Tracejado nos cantos");
+    for (i, mode) in ["standard", "align", "fixed"].iter().enumerate() {
+        let x = 10.0 + 65.0 * i as f64;
+        let mut r = rect(
+            &mut ids,
+            x * MM,
+            15.0 * MM,
+            50.0 * MM,
+            50.0 * MM,
+            Fill::None,
+        );
+        r.fill = None;
+        let mut st = Stroke::new(1.5 * MM, Color::cmyk(0.0, 0.0, 0.0, 1.0));
+        st.dash = Some(vec![7.0 * MM, 4.0 * MM]);
+        st.dash_corners = (*mode).into();
+        r.stroke = Some(st);
+        r.name = Some(format!("Tracejado {mode}"));
+        p.layers[0].objects.push(r);
+    }
+    d.data.pages.push(p);
+    d
+}
+
 /// Booleanas não destrutivas: soldar, aparar e interseção de um quadrado
 /// e um círculo, com as formas originais nos filhos.
 fn live_boolean() -> Document {
@@ -1218,6 +1245,7 @@ fn main() {
         ("variable-width", variable_width()),
         ("text-wrap", text_wrap()),
         ("live-boolean", live_boolean()),
+        ("dash-corners", dash_corners()),
     ];
     for (name, doc) in &docs {
         let path = dir.join(format!("{name}.gdr"));

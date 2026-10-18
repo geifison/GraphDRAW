@@ -20,6 +20,12 @@ pub struct GradientStop {
     pub extra: Map<String, Value>,
 }
 
+fn standard() -> String {
+    "standard".into()
+}
+fn is_standard(s: &String) -> bool {
+    s == "standard"
+}
 fn half() -> f64 {
     0.5
 }
@@ -342,6 +348,11 @@ pub struct Stroke {
     /// Sobreimpressão do contorno (GD-PRE-08).
     #[serde(default, skip_serializing_if = "is_false")]
     pub overprint: bool,
+    /// Tracejado nos cantos: `standard` (contínuo, padrão), `align` (um
+    /// traço inteiro passa por cada canto) ou `fixed` (recomeça em cada
+    /// canto com os comprimentos exatos).
+    #[serde(default = "standard", skip_serializing_if = "is_standard")]
+    pub dash_corners: String,
     /// Largura variável (GD-VAR-01, GD-OUT-08): nós ao longo do caminho;
     /// vazio = largura constante.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -412,6 +423,7 @@ impl Stroke {
             nib_stretch: 1.0,
             nib_angle: 0.0,
             overprint: false,
+            dash_corners: standard(),
             widths: Vec::new(),
             extra: Map::new(),
         }

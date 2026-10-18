@@ -3,6 +3,7 @@
 pub mod arrows;
 pub mod basic;
 pub mod bspline;
+pub mod dash;
 pub mod gradient;
 pub mod pattern;
 pub mod raster;

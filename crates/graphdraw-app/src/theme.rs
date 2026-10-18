@@ -302,6 +302,17 @@ pub const RULER_TICK_MINOR: f32 = 4.0;
 /// Janela de preenchimento: largura, editor, amostra; barra de paradas do
 /// gradiente e marca de parada (GD-FIL-03).
 pub const FILL_DIALOG_WIDTH: f32 = 560.0;
+/// Caneta de contorno: largura, combos, miniatura de seta, visor do bico,
+/// amostra e célula do editor de tracejado.
+pub const STROKE_DIALOG_WIDTH: f32 = 720.0;
+pub const UNIT_COMBO_WIDTH: f32 = 56.0;
+pub const LINE_STYLE_COMBO_WIDTH: f32 = 170.0;
+pub const LINE_STYLE_LIST_HEIGHT: f32 = 260.0;
+pub const ARROW_THUMB_W: f32 = 56.0;
+pub const ARROW_THUMB_H: f32 = 18.0;
+pub const NIB_VIEW: f32 = 96.0;
+pub const DASH_SAMPLE_W: f32 = 60.0;
+pub const DASH_CELL: f32 = 16.0;
 /// Altura máxima do corpo (rola além disso).
 pub const FILL_BODY_MAX: f32 = 470.0;
 /// Amostra original × nova do rodapé.

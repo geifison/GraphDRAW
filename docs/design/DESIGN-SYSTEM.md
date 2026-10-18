@@ -344,12 +344,7 @@ a seleção; o comando escolhido vale para o objeto bloqueado.
 - **Converter em bitmap** (GD-CNV-03): resolução em ppp (10–2400, padrão
   300), Suavizar bordas e Fundo transparente (senão branco); Converter /
   Cancelar.
-- **Janela de contorno, seção Caneta caligráfica** (GD-OUT-06): largura do
-  bico (%, 100% = redondo) e ângulo (habilitado abaixo de 100%).
-- **Janela de contorno, seção Pontas de seta** (GD-OUT-05): uma linha para
-  o início e outra para o fim, com a lista de formas (`arrow-combo-width` =
-  96 px; Nenhuma, Triângulo, Aberta, Farpada, Círculo, Quadrado, Barra) e,
-  com forma escolhida, tamanho (%), giro (°), Espelhar e afastamento.
+- **Caneta de contorno** (GD-OUT-01..08): ver 4.6.4.
 
 ### 4.5 Abas
 
@@ -545,6 +540,52 @@ Zonas, de cima para baixo:
 
 Exibir → "Preencher caminhos abertos" (GD-FIL-12) é uma opção do
 documento.
+
+### 4.6.4 Janela Caneta de contorno (GD-OUT-01..08)
+
+Abre por duplo clique no indicador de contorno da barra de status e por
+`F12`. Modal de `stroke-dialog-width` = 720 px; no título, à direita, Com
+contorno (desligado, o resto fica desabilitado). Nada muda até o OK;
+Cancelar ou Esc descarta sem passo no histórico. Sem seleção, vale para os
+novos objetos.
+
+- **Coluna esquerda**:
+  - **Cor e espessura**: amostra da cor (abre o seletor de cor de 4.6.1
+    no balão, com o conta-gotas) e Transparência %; Espessura num campo na
+    unidade escolhida (pt, mm, cm, in, px, m; `unit-combo-width` = 56
+    px — trocar a unidade só muda o número mostrado), o menu Prontas (fio
+    de cabelo e 0,1 a 36 pt) e Fio de cabelo.
+  - **Estilo da linha**: lista com amostra (`dash-sample-w` = 60 px) dos
+    estilos prontos e dos do usuário (`line-style-combo-width` = 170 px)
+    e Editar…; **Nos cantos**: Tracejado padrão (`dash-standard`),
+    Alinhar tracejados (`dash-align`) e Tracejados fixos (`dash-fixed`),
+    habilitados só com tracejado.
+  - **Editar estilo de linha** (modal sobre a janela): régua de células de
+    `dash-cell` = 16 px (cheia = traço, vazia = espaço; cada célula vale
+    uma espessura), número de células (2–48), prévia, Nome; Usar
+    (primário), Substituir (só com um estilo do usuário escolhido),
+    Adicionar (com nome) e Fechar. Os estilos do usuário ficam em
+    `%APPDATA%\GraphDraw\estilos-linha.json`.
+  - **Cantos**: agudo, arredondado, chanfrado e Limite (só no agudo).
+  - **Pontas da linha**: reta, redonda, estendida.
+  - **Posição**: por fora, centrada, por dentro (curvas abertas usam
+    centrada).
+- **Coluna direita**:
+  - **Pontas de seta**: dois botões com a miniatura da ponta
+    (`arrow-thumb` = 56 × 18 px, desenhada pelo motor) para o início e o
+    fim; o balão lista Nenhuma e as formas com miniatura. Opções… troca
+    início e fim e ajusta, para cada ponta, tamanho %, giro °, Espelhar e
+    afastamento.
+  - **Caneta caligráfica**: visor de `nib-view` = 96 px sobre
+    `page-paper` com a elipse do bico e duas alças (quadrados de
+    `handle-size`): a da ponta gira, a da lateral achata; ao lado,
+    Alongamento % (1–100), Ângulo ° (0–360) e Padrão (bico redondo).
+  - **Largura variável**: Uniforme e os perfis prontos.
+  - **Prévia**: triângulo preenchido e zigue-zague com o contorno, pelo
+    motor.
+- **Faixa de baixo**: Atrás do preenchimento, Escalar com o objeto e
+  Sobreimprimir contorno.
+- **Rodapé**: OK, Cancelar e Ajuda (balão com a explicação).
 
 ### 4.6.2 Perfis de cor ao abrir (GD-CMS-04)
 

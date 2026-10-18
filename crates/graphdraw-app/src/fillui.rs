@@ -5,7 +5,7 @@
 //! e a matriz de transformação; embaixo, a amostra original × nova e
 //! OK/Cancelar/Ajuda. Nada muda no documento até o OK.
 
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 
 use eframe::egui::{self, Color32, Vec2};
 use graphdraw_core::edit::ops;
@@ -138,15 +138,6 @@ enum Target {
     Bg,
 }
 
-/// Conta-gotas da janela: esconde a janela, fotografa a tela, mostra a foto
-/// congelada com a lupa e espera o clique.
-enum Eye {
-    Off,
-    Hide,
-    Wait(Arc<Mutex<Option<Arc<egui::ColorImage>>>>, u32),
-    Pick(egui::TextureHandle, Arc<egui::ColorImage>),
-}
-
 pub struct FillDialog {
     pub(crate) initial: Option<Fill>,
     pub(crate) mode: FillMode,
@@ -169,7 +160,7 @@ pub struct FillDialog {
     box_hint: Option<kurbo::Rect>,
     pub(crate) palettes: PaletteList,
     picker: ColorPicker,
-    eye: Eye,
+    eye: crate::colorpick::Eyedropper,
     eye_target: Target,
     drag: Option<Ramp>,
     /// Faixa da rampa no último quadro (testes).
@@ -228,7 +219,7 @@ impl FillDialog {
             box_hint,
             palettes: Vec::new(),
             picker: ColorPicker::default(),
-            eye: Eye::Off,
+            eye: Default::default(),
             eye_target: Target::Solid,
             drag: None,
             ramp_bar: egui::Rect::NOTHING,
@@ -407,7 +398,7 @@ impl FillDialog {
         doc: &mut DocState,
         defaults: &mut Defaults,
     ) -> bool {
-        if !matches!(self.eye, Eye::Off) {
+        if self.eye.active() {
             self.eyedrop(ctx);
             return false;
         }
@@ -588,7 +579,7 @@ impl FillDialog {
                 ui.set_width(theme::PICKER_WIDTH);
                 let o = self.picker.show(ui, id, &cur, &palettes);
                 if o.eyedrop {
-                    self.eye = Eye::Hide;
+                    self.eye.start();
                     self.eye_target = target;
                     ui.close();
                 }
@@ -618,7 +609,7 @@ impl FillDialog {
             self.set_target(Target::Solid, c);
         }
         if o.eyedrop {
-            self.eye = Eye::Hide;
+            self.eye.start();
             self.eye_target = Target::Solid;
         }
         ui.add_space(theme::SPACE_200);
@@ -1473,135 +1464,11 @@ impl FillDialog {
         }
     }
 
-    /// Conta-gotas: janela escondida → foto da tela → escolha na foto.
+    /// Conta-gotas: aplica a cor escolhida à cor que o abriu.
     fn eyedrop(&mut self, ctx: &egui::Context) {
-        match &mut self.eye {
-            Eye::Off => {}
-            Eye::Hide => {
-                let slot: Arc<Mutex<Option<Arc<egui::ColorImage>>>> = Arc::new(Mutex::new(None));
-                let (s, c) = (slot.clone(), ctx.clone());
-                ctx.request_screenshot(move |img| {
-                    if let Ok(mut v) = s.lock() {
-                        *v = Some(img);
-                    }
-                    c.request_repaint();
-                });
-                self.eye = Eye::Wait(slot, 0);
-                ctx.request_repaint();
-            }
-            Eye::Wait(slot, frames) => {
-                let img = slot.lock().ok().and_then(|mut v| v.take());
-                if let Some(img) = img {
-                    let tex = ctx.load_texture(
-                        "conta-gotas-tela",
-                        (*img).clone(),
-                        egui::TextureOptions::NEAREST,
-                    );
-                    self.eye = Eye::Pick(tex, img);
-                } else if *frames > 120 {
-                    self.eye = Eye::Off;
-                } else {
-                    *frames += 1;
-                    ctx.request_repaint();
-                }
-            }
-            Eye::Pick(tex, img) => {
-                let screen = ctx.content_rect();
-                let (tex, img) = (tex.clone(), img.clone());
-                let mut picked = None;
-                let mut cancel = ctx.input(|i| i.key_pressed(egui::Key::Escape));
-                egui::Area::new(egui::Id::unique("conta-gotas-janela"))
-                    .order(egui::Order::Foreground)
-                    .fixed_pos(screen.min)
-                    .show(ctx, |ui| {
-                        let (r, resp) = ui.allocate_exact_size(screen.size(), egui::Sense::click());
-                        let p = ui.painter();
-                        p.image(
-                            tex.id(),
-                            r,
-                            egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)),
-                            Color32::WHITE,
-                        );
-                        ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
-                        let (sx, sy) = (
-                            img.size[0] as f32 / r.width(),
-                            img.size[1] as f32 / r.height(),
-                        );
-                        let px = |q: egui::Pos2| {
-                            let x = ((q.x - r.left()) * sx) as i64;
-                            let y = ((q.y - r.top()) * sy) as i64;
-                            (
-                                x.clamp(0, img.size[0] as i64 - 1) as usize,
-                                y.clamp(0, img.size[1] as i64 - 1) as usize,
-                            )
-                        };
-                        if let Some(q) = resp.hover_pos() {
-                            // Lupa: 11 × 11 pixels ampliados, o do meio marcado.
-                            let (cx, cy) = px(q);
-                            let cell = theme::LOUPE_CELL;
-                            let n = 11i64;
-                            let origin = q + Vec2::new(theme::SPACE_600, theme::SPACE_600);
-                            let lens =
-                                egui::Rect::from_min_size(origin, Vec2::splat(cell * n as f32));
-                            p.rect_filled(lens.expand(2.0), theme::RADIUS_XS, Color32::BLACK);
-                            for dy in 0..n {
-                                for dx in 0..n {
-                                    let x = (cx as i64 + dx - n / 2)
-                                        .clamp(0, img.size[0] as i64 - 1)
-                                        as usize;
-                                    let y = (cy as i64 + dy - n / 2)
-                                        .clamp(0, img.size[1] as i64 - 1)
-                                        as usize;
-                                    let c = img.pixels[y * img.size[0] + x];
-                                    let cr = egui::Rect::from_min_size(
-                                        origin + Vec2::new(dx as f32 * cell, dy as f32 * cell),
-                                        Vec2::splat(cell),
-                                    );
-                                    p.rect_filled(cr, 0.0, c);
-                                }
-                            }
-                            let mid = egui::Rect::from_min_size(
-                                origin + Vec2::splat(cell * (n / 2) as f32),
-                                Vec2::splat(cell),
-                            );
-                            p.rect_stroke(
-                                mid,
-                                0.0,
-                                egui::Stroke::new(theme::FOCUS_WIDTH, Color32::WHITE),
-                                egui::StrokeKind::Outside,
-                            );
-                            let c = img.pixels[cy * img.size[0] + cx];
-                            p.text(
-                                lens.left_bottom() + Vec2::new(0.0, theme::SPACE_200),
-                                egui::Align2::LEFT_TOP,
-                                format!("#{:02X}{:02X}{:02X}", c.r(), c.g(), c.b()),
-                                theme::font_micro(),
-                                Color32::WHITE,
-                            );
-                        }
-                        if resp.clicked()
-                            && let Some(q) = resp.interact_pointer_pos()
-                        {
-                            let (x, y) = px(q);
-                            let c = img.pixels[y * img.size[0] + x];
-                            picked = Some(Color::rgb(
-                                c.r() as f64 / 255.0,
-                                c.g() as f64 / 255.0,
-                                c.b() as f64 / 255.0,
-                            ));
-                        }
-                        if resp.secondary_clicked() {
-                            cancel = true;
-                        }
-                    });
-                if let Some(c) = picked {
-                    let t = self.eye_target;
-                    self.set_target(t, c);
-                    self.eye = Eye::Off;
-                } else if cancel {
-                    self.eye = Eye::Off;
-                }
-            }
+        if let Some(c) = self.eye.run(ctx) {
+            let t = self.eye_target;
+            self.set_target(t, c);
         }
     }
 }

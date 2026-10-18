@@ -34,6 +34,7 @@ pub const VALID_GDR: &[&str] = &[
     "variable-width.gdr",
     "text-wrap.gdr",
     "live-boolean.gdr",
+    "dash-corners.gdr",
 ];
 
 /// Lê um membro de um pacote ZIP.

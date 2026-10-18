@@ -536,6 +536,45 @@ impl Builder<'_> {
             }
             // Caneta caligráfica (GD-OUT-06): o traço vira a área varrida pelo
             // bico elíptico, preenchida com a tinta do contorno.
+            // Tracejado alinhado ou fixo nos cantos: o caminho vira os traços.
+            if let (Some(s), Some(st)) = (&o.stroke, &stroke)
+                && s.dash_corners != "standard"
+                && s.widths.is_empty()
+                && s.nib_stretch >= 0.999
+                && s.start_arrow.is_none()
+                && s.end_arrow.is_none()
+                && !self.wireframe
+                && let Some(d) = &st.dash
+            {
+                let dashed = super::dash::corner_dashes(&path, d, &s.dash_corners);
+                let mut line = st.clone();
+                line.dash = None;
+                line.position = StrokePosition::Center;
+                let fill_item = fill.clone().map(|f| {
+                    Item::Shape(ShapeItem {
+                        object_id: o.id.clone(),
+                        path: path.clone(),
+                        fill: Some(f),
+                        fill_rule,
+                        stroke: None,
+                    })
+                });
+                let stroke_item = Item::Shape(ShapeItem {
+                    object_id: o.id.clone(),
+                    path: dashed,
+                    fill: None,
+                    fill_rule: FillRule::Nonzero,
+                    stroke: Some(line),
+                });
+                if st.behind_fill {
+                    self.items.push(stroke_item);
+                    self.items.extend(fill_item);
+                } else {
+                    self.items.extend(fill_item);
+                    self.items.push(stroke_item);
+                }
+                return;
+            }
             // Largura variável (GD-VAR-01) também vira área preenchida.
             let swept = match (&o.stroke, &stroke) {
                 (Some(s), Some(st))

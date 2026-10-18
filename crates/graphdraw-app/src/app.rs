@@ -1865,6 +1865,11 @@ impl App {
                 }
             }
             C::ExportSelection => self.export_selection(),
+            C::EditOutline => {
+                if let Some(d) = &self.doc {
+                    self.style_dlg = Some(crate::dialogs::StyleDialog::stroke(d, &self.defaults));
+                }
+            }
             C::EditFill | C::EditUniformFill => {
                 if let Some(d) = &self.doc {
                     let mut dlg = crate::dialogs::StyleDialog::fill(d, &self.defaults);

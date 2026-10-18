@@ -192,12 +192,17 @@ desenhados como "nenhum".
 `{ "width", "color", "opacity?", "dash?": [traço, espaço, ...], "dashOffset?",
 "join?": "miter|round|bevel", "miterLimit?", "cap?": "butt|round|square",
 "position?": "center|inside|outside", "scaleWithObject?": true,
-"behindFill?": false, "startArrow?": arrow, "endArrow?": arrow, "nibStretch?": 1, "nibAngle?": 0, "overprint?": false, "widths?": [{at, left, right}] }` — comprimentos em µm; `width: 0` = fio de cabelo.
+"behindFill?": false, "startArrow?": arrow, "endArrow?": arrow, "nibStretch?": 1, "nibAngle?": 0, "overprint?": false, "dashCorners?": "standard", "widths?": [{at, left, right}] }` — comprimentos em µm; `width: 0` = fio de cabelo.
 `overprint` (GD-PRE-08): o contorno sobreimprime (no PDF, `/OP true` com `OPM 1`); o
 preenchimento sólido tem o mesmo campo.
 Ponta de seta (GD-OUT-05, só em subcaminhos abertos): `{ "shape": "triangle|open|barbed|circle|square|bar",
 "scale?": 1, "offset?": 0, "rotation?": 0, "mirror?": false }` — tamanho padrão 4 × a espessura
 (mínimo 0,25 mm), `offset` em µm, `rotation` em graus; o traço recua para não passar da ponta.
+Tracejado nos cantos (GD-OUT-03): `dashCorners` = `standard` (o padrão segue o caminho todo),
+`align` (em cada trecho entre cantos o padrão estica ou encolhe para começar e terminar num traço:
+um traço inteiro passa por cada canto) ou `fixed` (o padrão recomeça em cada canto, com os
+comprimentos exatos). Quem lê sem suporte desenha `standard`.
+
 Largura variável (GD-VAR-01, GD-OUT-08): `widths` são nós ao longo do caminho — `at` é a
 posição (0–1 do comprimento de cada trecho), `left`/`right` multiplicam a meia espessura
 de cada lado; entre os nós a largura muda suavemente (smoothstep), antes do primeiro e depois
