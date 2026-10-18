@@ -1,5 +1,5 @@
-# Gera os ícones do programa e do arquivo .gdr a partir da logo
-# (crates/graphdraw-app/assets/brand/logo-original.jpg). Fora do workspace:
+# Gera os ícones do programa e do arquivo .gdr a partir do ícone vetorial
+# (crates/graphdraw-app/assets/brand/icone.svg). Fora do workspace:
 #   cargo run --release --manifest-path scripts/brand-icons/Cargo.toml
 [package]
 name = "brand-icons"
@@ -8,6 +8,7 @@ edition = "2024"
 publish = false
 
 [dependencies]
-image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "ico"] }
+image = { version = "0.25.10", default-features = false, features = ["png", "ico"] }
+resvg = { version = "0.45.1", default-features = false, features = ["raster-images"] }
 
 [workspace]

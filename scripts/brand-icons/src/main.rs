@@ -1,7 +1,8 @@
-//! Ícones do GraphDraw a partir da logo do projeto:
-//! - `app-<n>.png` e `app.ico`: a marca num quadrado escuro de cantos
-//!   arredondados (fundo transparente fora dele);
-//! - `gdr-<n>.png` e `gdr.ico`: folha com dobra e a marca (arquivo `.gdr`).
+//! Ícones do GraphDraw a partir do ícone vetorial do projeto
+//! (`assets/brand/icone.svg`, desenhado no próprio GraphDraw):
+//! - `app-<n>.png` e `app.ico`: o ícone rasterizado em cada tamanho direto
+//!   do vetor (nítido também nos pequenos);
+//! - `gdr-<n>.png` e `gdr.ico`: folha com dobra e o ícone (arquivo `.gdr`).
 
 use image::codecs::ico::{IcoEncoder, IcoFrame};
 use image::imageops::{self, FilterType};
@@ -10,14 +11,6 @@ use std::path::Path;
 
 const MASTER: u32 = 1024;
 const SIZES: [u32; 9] = [16, 20, 24, 32, 40, 48, 64, 128, 256];
-
-/// Caixa da marca (sem o texto) na logo de 2400 × 1792: x, y, largura, altura.
-const CROP: (u32, u32, u32, u32) = (680, 360, 1040, 860);
-/// Largura da marca no quadrado (fração).
-const MARK: f32 = 0.82;
-/// Saturação (máx − mín, 0–255) do fundo e faixa até a marca opaca.
-const CHROMA_BG: f32 = 48.0;
-const CHROMA_SPAN: f32 = 50.0;
 
 fn inside_round_rect(x: f32, y: f32, x0: f32, y0: f32, x1: f32, y1: f32, r: f32) -> bool {
     let cx = x.clamp(x0 + r, x1 - r);
@@ -38,45 +31,23 @@ fn coverage(px: u32, py: u32, f: &dyn Fn(f32, f32) -> bool) -> f32 {
     n as f32 / 16.0
 }
 
-fn app_master(logo: &RgbaImage) -> RgbaImage {
-    let (x, y, w, h) = CROP;
-    let mut crop = imageops::crop_imm(logo, x, y, w, h).to_image();
-    // Fundo: média dos cantos do recorte (o escuro da logo).
-    let mut bg = [0f32; 3];
-    for (cx, cy) in [(0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1)] {
-        let p = crop.get_pixel(cx, cy).0;
-        for k in 0..3 {
-            bg[k] += p[k] as f32 / 4.0;
-        }
-    }
-    let bg = bg.map(|v| v.round() as u8);
-    // A marca é muito saturada e o fundo é cinza-azulado: a saturação
-    // vira o alfa, e a cor é separada do fundo (sem emenda no quadrado).
-    for p in crop.pixels_mut() {
-        let [r, g, b, _] = p.0;
-        let chroma = (r.max(g).max(b) - r.min(g).min(b)) as f32;
-        let a = ((chroma - CHROMA_BG) / CHROMA_SPAN).clamp(0.0, 1.0);
-        if a <= 0.0 {
-            p.0 = [0, 0, 0, 0];
-            continue;
-        }
-        for k in 0..3 {
-            let v = (p.0[k] as f32 - bg[k] as f32 * (1.0 - a)) / a;
-            p.0[k] = v.clamp(0.0, 255.0).round() as u8;
-        }
-        p.0[3] = (a * 255.0).round() as u8;
-    }
-    crop.save(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../crates/graphdraw-app/assets/brand/mark.png")).unwrap();
-    let m = MASTER as f32;
-    let tw = (m * MARK) as u32;
-    let th = (tw as f32 * h as f32 / w as f32) as u32;
-    let mark = imageops::resize(&crop, tw, th, FilterType::Lanczos3);
-    let mut img = RgbaImage::from_pixel(MASTER, MASTER, Rgba([bg[0], bg[1], bg[2], 255]));
-    imageops::overlay(&mut img, &mark, ((MASTER - tw) / 2) as i64, ((MASTER - th) / 2) as i64);
-    let r = m * 0.2;
-    for (px, py, p) in img.enumerate_pixels_mut() {
-        let c = coverage(px, py, &|x, y| inside_round_rect(x, y, 0.0, 0.0, m, m, r));
-        p.0[3] = (p.0[3] as f32 * c).round() as u8;
+/// Rasteriza o SVG num quadrado de `size` px (fundo transparente).
+fn render(tree: &resvg::usvg::Tree, size: u32) -> RgbaImage {
+    let mut pix = resvg::tiny_skia::Pixmap::new(size, size).unwrap();
+    let s = tree.size();
+    let k = (size as f32 / s.width()).min(size as f32 / s.height());
+    let dx = (size as f32 - s.width() * k) / 2.0;
+    let dy = (size as f32 - s.height() * k) / 2.0;
+    resvg::render(
+        tree,
+        resvg::tiny_skia::Transform::from_row(k, 0.0, 0.0, k, dx, dy),
+        &mut pix.as_mut(),
+    );
+    // tiny-skia guarda alfa pré-multiplicado; o PNG quer o direto.
+    let mut img = RgbaImage::new(size, size);
+    for (p, c) in img.pixels_mut().zip(pix.pixels()) {
+        let c = c.demultiply();
+        *p = Rgba([c.red(), c.green(), c.blue(), c.alpha()]);
     }
     img
 }
@@ -123,7 +94,7 @@ fn gdr_master(app: &RgbaImage) -> RgbaImage {
             blend(p, [0xD9, 0xDD, 0xE6], c);
         }
     }
-    // Marca no meio da folha.
+    // Ícone do programa no meio da folha.
     let s = (0.56 * m) as u32;
     let tile = imageops::resize(app, s, s, FilterType::Lanczos3);
     let (tx, ty) = (((m - s as f32) / 2.0) as i64, (0.38 * m) as i64);
@@ -131,26 +102,27 @@ fn gdr_master(app: &RgbaImage) -> RgbaImage {
     img
 }
 
-fn write_set(master: &RgbaImage, out: &Path, name: &str) {
+/// Grava `<name>-<n>.png` (cada tamanho vindo de `at`), o de 1024 e o `.ico`.
+fn write_set(at: &dyn Fn(u32) -> RgbaImage, out: &Path, name: &str) {
     let mut frames = Vec::new();
     for s in SIZES {
-        let img = imageops::resize(master, s, s, FilterType::Lanczos3);
+        let img = at(s);
         img.save(out.join(format!("{name}-{s}.png"))).unwrap();
         if [16, 24, 32, 48, 64, 128, 256].contains(&s) {
             frames.push(IcoFrame::as_png(img.as_raw(), s, s, image::ExtendedColorType::Rgba8).unwrap());
         }
     }
-    master.save(out.join(format!("{name}-1024.png"))).unwrap();
+    at(MASTER).save(out.join(format!("{name}-1024.png"))).unwrap();
     let f = std::fs::File::create(out.join(format!("{name}.ico"))).unwrap();
     IcoEncoder::new(f).encode_images(&frames).unwrap();
 }
 
 fn main() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../crates/graphdraw-app/assets/brand");
-    let logo = image::open(root.join("logo-original.jpg")).unwrap().to_rgba8();
-    let app = app_master(&logo);
-    write_set(&app, &root, "app");
-    let gdr = gdr_master(&app);
-    write_set(&gdr, &root, "gdr");
+    let svg = std::fs::read(root.join("icone.svg")).unwrap();
+    let tree = resvg::usvg::Tree::from_data(&svg, &resvg::usvg::Options::default()).unwrap();
+    write_set(&|s| render(&tree, s), &root, "app");
+    let gdr = gdr_master(&render(&tree, MASTER));
+    write_set(&|s| if s == MASTER { gdr.clone() } else { imageops::resize(&gdr, s, s, FilterType::Lanczos3) }, &root, "gdr");
     println!("ícones em {}", root.display());
 }

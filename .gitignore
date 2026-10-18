@@ -1,6 +1,7 @@
 # build
 /build/
 /target/
+scripts/*/target/
 /out/
 *.obj
 *.pdb
