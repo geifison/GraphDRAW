@@ -461,6 +461,7 @@ impl App {
                         pending_style = Some(st);
                     }
                     path_text_bar(ui, doc, &text_targets);
+                    hyphen_bar(ui, doc, &text_targets);
                 });
             }
             Tool::Artboard => {
@@ -488,6 +489,7 @@ impl App {
                                 pending_style = Some(st);
                             }
                             path_text_bar(ui, doc, texts);
+                            hyphen_bar(ui, doc, texts);
                         }
                     };
                     refit = select_bar(
@@ -3371,6 +3373,69 @@ fn report_panel(ui: &mut egui::Ui, doc: &mut DocState) {
 
 /// Opções do texto em caminho (GD-TXT-09), quando o primeiro texto alvo
 /// corre num caminho: posição, distância, lado, orientação e espelho.
+/// Idiomas oferecidos (hifenização e corretor).
+pub(crate) const LANGS: [(&str, &str); 6] = [
+    ("pt-BR", "Português (Brasil)"),
+    ("pt-PT", "Português (Portugal)"),
+    ("en-US", "English (US)"),
+    ("en-GB", "English (UK)"),
+    ("es-ES", "Español"),
+    ("fr-FR", "Français"),
+];
+
+/// Hifenização e idioma do texto de parágrafo (GD-TXT-07).
+fn hyphen_bar(ui: &mut egui::Ui, doc: &mut DocState, targets: &[String]) {
+    let Some((on, lang)) = targets
+        .first()
+        .and_then(|id| doc.editor.find(id))
+        .and_then(|r| doc.editor.get(&r))
+        .and_then(|o| match &o.kind {
+            ObjectKind::Text(t) if t.text_kind == "paragraph" => t.paragraphs.first().map(|p| {
+                (
+                    p.hyphenate,
+                    p.lang.clone().unwrap_or_else(|| "pt-BR".into()),
+                )
+            }),
+            _ => None,
+        })
+    else {
+        return;
+    };
+    ui.separator();
+    let (mut h, mut l) = (on, lang.clone());
+    ui.checkbox(&mut h, tr("Hifenizar", "Hyphenate")).on_hover_text(tr(
+        "Parte as palavras no fim da linha pelas regras do idioma (ou pelo dicionário em %APPDATA%\\GraphDraw\\hifenizacao)",
+        "Splits words at the end of the line by the language rules (or the dictionary in %APPDATA%\\GraphDraw\\hifenizacao)",
+    ));
+    egui::ComboBox::from_id_salt("texto-idioma")
+        .selected_text(&l)
+        .width(theme::UNIT_COMBO_WIDTH + theme::SPACE_400)
+        .show_ui(ui, |ui| {
+            for (k, name) in LANGS {
+                ui.selectable_value(&mut l, k.to_string(), format!("{k} — {name}"));
+            }
+        })
+        .response
+        .on_hover_text(tr("Idioma do texto", "Text language"));
+    if h != on || l != lang {
+        ops::modify(
+            &mut doc.editor,
+            targets,
+            tr("Hifenização", "Hyphenation"),
+            |o| {
+                if let ObjectKind::Text(t) = &mut o.kind {
+                    for p in &mut t.paragraphs {
+                        p.hyphenate = h;
+                        p.lang = (l != "pt-BR").then(|| l.clone());
+                    }
+                    return true;
+                }
+                false
+            },
+        );
+    }
+}
+
 fn path_text_bar(ui: &mut egui::Ui, doc: &mut DocState, targets: &[String]) {
     let Some(tp) = targets
         .first()

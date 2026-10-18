@@ -280,6 +280,7 @@ Em Linux: `apt install libcdr-dev librevenge-dev pkg-config g++` e o mesmo
 | GD-CMS-04 (política de perfis ao abrir) | `palette::tests::gd_cms_04_convert_to_working_profile` (core), `app::tests::gd_cms_04_profile_policy_on_open` |
 | GD-SEP-01 (prévia de separações) | `separation::tests::*` (core), `canvas::tests::separation_preview_on_canvas` (app) |
 | GD-FIL-04..06/10/12 (padrões, caminho aberto) | `pattern::tests::*` (core), `tests/patterns.rs`, `dialogs::tests::pattern_fill_dialog` (app) |
+| GD-TXT-07 (hifenização) | `render::hyphen::tests::*`, `render::text::tests::hyphenation_splits_long_words` (core) |
 | GD-FNT-02/03 (fontes incorporadas e ausentes) | `edit::fonts::tests::*`, `edit::fonts::embed_tests::*` (core), `fontsui::tests::*` (app) |
 | GD-OUT-01..08 (janela Caneta de contorno), GD-OUT-03 (tracejado nos cantos) | `render::dash::tests::*` (core), fixture `dash-corners.gdr`, `strokeui::tests::*` (app) |
 | GD-FIL-01..06 (janela Editar preenchimento) | `render::gradient::tests::midpoint_steps_and_hue_path`, `render::pattern::tests::texture_tile_is_seamless_and_seeded`, `ops::tests` (centro e tamanho), `fillui::tests::*`, `colorpick::tests::*` (app) |

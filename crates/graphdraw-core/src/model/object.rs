@@ -242,6 +242,12 @@ pub struct Paragraph {
     #[serde(default = "left")]
     pub align: String,
     pub spans: Vec<TextSpan>,
+    /// Hifenização no quadro de parágrafo (GD-TXT-07).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub hyphenate: bool,
+    /// Idioma (BCP 47, ex.: `pt-BR`); ausente = português do Brasil.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lang: Option<String>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }

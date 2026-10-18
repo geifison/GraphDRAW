@@ -24,6 +24,8 @@ pub fn new_text(x: f64, y: f64, frame: Option<[f64; 2]>, family: &str, size: f64
         paragraphs: vec![Paragraph {
             align: "left".into(),
             spans: vec![span("", family, size)],
+            hyphenate: false,
+            lang: None,
             extra: Map::new(),
         }],
         line_spacing: 1.2,
@@ -104,6 +106,8 @@ pub fn insert(t: &mut TextData, idx: usize, text: &str) -> usize {
         t.paragraphs.push(Paragraph {
             align: "left".into(),
             spans: vec![span("", "Arial", DEFAULT_SIZE)],
+            hyphenate: false,
+            lang: None,
             extra: Map::new(),
         });
     }
@@ -143,6 +147,8 @@ fn split_paragraph(t: &mut TextData, idx: usize) {
     let new = Paragraph {
         align: para.align.clone(),
         spans: right,
+        hyphenate: false,
+        lang: None,
         extra: para.extra.clone(),
     };
     t.paragraphs.insert(p + 1, new);

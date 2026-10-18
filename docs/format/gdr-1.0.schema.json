@@ -314,6 +314,8 @@
       "required": ["spans"],
       "properties": {
         "align": { "enum": ["left", "center", "right", "justify", "forceJustify"] },
+        "hyphenate": { "type": "boolean" },
+        "lang": { "type": "string" },
         "spans": { "type": "array", "items": { "$ref": "#/$defs/textSpan" } }
       }
     },

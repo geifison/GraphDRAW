@@ -462,6 +462,8 @@ mod tests {
                     fill: None,
                     extra: Map::new(),
                 }],
+                hyphenate: false,
+                lang: None,
                 extra: Map::new(),
             }],
             line_spacing: 1.2,

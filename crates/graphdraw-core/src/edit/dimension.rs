@@ -269,6 +269,8 @@ fn text_object(o: &Object, d: &DimensionData, label: &str, at: Point, angle: f64
                 fill: None,
                 extra: Default::default(),
             }],
+            hyphenate: false,
+            lang: None,
             extra: Default::default(),
         }],
         line_spacing: 1.2,

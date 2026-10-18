@@ -201,6 +201,8 @@ mod tests {
                     fill: None,
                     extra: Default::default(),
                 }],
+                hyphenate: false,
+                lang: None,
                 extra: Default::default(),
             }],
             line_spacing: 1.2,

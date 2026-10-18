@@ -5,6 +5,7 @@ pub mod basic;
 pub mod bspline;
 pub mod dash;
 pub mod gradient;
+pub mod hyphen;
 pub mod pattern;
 pub mod raster;
 pub mod scene;

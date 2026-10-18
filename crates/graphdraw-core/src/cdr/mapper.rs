@@ -822,6 +822,8 @@ impl Mapper<'_> {
         t.para = Some(Paragraph {
             align: align.into(),
             spans: Vec::new(),
+            hyphenate: false,
+            lang: None,
             extra: Map::new(),
         });
     }
@@ -840,6 +842,8 @@ impl Mapper<'_> {
             t.para = Some(Paragraph {
                 align: "left".into(),
                 spans: Vec::new(),
+                hyphenate: false,
+                lang: None,
                 extra: Map::new(),
             });
         }

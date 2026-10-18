@@ -262,6 +262,8 @@ pub fn slice_text(t: &TextData, a: usize, b: usize) -> TextData {
             paragraphs.push(Paragraph {
                 align: p.align.clone(),
                 spans,
+                hyphenate: false,
+                lang: None,
                 extra: p.extra.clone(),
             });
         }

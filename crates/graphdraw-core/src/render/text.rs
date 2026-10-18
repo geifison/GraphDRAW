@@ -442,6 +442,8 @@ pub fn layout_text(t: &TextData) -> TextLayout {
         // a última parte é a posição fixa no fluxo em volta de objetos.
         type Slot = Option<(f64, f64, f64)>;
         let fsz = para.spans.first().map(|s| s.font.size).unwrap_or(0.0);
+        // Linhas que terminam numa palavra partida (ganham o hífen).
+        let mut hyph_lines: std::collections::HashSet<usize> = Default::default();
         let mut lines: Vec<(Vec<Piece>, usize, bool, Slot)> =
             vec![(Vec::new(), para_start, false, next_slot(fsz, true))];
         let mut line_width = 0.0;
@@ -463,16 +465,58 @@ pub fn layout_text(t: &TextData) -> TextLayout {
                     if word.is_empty() {
                         continue;
                     }
+                    let mut word = word;
                     if wrap {
-                        let w = fonts[si]
-                            .as_ref()
-                            .and_then(|(id, _, _)| shape(*id, word.trim_end(), span.font.size))
-                            .map(|s| s.advance)
-                            .unwrap_or(0.0);
-                        let avail = lines.last().unwrap().3.map_or(frame_w.unwrap(), |s| s.2);
-                        if line_width + w > avail && line_width > 0.0 {
-                            lines.push((Vec::new(), cursor, false, next_slot(fsz, false)));
-                            line_width = 0.0;
+                        let width = |t: &str| {
+                            fonts[si]
+                                .as_ref()
+                                .and_then(|(id, _, _)| shape(*id, t, span.font.size))
+                                .map(|s| s.advance)
+                                .unwrap_or(0.0)
+                        };
+                        loop {
+                            let w = width(word.trim_end());
+                            let avail = lines.last().unwrap().3.map_or(frame_w.unwrap(), |s| s.2);
+                            if line_width + w <= avail {
+                                break;
+                            }
+                            // Hifenização (GD-TXT-07): o maior pedaço que cabe com o hífen.
+                            let mut split = None;
+                            if para.hyphenate {
+                                let core = word.trim_end();
+                                let lang = para.lang.as_deref().unwrap_or("pt-BR");
+                                for k in super::hyphen::points(core, lang).into_iter().rev() {
+                                    let byte =
+                                        core.char_indices().nth(k).map_or(core.len(), |(b, _)| b);
+                                    if line_width + width(&format!("{}-", &core[..byte])) <= avail {
+                                        split = Some((k, byte));
+                                        break;
+                                    }
+                                }
+                            }
+                            if let Some((k, byte)) = split {
+                                let cur = &mut lines.last_mut().unwrap().0;
+                                match cur.last_mut() {
+                                    Some(p) if p.span == si => p.text.push_str(&word[..byte]),
+                                    _ => cur.push(Piece {
+                                        text: word[..byte].to_string(),
+                                        span: si,
+                                        start: cursor,
+                                    }),
+                                }
+                                cursor += k;
+                                hyph_lines.insert(lines.len() - 1);
+                                lines.push((Vec::new(), cursor, false, next_slot(fsz, false)));
+                                line_width = 0.0;
+                                word = &word[byte..];
+                                continue;
+                            }
+                            if line_width > 0.0 {
+                                lines.push((Vec::new(), cursor, false, next_slot(fsz, false)));
+                                line_width = 0.0;
+                                continue;
+                            }
+                            break;
                         }
                         let full = fonts[si]
                             .as_ref()
@@ -496,7 +540,7 @@ pub fn layout_text(t: &TextData) -> TextLayout {
         }
         lines.last_mut().unwrap().2 = true;
 
-        for (pieces, line_start, hard, slot) in lines {
+        for (li, (pieces, line_start, hard, slot)) in lines.into_iter().enumerate() {
             let first_size = para.spans.first().map(|s| s.font.size).unwrap_or(0.0);
             let max_size = pieces
                 .iter()
@@ -555,6 +599,14 @@ pub fn layout_text(t: &TextData) -> TextLayout {
             } else {
                 pen
             };
+            let hyphen = if hyph_lines.contains(&li) {
+                shaped_runs.last().and_then(|(_, span, id, _, _, _)| {
+                    shape(*id, "-", span.font.size).map(|s| (s, *id, (*span).clone()))
+                })
+            } else {
+                None
+            };
+            let content_w = content_w + hyphen.as_ref().map_or(0.0, |(s, _, _)| s.advance);
             let justify = matches!(para.align.as_str(), "justify" | "forceJustify")
                 && wrap
                 && (!hard || para.align == "forceJustify");
@@ -625,6 +677,39 @@ pub fn layout_text(t: &TextData) -> TextLayout {
                     font: id,
                     glyphs,
                     glyph_outlines,
+                });
+            }
+            if let Some((h, id, span)) = hyphen
+                && let Some(last) = runs.last().cloned()
+            {
+                let x = dx + content_w - h.advance + extra * spaces as f64;
+                let mut outline = BezPath::new();
+                let mut glyphs = Vec::new();
+                let mut glyph_outlines = Vec::new();
+                for g in &h.glyphs {
+                    let mut o = g.outline.clone();
+                    o.apply_affine(Affine::translate((x, baseline)));
+                    glyph_outlines.push(o.clone());
+                    outline.extend(o);
+                    glyphs.push(GlyphPos {
+                        id: g.id,
+                        x: x + g.x,
+                        y: baseline + g.y,
+                        advance: g.advance,
+                        text: "-".into(),
+                    });
+                }
+                runs.push(Run {
+                    text: "-".into(),
+                    x,
+                    width: h.advance,
+                    size: span.font.size,
+                    fill: span.fill.clone(),
+                    outline,
+                    font: id,
+                    glyphs,
+                    glyph_outlines,
+                    ..last
                 });
             }
             let carets = bounds
@@ -834,6 +919,8 @@ mod tests {
                         fill: None,
                         extra: Map::new(),
                     }],
+                    hyphenate: false,
+                    lang: None,
                     extra: Map::new(),
                 })
                 .collect(),
@@ -908,6 +995,37 @@ mod tests {
             l.lines.len() > plain.lines.len(),
             "mais linhas por causa do desvio"
         );
+    }
+
+    #[test]
+    fn hyphenation_splits_long_words() {
+        if !has_font() {
+            return;
+        }
+        let words = "extraordinariamente responsabilidade ".repeat(6);
+        let mut t = text("paragraph", "left", &words, Some([60_000.0, 300_000.0]));
+        let plain = layout_text(&t);
+        t.paragraphs[0].hyphenate = true;
+        let h = layout_text(&t);
+        let hyph = h
+            .lines
+            .iter()
+            .filter(|l| l.runs.last().is_some_and(|r| r.text == "-"))
+            .count();
+        assert!(hyph > 0, "alguma linha termina com hífen");
+        // O texto corrido não ganha o hífen: carets cobrem o mesmo texto.
+        let last = h.lines.last().unwrap();
+        assert_eq!(last.end, plain.lines.last().unwrap().end);
+        // As linhas com hífen terminam dentro do quadro (o espaço final das
+        // outras não conta).
+        for l in h
+            .lines
+            .iter()
+            .filter(|l| l.runs.last().is_some_and(|r| r.text == "-"))
+        {
+            let right = l.runs.last().map_or(0.0, |r| r.x + r.width);
+            assert!(right <= 60_000.0 + 1.0, "{right}");
+        }
     }
 
     #[test]

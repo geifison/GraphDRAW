@@ -587,6 +587,12 @@ novos objetos.
   Sobreimprimir contorno.
 - **Rodapé**: OK, Cancelar e Ajuda (balão com a explicação).
 
+### 4.6.6 Hifenização (GD-TXT-07)
+
+Com texto de parágrafo selecionado, a barra de texto ganha, depois do texto
+em caminho, Hifenizar (caixa) e a lista de idiomas (pt-BR, pt-PT, en-US,
+en-GB, es-ES, fr-FR). O hífen aparece só no desenho; o texto não muda.
+
 ### 4.6.5 Fontes ausentes ao abrir (GD-FNT-02/03)
 
 Modal de `missing-fonts-width` = 640 px, depois de abrir um arquivo com

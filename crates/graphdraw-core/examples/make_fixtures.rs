@@ -414,6 +414,8 @@ fn text() -> Document {
     let para = |align: &str, spans: Vec<TextSpan>| Paragraph {
         align: align.into(),
         spans,
+        hyphenate: false,
+        lang: None,
         extra: Map::new(),
     };
     let mut title = obj(
@@ -1151,6 +1153,8 @@ fn appearance() -> Document {
             paragraphs: vec![Paragraph {
                 align: "left".into(),
                 spans: vec![span("Texto que segue o caminho", 18.0)],
+                hyphenate: false,
+                lang: None,
                 extra: Map::new(),
             }],
             line_spacing: 1.2,
@@ -1279,6 +1283,8 @@ fn text_wrap() -> Document {
             paragraphs: vec![Paragraph {
                 align: "justify".into(),
                 spans: vec![span(&words, 10.0)],
+                hyphenate: false,
+                lang: None,
                 extra: Map::new(),
             }],
             line_spacing: 1.2,

@@ -147,7 +147,9 @@ Para depois da 1.0, cada um com o motivo:
 
 ## P2 — Proposta: depois da 1.0
 - [ ] Unicode bidirecional e scripts complexos (GD-TXT-06).
-- [ ] Hifenização (GD-TXT-07).
+- [x] Hifenização (GD-TXT-07): por parágrafo, com idioma; dicionário
+  hyphen (`hyph_<idioma>.dic`) quando instalado, regras do português sem
+  ele.
 - [ ] Corretor ortográfico (GD-TXT-08).
 - [ ] Desenho inteligente (GD-FER-27).
 - [x] Fontes incorporadas no `.gdr` (GD-FNT-03, P-11 a): fonte inteira,

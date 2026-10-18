@@ -229,6 +229,8 @@ mod tests {
             paragraphs: vec![crate::model::Paragraph {
                 align: "left".into(),
                 spans: vec![span],
+                hyphenate: false,
+                lang: None,
                 extra: Default::default(),
             }],
             line_spacing: 1.2,
@@ -289,6 +291,8 @@ mod embed_tests {
                     fill: None,
                     extra: Default::default(),
                 }],
+                hyphenate: false,
+                lang: None,
                 extra: Default::default(),
             }],
             line_spacing: 1.2,

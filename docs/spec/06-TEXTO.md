@@ -9,7 +9,7 @@
 ## Motor
 - **GD-TXT-05** Shaping com HarfBuzz; fontes OpenType (TTF/OTF/TTC/OTC), Type 1 opcional, fontes variáveis (eixos editáveis), cores (COLRv1/SVG-in-OT) quando suportado.
 - **GD-TXT-06** Unicode completo, bidirecional (UAX#9), quebra de linha (UAX#14), segmentação de grafemas; scripts complexos (árabe, devanágari) via HarfBuzz.
-- **GD-TXT-07** Hifenização por idioma (dicionários Hunspell/hyphen, licença livre). Idioma por trecho.
+- **GD-TXT-07** Hifenização por idioma (dicionários Hunspell/hyphen, licença livre). Idioma por parágrafo. Sem dicionário instalado (`%APPDATA%\GraphDraw\hifenizacao\hyph_<idioma>.dic`), o português usa regras de divisão silábica próprias; outros idiomas não hifenizam.
 - **GD-TXT-08** Corretor ortográfico por idioma (Hunspell), opcional.
 
 ## Atributos de caractere
