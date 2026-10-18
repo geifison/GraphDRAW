@@ -20,7 +20,7 @@ use crate::canvas::Defaults;
 use crate::doc::DocState;
 use crate::i18n::tr;
 use crate::theme;
-use crate::widgets::{fmt_mm, to_color32};
+use crate::widgets::to_color32;
 
 #[allow(clippy::large_enum_variant)]
 pub enum StyleDialog {
@@ -328,7 +328,7 @@ pub fn status_indicators(
     let width = match &stroke {
         None => tr("nenhum", "none").to_string(),
         Some(s) if s.width <= 0.0 => tr("fio de cabelo", "hairline").to_string(),
-        Some(s) => format!("{} mm", fmt_mm(s.width)),
+        Some(s) => crate::widgets::fmt_len(s.width),
     };
     let r = label(ui, width);
     let sw = stroke_swatch(ui, stroke.as_ref());

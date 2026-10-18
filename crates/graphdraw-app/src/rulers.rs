@@ -1,5 +1,6 @@
 //! Réguas do canvas (GD-REG-01): faixas no alto e à esquerda com a escala
-//! em milímetros, o passo ajustado ao zoom, a marca do cursor e a origem
+//! na unidade de exibição do documento (GD-DOC-01), o passo ajustado ao zoom
+//! (frações binárias nas unidades imperiais), a marca do cursor e a origem
 //! (o zero) que pode ser arrastada.
 
 use eframe::egui::{self, Pos2, Rect, Vec2};
@@ -22,6 +23,27 @@ pub fn areas(canvas: Rect) -> (Rect, Rect, Rect) {
     (top, left, corner)
 }
 
+/// Passo das marcas grandes (na unidade) para que fiquem a pelo menos
+/// `ruler-major-spacing` px uma da outra, e quantas divisões menores tem.
+/// Imperial: 1/32, 1/16 … 1 com divisões em metades (frações binárias).
+pub fn step_for(px_per_unit: f64, imperial: bool) -> (f64, u32) {
+    if !imperial {
+        return step_mm(px_per_unit);
+    }
+    let min = theme::RULER_MAJOR_SPACING as f64;
+    for s in [1.0 / 32.0, 1.0 / 16.0, 1.0 / 8.0, 1.0 / 4.0, 1.0 / 2.0, 1.0] {
+        if s * px_per_unit >= min {
+            // Divisões binárias até ficarem com ao menos 5 px.
+            let mut sub = 1;
+            while sub < 16 && s / (sub * 2) as f64 * px_per_unit >= 5.0 {
+                sub *= 2;
+            }
+            return (s, sub);
+        }
+    }
+    step_mm(px_per_unit)
+}
+
 /// Passo das marcas grandes (mm) para que fiquem a pelo menos
 /// `ruler-major-spacing` px uma da outra, e quantas divisões menores ele tem.
 pub fn step_mm(px_per_mm: f64) -> (f64, u32) {
@@ -42,22 +64,30 @@ pub fn step_mm(px_per_mm: f64) -> (f64, u32) {
 }
 
 /// Marcas de uma régua entre `lo` e `hi` (µm do papel, a partir da
-/// origem): posição no papel (µm), medida do mundo (mm) e se é grande.
-/// `step`/`sub` estão em mm do mundo; `scale` = mundo ÷ papel.
-pub fn ticks(lo: f64, hi: f64, step: f64, sub: u32, scale: f64) -> Vec<(f64, f64, bool)> {
+/// origem): posição no papel (µm), medida do mundo (na unidade) e se é
+/// grande. `step`/`sub` estão na unidade do mundo; `scale` = mundo ÷
+/// papel; `unit_um` = µm por unidade.
+pub fn ticks(
+    lo: f64,
+    hi: f64,
+    step: f64,
+    sub: u32,
+    scale: f64,
+    unit_um: f64,
+) -> Vec<(f64, f64, bool)> {
     let minor = step / sub as f64;
-    let i0 = (lo / 1000.0 * scale / minor).floor() as i64;
-    let i1 = (hi / 1000.0 * scale / minor).ceil() as i64;
+    let i0 = (lo / unit_um * scale / minor).floor() as i64;
+    let i1 = (hi / unit_um * scale / minor).ceil() as i64;
     (i0..=i1)
         .map(|i| {
-            let mm = i as f64 * minor;
-            (mm / scale * 1000.0, mm, i.rem_euclid(sub as i64) == 0)
+            let v = i as f64 * minor;
+            (v / scale * unit_um, v, i.rem_euclid(sub as i64) == 0)
         })
         .collect()
 }
 
-fn label(v_mm: f64) -> String {
-    let v = if v_mm.abs() < 1e-9 { 0.0 } else { v_mm };
+fn label(v: f64) -> String {
+    let v = if v.abs() < 1e-9 { 0.0 } else { v };
     if (v - v.round()).abs() < 1e-6 {
         format!("{}", v.round() as i64)
     } else {
@@ -68,11 +98,30 @@ fn label(v_mm: f64) -> String {
     }
 }
 
+/// Número da régua imperial: inteiro ou fração mista até 1/32 ("1 1/2").
+fn imperial_label(v: f64) -> String {
+    let n = (v * 32.0).round() as i64;
+    if n % 32 == 0 {
+        return label(v);
+    }
+    let sign = if n < 0 { "-" } else { "" };
+    let (whole, mut num, mut den) = (n.abs() / 32, n.abs() % 32, 32);
+    while num % 2 == 0 {
+        num /= 2;
+        den /= 2;
+    }
+    if whole == 0 {
+        format!("{sign}{num}/{den}")
+    } else {
+        format!("{sign}{whole} {num}/{den}")
+    }
+}
+
 /// Desenha as duas réguas. `to_screen` leva um ponto da página (µm) à tela;
 /// `visible` é o retângulo da página (µm) que está na tela; `origin` é o
 /// zero das réguas (µm, na página); `cursor` marca a posição do mouse;
-/// `scale` é a escala de desenho (mundo ÷ papel, GD-DOC-03): as marcas e
-/// os números mostram medidas do mundo.
+/// `disp` traz a unidade e a escala de desenho (mundo ÷ papel,
+/// GD-DOC-03): as marcas e os números mostram medidas do mundo.
 #[allow(clippy::too_many_arguments)]
 pub fn paint(
     ui: &egui::Ui,
@@ -83,12 +132,21 @@ pub fn paint(
     px_per_um: f64,
     origin: Point,
     cursor: Option<Point>,
-    scale: f64,
+    disp: graphdraw_core::units::Display,
 ) {
-    let scale = if scale.is_finite() && scale > 0.0 {
-        scale
+    let scale = if disp.scale.is_finite() && disp.scale > 0.0 {
+        disp.scale
     } else {
         1.0
+    };
+    let unit_um = disp.unit_um();
+    let imperial = disp.unit.imperial();
+    let text = |v: f64| {
+        if imperial {
+            imperial_label(v)
+        } else {
+            label(v)
+        }
     };
     let (top, left, corner) = areas(canvas);
     let pal = theme::palette(ui);
@@ -102,7 +160,7 @@ pub fn paint(
     painter.line_segment([corner.left_bottom(), corner.right_bottom()], line);
     let tick = egui::Stroke::new(theme::BORDER_WIDTH, pal.fg_muted);
     let font = theme::font_micro();
-    let (step, sub) = step_mm(px_per_um * 1000.0 / scale);
+    let (step, sub) = step_for(px_per_um * unit_um / scale, imperial);
     let r = theme::RULER_SIZE;
     // Horizontal (x).
     let p_top = painter.with_clip_rect(top);
@@ -112,6 +170,7 @@ pub fn paint(
         step,
         sub,
         scale,
+        unit_um,
     ) {
         let x = to_screen(Point::new(origin.x + at, origin.y)).x;
         let len = if major {
@@ -127,7 +186,7 @@ pub fn paint(
             p_top.text(
                 egui::pos2(x + 2.0, top.min.y + 1.0),
                 egui::Align2::LEFT_TOP,
-                label(mm),
+                text(mm),
                 font.clone(),
                 pal.fg_muted,
             );
@@ -141,6 +200,7 @@ pub fn paint(
         step,
         sub,
         scale,
+        unit_um,
     ) {
         let y = to_screen(Point::new(origin.x, origin.y + at)).y;
         let len = if major {
@@ -154,7 +214,7 @@ pub fn paint(
         );
         if major {
             // Texto de pé, lido de baixo para cima.
-            let g = painter.layout_no_wrap(label(mm), font.clone(), pal.fg_muted);
+            let g = painter.layout_no_wrap(text(mm), font.clone(), pal.fg_muted);
             let pos = egui::pos2(left.min.x + 1.0, y - 2.0);
             p_left.add(
                 egui::epaint::TextShape::new(pos, g, pal.fg_muted)
@@ -190,6 +250,27 @@ pub fn paint(
 mod tests {
     use super::*;
 
+    /// GD-REG-01: régua imperial em frações binárias; números em fração mista.
+    #[test]
+    fn imperial_ruler_steps_and_labels() {
+        // 20 px por polegada: marcas a cada 1 pol... e bem perto, 1/8.
+        let (s, _) = step_for(100.0, true);
+        assert_eq!(s, 1.0);
+        let (s, sub) = step_for(1000.0, true);
+        assert_eq!(s, 1.0 / 16.0);
+        assert!(sub.is_power_of_two());
+        assert_eq!(imperial_label(1.5), "1 1/2");
+        assert_eq!(imperial_label(0.125), "1/8");
+        assert_eq!(imperial_label(3.0), "3");
+        assert_eq!(imperial_label(-0.25), "-1/4");
+        // Em polegadas, a marca de 1 pol cai a 25,4 mm do papel.
+        let t = ticks(0.0, 30_000.0, 1.0, 8, 1.0, 25_400.0);
+        assert!(
+            t.iter()
+                .any(|(at, v, m)| *m && (*v - 1.0).abs() < 1e-9 && (*at - 25_400.0).abs() < 1e-6)
+        );
+    }
+
     #[test]
     fn step_follows_zoom() {
         // 1 px/mm: marcas a cada 100 mm (60 px no mínimo).
@@ -206,13 +287,13 @@ mod tests {
     /// na régua; a posição no papel é a mesma.
     #[test]
     fn gd_doc_03_drawing_scale_on_rulers() {
-        let t = ticks(0.0, 10_000.0, 1000.0, 10, 100.0);
+        let t = ticks(0.0, 10_000.0, 1000.0, 10, 100.0, 1000.0);
         let last = t.iter().rev().find(|(_, _, major)| *major).unwrap();
         assert!(
             (last.0 - 10_000.0).abs() < 1e-6 && (last.1 - 1000.0).abs() < 1e-6,
             "{last:?}"
         );
-        let plain = ticks(0.0, 10_000.0, 10.0, 10, 1.0);
+        let plain = ticks(0.0, 10_000.0, 10.0, 10, 1.0, 1000.0);
         assert!(
             plain.iter().any(|(at, mm, m)| *m
                 && (*at - 10_000.0).abs() < 1e-6

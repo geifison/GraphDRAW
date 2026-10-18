@@ -107,6 +107,8 @@ pub struct Workspace {
     pub color_policy: String,
     /// Impressora da última impressão (GD-PRT-05).
     pub printer: String,
+    /// Casas decimais dos comprimentos (0–6, GD-UI-16).
+    pub decimals: usize,
 }
 
 impl Default for Workspace {
@@ -123,6 +125,7 @@ impl Default for Workspace {
             working_color: None,
             color_policy: "ask".into(),
             printer: String::new(),
+            decimals: 3,
         }
     }
 }
@@ -246,6 +249,7 @@ mod tests {
             tool: "tool-rect".into(),
             density: "ampla".into(),
             default_color_no_ask: true,
+            decimals: 2,
             working_color: Some(Default::default()),
             color_policy: "convert".into(),
             printer: "Impressora X".into(),

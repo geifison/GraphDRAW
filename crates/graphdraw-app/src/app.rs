@@ -24,7 +24,6 @@ use crate::keymap::{self, Command, Keymap};
 use crate::panels::{AlignUi, TransformUi};
 use crate::theme;
 use crate::view::ACTUAL_SIZE;
-use crate::widgets::fmt_mm;
 
 type OpenResult = Result<(Document, ImportReport), String>;
 
@@ -945,6 +944,26 @@ impl App {
     }
 
     /// Exporta o documento em PDF/X-1a:2001 para gráfica (GD-EXP-07).
+    /// Como os comprimentos aparecem (GD-DOC-01/03, GD-UI-16): unidade,
+    /// ppp e escala do documento ativo; casas decimais das preferências.
+    pub(crate) fn length_display(&self) -> graphdraw_core::units::Display {
+        let mut d = graphdraw_core::units::Display {
+            decimals: self.ws.decimals.min(6),
+            ..Default::default()
+        };
+        if let Some(doc) = &self.doc {
+            let s = &doc.doc().data.settings;
+            d.unit = graphdraw_core::units::Unit::from_name(&s.display_unit)
+                .unwrap_or(graphdraw_core::units::Unit::Millimeter);
+            d.dpi = s.resolution;
+            let [paper, world] = s.drawing_scale;
+            if paper > 0.0 && world > 0.0 {
+                d.scale = world / paper;
+            }
+        }
+        d
+    }
+
     /// Roda `job` em segundo plano (GD-UI-15): a barra de status mostra o
     /// disquete com "Exportando <nome>…" até terminar. Uma por vez.
     fn spawn_export(
@@ -3616,7 +3635,17 @@ impl App {
                     d.page + 1,
                     d.doc().data.pages.len()
                 );
-                ui.label(format!("{which} · {} × {} mm", fmt_mm(w), fmt_mm(h)));
+                let disp = crate::widgets::display();
+                ui.label(format!(
+                    "{which} · {} × {} {}",
+                    crate::widgets::fmt_world(w)
+                        .trim_end_matches(disp.unit.name())
+                        .trim_end(),
+                    crate::widgets::fmt_world(h)
+                        .trim_end_matches(disp.unit.name())
+                        .trim_end(),
+                    disp.unit.name()
+                ));
                 if d.page_locked() {
                     ui.label(tr("· bloqueada", "· locked"));
                 }
@@ -4623,6 +4652,7 @@ impl App {
             // Perfis do documento ativo valem para a tela (GD-CMS-01).
             graphdraw_core::cms::activate(&d.doc().data.settings.color);
         }
+        crate::widgets::set_display(self.length_display());
         self.canvas.space_pans = self.keys.space_is_free();
 
         egui::Panel::top("menu").show(ui, |ui| self.menu(ui));
@@ -4693,6 +4723,9 @@ impl App {
                 let ev = self.canvas.show(ui, doc, self.tool, &self.defaults);
                 if let Some(t) = ev.switch_tool {
                     self.tool = t;
+                }
+                if let Some(n) = ev.decimals {
+                    self.ws.decimals = n.min(6);
                 }
                 if let Some(c) = ev.command {
                     pending_cmd = Some(c);

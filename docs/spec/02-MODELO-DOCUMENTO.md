@@ -16,7 +16,8 @@ Aplicação
 ## Unidades e coordenadas
 - **GD-DOC-01** Unidade interna: micrômetro em ponto flutuante de 64 bits. Toda conversão (mm, cm, pol, pt, px, pica) ocorre só na UI e na importação/exportação.
 - **GD-DOC-02** Eixo Y cresce para cima na API de documento; a UI pode exibir origem em qualquer canto (configurável). Origem padrão: canto inferior esquerdo da página.
-- **GD-DOC-03** Escala de desenho opcional (ex.: 1:100) afeta só réguas/cotas, não a geometria armazenada.
+- **GD-DOC-03** Escala de desenho opcional (ex.: 1:100) afeta só réguas/cotas e a leitura de posição e tamanho dos objetos (X, Y, L, A na barra de propriedades mostram e aceitam medidas do mundo), não a geometria armazenada. Escalas prontas no menu da régua: 1:1, 1:2, 1:5, 1:10, 1:20, 1:50, 1:100, 1:500.
+- **GD-DOC-04** Unidades de exibição: mm, cm, m, km, µm; polegada, pé, jarda (1 pol = 25,4 mm exato); ponto (1/72 pol), paica (12 pt), ponto Didot (≈ 0,376 mm) e cícero (12 Didot); pixel = 1/ppp pol pela resolução do documento (25,4 mm = 300 px a 300 ppp; mudar a resolução muda a leitura em px, não o tamanho). A unidade é do documento e vale para campos, réguas e barra de status; trocar a unidade nunca converte o valor guardado (sem resíduo de arredondamento).
 - Aceite: criar retângulo de 10 mm → armazenado 10000 µm; exibido 10 mm, 0,3937 pol, 28,35 pt.
 
 ## Páginas
