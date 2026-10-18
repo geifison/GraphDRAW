@@ -1963,6 +1963,9 @@ impl CanvasState {
         if self.menu.take().is_some() {
             return true;
         }
+        if doc.node_mark.take().is_some() {
+            return true;
+        }
         if matches!(self.drag, Drag::RightMove { .. }) {
             self.drag = Drag::None;
             self.right = None;
@@ -3252,7 +3255,8 @@ impl CanvasState {
         }
         match tool {
             Tool::Select => icon("cur-select", 6.0, 3.5),
-            Tool::Shape => icon("cur-shape", 5.0, 3.5),
+            // Ponto do clique na ponta da seta (precisão nos nós).
+            Tool::Shape => icon("cur-shape", 1.973, 0.0),
             Tool::Zoom => icon("cur-zoom", 10.5, 10.5),
             Tool::Pan => icon("cur-pan", 12.0, 12.0),
             Tool::Bezier => Glyph::Cross {
@@ -3542,6 +3546,28 @@ impl CanvasState {
         }
         if tool == Tool::Shape || (tool == Tool::FxEnvelope && single_envelope(doc).is_some()) {
             self.paint_nodes(painter, doc, rect, ph);
+        }
+        // Ponto de referência da Forma (GD-NOD-09): um x na linha.
+        if tool == Tool::Shape
+            && let Some(mark) = doc.valid_mark()
+            && let Some(s) = single_path(doc)
+            && let Some(f) = geometry::frame_at_t(s.path, mark.seg, mark.t)
+        {
+            let c = self.screen(rect, ph, s.m * f.point);
+            let k = theme::HANDLE_SIZE * 0.7;
+            for w in [
+                theme::GUIDE_WIDTH + 2.0 * theme::CURSOR_HALO_WIDTH,
+                theme::GUIDE_WIDTH,
+            ] {
+                let col = if w > theme::GUIDE_WIDTH {
+                    theme::CURSOR_HALO
+                } else {
+                    theme::ACCENT_PRIMARY
+                };
+                let st = EStroke::new(w, col);
+                painter.line_segment([c + Vec2::new(-k, -k), c + Vec2::new(k, k)], st);
+                painter.line_segment([c + Vec2::new(-k, k), c + Vec2::new(k, -k)], st);
+            }
         }
         if tool.effect_kind().is_some() {
             self.paint_effect(painter, doc, rect, ph, tool);
@@ -6969,6 +6995,7 @@ impl CanvasState {
                             .length()
                             <= 6.0
                     }) {
+                        doc.node_mark = None;
                         if mods.shift {
                             if let Some(i) = doc.nodes.iter().position(|n| *n == r) {
                                 doc.nodes.remove(i);
@@ -6980,6 +7007,25 @@ impl CanvasState {
                         }
                         return;
                     }
+                // Clique simples na linha: ponto de referência temporário
+                // (GD-NOD-09); o duplo clique é que cria o nó.
+                if let Some(s) = single_path(doc) {
+                    let scale = s.m.determinant().abs().sqrt().max(1e-12);
+                    if let Some(n) = geometry::nearest(s.path, s.m.inverse() * p)
+                        .filter(|n| n.distance * scale <= tol)
+                    {
+                        let id = s.obj.id.clone();
+                        doc.node_mark = Some(crate::doc::NodeMark {
+                            id,
+                            seg: n.seg,
+                            t: n.t,
+                            revision: doc.editor.revision(),
+                        });
+                        doc.nodes.clear();
+                        return;
+                    }
+                }
+                doc.node_mark = None;
                 // Clique em outro objeto o seleciona (descendo nos grupos: a
                 // ferramenta Forma edita o caminho, não o grupo).
                 match pick(doc, p, tol, true) {
@@ -7119,10 +7165,26 @@ impl CanvasState {
                         },
                     );
                 }
-                // Duplo clique no segmento adiciona nó (GD-NOD-03).
+                // Duplo clique num nó existente apaga o nó; no segmento,
+                // adiciona um (GD-NOD-03, GD-NOD-09).
                 if let Some((loc, o, path, m)) =
                     single_path(doc).map(|s| (s.r, s.obj.clone(), s.path.clone(), s.m))
                 {
+                    doc.node_mark = None;
+                    if let Some(r) = nodes::all_nodes(&path).into_iter().find(|r| {
+                        nodes::node(&path, *r).is_some_and(|nd| (m * pt(nd.p) - p).hypot() <= tol)
+                    }) {
+                        let mut no = o.clone();
+                        if let ObjectKind::Path(pd) = &mut no.kind {
+                            nodes::delete_nodes(pd, &[r]);
+                            doc.editor
+                                .transaction(tr("Excluir nó", "Delete node"), |ed| {
+                                    ed.replace_at(&loc, no)
+                                });
+                            doc.nodes.clear();
+                        }
+                        return;
+                    }
                     let scale = m.determinant().abs().sqrt().max(1e-12);
                     if let Some(n) = geometry::nearest(&path, m.inverse() * p)
                         .filter(|n| n.distance * scale <= tol)
@@ -9964,6 +10026,96 @@ mod tests {
             &mut ev,
         );
         assert!(get(&doc).points[1].fixed);
+    }
+
+    /// GD-NOD-09: na ferramenta Forma, clique simples na linha só marca um
+    /// ponto de referência (sem mudar o caminho); duplo clique na linha cria
+    /// o nó ali; duplo clique num nó existente o apaga. Cada um, um passo.
+    #[test]
+    fn gd_nod_09_shape_clicks_on_line_and_nodes() {
+        let ctx = crate::theme::test_ctx();
+        let mut cs = CanvasState::default();
+        cs.snap.enabled = false;
+        let mut doc = DocState::new_blank();
+        let line = Object::new(ObjectKind::Path(PathData {
+            subpaths: vec![Subpath {
+                closed: false,
+                nodes: vec![
+                    graphdraw_core::model::Node::corner(50_000.0, 100_000.0),
+                    graphdraw_core::model::Node::corner(150_000.0, 100_000.0),
+                ],
+                extra: Map::new(),
+            }],
+            fill_rule: FillRule::Evenodd,
+            extra: Map::new(),
+        }));
+        let id = line.id.clone();
+        doc.editor.insert_object(
+            graphdraw_core::edit::ObjLoc {
+                page: 0,
+                layer: 0,
+                index: 0,
+            },
+            line,
+        );
+        doc.selection = vec![id.clone()];
+        for _ in 0..2 {
+            canvas_frame(&ctx, &mut cs, &mut doc, Tool::Shape, vec![]);
+        }
+        let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(1366.0, 768.0));
+        let (_, ph) = doc.page_size();
+        let tol = theme::HANDLE_HIT as f64 / cs.view.zoom;
+        let count = |doc: &DocState| match &doc.page().layers[0].objects[0].kind {
+            ObjectKind::Path(p) => p.subpaths[0].nodes.len(),
+            _ => unreachable!(),
+        };
+        let undo = doc.editor.undo_len();
+        let defaults = Defaults::default();
+        let mut ev = CanvasEvents::default();
+        // 1. Clique simples no meio da linha: ponto marcado, nada muda.
+        let mid = Point::new(100_000.0, 100_000.0);
+        let pos = cs.screen(rect, ph, mid);
+        cs.click(
+            Tool::Shape,
+            &mut doc,
+            mid,
+            pos,
+            egui::Modifiers::NONE,
+            tol,
+            rect,
+            &defaults,
+            &mut ev,
+        );
+        let m = doc.valid_mark().expect("ponto de referência");
+        assert!((m.t - 0.5).abs() < 0.01, "{}", m.t);
+        assert_eq!(count(&doc), 2);
+        assert_eq!(doc.editor.undo_len(), undo, "marcar não entra no histórico");
+        // Esc tira o ponto.
+        assert!(cs.escape(&mut doc));
+        assert!(doc.valid_mark().is_none());
+        // 2. Duplo clique na linha: nó novo ali.
+        cs.double_click(Tool::Shape, &mut doc, mid, tol, &defaults, &mut ev);
+        assert_eq!(count(&doc), 3);
+        assert_eq!(doc.editor.undo_len(), undo + 1);
+        // 3. Duplo clique num nó existente: apaga.
+        cs.double_click(Tool::Shape, &mut doc, mid, tol, &defaults, &mut ev);
+        assert_eq!(count(&doc), 2, "o nó do meio sai");
+        assert_eq!(doc.editor.undo_len(), undo + 2);
+        // Ponto marcado vira inválido quando o caminho muda.
+        cs.click(
+            Tool::Shape,
+            &mut doc,
+            Point::new(75_000.0, 100_000.0),
+            cs.screen(rect, ph, Point::new(75_000.0, 100_000.0)),
+            egui::Modifiers::NONE,
+            tol,
+            rect,
+            &defaults,
+            &mut ev,
+        );
+        assert!(doc.valid_mark().is_some());
+        doc.editor.undo();
+        assert!(doc.valid_mark().is_none(), "documento mudou");
     }
 
     /// GD-CON-01 na tela: arrastar do meio do lado direito do quadrado até

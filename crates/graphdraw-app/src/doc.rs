@@ -6,6 +6,7 @@ use std::sync::Arc;
 use graphdraw_core::ImportReport;
 use graphdraw_core::edit::Editor;
 use graphdraw_core::edit::nodes::NodeRef;
+use graphdraw_core::geometry::SegRef;
 use graphdraw_core::model::{Color, Document, Layer, Object, Page, Stroke};
 use graphdraw_core::render::raster::{self, RasterOptions};
 use graphdraw_core::render::{ImageCache, Scene, SceneOptions, build_scene};
@@ -24,6 +25,8 @@ pub struct DocState {
     pub selection: Vec<String>,
     /// Nós selecionados na ferramenta Forma.
     pub nodes: Vec<NodeRef>,
+    /// Ponto de referência temporário da ferramenta Forma (GD-NOD-09).
+    pub node_mark: Option<NodeMark>,
     /// Camada ativa escolhida no painel (por ID, para sobreviver a desfazer).
     pub layer_id: Option<String>,
     /// Identifica o documento nesta execução (cópia de recuperação).
@@ -36,7 +39,27 @@ pub struct DocState {
     images: ImageCache,
 }
 
+/// Ponto de referência temporário na linha (GD-NOD-09): onde caiu o clique
+/// simples da ferramenta Forma. Vale enquanto o objeto continua sozinho na
+/// seleção e o documento não muda (`revision`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct NodeMark {
+    pub id: String,
+    pub seg: SegRef,
+    pub t: f64,
+    pub revision: u64,
+}
+
 impl DocState {
+    /// O ponto de referência, se ainda vale para o caminho selecionado.
+    pub fn valid_mark(&self) -> Option<&NodeMark> {
+        self.node_mark.as_ref().filter(|m| {
+            self.selection.len() == 1
+                && self.selection[0] == m.id
+                && m.revision == self.editor.revision()
+        })
+    }
+
     pub fn new_blank() -> DocState {
         let mut doc = Document::new();
         let mut page = Page::new(210_000.0, 297_000.0);
@@ -58,6 +81,7 @@ impl DocState {
             page: 0,
             selection: Vec::new(),
             nodes: Vec::new(),
+            node_mark: None,
             layer_id: None,
             symmetry: None,
             key: {
