@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/graphdraw-core", "crates/graphdraw-cli", "crates/graphdraw-app"]
+members = ["crates/graphdraw-core", "crates/graphdraw-cli", "crates/graphdraw-app", "crates/graphdraw-thumbs"]
 
 [workspace.package]
 version = "0.1.0"

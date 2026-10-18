@@ -17,6 +17,7 @@
 - **GD-NOD-06** Alinhar nós (horizontal/vertical), esticar/girar/escalar conjunto de nós.
 - **GD-NOD-07** Reduzir nós com tolerância (simplificação), mantendo desvio ≤ tolerância.
 - **GD-NOD-08** Extrair subcaminho como objeto separado; combinar caminhos em um; separar (quebrar à parte).
+- **GD-NOD-09** Ferramenta Forma, cliques sobre o caminho selecionado: **clique simples na linha** marca um ponto de referência temporário (um x na linha, sem mudar o caminho nem entrar no histórico; some com Esc, clique fora, troca de seleção ou qualquer mudança no documento) — o botão "Adicionar nó" da barra passa a criar o nó nesse ponto; **duplo clique na linha** cria o nó ali; **duplo clique num nó existente** apaga o nó. Cada mudança é um passo de desfazer.
 
 ## Primitivas paramétricas
 Mantêm parâmetros editáveis até "Converter em curvas".

@@ -20,6 +20,7 @@ permitida). A lista completa de crates transitivos fica em `Cargo.lock`.
 | i_overlay | 9.1.0 | MIT OR Apache-2.0 | Booleanas e deslocamento de polígonos (doc 09); traz i_float, i_shape, i_tree e i_key_sort, mesma licença |
 | tiny-skia | 0.12.0 | BSD-3-Clause | Rasterização (tela, PNG, miniaturas) |
 | png | 0.18.1 | MIT OR Apache-2.0 | Codificação PNG |
+| windows / windows-core | 0.62.2 | MIT OR Apache-2.0 | `graphdraw_thumbs.dll`: gerador de miniaturas do `.gdr` no Explorador (COM, GDI, registro); a DLL também usa `zip` e `png` (GD-GDR-12) |
 | image | 0.25.10 | MIT OR Apache-2.0 | Decodificação de imagens (PNG, JPEG, BMP, TIFF, WebP, GIF) |
 | pdf-writer | 0.15.0 | MIT OR Apache-2.0 | Exportação PDF |
 | lopdf | 0.45.0 | MIT | Ler cores CMYK dos PDFs na medição de fidelidade (GD-FID-12) e conferir o PDF/X-1a nos testes |

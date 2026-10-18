@@ -2493,22 +2493,38 @@ fn shape_bar(ui: &mut egui::Ui, doc: &mut DocState) {
         })
     };
     let has_seg = sel.iter().any(|r| seg_after(&path, r).is_some());
+    // Ponto de referência marcado na linha (GD-NOD-09): o nó vai nele.
+    let mark = doc.valid_mark().map(|m| (m.seg, m.t));
     let two_ends = n == 2 && sel.iter().all(|r| nodes::is_endpoint(&path, *r));
     if icons::button(
         ui,
         "node-add",
-        tr(
-            "Adicionar nó no meio do segmento",
-            "Add node at segment middle",
-        ),
+        if mark.is_some() {
+            tr(
+                "Adicionar nó no ponto marcado na linha",
+                "Add node at the marked point",
+            )
+        } else {
+            tr(
+                "Adicionar nó no meio do segmento",
+                "Add node at segment middle",
+            )
+        },
         false,
-        has_seg,
+        has_seg || mark.is_some(),
     )
     .clicked()
     {
         op = Some((
             tr("Adicionar nó", "Add node"),
             Box::new(move |p, s| {
+                if let Some((seg, t)) = mark {
+                    s.clear();
+                    if let Some(r) = nodes::add_node(p, seg, t) {
+                        s.push(r);
+                    }
+                    return;
+                }
                 let mut segs: Vec<SegRef> = s.iter().filter_map(|r| seg_after(p, r)).collect();
                 segs.sort();
                 s.clear();

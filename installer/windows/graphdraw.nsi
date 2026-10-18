@@ -16,6 +16,8 @@ RequestExecutionLevel user
 !define EXE "GraphDraw.exe"
 !define UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP}"
 !define PROGID "GraphDraw.Document"
+; Gerador de miniaturas do .gdr (crates/graphdraw-thumbs, CLSID_STR).
+!define THUMB_CLSID "{2BEA79CE-0115-4A17-B4E5-E2993BBF4825}"
 
 Name "${APP} ${VERSION}"
 OutFile "${OUTFILE}"
@@ -56,6 +58,7 @@ Section "!$(SecApp)" SEC_APP
   SetOutPath "$INSTDIR"
   File "${STAGE}\${EXE}"
   File "${STAGE}\graphdraw-cli.exe"
+  File "${STAGE}\graphdraw_thumbs.dll"
   File "${STAGE}\LICENSE.txt"
   File "${STAGE}\THIRD_PARTY.md"
   SetOutPath "$INSTDIR\cdr-bridge"
@@ -88,6 +91,11 @@ SectionEnd
 Section "$(SecGdr)" SEC_GDR
   WriteRegStr HKCU "Software\Classes\.gdr" "" "${PROGID}"
   WriteRegStr HKCU "Software\Classes\.gdr\OpenWithProgids" "${PROGID}" ""
+  ; Miniatura do desenho no ícone do .gdr (GD-GDR-12), por usuário.
+  WriteRegStr HKCU "Software\Classes\CLSID\${THUMB_CLSID}" "" "GraphDraw — miniaturas .gdr"
+  WriteRegStr HKCU "Software\Classes\CLSID\${THUMB_CLSID}\InprocServer32" "" "$INSTDIR\graphdraw_thumbs.dll"
+  WriteRegStr HKCU "Software\Classes\CLSID\${THUMB_CLSID}\InprocServer32" "ThreadingModel" "Apartment"
+  WriteRegStr HKCU "Software\Classes\.gdr\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}" "" "${THUMB_CLSID}"
   System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
 SectionEnd
 
@@ -104,6 +112,8 @@ Section "Uninstall"
   RMDir /r "$INSTDIR\cdr-bridge"
   Delete "$INSTDIR\${EXE}"
   Delete "$INSTDIR\graphdraw-cli.exe"
+  ; O Explorador pode estar com a DLL carregada: sai no próximo reinício.
+  Delete /REBOOTOK "$INSTDIR\graphdraw_thumbs.dll"
   Delete "$INSTDIR\LICENSE.txt"
   Delete "$INSTDIR\THIRD_PARTY.md"
   Delete "$INSTDIR\Desinstalar.exe"
@@ -117,6 +127,8 @@ Section "Uninstall"
     DeleteRegValue HKCU "Software\Classes\.cdr" ""
   DeleteRegValue HKCU "Software\Classes\.cdr\OpenWithProgids" "${PROGID}"
   DeleteRegKey HKCU "Software\Classes\${PROGID}"
+  DeleteRegKey HKCU "Software\Classes\CLSID\${THUMB_CLSID}"
+  DeleteRegKey HKCU "Software\Classes\.gdr\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}"
   DeleteRegKey HKCU "Software\Classes\Applications\${EXE}"
   DeleteRegKey HKCU "${UNINST_KEY}"
   DeleteRegKey HKCU "Software\${APP}"

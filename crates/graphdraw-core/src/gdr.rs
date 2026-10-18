@@ -379,7 +379,7 @@ pub fn read_file(path: &Path) -> Result<(Document, ImportReport), Error> {
 /// Opções de gravação.
 #[derive(Debug, Clone)]
 pub struct WriteOptions {
-    /// Gera `thumbnails/page-1.png`.
+    /// Gera `thumbnails/page-1.png` (lado maior de [`THUMBNAIL_SIDE`] px).
     pub thumbnail: bool,
     /// Força a divisão das páginas em membros separados.
     pub split_pages: bool,
@@ -398,6 +398,10 @@ impl Default for WriteOptions {
 }
 
 /// Serializa o documento como `.gdr` em memória.
+/// Lado maior da miniatura guardada no arquivo (px): nítida nos ícones
+/// extragrandes do Explorador também em telas com zoom (GD-GDR-12).
+pub const THUMBNAIL_SIDE: u32 = 512;
+
 pub fn write_bytes(doc: &Document, opts: &WriteOptions) -> Result<Vec<u8>, Error> {
     let mut entries: Vec<(String, Vec<u8>, CompressionMethod)> = Vec::new();
 
@@ -453,7 +457,7 @@ pub fn write_bytes(doc: &Document, opts: &WriteOptions) -> Result<Vec<u8>, Error
     }
     if opts.thumbnail
         && !doc.data.pages.is_empty()
-        && let Some(png) = crate::render::thumbnail_png(doc, 0, 256)
+        && let Some(png) = crate::render::thumbnail_png(doc, 0, THUMBNAIL_SIDE)
     {
         entries.push((
             "thumbnails/page-1.png".into(),

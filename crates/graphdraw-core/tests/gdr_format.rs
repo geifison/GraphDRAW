@@ -84,11 +84,12 @@ fn gd_gdr_02_package_structure_and_manifest() {
             assert_eq!(entry["sha256"], sha_hex(&data), "{name}: hash de {n}");
             assert_eq!(entry["size"], data.len() as u64);
         }
-        // Miniatura de até 256 px.
+        // Miniatura de 256 px (arquivos de antes) até THUMBNAIL_SIDE px.
         let thumb =
             image::load_from_memory(&member(&bytes, "thumbnails/page-1.png").unwrap()).unwrap();
+        let side = thumb.width().max(thumb.height());
         assert!(
-            thumb.width().max(thumb.height()) == 256,
+            (256..=graphdraw_core::gdr::THUMBNAIL_SIDE).contains(&side),
             "{name}: miniatura {}x{}",
             thumb.width(),
             thumb.height()
@@ -498,4 +499,18 @@ fn gd_gui_01_guides_round_trip() {
     let (back, _) = gdr::read_bytes(&saved).unwrap();
     assert_eq!(back.data.pages[0].guides, doc.data.pages[0].guides);
     assert_eq!(back.data.settings.guides, doc.data.settings.guides);
+}
+
+/// GD-GDR-12: ao salvar, a miniatura sai com o lado maior de
+/// THUMBNAIL_SIDE px (nítida nos ícones grandes do Explorador).
+#[test]
+fn gd_gdr_12_saved_thumbnail_size() {
+    let mut d = graphdraw_core::model::Document::new();
+    d.data
+        .pages
+        .push(graphdraw_core::model::Page::new(210_000.0, 297_000.0));
+    let bytes = gdr::write_bytes(&d, &Default::default()).unwrap();
+    let thumb = image::load_from_memory(&member(&bytes, "thumbnails/page-1.png").unwrap()).unwrap();
+    assert_eq!(thumb.height(), gdr::THUMBNAIL_SIDE, "A4 em pé");
+    assert!(thumb.width() < thumb.height());
 }

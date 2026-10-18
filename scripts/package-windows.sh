@@ -15,12 +15,13 @@ out="$repo/target/package/GraphDraw-$version-setup.exe"
   echo "falta target/cdr-bridge/gd-cdr-bridge.exe (rode native/cdr-bridge/build.sh)" >&2
   exit 1
 }
-cargo build --release -p graphdraw-app -p graphdraw-cli
+cargo build --release -p graphdraw-app -p graphdraw-cli -p graphdraw-thumbs
 
 rm -rf "$stage"
 mkdir -p "$stage/cdr-bridge"
 cp target/release/graphdraw-app.exe "$stage/GraphDraw.exe"
 cp target/release/graphdraw.exe "$stage/graphdraw-cli.exe"
+cp target/release/graphdraw_thumbs.dll "$stage/graphdraw_thumbs.dll"
 cp target/cdr-bridge/* "$stage/cdr-bridge/"
 cp LICENSE "$stage/LICENSE.txt"
 cp THIRD_PARTY.md "$stage/THIRD_PARTY.md"
