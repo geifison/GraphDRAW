@@ -208,6 +208,9 @@ pub struct App {
     nest_dlg: Option<crate::cutui::NestDialog>,
     fonts_dlg: Option<crate::fontsui::MissingFontsDialog>,
     spell_dlg: Option<crate::spellui::SpellDialog>,
+    print_dlg: Option<crate::printui::PrintDialog>,
+    /// Opções da última impressão por documento, nesta sessão (GD-PRT-05).
+    print_settings: std::collections::HashMap<String, graphdraw_core::print::PrintSettings>,
     nest_opts: graphdraw_core::edit::nest::NestOptions,
     /// Janela de gerenciamento de cor (GD-CMS-02).
     color_dlg: Option<crate::colorui::ColorDialog>,
@@ -297,6 +300,8 @@ impl App {
             nest_dlg: None,
             fonts_dlg: None,
             spell_dlg: None,
+            print_dlg: None,
+            print_settings: Default::default(),
             nest_opts: Default::default(),
             color_dlg: None,
             preset_dlg: None,
@@ -1917,6 +1922,17 @@ impl App {
                     });
                 }
             }
+            C::Print => {
+                if let Some(d) = &self.doc {
+                    let last = self.print_settings.get(&d.key).cloned();
+                    self.print_dlg = Some(crate::printui::PrintDialog::new(
+                        d,
+                        &self.ws.printer,
+                        last,
+                        self.pdf_standard,
+                    ));
+                }
+            }
             C::SpellCheck => {
                 if let Some(d) = &self.doc {
                     self.spell_dlg = Some(crate::spellui::SpellDialog::new(d));
@@ -2463,6 +2479,15 @@ impl App {
                     .clicked()
                 {
                     self.run_command(Command::Export, &ctx);
+                }
+                if ui
+                    .add_enabled(
+                        has,
+                        egui::Button::new(keymap::menu(tr("Imprimir…", "Print…"), Command::Print)),
+                    )
+                    .clicked()
+                {
+                    self.run_command(Command::Print, &ctx);
                 }
                 let has_sel_file = self.doc.as_ref().is_some_and(|d| !d.selection.is_empty());
                 if ui
@@ -3653,6 +3678,16 @@ impl App {
     }
 
     fn dialogs(&mut self, ctx: &egui::Context) {
+        if let (Some(dlg), Some(doc)) = (&mut self.print_dlg, &self.doc)
+            && dlg.show(ctx, doc)
+        {
+            self.print_settings
+                .insert(doc.key.clone(), dlg.settings.clone());
+            if let Some(p) = dlg.printer_name() {
+                self.ws.printer = p.into();
+            }
+            self.print_dlg = None;
+        }
         if let (Some(dlg), Some(doc)) = (&mut self.spell_dlg, &mut self.doc)
             && dlg.show(ctx, doc)
         {

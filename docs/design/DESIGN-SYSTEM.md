@@ -587,6 +587,23 @@ novos objetos.
   Sobreimprimir contorno.
 - **Rodapé**: OK, Cancelar e Ajuda (balão com a explicação).
 
+### 4.6.11 Janela Imprimir (doc 29)
+
+Modal de `PRINT_DIALOG_WIDTH` (900 pt): opções à esquerda
+(`PRINT_OPTIONS_WIDTH`, 340 pt) em quatro abas de rótulo selecionável —
+Geral (impressora + Propriedades…, papel, Retrato | Paisagem, cópias e
+Agrupar, páginas Todas | Página atual | Intervalo), Layout (escala, posição
+com X/Y em mm, girar automaticamente, ladrilhar com sobreposição, imposição
+com colunas/linhas/espaço), Marcas (corte, registro, barra de cores,
+informações, imprimir sangria) e Pré-impressão (espelhar, negativo,
+separações com as chapas). À direita, a prévia com 420 pt de altura: folha
+branca com sombra, borda `border-default`, área imprimível tracejada em
+`accent-primary` a 70%, navegação ◀ Folha n de N ▶, resumo em
+`text-weak` e avisos em `accent-warning`. Rodapé: Imprimir para arquivo
+(PDF)… à esquerda; Fechar e Imprimir à direita (Imprimir desativado sem
+impressora). Durante o envio as opções ficam desativadas e aparece a barra
+de progresso com Cancelar impressão.
+
 ### 4.6.10 Aba Estilos (doc 11)
 
 Aba do painel da direita, depois de Paletas, com três seções separadas por

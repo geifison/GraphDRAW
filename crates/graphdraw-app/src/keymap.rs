@@ -120,7 +120,7 @@ commands! {
     SaveAs = "file.save_as", "Salvar como", "Save as", File, Always, true;
     Import = "file.import", "Importar para a página", "Import into page", File, NotText, true;
     Export = "file.export", "Exportar", "Export", File, NotText, true;
-    Print = "file.print", "Imprimir", "Print", File, Always, false;
+    Print = "file.print", "Imprimir", "Print", File, NotText, true;
     Close = "file.close", "Fechar documento", "Close document", File, Always, true;
     NextDoc = "doc.next", "Próximo documento", "Next document", Pages, Always, true;
     PrevDoc = "doc.prev", "Documento anterior", "Previous document", Pages, Always, true;

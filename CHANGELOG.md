@@ -6,6 +6,13 @@ entre parênteses são os requisitos de `docs/spec/`.
 ## [Não lançada] — caminho para a 1.0
 
 ### Produção, gráfica e corte
+- Imprimir (Arquivo → Imprimir, Ctrl+P, doc 29): impressora do Windows com
+  as propriedades do driver, papel, orientação, cópias agrupadas e páginas;
+  escala (real, ajustar, %), posição e giro automático; ladrilhar banner com
+  sobreposição; imposição N-up com marcas de corte da grade; marcas de corte,
+  registro, barra de cores e informações; sangria; espelhar, negativo e
+  separações por chapa; prévia da folha; envio em segundo plano com
+  progresso e cancelar; Imprimir para arquivo (PDF vetorial para o RIP).
 - Verificação prévia (painel Verificação, doc 28):
   - cobertura de tinta, linha fina e linha clara fina;
   - texto fora da zona de segurança;

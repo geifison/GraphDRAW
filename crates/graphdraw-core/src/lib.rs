@@ -17,6 +17,7 @@ pub mod geometry;
 pub mod model;
 pub mod open;
 pub mod preflight;
+pub mod print;
 pub mod render;
 pub mod report;
 pub mod units;

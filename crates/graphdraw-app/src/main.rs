@@ -27,6 +27,8 @@ mod newdoc;
 mod pagebar;
 mod paletteui;
 mod panels;
+mod printer;
+mod printui;
 mod recovery;
 mod rulers;
 mod spell;

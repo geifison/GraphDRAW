@@ -254,14 +254,71 @@ pub fn write_pdf_report_cms(
     let shared = cms
         .filter(|c| c.has_cmyk_profile())
         .map(|c| std::sync::Arc::new(crate::cms::Cms::new(&c.settings)));
+    let sheets: Vec<PdfSheet> = scenes.iter().map(PdfSheet::single).collect();
     EXPORT_CMS.with(|c| *c.borrow_mut() = shared.clone());
-    let out = write_pdf_inner(scenes, title, opts, shared.as_deref());
+    let out = write_pdf_inner(&sheets, title, opts, shared.as_deref());
+    EXPORT_CMS.with(|c| *c.borrow_mut() = None);
+    out
+}
+
+/// Folha de impressão (doc 29): cenas de página posicionadas por uma matriz
+/// (página → folha, µm) e recortadas por uma caixa no espaço da página.
+pub struct PdfSheet<'a> {
+    pub width: f64,
+    pub height: f64,
+    /// Espelha a folha inteira na horizontal (GD-PRT-40).
+    pub mirror: bool,
+    pub parts: Vec<(&'a Scene, Affine, Option<kurbo::Rect>)>,
+    /// Página exportada sozinha (exportação comum): no PDF/X ganha a sangria
+    /// em volta e as caixas TrimBox/BleedBox.
+    single: bool,
+}
+
+impl<'a> PdfSheet<'a> {
+    pub fn new(
+        width: f64,
+        height: f64,
+        mirror: bool,
+        parts: Vec<(&'a Scene, Affine, Option<kurbo::Rect>)>,
+    ) -> Self {
+        PdfSheet {
+            width,
+            height,
+            mirror,
+            parts,
+            single: false,
+        }
+    }
+
+    fn single(scene: &'a Scene) -> Self {
+        PdfSheet {
+            width: scene.width,
+            height: scene.height,
+            mirror: false,
+            parts: vec![(scene, Affine::IDENTITY, None)],
+            single: true,
+        }
+    }
+}
+
+/// PDF com uma página por folha de impressão (GD-PRT-03).
+pub fn write_sheets_pdf(
+    sheets: &[PdfSheet],
+    title: Option<&str>,
+    opts: &ExportOptions,
+    cms: Option<&crate::cms::Cms>,
+) -> (Vec<u8>, PdfReport) {
+    let shared = cms
+        .filter(|c| c.has_cmyk_profile())
+        .map(|c| std::sync::Arc::new(crate::cms::Cms::new(&c.settings)));
+    EXPORT_CMS.with(|c| *c.borrow_mut() = shared.clone());
+    let out = write_pdf_inner(sheets, title, opts, shared.as_deref());
     EXPORT_CMS.with(|c| *c.borrow_mut() = None);
     out
 }
 
 fn write_pdf_inner(
-    scenes: &[Scene],
+    sheets: &[PdfSheet],
     title: Option<&str>,
     opts: &ExportOptions,
     cms: Option<&crate::cms::Cms>,
@@ -299,7 +356,7 @@ fn write_pdf_inner(
         id
     });
     let info_id = w.alloc();
-    let page_ids: Vec<Ref> = scenes.iter().map(|_| w.alloc()).collect();
+    let page_ids: Vec<Ref> = sheets.iter().map(|_| w.alloc()).collect();
 
     {
         let mut cat = w.pdf.catalog(catalog_id);
@@ -340,9 +397,9 @@ fn write_pdf_inner(
         }
     }
 
-    for (i, (scene, &page_id)) in scenes.iter().zip(&page_ids).enumerate() {
+    for (i, (sheet, &page_id)) in sheets.iter().zip(&page_ids).enumerate() {
         w.page_no = i + 1;
-        write_page(&mut w, scene, page_id, tree_id);
+        write_page(&mut w, sheet, page_id, tree_id);
     }
     write_fonts(&mut w);
 
@@ -351,9 +408,10 @@ fn write_pdf_inner(
         use sha2::{Digest, Sha256};
         let mut h = Sha256::new();
         h.update(title.unwrap_or("").as_bytes());
-        h.update(format!("{now:?}{}", scenes.len()).as_bytes());
-        for s in scenes {
-            h.update(format!("{}x{}:{}", s.width, s.height, s.items.len()).as_bytes());
+        h.update(format!("{now:?}{}", sheets.len()).as_bytes());
+        for s in sheets {
+            let n: usize = s.parts.iter().map(|p| p.0.items.len()).sum();
+            h.update(format!("{}x{}:{n}", s.width, s.height).as_bytes());
         }
         let id = h.finalize()[..16].to_vec();
         w.pdf.set_file_id((id.clone(), id));
@@ -366,28 +424,75 @@ pub fn write_pdf(scenes: &[Scene], title: Option<&str>, opts: &ExportOptions) ->
     write_pdf_report(scenes, title, opts).0
 }
 
-fn write_page(w: &mut W, scene: &Scene, page_id: Ref, tree_id: Ref) {
+fn write_page(w: &mut W, sheet: &PdfSheet, page_id: Ref, tree_id: Ref) {
     let mut res = Resources::default();
     let mut c = Content::new();
     // No PDF/X a página ganha a sangria em volta: o conteúdo é deslocado e a
     // área de corte (TrimBox) fica no meio.
-    let bleed = if w.x1a { scene.bleed } else { 0.0 };
-    res.base = Affine::new([K, 0.0, 0.0, K, bleed * K, bleed * K]);
-    c.transform([
-        K as f32,
+    let bleed = match sheet.parts.first() {
+        Some((s, ..)) if w.x1a && sheet.single => s.bleed,
+        _ => 0.0,
+    };
+    let mut base = Affine::new([K, 0.0, 0.0, K, bleed * K, bleed * K]);
+    if sheet.mirror {
+        base *= Affine::new([-1.0, 0.0, 0.0, 1.0, sheet.width, 0.0]);
+    }
+    c.transform(affine6(base));
+    for (scene, m, clip) in &sheet.parts {
+        c.save_state();
+        if *m != Affine::IDENTITY {
+            c.transform(affine6(*m));
+        }
+        if let Some(r) = clip {
+            c.rect(
+                r.x0 as f32,
+                r.y0 as f32,
+                r.width() as f32,
+                r.height() as f32,
+            );
+            c.clip_nonzero();
+            c.end_path();
+        }
+        res.base = base * *m;
+        let b = if sheet.single { bleed } else { scene.bleed };
+        scene_content(&mut c, scene, b, &mut res, w);
+        c.restore_state();
+    }
+    let content_id = w.alloc();
+    let data = miniz_oxide::deflate::compress_to_vec_zlib(&c.finish(), 6);
+    w.pdf.stream(content_id, &data).filter(Filter::FlateDecode);
+
+    let pt = |v: f64| (v * K) as f32;
+    let media = Rect::new(
         0.0,
         0.0,
-        K as f32,
-        (bleed * K) as f32,
-        (bleed * K) as f32,
-    ]);
+        pt(sheet.width + 2.0 * bleed),
+        pt(sheet.height + 2.0 * bleed),
+    );
+    let mut page = w.pdf.page(page_id);
+    page.parent(tree_id).media_box(media).contents(content_id);
+    if w.x1a {
+        page.bleed_box(media);
+        page.trim_box(Rect::new(
+            pt(bleed),
+            pt(bleed),
+            pt(bleed + sheet.width),
+            pt(bleed + sheet.height),
+        ));
+    }
+    write_resources(&mut page, &res);
+    page.finish();
+}
+
+/// Fundo (com a sangria `bleed`) e itens da cena, no espaço da página.
+fn scene_content(c: &mut Content, scene: &Scene, bleed: f64, res: &mut Resources, w: &mut W) {
     if let Some(bg) = &scene.background {
         let col = if w.x1a {
             w.print_color(bg, 1.0)
         } else {
             bg.clone()
         };
-        set_color(&mut c, &col, false, &mut res, w);
+        set_color(c, &col, false, res, w);
         c.rect(
             -bleed as f32,
             -bleed as f32,
@@ -401,26 +506,26 @@ fn write_page(w: &mut W, scene: &Scene, page_id: Ref, tree_id: Ref) {
         // (tudo o que está embaixo + ele), recortada pelo contorno vetorial.
         let blend = scene.blend_of(item);
         if w.x1a && (is_transparent(item) || blend != crate::model::BlendMode::Normal) {
-            flatten_item(&mut c, scene, i, &mut res, w);
+            flatten_item(c, scene, i, res, w);
             continue;
         }
         // Modo de mesclagem (GD-TRA-02): /BM no estado gráfico do item.
         let blended = blend != crate::model::BlendMode::Normal;
         if blended {
             c.save_state();
-            blend_state(&mut c, blend, &mut res, w);
+            blend_state(c, blend, res, w);
         }
         // Sobreimpressão (GD-PRE-08): /op (preenchimento), /OP (contorno), OPM 1.
         let op = scene.overprint_of(item);
         let overprinted = op != (false, false);
         if overprinted {
             c.save_state();
-            overprint_state(&mut c, op, &mut res, w);
+            overprint_state(c, op, res, w);
         }
         match item {
-            Item::Shape(s) => shape(&mut c, s, &mut res, w),
-            Item::Image(i) => image(&mut c, i, &mut res, w),
-            Item::Text(t) => text_item(&mut c, t, &mut res, w),
+            Item::Shape(s) => shape(c, s, res, w),
+            Item::Image(i) => image(c, i, res, w),
+            Item::Text(t) => text_item(c, t, res, w),
         }
         if overprinted {
             c.restore_state();
@@ -429,28 +534,9 @@ fn write_page(w: &mut W, scene: &Scene, page_id: Ref, tree_id: Ref) {
             c.restore_state();
         }
     }
-    let content_id = w.alloc();
-    let data = miniz_oxide::deflate::compress_to_vec_zlib(&c.finish(), 6);
-    w.pdf.stream(content_id, &data).filter(Filter::FlateDecode);
+}
 
-    let pt = |v: f64| (v * K) as f32;
-    let media = Rect::new(
-        0.0,
-        0.0,
-        pt(scene.width + 2.0 * bleed),
-        pt(scene.height + 2.0 * bleed),
-    );
-    let mut page = w.pdf.page(page_id);
-    page.parent(tree_id).media_box(media).contents(content_id);
-    if w.x1a {
-        page.bleed_box(media);
-        page.trim_box(Rect::new(
-            pt(bleed),
-            pt(bleed),
-            pt(bleed + scene.width),
-            pt(bleed + scene.height),
-        ));
-    }
+fn write_resources(page: &mut pdf_writer::writers::Page, res: &Resources) {
     let mut r = page.resources();
     if !res.gstates_list.is_empty() {
         let mut d = r.ext_g_states();
@@ -489,7 +575,6 @@ fn write_page(w: &mut W, scene: &Scene, page_id: Ref, tree_id: Ref) {
         }
     }
     r.finish();
-    page.finish();
 }
 
 /// Texto: cada trecho sai como texto vivo (glifos posicionados um a um,

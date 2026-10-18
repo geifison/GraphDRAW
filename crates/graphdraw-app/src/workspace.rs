@@ -105,6 +105,8 @@ pub struct Workspace {
     pub working_color: Option<graphdraw_core::cms::ColorManagement>,
     /// Ao abrir arquivo com outros perfis: `ask`, `keep`, `convert`, `ignore`.
     pub color_policy: String,
+    /// Impressora da última impressão (GD-PRT-05).
+    pub printer: String,
 }
 
 impl Default for Workspace {
@@ -120,6 +122,7 @@ impl Default for Workspace {
             default_color_no_ask: false,
             working_color: None,
             color_policy: "ask".into(),
+            printer: String::new(),
         }
     }
 }
@@ -245,6 +248,7 @@ mod tests {
             default_color_no_ask: true,
             working_color: Some(Default::default()),
             color_policy: "convert".into(),
+            printer: "Impressora X".into(),
         };
         let back = Workspace::from_json(&w.to_json()).unwrap();
         assert_eq!(back, w);

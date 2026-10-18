@@ -40,6 +40,9 @@ Prioridade:
   no formato da escala de desenho (GD-FER-40, GD-COT-01..03).
 
 ## P0 — Preenchimento e saída
+- [x] Impressão completa (doc 29, GD-PRT-01..52): spooler do Windows em
+  faixas, prévia, layout, ladrilhos, N-up, marcas, pré-impressão e PDF para
+  RIP (2026-10-18).
 - [x] Padrão vetorial, padrão bitmap e padrão de duas cores
   (GD-FIL-04/05/06), com PDF e SVG.
 - [x] O padrão acompanha a transformação do objeto (GD-FIL-10).
