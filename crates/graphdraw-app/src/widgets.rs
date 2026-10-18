@@ -9,6 +9,62 @@ use graphdraw_core::units::{self, Unit};
 use crate::i18n::tr;
 use crate::theme;
 
+thread_local! {
+    /// Como os comprimentos aparecem agora (documento ativo + preferências).
+    static DISPLAY: std::cell::Cell<units::Display> =
+        std::cell::Cell::new(units::Display::default());
+}
+
+/// Ativa a exibição de comprimentos (unidade, ppp, escala, casas decimais).
+pub fn set_display(d: units::Display) {
+    DISPLAY.with(|c| c.set(d));
+}
+
+/// Exibição de comprimentos em uso.
+pub fn display() -> units::Display {
+    DISPLAY.with(|c| c.get())
+}
+
+/// Ponto decimal → vírgula em português.
+fn localize(s: String) -> String {
+    if crate::i18n::english() {
+        s
+    } else {
+        s.replace('.', ",")
+    }
+}
+
+/// Nome da unidade para menus (GD-DOC-01).
+pub fn unit_label(u: Unit) -> &'static str {
+    match u {
+        Unit::Micrometer => tr("Mícron (µm)", "Micron (µm)"),
+        Unit::Millimeter => tr("Milímetro (mm)", "Millimeter (mm)"),
+        Unit::Centimeter => tr("Centímetro (cm)", "Centimeter (cm)"),
+        Unit::Meter => tr("Metro (m)", "Meter (m)"),
+        Unit::Kilometer => tr("Quilômetro (km)", "Kilometer (km)"),
+        Unit::Inch => tr("Polegada (in)", "Inch (in)"),
+        Unit::Foot => tr("Pé (ft)", "Foot (ft)"),
+        Unit::Yard => tr("Jarda (yd)", "Yard (yd)"),
+        Unit::Point => tr("Ponto (pt)", "Point (pt)"),
+        Unit::Pica => tr("Paica (pc)", "Pica (pc)"),
+        Unit::Didot => tr("Ponto Didot (dd)", "Didot point (dd)"),
+        Unit::Cicero => tr("Cícero (cc)", "Cicero (cc)"),
+        Unit::Pixel => tr("Pixel (px)", "Pixel (px)"),
+    }
+}
+
+/// Comprimento na unidade de exibição, com o nome dela ("12,5 mm").
+pub fn fmt_len(um: f64) -> String {
+    let d = display();
+    format!("{} {}", localize(d.format(um, false)), d.unit.name())
+}
+
+/// Medida do mundo (pela escala de desenho, GD-DOC-03) com a unidade.
+pub fn fmt_world(um: f64) -> String {
+    let d = display();
+    format!("{} {}", localize(d.format(um, true)), d.unit.name())
+}
+
 /// Formata µm em mm com vírgula decimal (pt-BR).
 pub fn fmt_mm(um: f64) -> String {
     let s = format!("{:.3}", um / 1000.0);
@@ -139,19 +195,50 @@ fn expr_field(
     out
 }
 
-/// Comprimento em mm (aceita `10+5`, `2in`, `50%` de `reference_um`).
+/// Comprimento na unidade de exibição (GD-UI-11): aceita contas e unidades
+/// misturadas (`120mm + 2pol - 15pt`), frações (`3 1/8 pol`) e, começando
+/// por operador, conta sobre o valor atual (`+15`, `*2`, `+20%`; `=` força
+/// valor absoluto). `reference_um` é a base do `%` (padrão: o valor).
 pub fn length_field(
     ui: &mut egui::Ui,
     id: &str,
     value_um: f64,
     reference_um: Option<f64>,
 ) -> Option<f64> {
+    length_field_in(ui, id, value_um, reference_um, false)
+}
+
+/// Como [`length_field`], em medida do mundo (escala de desenho, GD-DOC-03):
+/// para posição e tamanho dos objetos.
+pub fn world_length_field(
+    ui: &mut egui::Ui,
+    id: &str,
+    value_um: f64,
+    reference_um: Option<f64>,
+) -> Option<f64> {
+    length_field_in(ui, id, value_um, reference_um, true)
+}
+
+fn length_field_in(
+    ui: &mut egui::Ui,
+    id: &str,
+    value_um: f64,
+    reference_um: Option<f64>,
+    world: bool,
+) -> Option<f64> {
+    let disp = display();
     let id = ui.scope_id().with(id);
-    let r = expr_field(ui, id, fmt_mm(value_um), LENGTH_WIDTH, |t| {
-        units::parse_length(t, Unit::Millimeter, reference_um.or(Some(value_um)))
-    });
-    // A unidade também é alça de arrasto.
-    let d = drag_handle(ui, "mm", LENGTH_DRAG_STEP);
+    let base = reference_um.unwrap_or(value_um);
+    let r = expr_field(
+        ui,
+        id,
+        localize(disp.format(value_um, world)),
+        LENGTH_WIDTH,
+        |t| disp.parse(t, Some(base), world),
+    );
+    // A unidade também é alça de arrasto: 0,1 da unidade por pixel.
+    let step = disp.unit_um() / 10.0 / if world { disp.scale.max(1e-9) } else { 1.0 };
+    let d = drag_handle(ui, disp.unit.name(), step);
     r.or(d.map(|d| value_um + d))
 }
 
@@ -165,6 +252,19 @@ pub fn labeled_length(
 ) -> Option<f64> {
     let d = drag_handle(ui, label, LENGTH_DRAG_STEP);
     let r = length_field(ui, id, value_um, reference_um);
+    r.or(d.map(|d| value_um + d))
+}
+
+/// Como [`labeled_length`], em medida do mundo (X, Y, L, A dos objetos).
+pub fn labeled_world_length(
+    ui: &mut egui::Ui,
+    label: &str,
+    id: &str,
+    value_um: f64,
+    reference_um: Option<f64>,
+) -> Option<f64> {
+    let d = drag_handle(ui, label, LENGTH_DRAG_STEP);
+    let r = world_length_field(ui, id, value_um, reference_um);
     r.or(d.map(|d| value_um + d))
 }
 
@@ -544,6 +644,27 @@ pub fn palette() -> Vec<Color> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// GD-DOC-01/03: a exibição ativa vale para os textos de comprimento.
+    #[test]
+    fn length_text_follows_display() {
+        let before = display();
+        set_display(units::Display {
+            unit: Unit::Inch,
+            decimals: 3,
+            ..Default::default()
+        });
+        assert_eq!(fmt_len(25_400.0), "1 in");
+        assert!(fmt_len(12_700.0).starts_with("0"));
+        set_display(units::Display {
+            unit: Unit::Meter,
+            scale: 10.0,
+            ..Default::default()
+        });
+        assert_eq!(fmt_world(1_000_000.0), "10 m");
+        assert_eq!(fmt_len(1_000_000.0), "1 m");
+        set_display(before);
+    }
 
     /// Altura da barra de propriedades numa tela de 1366 × 768, com o
     /// conteúdo dado.

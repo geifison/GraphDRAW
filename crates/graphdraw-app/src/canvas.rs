@@ -989,6 +989,8 @@ pub struct CanvasState {
     pub guides_locked: bool,
     /// Zero das réguas (µm na página).
     pub ruler_origin: Point,
+    /// Menu do botão direito da régua (GD-REG-02): onde abriu e o quadro.
+    ruler_menu: Option<(Pos2, u64)>,
     /// Guias que valem na página atual (cache do quadro).
     guides: Vec<graphdraw_core::model::Guide>,
     /// Texto em edição (ferramenta Texto).
@@ -1074,6 +1076,7 @@ impl Default for CanvasState {
             show_guides: true,
             guides_locked: false,
             ruler_origin: Point::ORIGIN,
+            ruler_menu: None,
             guides: Vec::new(),
             three_point: false,
             poly_preview: (5, "polygon".into(), 0.5),
@@ -1125,6 +1128,8 @@ pub struct CanvasEvents {
     /// Abrir a janela de preenchimento em cor sólida (ferramenta
     /// Preenchimento uniforme).
     pub open_solid_fill: bool,
+    /// Casas decimais escolhidas no menu da régua (preferência, GD-UI-16).
+    pub decimals: Option<usize>,
 }
 
 impl CanvasState {
@@ -1681,6 +1686,16 @@ impl CanvasState {
             )
         });
         let Some(pos) = pos else { return };
+        // Direito na régua: menu da régua (GD-REG-02), não o do canvas.
+        if pressed && self.show_rulers {
+            let (t, l, c) = crate::rulers::areas(rect);
+            if t.contains(pos) || l.contains(pos) || c.contains(pos) {
+                self.menu = None;
+                self.right = None;
+                self.ruler_menu = Some((pos, ui.ctx().cumulative_frame_nr()));
+                return;
+            }
+        }
         // Conta-gotas: o direito na lupa é dela (GD-CTG-10).
         if pressed && tool == Tool::Eyedropper && self.eyedrop.over_hud(pos) {
             self.right = None;
@@ -1977,6 +1992,96 @@ impl CanvasState {
             return true;
         }
         false
+    }
+
+    /// Menu da régua (GD-REG-02): unidade de exibição, escala de desenho,
+    /// casas decimais e zero de volta ao canto da página.
+    fn ruler_menu_ui(&mut self, ctx: &egui::Context, doc: &mut DocState, ev: &mut CanvasEvents) {
+        use graphdraw_core::units::Unit;
+        let Some((at, opened)) = self.ruler_menu else {
+            return;
+        };
+        let s = doc.doc().data.settings.clone();
+        let unit = Unit::from_name(&s.display_unit).unwrap_or(Unit::Millimeter);
+        let scale = s.drawing_scale[1] / s.drawing_scale[0].max(1e-9);
+        let decimals = crate::widgets::display().decimals;
+        let mut pick_unit = None;
+        let mut pick_scale = None;
+        let mut close = false;
+        let area = egui::Area::new(egui::Id::unique("menu-regua"))
+            .order(egui::Order::Foreground)
+            .fixed_pos(at)
+            .constrain(true)
+            .show(ctx, |ui| {
+                egui::Frame::menu(ui.style()).show(ui, |ui| {
+                    theme::menu_density(ui);
+                    ui.set_min_width(theme::CONTEXT_MENU_WIDTH);
+                    ui.menu_button(tr("Unidade", "Unit"), |ui| {
+                        for u in Unit::ALL {
+                            if ui
+                                .selectable_label(u == unit, crate::widgets::unit_label(u))
+                                .clicked()
+                            {
+                                pick_unit = Some(u);
+                            }
+                        }
+                    });
+                    ui.menu_button(tr("Escala de desenho", "Drawing scale"), |ui| {
+                        for n in [1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 500.0] {
+                            if ui
+                                .selectable_label((scale - n).abs() < 1e-9, format!("1 : {n}"))
+                                .clicked()
+                            {
+                                pick_scale = Some(n);
+                            }
+                        }
+                    });
+                    ui.menu_button(tr("Casas decimais", "Decimal places"), |ui| {
+                        for n in 0..=6 {
+                            if ui.selectable_label(n == decimals, n.to_string()).clicked() {
+                                ev.decimals = Some(n);
+                            }
+                        }
+                    });
+                    ui.separator();
+                    if ui
+                        .button(tr("Zero no canto da página", "Zero at page corner"))
+                        .clicked()
+                    {
+                        self.ruler_origin = Point::ORIGIN;
+                        close = true;
+                    }
+                });
+            });
+        if let Some(u) = pick_unit {
+            doc.editor
+                .transaction(tr("Unidade de exibição", "Display unit"), |ed| {
+                    ed.edit_settings(|s| s.display_unit = u.name().into())
+                });
+        }
+        if let Some(n) = pick_scale {
+            doc.editor
+                .transaction(tr("Escala de desenho", "Drawing scale"), |ed| {
+                    ed.edit_settings(|s| s.drawing_scale = [1.0, n])
+                });
+        }
+        let on_popup = ctx
+            .pointer_interact_pos()
+            .and_then(|p| ctx.layer_id_at(p))
+            .is_some_and(|l| matches!(l.order, egui::Order::Foreground | egui::Order::Tooltip));
+        let outside = ctx.input(|i| i.pointer.any_pressed())
+            && !area.response.contains_pointer()
+            && !on_popup
+            && ctx.cumulative_frame_nr() > opened + 1;
+        if close
+            || pick_unit.is_some()
+            || pick_scale.is_some()
+            || ev.decimals.is_some()
+            || outside
+            || ctx.input(|i| i.key_pressed(egui::Key::Escape))
+        {
+            self.ruler_menu = None;
+        }
     }
 
     /// Menu aberto, no ponto do cursor e dentro da tela (GD-BDR-04).
@@ -2605,6 +2710,7 @@ impl CanvasState {
         // Botão direito (doc 26): gestos, menus e arrasto direito.
         self.right_button(ui, doc, tool, rect, tol, mods, blocked, &mut ev);
         self.context_menu_ui(ui.ctx(), doc, &mut ev);
+        self.ruler_menu_ui(ui.ctx(), doc, &mut ev);
         if self.show_rulers
             && response.double_clicked()
             && response
@@ -2730,10 +2836,7 @@ impl CanvasState {
                 self.view.zoom,
                 self.ruler_origin,
                 cursor,
-                {
-                    let [paper, world] = doc.doc().data.settings.drawing_scale;
-                    world / paper
-                },
+                crate::widgets::display(),
             );
         }
 
@@ -8876,6 +8979,48 @@ mod tests {
         ops::object_bounds(&doc.editor, &doc.editor.find(id).unwrap(), false)
             .unwrap()
             .x0
+    }
+
+    /// GD-REG-02: o botão direito na régua abre o menu da régua (unidade,
+    /// escala, casas decimais), não o menu do canvas.
+    #[test]
+    fn right_click_on_ruler_opens_ruler_menu() {
+        let (ctx, mut cs, mut doc, _id, rect, _ph) = bdr_setup();
+        cs.show_rulers = true;
+        let (top, _, _) = crate::rulers::areas(rect);
+        let at = top.center();
+        let f = |cs: &mut CanvasState, doc: &mut DocState, ev: Vec<egui::Event>| {
+            canvas_frame(&ctx, cs, doc, Tool::Select, ev)
+        };
+        f(&mut cs, &mut doc, vec![egui::Event::PointerMoved(at)]);
+        f(
+            &mut cs,
+            &mut doc,
+            vec![button(at, PointerButton::Secondary, true)],
+        );
+        f(
+            &mut cs,
+            &mut doc,
+            vec![button(at, PointerButton::Secondary, false)],
+        );
+        assert!(cs.ruler_menu.is_some(), "menu da régua");
+        assert!(cs.menu.is_none(), "sem o menu do canvas");
+        f(&mut cs, &mut doc, vec![]);
+        assert!(
+            ctx.memory(|m| m.area_rect(egui::Id::unique("menu-regua")))
+                .is_some(),
+            "desenhado"
+        );
+        // Esc fecha.
+        let esc = egui::Event::Key {
+            key: egui::Key::Escape,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        };
+        f(&mut cs, &mut doc, vec![esc]);
+        assert!(cs.ruler_menu.is_none());
     }
 
     /// Renomear pelo menu do botão direito grava o nome no objeto (o mesmo

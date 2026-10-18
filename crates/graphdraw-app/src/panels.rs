@@ -1690,9 +1690,9 @@ fn select_bar(
     let (mut nx, mut ny) = (None, None);
     widgets::stack(ui, |ui, row| {
         if row == 0 {
-            nx = labeled_length(ui, "X", "x", p.x, None);
+            nx = widgets::labeled_world_length(ui, "X", "x", p.x, None);
         } else {
-            ny = labeled_length(ui, "Y", "y", p.y, None);
+            ny = widgets::labeled_world_length(ui, "Y", "y", p.y, None);
         }
     });
     if let Some(x) = nx {
@@ -1705,9 +1705,9 @@ fn select_bar(
     let (mut nw, mut nh) = (None, None);
     widgets::stack(ui, |ui, row| {
         if row == 0 {
-            nw = labeled_length(ui, tr("L", "W"), "w", b.width(), Some(b.width()));
+            nw = widgets::labeled_world_length(ui, tr("L", "W"), "w", b.width(), None);
         } else {
-            nh = labeled_length(ui, tr("A", "H"), "h", b.height(), Some(b.height()));
+            nh = widgets::labeled_world_length(ui, tr("A", "H"), "h", b.height(), None);
         }
     });
     if let Some(w) = nw {
@@ -3233,11 +3233,11 @@ fn pages_panel(ui: &mut egui::Ui, doc: &mut DocState) -> bool {
     let n = doc.doc().data.pages.len();
     for (i, p) in doc.doc().data.pages.iter().enumerate() {
         let label = format!(
-            "{}. {}\n{} × {} mm",
+            "{}. {}\n{} × {}",
             i + 1,
             pages::display_name(p, i),
-            fmt_mm(p.width),
-            fmt_mm(p.height)
+            widgets::fmt_len(p.width),
+            widgets::fmt_len(p.height)
         );
         if ui.selectable_label(i == doc.page, label).clicked() {
             switch = Some(i);

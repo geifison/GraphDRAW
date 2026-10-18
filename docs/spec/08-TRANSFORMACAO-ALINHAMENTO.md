@@ -23,7 +23,8 @@
 - **GD-GRD-01** Grade de documento (espaçamento ou frequência), grade de linha base, grade de pixels; exibição como linhas ou pontos; imprimível opcional.
 
 ## Réguas e guias
-- **GD-REG-01** Réguas H/V em unidade do documento, origem arrastável (duplo clique redefine).
+- **GD-REG-01** Réguas H/V em unidade do documento, origem arrastável (duplo clique redefine). O passo das marcas se adapta ao zoom (de 0,001 a milhões de unidades); nas unidades imperiais, frações binárias (1/2 … 1/32) com números em fração mista.
+- **GD-REG-02** Botão direito na régua abre o menu dela: unidade de exibição, escala de desenho, casas decimais e "zero no canto da página".
 - **GD-GUI-01** Guias horizontais, verticais e **inclinadas** (ângulo); arrastar da régua; posição numérica; bloquear; cor; guias de página mestra (todas as páginas) ou por página.
 - **GD-GUI-02** Predefinições: margens, colunas, centro da página.
 - **GD-GUI-03** Qualquer objeto pode virar guia (convertido para camada de guias).
