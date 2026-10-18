@@ -177,6 +177,14 @@ de estado.
 
 ## 3. Iconografia (desenhos próprios)
 
+**Regra (2026-10-18):** toda função que tem ícone mostra o mesmo ícone em
+todo lugar onde aparece — caixa de ferramentas, barras, menus principais,
+menu de contexto e janela de atalhos —, para ser reconhecida de relance. O
+ícone de cada comando vem de um mapa só (`Command::icon`, sem caso padrão:
+comando novo sem ícone não compila). Nos menus, ícone de `icon-micro`
+(16 px) em `fg-primary` à esquerda do texto; na janela de atalhos, à
+esquerda do nome.
+
 ### 3.1 Grade e traço
 
 | Contexto | Grade | Exibição |

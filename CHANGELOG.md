@@ -47,6 +47,9 @@ entre parênteses são os requisitos de `docs/spec/`.
   cores, suavizar e inverter; seletor de cor com roda de matiz, canais,
   hexadecimal, paletas com busca e conta-gotas na janela; amostra original
   × nova; F11 e Shift+F11.
+- Ícones em todos os menus e na janela de atalhos, os mesmos da caixa de
+  ferramentas e das barras; 29 desenhos novos (imprimir, copiar, recortar,
+  ortografia, zoom, páginas, texto e outros).
 - Ferramentas de efeito na caixa (grupo Efeitos): contorno, mistura, sombra
   projetada, sombra de bloco e envelope, aplicados e ajustados arrastando
   no objeto. A barra de propriedades edita todos os parâmetros — novos:

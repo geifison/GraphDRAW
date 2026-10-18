@@ -876,6 +876,179 @@ pub fn hint(text: &str, c: Command) -> &'static str {
 }
 
 /// "Texto  (atalho)" para itens de menu.
+impl Command {
+    /// Ícone do comando (assets/icons), o mesmo em toda parte: caixa de
+    /// ferramentas, barras, menus, menu de contexto e janela de atalhos.
+    /// Sem `_`: um comando novo sem ícone não compila.
+    pub fn icon(self) -> &'static str {
+        match self {
+            Command::New => "file-new",
+            Command::Open => "file-open",
+            Command::Save => "file-save",
+            Command::SaveAs => "file-save-as",
+            Command::Import => "file-import",
+            Command::Export => "file-export",
+            Command::Print => "file-print",
+            Command::Close => "doc-close",
+            Command::NextDoc => "page-next",
+            Command::PrevDoc => "page-prev",
+            Command::Undo => "undo",
+            Command::Redo => "redo",
+            Command::Copy => "copy",
+            Command::Cut => "cut",
+            Command::Paste => "paste",
+            Command::Duplicate => "duplicate",
+            Command::PasteInPlace => "copy",
+            Command::Repeat => "repeat",
+            Command::SelectAll => "select-all",
+            Command::InvertSelection => "select-invert",
+            Command::SelectSameKind => "select-same",
+            Command::SelectSameFill => "copy-fill",
+            Command::SelectSameStroke => "copy-stroke",
+            Command::ToCurves => "to-curves",
+            Command::OutlineToObject => "outline-to-object",
+            Command::Group_ => "group",
+            Command::Weld => "bool-weld",
+            Command::Trim => "bool-trim",
+            Command::Intersect => "bool-intersect",
+            Command::LiveWeld => "bool-weld",
+            Command::LiveTrim => "bool-trim",
+            Command::LiveIntersect => "bool-intersect",
+            Command::Simplify => "bool-simplify",
+            Command::FrontMinusBack => "bool-front-minus",
+            Command::BackMinusFront => "bool-back-minus",
+            Command::Exclude => "bool-exclude",
+            Command::Divide => "bool-divide",
+            Command::Boundary => "bool-boundary",
+            Command::Combine => "combine",
+            Command::BreakApart => "break-apart",
+            Command::Offset => "offset",
+            Command::CutLine => "cut-line",
+            Command::Nest => "nest",
+            Command::RegistrationMarks => "reg-marks",
+            Command::Ungroup => "ungroup",
+            Command::UngroupAll => "ungroup-all",
+            Command::ExtendToBleed => "bleed",
+            Command::EditFill => "fill-gradient",
+            Command::EffectContour => "tool-contour",
+            Command::EffectBlend => "tool-blend",
+            Command::EffectDropShadow => "tool-shadow",
+            Command::EffectBlock => "tool-extrude",
+            Command::EffectEnvelope => "tool-envelope",
+            Command::SpellCheck => "spell",
+            Command::EditOutline => "outline-pen",
+            Command::EditUniformFill => "tool-fill-solid",
+            Command::ToGuides => "guide-object",
+            Command::Symmetry => "symmetry",
+            Command::Preflight => "preflight",
+            Command::LockSelection => "lock-on",
+            Command::UnlockSelection => "lock-off",
+            Command::HideSelection => "eye-off",
+            Command::ShowAll => "show-all",
+            Command::UnlockAll => "unlock-all",
+            Command::InFrontOf => "order-in-front-of",
+            Command::BehindOf => "order-behind-of",
+            Command::FocusMode => "focus",
+            Command::ExportSelection => "export-selection",
+            Command::FitTextToPath => "text-path",
+            Command::DetachTextPath => "text-path-detach",
+            Command::ConvertTextKind => "text-convert",
+            Command::ConvertToBitmap => "to-bitmap",
+            Command::ClearTransformations => "clear-transform",
+            Command::TransformPosition => "cur-move",
+            Command::TransformRotate => "rotate-cw",
+            Command::AlignTop => "align-top",
+            Command::AlignBottom => "align-bottom",
+            Command::AlignLeft => "align-left",
+            Command::AlignRight => "align-right",
+            Command::AlignCentersV => "align-center-v",
+            Command::AlignCentersH => "align-center-h",
+            Command::CenterOnPage => "center-on",
+            Command::ToFront => "order-front",
+            Command::ToBack => "order-back",
+            Command::Forward => "order-forward",
+            Command::Backward => "order-backward",
+            Command::ZoomObjects => "fit-art",
+            Command::ZoomPage => "fit-page",
+            Command::ActualSize => "zoom-actual",
+            Command::ZoomIn => "zoom-in",
+            Command::ZoomOut => "zoom-out",
+            Command::ToolSelect => "tool-select",
+            Command::ToolToggleSelect => "cur-select",
+            Command::ToolShape => "tool-shape",
+            Command::ToolWidth => "tool-width",
+            Command::ToolZoom => "tool-zoom",
+            Command::ToolPan => "tool-pan",
+            Command::ToolBezier => "tool-bezier",
+            Command::ToolRect => "tool-rect",
+            Command::ToolEllipse => "tool-ellipse",
+            Command::ToolArtboard => "tool-artboard",
+            Command::ToolFreehand => "tool-freehand",
+            Command::ToolSmartDraw => "tool-smart-draw",
+            Command::ToolFxContour => "tool-contour",
+            Command::ToolFxBlend => "tool-blend",
+            Command::ToolFxShadow => "tool-shadow",
+            Command::ToolFxBlock => "tool-extrude",
+            Command::ToolFxEnvelope => "tool-envelope",
+            Command::ToolPolyline => "tool-polyline",
+            Command::ToolBSpline => "tool-bspline",
+            Command::ToolLine2 => "tool-line2",
+            Command::ToolCurve3 => "tool-curve3",
+            Command::ToolArtistic => "tool-artistic",
+            Command::ToolPolygon => "tool-polygon",
+            Command::ToolText => "tool-text",
+            Command::ToolInteractiveFill => "tool-gradient",
+            Command::ToolSolidFill => "tool-fill-solid",
+            Command::ToolEyedropper => "tool-eyedropper",
+            Command::ToolMeshFill => "tool-mesh",
+            Command::ToolEraser => "tool-eraser",
+            Command::ToolKnife => "tool-knife",
+            Command::ToolConnector => "tool-connector",
+            Command::ToolSmartFill => "tool-smart-fill",
+            Command::ToolDimension => "tool-dimension",
+            Command::ToolFreeTransform => "tool-free-transform",
+            Command::ToolCrop => "tool-crop",
+            Command::ToolVirtualDelete => "tool-virtual-delete",
+            Command::PageNext => "page-next",
+            Command::PagePrev => "page-prev",
+            Command::PageFirst => "page-first",
+            Command::PageLast => "page-last",
+            Command::PageNew => "page-add",
+            Command::PageJump => "page-jump",
+            Command::PageRename => "page-rename",
+            Command::TextProperties => "text-props",
+            Command::TextGlyphs => "glyphs",
+            Command::TextEdit => "text-edit",
+            Command::TextBigger => "text-bigger",
+            Command::TextSmaller => "text-smaller",
+            Command::TextAlignLeft => "text-left",
+            Command::TextAlignCenter => "text-center",
+            Command::TextAlignRight => "text-right",
+            Command::TextJustify => "text-justify",
+            Command::TextBold => "text-bold",
+            Command::TextItalic => "text-italic",
+            Command::TextToCurves => "to-curves",
+        }
+    }
+}
+
+/// Ícone de 16 px na cor do texto (menus e listas).
+pub fn menu_icon(ui: &egui::Ui, name: &str) -> egui::Image<'static> {
+    egui::Image::new(crate::icons::get_micro(name))
+        .tint(crate::theme::palette(ui).fg_primary)
+        .fit_to_exact_size(egui::Vec2::splat(crate::theme::ICON_MICRO))
+}
+
+/// Item de menu do comando: ícone, texto e atalho.
+pub fn item(ui: &egui::Ui, text: &str, c: Command) -> egui::Button<'static> {
+    egui::Button::image_and_text(menu_icon(ui, c.icon()), menu(text, c))
+}
+
+/// Item de menu sem comando, com ícone.
+pub fn icon_item(ui: &egui::Ui, text: &str, icon: &str) -> egui::Button<'static> {
+    egui::Button::image_and_text(menu_icon(ui, icon), text.to_string())
+}
+
 pub fn menu(text: &str, c: Command) -> &'static str {
     match current_label(c) {
         Some(k) => intern(format!("{text}  ({k})"), true),
@@ -886,6 +1059,25 @@ pub fn menu(text: &str, c: Command) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Todo comando tem ícone desenhado e registrado (menus, contexto, atalhos).
+    #[test]
+    fn every_command_has_an_icon() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/icons");
+        for c in Command::ALL {
+            let name = c.icon();
+            assert!(
+                dir.join(format!("{name}.svg")).exists(),
+                "{c:?}: falta {name}.svg"
+            );
+            // Nome sem registro cai no ícone de reserva (histórico).
+            let fallback = format!("{:?}", crate::icons::get("history"));
+            assert!(
+                name == "history" || format!("{:?}", crate::icons::get(name)) != fallback,
+                "{c:?}: {name} sem registro em icons.rs"
+            );
+        }
+    }
 
     #[test]
     fn chords_parse_and_print() {

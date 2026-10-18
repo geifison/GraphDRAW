@@ -416,39 +416,8 @@ fn tidy(v: Vec<Entry>) -> Vec<Entry> {
 /// Ícone do item (assets/icons): o mesmo da função onde ela já tem um
 /// (barra de propriedades, painéis); `""` = sem ícone.
 pub fn icon_of(c: &Cmd) -> &'static str {
-    use Command as K;
     match c {
-        Cmd::Run(k) => match k {
-            K::ToCurves => "to-curves",
-            K::BreakApart => "break-apart",
-            K::OutlineToObject => "outline-to-object",
-            K::ToFront => "order-front",
-            K::ToBack => "order-back",
-            K::Forward => "order-forward",
-            K::Backward => "order-backward",
-            K::InFrontOf => "order-in-front-of",
-            K::BehindOf => "order-behind-of",
-            K::Group_ => "group",
-            K::Ungroup => "ungroup",
-            K::UngroupAll => "ungroup-all",
-            K::LockSelection => "lock-on",
-            K::UnlockSelection => "lock-off",
-            K::HideSelection => "eye-off",
-            K::ShowAll => "show-all",
-            K::UnlockAll => "unlock-all",
-            K::ConvertTextKind => "text-convert",
-            K::FitTextToPath => "text-path",
-            K::CutLine => "cut-line",
-            K::Nest => "cut-line",
-            K::ExportSelection => "export-selection",
-            K::ExtendToBleed => "bleed",
-            K::ToGuides => "guide-object",
-            K::Symmetry => "symmetry",
-            K::FocusMode => "focus",
-            K::Paste => "paste",
-            K::SelectAll => "select-all",
-            _ => "",
-        },
+        Cmd::Run(k) => k.icon(),
         Cmd::NodeKind(NodeKind::Corner) => "node-corner",
         Cmd::NodeKind(NodeKind::Smooth) => "node-smooth",
         Cmd::NodeKind(NodeKind::Symmetric) => "node-symmetric",
@@ -478,12 +447,7 @@ pub fn icon_of(c: &Cmd) -> &'static str {
     }
 }
 
-/// Ícone de 16 px na cor do texto do tema.
-fn menu_icon(ui: &egui::Ui, name: &str) -> egui::Image<'static> {
-    egui::Image::new(crate::icons::get_micro(name))
-        .tint(crate::theme::palette(ui).fg_primary)
-        .fit_to_exact_size(egui::Vec2::splat(crate::theme::ICON_MICRO))
-}
+use crate::keymap::menu_icon;
 
 /// Desenha os itens; devolve o escolhido.
 pub fn show(ui: &mut egui::Ui, entries: &[Entry]) -> Option<Cmd> {

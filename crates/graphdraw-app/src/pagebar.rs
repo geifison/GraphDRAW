@@ -660,7 +660,8 @@ impl PageBar {
             ui.close();
         }
         if ui
-            .button(crate::keymap::menu(
+            .add(crate::keymap::item(
+                ui,
                 tr("Renomear", "Rename"),
                 crate::keymap::Command::PageRename,
             ))

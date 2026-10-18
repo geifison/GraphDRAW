@@ -2387,19 +2387,15 @@ impl App {
             ui.menu_button(tr("Arquivo", "File"), |ui| {
                 theme::menu_density(ui);
                 if ui
-                    .button(crate::keymap::menu(
-                        tr("Novo", "New"),
-                        crate::keymap::Command::New,
-                    ))
+                    .add(crate::keymap::item(ui, tr("Novo", "New"),
+                        crate::keymap::Command::New,))
                     .clicked()
                 {
                     self.request(Pending::New, &ctx);
                 }
                 if ui
-                    .button(crate::keymap::menu(
-                        tr("Abrir…", "Open…"),
-                        crate::keymap::Command::Open,
-                    ))
+                    .add(crate::keymap::item(ui, tr("Abrir…", "Open…"),
+                        crate::keymap::Command::Open,))
                     .clicked()
                 {
                     self.request(Pending::Open(None), &ctx);
@@ -2408,10 +2404,8 @@ impl App {
                 if ui
                     .add_enabled(
                         has,
-                        egui::Button::new(crate::keymap::menu(
-                            tr("Salvar", "Save"),
-                            crate::keymap::Command::Save,
-                        )),
+                        crate::keymap::item(ui, tr("Salvar", "Save"),
+                            crate::keymap::Command::Save,),
                     )
                     .clicked()
                 {
@@ -2420,10 +2414,8 @@ impl App {
                 if ui
                     .add_enabled(
                         has,
-                        egui::Button::new(crate::keymap::menu(
-                            tr("Salvar como…", "Save as…"),
-                            crate::keymap::Command::SaveAs,
-                        )),
+                        crate::keymap::item(ui, tr("Salvar como…", "Save as…"),
+                            crate::keymap::Command::SaveAs,),
                     )
                     .clicked()
                 {
@@ -2448,10 +2440,8 @@ impl App {
                 if ui
                     .add_enabled(
                         has,
-                        egui::Button::new(keymap::menu(
-                            tr("Importar…", "Import…"),
-                            Command::Import,
-                        )),
+                        crate::keymap::item(ui, tr("Importar…", "Import…"),
+                            Command::Import,),
                     )
                     .clicked()
                 {
@@ -2460,10 +2450,8 @@ impl App {
                 if ui
                     .add_enabled(
                         has,
-                        egui::Button::new(keymap::menu(
-                            tr("Exportar…", "Export…"),
-                            Command::Export,
-                        )),
+                        crate::keymap::item(ui, tr("Exportar…", "Export…"),
+                            Command::Export,),
                     )
                     .clicked()
                 {
@@ -2472,7 +2460,7 @@ impl App {
                 if ui
                     .add_enabled(
                         has,
-                        egui::Button::new(keymap::menu(tr("Imprimir…", "Print…"), Command::Print)),
+                        crate::keymap::item(ui, tr("Imprimir…", "Print…"), Command::Print),
                     )
                     .clicked()
                 {
@@ -2482,10 +2470,8 @@ impl App {
                 if ui
                     .add_enabled(
                         has_sel_file,
-                        egui::Button::new(keymap::menu(
-                            tr("Exportar seleção…", "Export selection…"),
-                            Command::ExportSelection,
-                        )),
+                        crate::keymap::item(ui, tr("Exportar seleção…", "Export selection…"),
+                            Command::ExportSelection,),
                     )
                     .clicked()
                 {
@@ -2494,7 +2480,7 @@ impl App {
                 if ui
                     .add_enabled(
                         has,
-                        egui::Button::new(tr("Gerenciamento de cor…", "Color management…")),
+                        crate::keymap::icon_item(ui, tr("Gerenciamento de cor…", "Color management…"), "palette"),
                     )
                     .clicked()
                     && let Some(d) = &self.doc
@@ -2507,7 +2493,7 @@ impl App {
                 if ui
                     .add_enabled(
                         has,
-                        egui::Button::new(tr("Exportar página como SVG…", "Export page as SVG…")),
+                        crate::keymap::icon_item(ui, tr("Exportar página como SVG…", "Export page as SVG…"), "file-export"),
                     )
                     .clicked()
                 {
@@ -2516,10 +2502,10 @@ impl App {
                 if ui
                     .add_enabled(
                         has,
-                        egui::Button::new(tr(
+                        crate::keymap::icon_item(ui, tr(
                             "Exportar documento como PDF (tela)…",
                             "Export document as PDF (screen)…",
-                        )),
+                        ), "file-export"),
                     )
                     .clicked()
                 {
@@ -2528,10 +2514,10 @@ impl App {
                 if ui
                     .add_enabled(
                         has,
-                        egui::Button::new(tr(
+                        crate::keymap::icon_item(ui, tr(
                             "Exportar PDF/X-1a para gráfica…",
                             "Export PDF/X-1a for print…",
-                        )),
+                        ), "file-export"),
                     )
                     .clicked()
                 {
@@ -2540,7 +2526,7 @@ impl App {
                 if ui
                     .add_enabled(
                         has,
-                        egui::Button::new(tr("Exportar página como PNG…", "Export page as PNG…")),
+                        crate::keymap::icon_item(ui, tr("Exportar página como PNG…", "Export page as PNG…"), "file-export"),
                     )
                     .clicked()
                 {
@@ -2550,17 +2536,15 @@ impl App {
                 if ui
                     .add_enabled(
                         has,
-                        egui::Button::new(crate::keymap::menu(
-                            tr("Fechar", "Close"),
-                            crate::keymap::Command::Close,
-                        )),
+                        crate::keymap::item(ui, tr("Fechar", "Close"),
+                            crate::keymap::Command::Close,),
                     )
                     .clicked()
                 {
                     let i = self.active;
                     self.request(Pending::Close(i), &ctx);
                 }
-                if ui.button(tr("Sair", "Quit")).clicked() {
+                if ui.add(crate::keymap::icon_item(ui, tr("Sair", "Quit"), "doc-close")).clicked() {
                     self.request(Pending::Quit, &ctx);
                 }
             });
@@ -2569,10 +2553,8 @@ impl App {
                 if ui
                     .add_enabled(
                         can_undo,
-                        egui::Button::new(crate::keymap::menu(
-                            tr("Desfazer", "Undo"),
-                            crate::keymap::Command::Undo,
-                        )),
+                        crate::keymap::item(ui, tr("Desfazer", "Undo"),
+                            crate::keymap::Command::Undo,),
                     )
                     .clicked()
                 {
@@ -2581,10 +2563,8 @@ impl App {
                 if ui
                     .add_enabled(
                         can_redo,
-                        egui::Button::new(crate::keymap::menu(
-                            tr("Refazer", "Redo"),
-                            crate::keymap::Command::Redo,
-                        )),
+                        crate::keymap::item(ui, tr("Refazer", "Redo"),
+                            crate::keymap::Command::Redo,),
                     )
                     .clicked()
                 {
@@ -2599,7 +2579,7 @@ impl App {
                     (tr("Colar", "Paste"), Command::Paste, can_paste),
                 ] {
                     if ui
-                        .add_enabled(on, egui::Button::new(keymap::menu(label, cmd)))
+                        .add_enabled(on, crate::keymap::item(ui, label, cmd))
                         .clicked()
                     {
                         self.run_command(cmd, &ctx);
@@ -2609,10 +2589,8 @@ impl App {
                 if ui
                     .add_enabled(
                         has_sel,
-                        egui::Button::new(crate::keymap::menu(
-                            tr("Duplicar", "Duplicate"),
-                            crate::keymap::Command::Duplicate,
-                        )),
+                        crate::keymap::item(ui, tr("Duplicar", "Duplicate"),
+                            crate::keymap::Command::Duplicate,),
                     )
                     .clicked()
                 {
@@ -2622,7 +2600,7 @@ impl App {
                 if ui
                     .add_enabled(
                         has_sel,
-                        egui::Button::new(tr("Excluir  (Del)", "Delete  (Del)")),
+                        crate::keymap::icon_item(ui, tr("Excluir  (Del)", "Delete  (Del)"), "delete"),
                     )
                     .clicked()
                 {
@@ -2631,10 +2609,8 @@ impl App {
                 if ui
                     .add_enabled(
                         has,
-                        egui::Button::new(crate::keymap::menu(
-                            tr("Selecionar tudo", "Select all"),
-                            crate::keymap::Command::SelectAll,
-                        )),
+                        crate::keymap::item(ui, tr("Selecionar tudo", "Select all"),
+                            crate::keymap::Command::SelectAll,),
                     )
                     .clicked()
                 {
@@ -2666,7 +2642,7 @@ impl App {
                     ),
                 ] {
                     if ui
-                        .add_enabled(enabled, egui::Button::new(keymap::menu(label, cmd)))
+                        .add_enabled(enabled, crate::keymap::item(ui, label, cmd))
                         .clicked()
                     {
                         self.run_command(cmd, &ctx);
@@ -2676,10 +2652,8 @@ impl App {
                 if ui
                     .add_enabled(
                         has_sel,
-                        egui::Button::new(keymap::menu(
-                            tr("Copiar no mesmo lugar", "Copy in place"),
-                            Command::PasteInPlace,
-                        )),
+                        crate::keymap::item(ui, tr("Copiar no mesmo lugar", "Copy in place"),
+                            Command::PasteInPlace,),
                     )
                     .clicked()
                 {
@@ -2688,10 +2662,8 @@ impl App {
                 if ui
                     .add_enabled(
                         has,
-                        egui::Button::new(keymap::menu(
-                            tr("Repetir a última ação", "Repeat last action"),
-                            Command::Repeat,
-                        )),
+                        crate::keymap::item(ui, tr("Repetir a última ação", "Repeat last action"),
+                            Command::Repeat,),
                     )
                     .clicked()
                 {
@@ -2703,10 +2675,8 @@ impl App {
                 if ui
                     .add_enabled(
                         has_sel,
-                        egui::Button::new(crate::keymap::menu(
-                            tr("Converter em curvas", "Convert to curves"),
-                            crate::keymap::Command::ToCurves,
-                        )),
+                        crate::keymap::item(ui, tr("Converter em curvas", "Convert to curves"),
+                            crate::keymap::Command::ToCurves,),
                     )
                     .clicked()
                 {
@@ -2718,10 +2688,8 @@ impl App {
                 if ui
                     .add_enabled(
                         has_sel,
-                        egui::Button::new(keymap::menu(
-                            tr("Converter contorno em objeto", "Convert outline to object"),
-                            Command::OutlineToObject,
-                        )),
+                        crate::keymap::item(ui, tr("Converter contorno em objeto", "Convert outline to object"),
+                            Command::OutlineToObject,),
                     )
                     .clicked()
                 {
@@ -2778,7 +2746,7 @@ impl App {
                     ),
                 ] {
                     if ui
-                        .add_enabled(enabled, egui::Button::new(keymap::menu(label, cmd)))
+                        .add_enabled(enabled, crate::keymap::item(ui, label, cmd))
                         .clicked()
                     {
                         self.run_command(cmd, &ctx);
@@ -2836,10 +2804,8 @@ impl App {
                 if ui
                     .add_enabled(
                         has_sel,
-                        egui::Button::new(keymap::menu(
-                            tr("Centralizar na página", "Center on page"),
-                            Command::CenterOnPage,
-                        )),
+                        crate::keymap::item(ui, tr("Centralizar na página", "Center on page"),
+                            Command::CenterOnPage,),
                     )
                     .clicked()
                 {
@@ -2849,10 +2815,8 @@ impl App {
                 if ui
                     .add_enabled(
                         has_sel,
-                        egui::Button::new(crate::keymap::menu(
-                            tr("Agrupar", "Group"),
-                            crate::keymap::Command::Group_,
-                        )),
+                        crate::keymap::item(ui, tr("Agrupar", "Group"),
+                            crate::keymap::Command::Group_,),
                     )
                     .clicked()
                 {
@@ -2861,10 +2825,8 @@ impl App {
                 if ui
                     .add_enabled(
                         has_sel,
-                        egui::Button::new(crate::keymap::menu(
-                            tr("Desagrupar", "Ungroup"),
-                            crate::keymap::Command::Ungroup,
-                        )),
+                        crate::keymap::item(ui, tr("Desagrupar", "Ungroup"),
+                            crate::keymap::Command::Ungroup,),
                     )
                     .clicked()
                 {
@@ -2884,7 +2846,7 @@ impl App {
                     (tr("Simetria", "Symmetry"), Command::Symmetry, true),
                 ] {
                     if ui
-                        .add_enabled(on, egui::Button::new(keymap::menu(label, cmd)))
+                        .add_enabled(on, crate::keymap::item(ui, label, cmd))
                         .clicked()
                     {
                         self.run_command(cmd, &ctx);
@@ -2893,10 +2855,8 @@ impl App {
                 if ui
                     .add_enabled(
                         has_sel,
-                        egui::Button::new(crate::keymap::menu(
-                            tr("Limpar transformações", "Clear transformations"),
-                            crate::keymap::Command::ClearTransformations,
-                        )),
+                        crate::keymap::item(ui, tr("Limpar transformações", "Clear transformations"),
+                            crate::keymap::Command::ClearTransformations,),
                     )
                     .clicked()
                 {
@@ -2905,10 +2865,8 @@ impl App {
                 if ui
                     .add_enabled(
                         has_sel,
-                        egui::Button::new(crate::keymap::menu(
-                            tr("Converter em bitmap…", "Convert to bitmap…"),
-                            crate::keymap::Command::ConvertToBitmap,
-                        )),
+                        crate::keymap::item(ui, tr("Converter em bitmap…", "Convert to bitmap…"),
+                            crate::keymap::Command::ConvertToBitmap,),
                     )
                     .clicked()
                 {
@@ -2946,7 +2904,14 @@ impl App {
                     ),
                     (tr("Inverter ordem", "Reverse order"), Order::Reverse),
                 ] {
-                    if ui.add_enabled(has_sel, egui::Button::new(label)).clicked() {
+                    let icon = match order {
+                        Order::ToFront => "order-front",
+                        Order::Forward => "order-forward",
+                        Order::Backward => "order-backward",
+                        Order::ToBack => "order-back",
+                        _ => "path-reverse",
+                    };
+                    if ui.add_enabled(has_sel, crate::keymap::icon_item(ui, label, icon)).clicked() {
                         self.with_selection(|ed, s| {
                             ops::reorder(ed, s, order);
                             None
@@ -2965,7 +2930,7 @@ impl App {
                     (tr("Sombra de bloco", "Block shadow"), Command::EffectBlock, n >= 1),
                     (tr("Envelope", "Envelope"), Command::EffectEnvelope, n >= 1),
                 ] {
-                    if ui.add_enabled(on, egui::Button::new(keymap::menu(label, cmd))).clicked() {
+                    if ui.add_enabled(on, crate::keymap::item(ui, label, cmd)).clicked() {
                         self.run_command(cmd, &ctx);
                         ui.close();
                     }
@@ -2978,7 +2943,7 @@ impl App {
                 let has_text = !self.text_targets().is_empty();
                 let two = self.doc.as_ref().is_some_and(|d| d.selection.len() == 2);
                 let item = |ui: &mut egui::Ui, label: &str, cmd: Command, on: bool| {
-                    ui.add_enabled(on, egui::Button::new(keymap::menu(label, cmd))).clicked()
+                    ui.add_enabled(on, crate::keymap::item(ui, label, cmd)).clicked()
                 };
                 let mut run = None;
                 if item(ui, tr("Verificar ortografia…", "Check spelling…"), Command::SpellCheck, self.doc.is_some()) {
@@ -3031,19 +2996,15 @@ impl App {
             ui.menu_button(tr("Exibir", "View"), |ui| {
                 theme::menu_density(ui);
                 if ui
-                    .button(crate::keymap::menu(
-                        tr("Ajustar à página", "Fit page"),
-                        crate::keymap::Command::ZoomPage,
-                    ))
+                    .add(crate::keymap::item(ui, tr("Ajustar à página", "Fit page"),
+                        crate::keymap::Command::ZoomPage,))
                     .clicked()
                 {
                     self.canvas.fit_pending = true;
                 }
                 if ui
-                    .button(crate::keymap::menu(
-                        tr("Tamanho real", "Actual size"),
-                        crate::keymap::Command::ActualSize,
-                    ))
+                    .add(crate::keymap::item(ui, tr("Tamanho real", "Actual size"),
+                        crate::keymap::Command::ActualSize,))
                     .clicked()
                 {
                     self.canvas.actual_pending = true;
@@ -3051,13 +3012,13 @@ impl App {
                 if ui
                     .add_enabled(
                         has_sel,
-                        egui::Button::new(tr("Zoom na seleção", "Zoom to selection")),
+                        crate::keymap::icon_item(ui, tr("Zoom na seleção", "Zoom to selection"), "fit-selection"),
                     )
                     .clicked()
                 {
                     self.zoom_selection();
                 }
-                if ui.button(tr("Zoom em tudo", "Zoom to all")).clicked() {
+                if ui.add(crate::keymap::icon_item(ui, tr("Zoom em tudo", "Zoom to all"), "fit-art")).clicked() {
                     self.zoom_all();
                 }
                 ui.separator();
@@ -3097,16 +3058,14 @@ impl App {
                     tr("Modo foco (só a seleção)", "Focus mode (selection only)")
                 };
                 if ui
-                    .add(egui::Button::new(keymap::menu(focus_label, Command::FocusMode)))
+                    .add(crate::keymap::item(ui, focus_label, Command::FocusMode))
                     .clicked()
                 {
                     self.run_command(Command::FocusMode, &ctx);
                 }
                 if ui
-                    .add(egui::Button::new(keymap::menu(
-                        tr("Verificação prévia", "Preflight"),
-                        Command::Preflight,
-                    )))
+                    .add(crate::keymap::item(ui, tr("Verificação prévia", "Preflight"),
+                        Command::Preflight,))
                     .clicked()
                 {
                     self.run_command(Command::Preflight, &ctx);
@@ -3203,7 +3162,7 @@ impl App {
                 if ui
                     .add_enabled(
                         self.doc.is_some(),
-                        egui::Button::new(tr("Remover guias da página", "Remove page guides")),
+                        crate::keymap::icon_item(ui, tr("Remover guias da página", "Remove page guides"), "delete"),
                     )
                     .clicked()
                     && let Some(d) = &mut self.doc
@@ -4394,7 +4353,10 @@ impl App {
                                         ))
                                         .weak()
                                     };
-                                    ui.label(name);
+                                    ui.horizontal(|ui| {
+                                        ui.add(crate::keymap::menu_icon(ui, c.icon()));
+                                        ui.label(name);
+                                    });
                                     let keys: Vec<String> = self
                                         .keys
                                         .bindings
