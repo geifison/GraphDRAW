@@ -308,6 +308,7 @@ mod tests {
             children,
             boolean: None,
             symmetry: None,
+            effect: None,
             extra: Map::new(),
         }));
         g.transform = Transform::translate(x, 0.0);

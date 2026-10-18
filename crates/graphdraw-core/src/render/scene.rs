@@ -410,6 +410,28 @@ impl Builder<'_> {
             ObjectKind::Polygon(p) => Some((polygon_path(p), polygon_fill_rule(p))),
             ObjectKind::Basic(b) => Some((super::basic::path(b), FillRule::Nonzero)),
             ObjectKind::BSpline(b) => Some((super::bspline::path(b), FillRule::Nonzero)),
+            // Efeito dinâmico (doc 10): o resultado gerado.
+            ObjectKind::Group(g) if g.effect.is_some() => {
+                if let Some((w, h, rgba, t, wu, hu)) = crate::edit::effects::shadow_image(g, m) {
+                    self.items.push(Item::Image(ImageItem {
+                        object_id: o.id.clone(),
+                        transform: t * Affine::scale_non_uniform(1.0, 1.0),
+                        width: wu,
+                        height: hu,
+                        image: Arc::new(DecodedImage {
+                            width: w,
+                            height: h,
+                            rgba,
+                            original: None,
+                        }),
+                        opacity: alpha,
+                    }));
+                }
+                for c in crate::edit::effects::expand(g) {
+                    self.object(&c, m, alpha);
+                }
+                None
+            }
             // Booleana não destrutiva: só o resultado aparece.
             ObjectKind::Group(g) if g.boolean.is_some() => {
                 if let Some(mut r) = crate::edit::shapeops::live_object(g, m) {

@@ -6516,6 +6516,7 @@ fn add_generated(doc: &mut DocState, prim: Prim, w: f64, h: f64, m: Affine, defa
         children: Vec::new(),
         boolean: None,
         symmetry: None,
+        effect: None,
         extra: Map::new(),
     }));
     like.fill = defaults.fill.clone();

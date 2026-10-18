@@ -401,6 +401,25 @@
             "properties": {
               "children": { "type": "array", "items": { "$ref": "#/$defs/object" } },
               "boolean": { "enum": ["weld", "trim", "intersect"] },
+              "effect": {
+                "type": "object",
+                "required": ["kind"],
+                "properties": {
+                  "kind": { "enum": ["contour", "blend", "drop-shadow", "block", "envelope"] },
+                  "direction": { "enum": ["outside", "inside"] },
+                  "steps": { "type": "integer", "minimum": 1 },
+                  "distance": { "type": "number" },
+                  "endColor": { "$ref": "#/$defs/color" },
+                  "offset": { "$ref": "#/$defs/point" },
+                  "blur": { "type": "number", "minimum": 0 },
+                  "color": { "$ref": "#/$defs/color" },
+                  "opacity": { "type": "number", "minimum": 0, "maximum": 1 },
+                  "angle": { "type": "number" },
+                  "depth": { "type": "number" },
+                  "frame": { "type": "array", "items": { "type": "number" }, "minItems": 4, "maxItems": 4 },
+                  "points": { "type": "array", "items": { "$ref": "#/$defs/point" }, "minItems": 8, "maxItems": 8 }
+                }
+              },
               "symmetry": {
                 "type": "object",
                 "required": ["kind", "count", "center"],

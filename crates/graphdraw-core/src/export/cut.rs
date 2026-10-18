@@ -107,6 +107,14 @@ fn collect(
         }
         return;
     }
+    if let ObjectKind::Group(g) = &o.kind
+        && g.effect.is_some()
+    {
+        for c in crate::edit::effects::expand(g) {
+            collect(&c, m, layer_is_cut, opts, out);
+        }
+        return;
+    }
     if let ObjectKind::Group(g) = &o.kind {
         let copies = crate::edit::symmetry::copies(g.symmetry.as_ref());
         for t in std::iter::once(Affine::IDENTITY).chain(copies) {

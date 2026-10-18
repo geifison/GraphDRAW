@@ -139,6 +139,7 @@ fn text_to_curves(o: &Object, t: &crate::model::TextData) -> Option<Object> {
         children,
         boolean: None,
         symmetry: None,
+        effect: None,
         extra: Map::new(),
     });
     Some(out)

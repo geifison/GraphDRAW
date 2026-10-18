@@ -79,6 +79,7 @@ pub fn create(
             children: vec![o],
             boolean: None,
             symmetry: None,
+            effect: None,
             extra: Default::default(),
         }));
         let gid = g.id.clone();
@@ -93,6 +94,7 @@ pub fn create(
                 children: Vec::new(),
                 boolean: None,
                 symmetry: None,
+                effect: None,
                 extra: Default::default(),
             })),
             "Simetria",

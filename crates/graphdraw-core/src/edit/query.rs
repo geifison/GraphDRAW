@@ -47,6 +47,10 @@ pub fn bounds(o: &Object, parent: Affine, visual: bool) -> Option<Rect> {
             let o = super::shapeops::live_object(g, m)?;
             return bounds(&o, Affine::IDENTITY, visual);
         }
+        ObjectKind::Group(g) if g.effect.is_some() => super::effects::expand(g)
+            .iter()
+            .filter_map(|c| bounds(c, m, visual))
+            .reduce(|a, b| a.union(b))?,
         ObjectKind::Group(g) => std::iter::once(Affine::IDENTITY)
             .chain(super::symmetry::copies(g.symmetry.as_ref()))
             .flat_map(|t| {
@@ -108,6 +112,9 @@ pub fn hits(o: &Object, parent: Affine, p: Point, tol: f64) -> bool {
     match &o.kind {
         ObjectKind::Group(g) if g.boolean.is_some() => {
             super::shapeops::live_object(g, m).is_some_and(|r| hits(&r, Affine::IDENTITY, p, tol))
+        }
+        ObjectKind::Group(g) if g.effect.is_some() => {
+            super::effects::expand(g).iter().any(|c| hits(c, m, p, tol))
         }
         ObjectKind::Group(g) => std::iter::once(Affine::IDENTITY)
             .chain(super::symmetry::copies(g.symmetry.as_ref()))
@@ -391,6 +398,7 @@ mod tests {
             children: vec![inner.clone(), rect(40.0, 0.0, 10.0, 10.0)],
             boolean: None,
             symmetry: None,
+            effect: None,
             extra: Map::new(),
         }));
         let cover = rect(60.0, 0.0, 10.0, 10.0);
@@ -434,6 +442,7 @@ mod tests {
             children: vec![rect(0.0, 0.0, 1.0, 1.0), rect(5.0, 5.0, 1.0, 1.0)],
             boolean: None,
             symmetry: None,
+            effect: None,
             extra: Map::new(),
         }));
         assert_eq!(
@@ -503,6 +512,7 @@ mod tests {
             children: vec![a, b],
             boolean: None,
             symmetry: None,
+            effect: None,
             extra: Map::new(),
         }));
         g.transform = Transform::translate(50.0, 50.0);

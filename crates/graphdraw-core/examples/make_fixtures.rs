@@ -255,6 +255,7 @@ fn basic_shapes() -> Document {
             children: vec![line, small],
             boolean: None,
             symmetry: None,
+            effect: None,
             extra: Map::new(),
         }),
     );
@@ -727,6 +728,7 @@ fn m1_editing() -> Document {
             children: vec![circle, square],
             boolean: None,
             symmetry: None,
+            effect: None,
             extra: Map::new(),
         }),
     );
@@ -746,6 +748,7 @@ fn m1_editing() -> Document {
             children: vec![base, inner],
             boolean: None,
             symmetry: None,
+            effect: None,
             extra: Map::new(),
         }),
     );
@@ -827,6 +830,148 @@ fn patterns() -> Document {
             Fill::Pattern(Box::new(pat)),
         ));
     }
+    d.data.pages.push(p);
+    d
+}
+
+/// Doc 10: os cinco efeitos dinâmicos — contorno, mistura, sombra
+/// projetada, sombra de bloco e envelope.
+fn effects() -> Document {
+    let mut ids = Ids::new(23);
+    let mut p = page(&mut ids, 297.0 * MM, 210.0 * MM);
+    let mut d = doc_with(vec![], "Efeitos");
+    let cmyk = Color::cmyk;
+    let group = |ids: &mut Ids, children: Vec<Object>, effect: Effect, name: &str| {
+        let mut g = obj(
+            ids,
+            ObjectKind::Group(GroupData {
+                children,
+                boolean: None,
+                symmetry: None,
+                effect: Some(effect),
+                extra: Map::new(),
+            }),
+        );
+        g.name = Some(name.into());
+        g
+    };
+    let star = {
+        let mut o = obj(
+            &mut ids,
+            ObjectKind::Polygon(PolygonData {
+                rx: 25.0 * MM,
+                ry: 25.0 * MM,
+                sides: 5,
+                mode: "star".into(),
+                sharpness: 0.5,
+                extra: Map::new(),
+            }),
+        );
+        o.transform = Transform::translate(50.0 * MM, 155.0 * MM);
+        o.fill = Some(Fill::solid(cmyk(0.0, 0.2, 1.0, 0.0)));
+        o
+    };
+    let g1 = group(
+        &mut ids,
+        vec![star],
+        Effect::Contour {
+            direction: "outside".into(),
+            steps: 4,
+            distance: 3.0 * MM,
+            end_color: Some(cmyk(0.0, 1.0, 0.6, 0.2)),
+        },
+        "Contorno",
+    );
+    p.layers[0].objects.push(g1);
+    let mut circle = obj(
+        &mut ids,
+        ObjectKind::Ellipse(EllipseData {
+            rx: 12.0 * MM,
+            ry: 12.0 * MM,
+            mode: "ellipse".into(),
+            start_angle: 0.0,
+            end_angle: 360.0,
+            extra: Map::new(),
+        }),
+    );
+    circle.transform = Transform::translate(125.0 * MM, 170.0 * MM);
+    circle.fill = Some(Fill::solid(cmyk(1.0, 0.0, 0.0, 0.0)));
+    let square = rect(
+        &mut ids,
+        200.0 * MM,
+        125.0 * MM,
+        35.0 * MM,
+        35.0 * MM,
+        Fill::solid(cmyk(0.0, 1.0, 0.0, 0.0)),
+    );
+    let g2 = group(
+        &mut ids,
+        vec![circle, square],
+        Effect::Blend { steps: 6 },
+        "Mistura",
+    );
+    p.layers[0].objects.push(g2);
+    let card = rect(
+        &mut ids,
+        20.0 * MM,
+        30.0 * MM,
+        60.0 * MM,
+        40.0 * MM,
+        Fill::solid(cmyk(0.0, 0.0, 0.1, 0.0)),
+    );
+    let g3 = group(
+        &mut ids,
+        vec![card],
+        Effect::DropShadow {
+            offset: [3.0 * MM, -3.0 * MM],
+            blur: 4.0 * MM,
+            color: cmyk(0.0, 0.0, 0.0, 1.0),
+            opacity: 0.5,
+        },
+        "Sombra projetada",
+    );
+    p.layers[0].objects.push(g3);
+    let block = rect(
+        &mut ids,
+        110.0 * MM,
+        40.0 * MM,
+        50.0 * MM,
+        30.0 * MM,
+        Fill::solid(cmyk(0.6, 0.0, 0.0, 0.0)),
+    );
+    let g4 = group(
+        &mut ids,
+        vec![block],
+        Effect::Block {
+            angle: -35.0,
+            depth: 15.0 * MM,
+            color: cmyk(0.6, 0.3, 0.0, 0.5),
+        },
+        "Sombra de bloco",
+    );
+    p.layers[0].objects.push(g4);
+    let env = rect(
+        &mut ids,
+        200.0 * MM,
+        30.0 * MM,
+        70.0 * MM,
+        40.0 * MM,
+        Fill::solid(cmyk(0.0, 0.5, 1.0, 0.0)),
+    );
+    let (x0, y0, x1, y1) = (200.0 * MM, 30.0 * MM, 270.0 * MM, 70.0 * MM);
+    let mut pts = graphdraw_core::edit::effects::envelope_points(kurbo::Rect::new(x0, y0, x1, y1));
+    pts[5][1] += 15.0 * MM;
+    pts[1][1] -= 10.0 * MM;
+    let g5 = group(
+        &mut ids,
+        vec![env],
+        Effect::Envelope {
+            frame: [x0, y0, x1, y1],
+            points: pts,
+        },
+        "Envelope",
+    );
+    p.layers[0].objects.push(g5);
     d.data.pages.push(p);
     d
 }
@@ -1279,6 +1424,7 @@ fn live_boolean() -> Document {
                 children: vec![sq, c],
                 boolean: Some((*op).into()),
                 symmetry: None,
+                effect: None,
                 extra: Map::new(),
             }),
         );
@@ -1425,6 +1571,7 @@ fn symmetry() -> Document {
                     center: [cx * MM, 50.0 * MM],
                     angle: 90.0,
                 }),
+                effect: None,
                 extra: Map::new(),
             }),
         );
@@ -1639,6 +1786,7 @@ fn main() {
         ("shapes", shapes()),
         ("strokes", strokes()),
         ("appearance", appearance()),
+        ("effects", effects()),
     ];
     for (name, doc) in &docs {
         let path = dir.join(format!("{name}.gdr"));

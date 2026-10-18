@@ -192,11 +192,59 @@ pub struct GroupData {
     /// filho de baixo, e os filhos continuam editáveis.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub boolean: Option<String>,
+    /// Efeito dinâmico (doc 10): o grupo desenha o resultado gerado.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effect: Option<Effect>,
     /// Simetria ao vivo (GD-FER-33): o grupo desenha também as cópias.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub symmetry: Option<Symmetry>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
+}
+
+/// Efeito dinâmico do grupo (doc 10). Medidas em µm, ângulos em graus.
+/// `contour`: `direction` = `outside`/`inside`, `steps` anéis a cada
+/// `distance`, cor da origem até `endColor`; `blend`: `steps` passos do
+/// primeiro ao segundo filho; `drop-shadow`: `offset`, `blur`, `color`,
+/// `opacity`; `block`: volume na direção `angle` com `depth`;
+/// `envelope`: a caixa `frame` (x0, y0, x1, y1) deformada pelos 8 `points`
+/// (cantos e meios, do canto de baixo à esquerda, sentido anti-horário).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum Effect {
+    #[serde(rename_all = "camelCase")]
+    Contour {
+        #[serde(default = "outside")]
+        direction: String,
+        steps: u32,
+        distance: f64,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        end_color: Option<crate::model::Color>,
+    },
+    Blend {
+        steps: u32,
+    },
+    #[serde(rename_all = "camelCase")]
+    DropShadow {
+        offset: [f64; 2],
+        blur: f64,
+        color: crate::model::Color,
+        #[serde(default = "half")]
+        opacity: f64,
+    },
+    Block {
+        angle: f64,
+        depth: f64,
+        color: crate::model::Color,
+    },
+    Envelope {
+        frame: [f64; 4],
+        points: [[f64; 2]; 8],
+    },
+}
+
+fn outside() -> String {
+    "outside".into()
 }
 
 /// Simetria do grupo (GD-FER-33): `mirror` = `count` eixos de espelho

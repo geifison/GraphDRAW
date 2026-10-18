@@ -8,6 +8,7 @@ pub mod convert;
 pub mod cutting;
 pub mod dimension;
 pub mod drawing;
+pub mod effects;
 pub mod eyedrop;
 pub mod fit;
 pub mod fonts;

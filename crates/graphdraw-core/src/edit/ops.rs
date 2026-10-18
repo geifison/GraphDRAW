@@ -515,6 +515,7 @@ pub fn group(ed: &mut Editor, sel: &[String]) -> Option<String> {
         children,
         boolean: None,
         symmetry: None,
+        effect: None,
         extra: Default::default(),
     }));
     let id = g.id.clone();
@@ -575,7 +576,12 @@ pub fn ungroup(ed: &mut Editor, sel: &[String]) -> Selection {
                 continue;
             };
             let gm = g.transform.affine();
-            let children: Vec<Object> = super::symmetry::baked(&data)
+            let source = if data.effect.is_some() {
+                super::effects::baked(ed, &data, gm)
+            } else {
+                super::symmetry::baked(&data)
+            };
+            let children: Vec<Object> = source
                 .into_iter()
                 .map(|mut ch| {
                     ch.transform = Transform::from_affine(gm * ch.transform.affine());

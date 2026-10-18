@@ -77,6 +77,7 @@ pub fn graph_paper(w: f64, h: f64, cols: u32, rows: u32, like: &Object) -> Objec
         children,
         boolean: None,
         symmetry: None,
+        effect: None,
         extra: Map::new(),
     }));
     g.name = Some(format!("Papel gráfico {cols} × {rows}"));
@@ -151,6 +152,7 @@ mod tests {
                 children: vec![],
                 boolean: None,
                 symmetry: None,
+                effect: None,
                 extra: Map::new(),
             })),
         );

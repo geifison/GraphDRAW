@@ -498,6 +498,7 @@ mod tests {
             children: vec![a, b],
             boolean: None,
             symmetry: None,
+            effect: None,
             extra: serde_json::Map::new(),
         }));
         let g = group.id.clone();
@@ -590,6 +591,7 @@ mod tests {
                 children: vec![],
                 boolean: None,
                 symmetry: None,
+                effect: None,
                 extra: serde_json::Map::new(),
             }))
         );

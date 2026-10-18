@@ -104,6 +104,7 @@ fn drawing_object(doc: &mut DocState, path: &Path) -> Result<Object, String> {
         children,
         boolean: None,
         symmetry: None,
+        effect: None,
         extra: Default::default(),
     }));
     g.name = path.file_name().map(|n| n.to_string_lossy().into_owned());

@@ -210,6 +210,7 @@ impl Mapper<'_> {
                             children,
                             boolean: None,
                             symmetry: None,
+                            effect: None,
                             extra: Map::new(),
                         })));
                     }
@@ -275,6 +276,7 @@ impl Mapper<'_> {
                     children,
                     boolean: None,
                     symmetry: None,
+                    effect: None,
                     extra: Map::new(),
                 })));
         }

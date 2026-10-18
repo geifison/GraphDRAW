@@ -78,6 +78,9 @@ pub fn region(o: &Object, parent: Affine) -> Shapes {
         if g.boolean.is_some() {
             return live_shapes(g, m);
         }
+        if g.effect.is_some() {
+            return union_all(super::effects::expand(g).iter().map(|c| region(c, m)));
+        }
         return union_all(g.children.iter().map(|c| region(c, m)));
     }
     let Some(mut path) = local_outline(o) else {
@@ -972,6 +975,7 @@ mod live_tests {
             children: vec![sq(0.0)],
             boolean: Some("intersect".into()),
             symmetry: None,
+            effect: None,
             extra: Default::default(),
         });
         assert_eq!(Object::from_value(o.to_value()), o);
