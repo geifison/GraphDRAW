@@ -16,6 +16,7 @@ pub fn local_outline(o: &Object) -> Option<BezPath> {
         ObjectKind::Rectangle(r) => rect_path(r),
         ObjectKind::Ellipse(e) => ellipse_path(e),
         ObjectKind::Polygon(p) => crate::render::scene::polygon_path(p),
+        ObjectKind::Spiral(s) => super::generate::spiral_path(s),
         ObjectKind::Image(i) => Rect::new(0.0, 0.0, i.width, i.height).to_path(0.1),
         ObjectKind::Text(t) => {
             let mut all = BezPath::new();

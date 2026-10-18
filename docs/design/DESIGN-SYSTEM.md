@@ -754,6 +754,19 @@ Aba **Verificação** (ícone `preflight`) no painel direito:
       fixados cheios de `accent-primary`);
     - na ferramenta Formato, os pontos da B-spline selecionada são alças:
       arrastar move, duplo clique fixa/solta.
+  - **Formas** (polígono, estrela, estrela complexa, espiral, formas básicas,
+    papel gráfico; doc 03 GD-PRI-03..07): na ferramenta Forma, o polígono
+    mostra todos os vértices (círculos de `node-size`/2,5; isolados cheios de
+    `accent-primary`), a alça da curvatura (círculo `accent-primary` ligado
+    às pontas do primeiro lado por tracejado a 60%) e a alça de lados
+    (retângulo alto à direita da caixa, a `handle-hit` × 2: para cima soma,
+    para baixo tira). Alt + arrastar um vértice o isola; Delete tira um lado.
+    A barra tem lados/pontas, nitidez (1–99%), cantos das Pontas e dos
+    Vales, Preencher cruzamentos (complexa), Lados retos e Voltar à
+    simetria (n); a espiral, voltas, Simétrica | Logarítmica, expansão e
+    Fita (Centro, Borda); o papel gráfico, colunas, linhas e Calha X/Y; as
+    formas básicas, a galeria de miniaturas (balão, 5 por linha, 44 px) e
+    espelhar ao criar.
   - **Medidas** (depois de Texto): Cota e Conector.
   - **Efeitos** (antes da Prancheta; ícones `tool-contour`, `tool-blend`,
     `tool-shadow`, `tool-extrude`, `tool-envelope`): arrastar a partir do

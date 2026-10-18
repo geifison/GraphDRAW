@@ -152,6 +152,7 @@ pub fn object_entries(doc: &DocState, clicked: &str, focus: bool) -> Vec<Entry> 
             ObjectKind::Rectangle(_)
                 | ObjectKind::Ellipse(_)
                 | ObjectKind::Polygon(_)
+                | ObjectKind::Spiral(_)
                 | ObjectKind::Text(_)
         )
     });

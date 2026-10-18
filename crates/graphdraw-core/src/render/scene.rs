@@ -408,6 +408,9 @@ impl Builder<'_> {
             ObjectKind::Rectangle(r) => Some((rect_path(r), FillRule::Nonzero)),
             ObjectKind::Ellipse(e) => Some((ellipse_path(e), FillRule::Nonzero)),
             ObjectKind::Polygon(p) => Some((polygon_path(p), polygon_fill_rule(p))),
+            ObjectKind::Spiral(s) => {
+                Some((crate::edit::generate::spiral_path(s), FillRule::Nonzero))
+            }
             ObjectKind::Basic(b) => Some((super::basic::path(b), FillRule::Nonzero)),
             ObjectKind::BSpline(b) => Some((super::bspline::path(b), FillRule::Nonzero)),
             // Efeito dinâmico (doc 10): o resultado gerado.
@@ -791,27 +794,31 @@ fn resolve_stroke(s: &Stroke, m: Affine, alpha: f64) -> StrokeStyle {
 const KAPPA: f64 = 0.551_915_024_493_510_6;
 
 /// Contorno do polígono/estrela (GD-PRI-03/04).
-pub fn polygon_path(p: &PolygonData) -> BezPath {
+/// Vértices do polígono (espaço local), em ciclos fechados: um ciclo no
+/// polígono e na estrela (externos nos pares, internos nos ímpares); na
+/// estrela complexa, um por linha cruzada. Os nós livres já aplicados.
+pub fn polygon_vertices(p: &PolygonData) -> Vec<Vec<Point>> {
     let n = p.sides.clamp(3, 500) as usize;
     let s = p.sharpness.clamp(0.0, 1.0);
     let at = |i: usize, count: usize, k: f64| {
         let a = std::f64::consts::FRAC_PI_2 + i as f64 * std::f64::consts::TAU / count as f64;
         Point::new(p.rx * k * a.cos(), p.ry * k * a.sin())
     };
-    let mut path = BezPath::new();
+    let free = |i: usize, q: Point| {
+        p.free_nodes
+            .iter()
+            .find(|f| f.index as usize == i)
+            .map_or(q, |f| Point::new(f.at[0], f.at[1]))
+    };
     match p.mode.as_str() {
         "star" => {
             // Raio interno: de quase o externo (s = 0) até 5% dele (s = 1).
             let inner = 1.0 - 0.95 * s;
-            for i in 0..2 * n {
-                let q = at(i, 2 * n, if i % 2 == 0 { 1.0 } else { inner });
-                if i == 0 {
-                    path.move_to(q);
-                } else {
-                    path.line_to(q);
-                }
-            }
-            path.close_path();
+            vec![
+                (0..2 * n)
+                    .map(|i| free(i, at(i, 2 * n, if i % 2 == 0 { 1.0 } else { inner })))
+                    .collect(),
+            ]
         }
         "complex" if n >= 5 => {
             // Estrela {n/k}: cada linha liga um vértice ao k-ésimo seguinte.
@@ -820,27 +827,93 @@ pub fn polygon_path(p: &PolygonData) -> BezPath {
                 .round()
                 .clamp(2.0, max_k as f64) as usize;
             let g = gcd(n, k);
-            for start in 0..g {
-                let mut i = start;
-                path.move_to(at(i, n, 1.0));
-                for _ in 0..n / g - 1 {
-                    i = (i + k) % n;
-                    path.line_to(at(i, n, 1.0));
-                }
-                path.close_path();
-            }
+            (0..g)
+                .map(|start| {
+                    let mut i = start;
+                    let mut ring = vec![free(i, at(i, n, 1.0))];
+                    for _ in 0..n / g - 1 {
+                        i = (i + k) % n;
+                        ring.push(free(i, at(i, n, 1.0)));
+                    }
+                    ring
+                })
+                .collect()
         }
-        _ => {
-            for i in 0..n {
-                let q = at(i, n, 1.0);
-                if i == 0 {
-                    path.move_to(q);
-                } else {
-                    path.line_to(q);
-                }
+        _ => vec![(0..n).map(|i| free(i, at(i, n, 1.0))).collect()],
+    }
+}
+
+/// O vértice `i` do ciclo é vale (interno) da estrela.
+fn is_valley(p: &PolygonData, i: usize) -> bool {
+    p.mode == "star" && i % 2 == 1
+}
+
+pub fn polygon_path(p: &PolygonData) -> BezPath {
+    let mut path = BezPath::new();
+    for ring in polygon_vertices(p) {
+        let m = ring.len();
+        if m < 2 {
+            continue;
+        }
+        if let Some([t, k]) = p.bend {
+            // Lados curvos: o mesmo controle em todos (simetria viva).
+            path.move_to(ring[0]);
+            for i in 0..m {
+                let (a, b) = (ring[i], ring[(i + 1) % m]);
+                let d = b - a;
+                // Sentido anti-horário: a normal para fora é (d.y, −d.x).
+                let c = a + d * t + kurbo::Vec2::new(d.y, -d.x) * k;
+                path.quad_to(c, b);
             }
             path.close_path();
+            continue;
         }
+        let radius = |i: usize| {
+            if is_valley(p, i) {
+                p.corner_inner
+            } else {
+                p.corner_outer
+            }
+            .max(0.0)
+        };
+        if (0..m).all(|i| radius(i) == 0.0) {
+            path.move_to(ring[0]);
+            for q in &ring[1..] {
+                path.line_to(*q);
+            }
+            path.close_path();
+            continue;
+        }
+        // Cantos arredondados: cada vértice vira um arco entre dois pontos
+        // sobre os lados (no máximo metade de cada lado).
+        let corner = |i: usize| -> (Point, Point, Point) {
+            let (prev, cur, next) = (ring[(i + m - 1) % m], ring[i], ring[(i + 1) % m]);
+            let (u, w) = (prev - cur, next - cur);
+            let (lu, lw) = (u.hypot(), w.hypot());
+            if lu < 1e-9 || lw < 1e-9 {
+                return (cur, cur, cur);
+            }
+            let cos = (u.dot(w) / (lu * lw)).clamp(-1.0, 1.0);
+            let half = cos.acos() / 2.0;
+            let d = (radius(i) / half.tan().max(1e-9))
+                .min(lu / 2.0)
+                .min(lw / 2.0);
+            (cur + u / lu * d, cur, cur + w / lw * d)
+        };
+        let (s0, _, _) = corner(0);
+        path.move_to(s0);
+        for i in 0..m {
+            let (a, c, b) = corner(i);
+            if i > 0 {
+                path.line_to(a);
+            }
+            if (a - b).hypot() > 1e-9 {
+                // Arco aproximado por cúbica (controles a 55% do canto).
+                const K: f64 = 0.5523;
+                path.curve_to(a + (c - a) * K, b + (c - b) * K, b);
+            }
+        }
+        path.close_path();
     }
     path
 }
@@ -849,10 +922,66 @@ fn gcd(a: usize, b: usize) -> usize {
     if b == 0 { a } else { gcd(b, a % b) }
 }
 
+#[cfg(test)]
+mod polygon_tests {
+    use super::*;
+
+    fn poly(mode: &str, sides: u32) -> PolygonData {
+        PolygonData {
+            rx: 100.0,
+            ry: 100.0,
+            sides,
+            mode: mode.into(),
+            sharpness: 0.5,
+            bend: None,
+            corner_outer: 0.0,
+            corner_inner: 0.0,
+            fill_crossings: false,
+            free_nodes: Vec::new(),
+            extra: Default::default(),
+        }
+    }
+
+    #[test]
+    fn bend_corners_free_nodes_and_crossings() {
+        use kurbo::Shape;
+        let base = polygon_path(&poly("polygon", 6)).bounding_box();
+        // Curvar para fora aumenta a caixa (os lados de pé saem para os lados).
+        let mut b = poly("polygon", 6);
+        b.bend = Some([0.5, 0.3]);
+        let bb = polygon_path(&b).bounding_box();
+        assert!(bb.width() > base.width() + 10.0, "{bb:?} {base:?}");
+        // Cantos das pontas encolhem a caixa (as pontas viram arcos).
+        let mut c = poly("star", 5);
+        let sharp = polygon_path(&c).bounding_box();
+        c.corner_outer = 20.0;
+        c.corner_inner = 10.0;
+        let round = polygon_path(&c).bounding_box();
+        assert!(round.height() < sharp.height() - 1.0, "{round:?} {sharp:?}");
+        // Nó livre: só ele se move.
+        let mut f = poly("star", 5);
+        f.free_nodes = vec![crate::model::FreeNode {
+            index: 0,
+            at: [0.0, 250.0],
+        }];
+        let v = polygon_vertices(&f);
+        assert_eq!(v[0][0], Point::new(0.0, 250.0));
+        assert!((v[0][2].to_vec2().hypot() - 100.0).abs() < 1e-6);
+        // Estrela complexa: miolo vazado ou preenchido.
+        let mut x = poly("complex", 7);
+        assert_eq!(polygon_fill_rule(&x), FillRule::Evenodd);
+        x.fill_crossings = true;
+        assert_eq!(polygon_fill_rule(&x), FillRule::Nonzero);
+        // Ida e volta no JSON com os campos novos.
+        let o = crate::model::Object::new(crate::model::ObjectKind::Polygon(f));
+        assert_eq!(crate::model::Object::from_value(o.to_value()), o);
+    }
+}
+
 /// Regra de preenchimento do polígono: a estrela complexa usa par-ímpar
-/// (o miolo cruzado fica vazado).
+/// (o miolo cruzado fica vazado), a não ser com `fill_crossings`.
 pub fn polygon_fill_rule(p: &PolygonData) -> FillRule {
-    if p.mode == "complex" {
+    if p.mode == "complex" && !p.fill_crossings {
         FillRule::Evenodd
     } else {
         FillRule::Nonzero

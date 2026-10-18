@@ -507,8 +507,19 @@ pub struct Defaults {
     /// Papel gráfico (GD-PRI-06): colunas e linhas.
     pub grid_cols: u32,
     pub grid_rows: u32,
+    /// Cantos (µm) das pontas e dos vales e o miolo da estrela complexa.
+    pub polygon_corner_outer: f64,
+    pub polygon_corner_inner: f64,
+    pub polygon_fill_crossings: bool,
+    /// Fita da espiral: [largura no centro, largura na borda] (µm).
+    pub spiral_ribbon: Option<[f64; 2]>,
+    /// Calha do papel gráfico (µm, horizontal e vertical).
+    pub grid_gap: [f64; 2],
     /// Forma da família "Formas básicas" (GD-PRI-07).
     pub basic_shape: String,
+    /// Forma básica nova espelhada (horizontal, vertical): seta para a
+    /// esquerda, balão com a ponta do outro lado.
+    pub basic_flip: [bool; 2],
     /// Retângulo e elipse no modo 3 pontos (GD-FER-30/31), cada um o seu.
     pub rect_three: bool,
     pub ellipse_three: bool,
@@ -548,6 +559,12 @@ impl Default for Defaults {
             grid_cols: 4,
             grid_rows: 3,
             basic_shape: "arrow".into(),
+            polygon_corner_outer: 0.0,
+            polygon_corner_inner: 0.0,
+            polygon_fill_crossings: false,
+            spiral_ribbon: None,
+            grid_gap: [0.0, 0.0],
+            basic_flip: [false, false],
             rect_three: false,
             ellipse_three: false,
         }
@@ -754,6 +771,23 @@ enum Drag {
     BezierHandle,
     /// Vértice de polígono/estrela sendo arrastado (GD-PRI-03): o externo
     /// muda tamanho e giro de todas as pontas, o interno a nitidez.
+    /// Curvatura simétrica dos lados do polígono.
+    PolyBend {
+        r: ObjRef,
+        original: Object,
+    },
+    /// Alça de lados: arrastar para cima soma, para baixo tira.
+    PolySides {
+        r: ObjRef,
+        original: Object,
+        y0: f64,
+    },
+    /// Vértice fora da simetria (Alt + arrastar, ou já isolado).
+    PolyFree {
+        index: u32,
+        r: ObjRef,
+        original: Object,
+    },
     PolyVertex {
         inner: bool,
         r: ObjRef,
@@ -1078,6 +1112,14 @@ pub struct CanvasEvents {
 }
 
 impl CanvasState {
+    /// Alça de lados do polígono selecionado: à direita da caixa, na tela.
+    fn poly_sides_handle(&self, doc: &DocState, rect: Rect, ph: f64) -> Option<Pos2> {
+        let (r, ..) = single_polygon(doc)?;
+        let b = ops::object_bounds(&doc.editor, &r, false)?;
+        let p = self.screen(rect, ph, Point::new(b.x1, (b.y0 + b.y1) / 2.0));
+        Some(p + Vec2::new(theme::HANDLE_HIT * 2.0 + theme::HANDLE_SIZE, 0.0))
+    }
+
     /// Ferramenta de efeito: arrastar a partir de um objeto cria o efeito
     /// (ou ajusta o do mesmo tipo); a mistura vai de um objeto a outro; o
     /// envelope arrasta os pontos. Fora dos objetos, seleção por área.
@@ -3726,6 +3768,60 @@ impl CanvasState {
             }
         }
         if let Some((_, _, p, m)) = single_polygon(doc) {
+            // Todos os vértices (isolados cheios), a alça da curvatura e a
+            // de lados.
+            let ring = graphdraw_core::render::scene::polygon_vertices(&p)
+                .into_iter()
+                .next()
+                .unwrap_or_default();
+            for (i, q) in ring.iter().enumerate() {
+                let c = self.screen(rect, ph, m * *q);
+                let free = p.free_nodes.iter().any(|f| f.index as usize == i);
+                let fill = if free {
+                    theme::ACCENT_PRIMARY
+                } else {
+                    theme::HANDLE_FILL
+                };
+                painter.circle(c, theme::NODE_SIZE / 2.5, fill, handle_stroke());
+            }
+            if ring.len() >= 2 {
+                let bh = self.screen(rect, ph, m * polygon_bend_handle(&p));
+                let (a, b) = (
+                    self.screen(rect, ph, m * ring[0]),
+                    self.screen(rect, ph, m * ring[1]),
+                );
+                let dash = EStroke::new(
+                    theme::BORDER_WIDTH,
+                    theme::ACCENT_PRIMARY.gamma_multiply(0.6),
+                );
+                painter.add(egui::Shape::dashed_line(&[a, bh, b], dash, 3.0, 3.0));
+                painter.circle(
+                    bh,
+                    theme::NODE_SIZE / 2.0,
+                    theme::ACCENT_PRIMARY,
+                    handle_stroke(),
+                );
+            }
+            if let Some(h) = self.poly_sides_handle(doc, rect, ph) {
+                let r = Rect::from_center_size(
+                    h,
+                    Vec2::new(theme::HANDLE_SIZE, theme::HANDLE_SIZE * 2.5),
+                );
+                painter.rect_filled(r, theme::RADIUS_XS, theme::HANDLE_FILL);
+                painter.rect_stroke(
+                    r,
+                    theme::RADIUS_XS,
+                    handle_stroke(),
+                    egui::StrokeKind::Middle,
+                );
+                painter.line_segment(
+                    [
+                        r.center_top() + Vec2::new(0.0, 3.0),
+                        r.center_bottom() - Vec2::new(0.0, 3.0),
+                    ],
+                    thin(),
+                );
+            }
             for (_, q) in polygon_handles(&p) {
                 let c = self.screen(rect, ph, m * q);
                 let r = Rect::from_center_size(c, Vec2::splat(theme::HANDLE_SIZE));
@@ -5373,6 +5469,44 @@ impl CanvasState {
         }
         // Polígono: arrastar um vértice repete a mudança em todas as pontas.
         if let Some((r, o, pd, m)) = single_polygon(doc) {
+            let near =
+                |q: Point| (self.screen(rect, ph, m * q) - origin).length() <= theme::HANDLE_HIT;
+            let ring = graphdraw_core::render::scene::polygon_vertices(&pd)
+                .into_iter()
+                .next()
+                .unwrap_or_default();
+            let free_ok = pd.mode != "complex";
+            // Vértice já isolado, ou Alt + arrastar: só ele se move.
+            if free_ok
+                && let Some(index) = ring.iter().position(|q| near(*q))
+                && (mods.alt || pd.free_nodes.iter().any(|f| f.index as usize == index))
+            {
+                doc.editor
+                    .begin(tr("Isolar nó da simetria", "Isolate node from symmetry"));
+                self.drag = Drag::PolyFree {
+                    index: index as u32,
+                    r,
+                    original: o,
+                };
+                return;
+            }
+            if near(polygon_bend_handle(&pd)) {
+                doc.editor.begin(tr("Curvar lados", "Bend sides"));
+                self.drag = Drag::PolyBend { r, original: o };
+                return;
+            }
+            if self
+                .poly_sides_handle(doc, rect, ph)
+                .is_some_and(|h| (h - origin).length() <= theme::HANDLE_HIT)
+            {
+                doc.editor.begin(tr("Lados", "Sides"));
+                self.drag = Drag::PolySides {
+                    r,
+                    original: o,
+                    y0: p.y,
+                };
+                return;
+            }
             if let Some((inner, _)) = polygon_handles(&pd).into_iter().find(|(_, q)| {
                 (self.screen(rect, ph, m * *q) - origin).length() <= theme::HANDLE_HIT
             }) {
@@ -5942,6 +6076,58 @@ impl CanvasState {
                 }
                 doc.editor.replace_at(r, o);
             }
+            Drag::PolyBend { r, original } => {
+                if let ObjectKind::Polygon(p0) = &original.kind {
+                    let m = doc.editor.parent_affine(r) * original.transform.affine();
+                    let q = m.inverse() * cur;
+                    let ring = graphdraw_core::render::scene::polygon_vertices(p0)
+                        .into_iter()
+                        .next()
+                        .unwrap_or_default();
+                    if ring.len() >= 2 {
+                        let (a, b) = (ring[0], ring[1]);
+                        let d = b - a;
+                        let l2 = d.hypot2().max(1e-9);
+                        let v = q - a;
+                        let t = (v.dot(d) / l2).clamp(0.0, 1.0);
+                        let k = v.dot(kurbo::Vec2::new(d.y, -d.x)) / l2;
+                        let mut o = original.clone();
+                        if let ObjectKind::Polygon(p) = &mut o.kind {
+                            // Perto da reta, volta a ser reta.
+                            p.bend = (k.abs() > 0.01 || (t - 0.5).abs() > 0.05).then_some([t, k]);
+                        }
+                        doc.editor.replace_at(r, o);
+                    }
+                }
+            }
+            Drag::PolySides { r, original, y0 } => {
+                if let ObjectKind::Polygon(p0) = &original.kind {
+                    let px = (cur.y - *y0) * self.view.zoom;
+                    let min = if p0.mode == "complex" { 5 } else { 3 };
+                    let n = (p0.sides as i64 + (px / 12.0).round() as i64).clamp(min, 500) as u32;
+                    let mut o = original.clone();
+                    if let ObjectKind::Polygon(p) = &mut o.kind {
+                        p.sides = n;
+                        let count = if p.mode == "star" { 2 * n } else { n };
+                        p.free_nodes.retain(|f| f.index < count);
+                    }
+                    doc.editor.replace_at(r, o);
+                }
+            }
+            Drag::PolyFree { index, r, original } => {
+                let m = doc.editor.parent_affine(r) * original.transform.affine();
+                let q = m.inverse() * cur;
+                let mut o = original.clone();
+                if let ObjectKind::Polygon(p) = &mut o.kind {
+                    p.free_nodes.retain(|f| f.index != *index);
+                    p.free_nodes.push(graphdraw_core::model::FreeNode {
+                        index: *index,
+                        at: [q.x, q.y],
+                    });
+                    p.free_nodes.sort_by_key(|f| f.index);
+                }
+                doc.editor.replace_at(r, o);
+            }
             Drag::PolyVertex { inner, r, original } => {
                 if let ObjectKind::Polygon(p0) = &original.kind {
                     let m = doc.editor.parent_affine(r) * original.transform.affine();
@@ -6170,6 +6356,9 @@ impl CanvasState {
             | Drag::NodeHandle { .. }
             | Drag::Segment { .. }
             | Drag::PolyVertex { .. }
+            | Drag::PolyBend { .. }
+            | Drag::PolySides { .. }
+            | Drag::PolyFree { .. }
             | Drag::BasicHandle { .. }
             | Drag::BSplinePoint { .. }
             | Drag::WidthNode { .. }
@@ -6798,6 +6987,11 @@ fn _defaults_view(p: &(u32, String, f64)) -> graphdraw_core::model::PolygonData 
         sides: p.0,
         mode: p.1.clone(),
         sharpness: p.2,
+        bend: None,
+        corner_outer: 0.0,
+        corner_inner: 0.0,
+        fill_crossings: false,
+        free_nodes: Vec::new(),
         extra: Map::new(),
     }
 }
@@ -6876,6 +7070,11 @@ fn add_shape(doc: &mut DocState, prim: Prim, w: f64, h: f64, m: Affine, defaults
             sides: defaults.polygon_sides,
             mode: defaults.polygon_mode.clone(),
             sharpness: defaults.polygon_sharpness,
+            bend: None,
+            corner_outer: defaults.polygon_corner_outer,
+            corner_inner: defaults.polygon_corner_inner,
+            fill_crossings: defaults.polygon_fill_crossings,
+            free_nodes: Vec::new(),
             extra: Map::new(),
         }),
         Prim::Basic => ObjectKind::Basic(basic_data(&defaults.basic_shape, w, h)),
@@ -6892,6 +7091,18 @@ fn add_shape(doc: &mut DocState, prim: Prim, w: f64, h: f64, m: Affine, defaults
         m
     } else {
         m * Affine::translate((w / 2.0, h / 2.0))
+    };
+    // Forma básica espelhada no próprio quadro.
+    let m = match (prim, defaults.basic_flip) {
+        (Prim::Basic, [fh, fv]) if fh || fv => {
+            m * Affine::translate((w / 2.0, h / 2.0))
+                * Affine::scale_non_uniform(
+                    if fh { -1.0 } else { 1.0 },
+                    if fv { -1.0 } else { 1.0 },
+                )
+                * Affine::translate((-w / 2.0, -h / 2.0))
+        }
+        _ => m,
     };
     let c = m.as_coeffs();
     o.transform = if c[0] == 1.0 && c[1] == 0.0 && c[2] == 0.0 && c[3] == 1.0 {
@@ -6939,13 +7150,22 @@ fn add_generated(doc: &mut DocState, prim: Prim, w: f64, h: f64, m: Affine, defa
     like.stroke = defaults.stroke.clone();
     let (mut o, name) = match prim {
         Prim::Spiral => {
-            let mut o = Object::new(ObjectKind::Path(generate::spiral(
-                w,
-                h,
-                defaults.spiral_turns,
-                defaults.spiral_log,
-                defaults.spiral_expansion,
-            )));
+            let mut o = Object::new(ObjectKind::Spiral(graphdraw_core::model::SpiralData {
+                width: w,
+                height: h,
+                turns: defaults.spiral_turns,
+                logarithmic: defaults.spiral_log,
+                expansion: defaults.spiral_expansion,
+                ribbon: defaults.spiral_ribbon,
+                extra: Map::new(),
+            }));
+            if defaults.spiral_ribbon.is_some() {
+                // Fita fechada: preenchida, pronta para corte.
+                o.fill = defaults
+                    .fill
+                    .clone()
+                    .or_else(|| Some(Fill::solid(graphdraw_core::model::Color::black())));
+            }
             // Caminho aberto: contorno, sem preenchimento.
             o.stroke = defaults.stroke.clone().or_else(|| {
                 Some(graphdraw_core::model::Stroke::new(
@@ -6956,7 +7176,14 @@ fn add_generated(doc: &mut DocState, prim: Prim, w: f64, h: f64, m: Affine, defa
             (o, tr("Criar espiral", "Create spiral"))
         }
         _ => (
-            generate::graph_paper(w, h, defaults.grid_cols, defaults.grid_rows, &like),
+            generate::graph_paper(
+                w,
+                h,
+                defaults.grid_cols,
+                defaults.grid_rows,
+                defaults.grid_gap,
+                &like,
+            ),
             tr("Criar papel gráfico", "Create graph paper"),
         ),
     };
@@ -7171,6 +7398,22 @@ fn single_polygon(
     };
     let m = doc.editor.parent_affine(&r) * o.transform.affine();
     Some((r, o.clone(), p.clone(), m))
+}
+
+/// Alça da curvatura (espaço local): o controle do primeiro lado; reta =
+/// o meio do lado.
+fn polygon_bend_handle(p: &graphdraw_core::model::PolygonData) -> Point {
+    let ring = graphdraw_core::render::scene::polygon_vertices(p)
+        .into_iter()
+        .next()
+        .unwrap_or_default();
+    if ring.len() < 2 {
+        return Point::ORIGIN;
+    }
+    let (a, b) = (ring[0], ring[1]);
+    let d = b - a;
+    let [t, k] = p.bend.unwrap_or([0.5, 0.0]);
+    a + d * t + kurbo::Vec2::new(d.y, -d.x) * k
 }
 
 /// Alças do polígono no espaço local: o primeiro vértice externo e, nas
@@ -7433,6 +7676,136 @@ mod tests {
     /// (GD-PAG-01), num passo do histórico.
     /// GD-PRI-03: na ferramenta Forma, arrastar o vértice interno da estrela
     /// muda a nitidez de todas as pontas; o externo, o tamanho de todas.
+    /// GD-PRI-03 na ferramenta Forma: a alça da curvatura curva todos os
+    /// lados; a alça de lados soma lados; Alt + arrastar isola um vértice.
+    #[test]
+    fn polygon_bend_sides_and_free_node() {
+        let (ctx, mut cs, mut doc, _id, rect, ph) = bdr_setup();
+        let mut o = Object::new(ObjectKind::Polygon(graphdraw_core::model::PolygonData {
+            rx: 20_000.0,
+            ry: 20_000.0,
+            sides: 6,
+            mode: "star".into(),
+            sharpness: 0.5,
+            bend: None,
+            corner_outer: 0.0,
+            corner_inner: 0.0,
+            fill_crossings: false,
+            free_nodes: Vec::new(),
+            extra: Map::new(),
+        }));
+        o.transform = graphdraw_core::model::Transform::translate(120_000.0, 150_000.0);
+        let id = ops::add_object(&mut doc.editor, 0, 0, o, "p");
+        doc.selection = vec![id.clone()];
+        let s = Tool::Shape;
+        let pd =
+            |doc: &DocState| match &doc.editor.get(&doc.editor.find(&id).unwrap()).unwrap().kind {
+                ObjectKind::Polygon(p) => p.clone(),
+                _ => panic!(),
+            };
+        let m = Affine::translate((120_000.0, 150_000.0));
+        let drag =
+            |cs: &mut CanvasState, doc: &mut DocState, a: Pos2, b: Pos2, mods: egui::Modifiers| {
+                let m = egui::Event::ModifiersChanged(mods);
+                canvas_frame(
+                    &ctx,
+                    cs,
+                    doc,
+                    s,
+                    vec![m.clone(), egui::Event::PointerMoved(a)],
+                );
+                canvas_frame(
+                    &ctx,
+                    cs,
+                    doc,
+                    s,
+                    vec![
+                        m.clone(),
+                        egui::Event::PointerButton {
+                            pos: a,
+                            button: PointerButton::Primary,
+                            pressed: true,
+                            modifiers: mods,
+                        },
+                    ],
+                );
+                for k in 1..=4 {
+                    canvas_frame(
+                        &ctx,
+                        cs,
+                        doc,
+                        s,
+                        vec![
+                            m.clone(),
+                            egui::Event::PointerMoved(a + (b - a) * (k as f32 / 4.0)),
+                        ],
+                    );
+                }
+                canvas_frame(
+                    &ctx,
+                    cs,
+                    doc,
+                    s,
+                    vec![
+                        m.clone(),
+                        egui::Event::PointerButton {
+                            pos: b,
+                            button: PointerButton::Primary,
+                            pressed: false,
+                            modifiers: mods,
+                        },
+                    ],
+                );
+                canvas_frame(
+                    &ctx,
+                    cs,
+                    doc,
+                    s,
+                    vec![egui::Event::ModifiersChanged(egui::Modifiers::NONE)],
+                );
+            };
+        // Curvatura: puxa o controle do primeiro lado para fora.
+        let h = cs.screen(rect, ph, m * polygon_bend_handle(&pd(&doc)));
+        drag(
+            &mut cs,
+            &mut doc,
+            h,
+            h + Vec2::new(-30.0, -30.0),
+            egui::Modifiers::NONE,
+        );
+        assert!(pd(&doc).bend.is_some(), "lados curvos");
+        // Lados: arrastar a alça para cima soma.
+        let sh = cs.poly_sides_handle(&doc, rect, ph).unwrap();
+        drag(
+            &mut cs,
+            &mut doc,
+            sh,
+            sh + Vec2::new(0.0, -60.0),
+            egui::Modifiers::NONE,
+        );
+        assert!(pd(&doc).sides > 6, "{}", pd(&doc).sides);
+        // Nó isolado: Alt + arrastar o vértice de cima.
+        let top = graphdraw_core::render::scene::polygon_vertices(&pd(&doc))[0][0];
+        let a = cs.screen(rect, ph, m * top);
+        drag(
+            &mut cs,
+            &mut doc,
+            a,
+            a + Vec2::new(0.0, -40.0),
+            egui::Modifiers::ALT,
+        );
+        let p = pd(&doc);
+        assert_eq!(p.free_nodes.len(), 1);
+        assert!(
+            p.free_nodes[0].at[1] > top.y + 1_000.0,
+            "{:?}",
+            p.free_nodes
+        );
+        // Os outros seguem: o segundo vértice externo continua no raio.
+        let v = graphdraw_core::render::scene::polygon_vertices(&p)[0][2];
+        assert!(((v.x.hypot(v.y)) - p.rx).abs() < 1.0);
+    }
+
     #[test]
     fn polygon_vertex_edit_is_symmetric() {
         let ctx = crate::theme::test_ctx();
@@ -7445,6 +7818,11 @@ mod tests {
             sides: 5,
             mode: "star".into(),
             sharpness: 0.5,
+            bend: None,
+            corner_outer: 0.0,
+            corner_inner: 0.0,
+            fill_crossings: false,
+            free_nodes: Vec::new(),
             extra: Map::new(),
         }));
         o.transform = graphdraw_core::model::Transform::translate(100_000.0, 150_000.0);
@@ -7867,10 +8245,27 @@ mod tests {
             &d,
         );
         let o = doc.page().layers[0].objects.last().unwrap().clone();
-        let ObjectKind::Path(p) = &o.kind else {
-            panic!("espiral é caminho")
+        let ObjectKind::Spiral(sp) = &o.kind else {
+            panic!("espiral viva")
         };
-        assert!(!p.subpaths[0].closed && o.stroke.is_some() && o.fill.is_none());
+        assert!(sp.ribbon.is_none() && o.stroke.is_some() && o.fill.is_none());
+        // Com a fita: fechada e preenchida.
+        d.spiral_ribbon = Some([500.0, 3_000.0]);
+        add_shape(
+            &mut doc,
+            Prim::Spiral,
+            40_000.0,
+            40_000.0,
+            Affine::IDENTITY,
+            &d,
+        );
+        let o = doc.page().layers[0].objects.last().unwrap().clone();
+        assert!(matches!(&o.kind, ObjectKind::Spiral(s) if s.ribbon.is_some()) && o.fill.is_some());
+        let conv = graphdraw_core::edit::convert::to_curves(&o).expect("vira curvas");
+        let ObjectKind::Path(p) = &conv.kind else {
+            panic!()
+        };
+        assert!(p.subpaths.iter().all(|s| s.closed), "fita fechada");
         d.shape_family = "graph".into();
         d.grid_cols = 3;
         d.grid_rows = 2;

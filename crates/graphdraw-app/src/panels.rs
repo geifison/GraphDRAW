@@ -459,15 +459,26 @@ impl App {
                         "basic" => basic_controls(ui, defaults),
                         "graph" => graph_controls(ui, defaults),
                         _ => {
-                            if let Some((n, m, k)) = polygon_controls(
-                                ui,
-                                defaults.polygon_sides,
-                                &defaults.polygon_mode,
-                                defaults.polygon_sharpness,
-                            ) {
-                                defaults.polygon_sides = n;
-                                defaults.polygon_mode = m;
-                                defaults.polygon_sharpness = k;
+                            let mut p = graphdraw_core::model::PolygonData {
+                                rx: 1.0,
+                                ry: 1.0,
+                                sides: defaults.polygon_sides,
+                                mode: defaults.polygon_mode.clone(),
+                                sharpness: defaults.polygon_sharpness,
+                                bend: None,
+                                corner_outer: defaults.polygon_corner_outer,
+                                corner_inner: defaults.polygon_corner_inner,
+                                fill_crossings: defaults.polygon_fill_crossings,
+                                free_nodes: Vec::new(),
+                                extra: Default::default(),
+                            };
+                            if polygon_controls(ui, &mut p) {
+                                defaults.polygon_sides = p.sides;
+                                defaults.polygon_mode = p.mode;
+                                defaults.polygon_sharpness = p.sharpness;
+                                defaults.polygon_corner_outer = p.corner_outer;
+                                defaults.polygon_corner_inner = p.corner_inner;
+                                defaults.polygon_fill_crossings = p.fill_crossings;
                             }
                         }
                     }
@@ -1268,14 +1279,102 @@ pub(crate) fn basic_label(s: &str) -> &'static str {
 }
 
 /// Escolha da forma básica (GD-PRI-07); ajuste pelas alças na ferramenta Forma.
-fn basic_controls(ui: &mut egui::Ui, d: &mut crate::canvas::Defaults) {
-    egui::ComboBox::from_id_salt("forma-basica")
-        .selected_text(basic_label(&d.basic_shape))
-        .show_ui(ui, |ui| {
-            for s in graphdraw_core::render::basic::SHAPES {
-                ui.selectable_value(&mut d.basic_shape, s.to_string(), basic_label(s));
+/// Miniatura da forma básica (galeria): o desenho no tamanho `size`.
+fn basic_thumb(ui: &mut egui::Ui, shape: &str, size: f32, selected: bool) -> egui::Response {
+    let (rect, resp) = ui.allocate_exact_size(Vec2::splat(size), egui::Sense::click());
+    let pal = theme::palette(ui);
+    if selected || resp.hovered() {
+        let bg = if selected {
+            pal.bg_surface_active
+        } else {
+            pal.bg_surface_hover
+        };
+        ui.painter().rect_filled(rect, theme::RADIUS_SM, bg);
+    }
+    let d = crate::canvas::basic_data(shape, 100.0, 80.0);
+    let path = graphdraw_core::render::basic::path(&d);
+    let inner = rect.shrink(theme::SPACE_100);
+    let k = (inner.width() / 100.0).min(inner.height() / 80.0);
+    let off = inner.center() - egui::vec2(50.0 * k, 40.0 * k);
+    let mut pts: Vec<egui::Pos2> = Vec::new();
+    let stroke = egui::Stroke::new(1.2, pal.fg_primary);
+    let flush = |pts: &mut Vec<egui::Pos2>| {
+        if pts.len() > 1 {
+            ui.painter()
+                .add(egui::Shape::line(std::mem::take(pts), stroke));
+        }
+        pts.clear();
+    };
+    kurbo::flatten(&path, 0.5, |el| match el {
+        kurbo::PathEl::MoveTo(p) => {
+            flush(&mut pts);
+            pts.push(off + egui::vec2(p.x as f32 * k, (80.0 - p.y as f32) * k));
+        }
+        kurbo::PathEl::LineTo(p) => {
+            pts.push(off + egui::vec2(p.x as f32 * k, (80.0 - p.y as f32) * k))
+        }
+        kurbo::PathEl::ClosePath => {
+            if let Some(f) = pts.first().copied() {
+                pts.push(f);
             }
+        }
+        _ => {}
+    });
+    flush(&mut pts);
+    resp.on_hover_text(basic_label(shape))
+}
+
+fn basic_controls(ui: &mut egui::Ui, d: &mut crate::canvas::Defaults) {
+    // Galeria: miniaturas de todas as formas, num balão.
+    let r = ui.horizontal(|ui| {
+        basic_thumb(ui, &d.basic_shape.clone(), theme::BUTTON_COMPACT, true);
+        ui.label(basic_label(&d.basic_shape));
+    });
+    let pid = ui.make_persistent_id("galeria-formas");
+    let open = r.response.interact(egui::Sense::click());
+    if open.clicked() {
+        egui::Popup::toggle_id(ui.ctx(), pid);
+    }
+    egui::Popup::menu(&open)
+        .id(pid)
+        .close_behavior(egui::PopupCloseBehavior::CloseOnClick)
+        .show(|ui| {
+            egui::Grid::new("galeria-formas-grade")
+                .spacing(egui::vec2(theme::SPACE_100, theme::SPACE_100))
+                .show(ui, |ui| {
+                    for (i, s) in graphdraw_core::render::basic::SHAPES.iter().enumerate() {
+                        if basic_thumb(ui, s, 44.0, d.basic_shape == *s).clicked() {
+                            d.basic_shape = s.to_string();
+                        }
+                        if i % 5 == 4 {
+                            ui.end_row();
+                        }
+                    }
+                });
         });
+    ui.separator();
+    for (i, icon, tip) in [
+        (
+            0,
+            "mirror-h",
+            tr(
+                "Espelhar na horizontal ao criar (seta para o outro lado)",
+                "Mirror horizontally when drawing (arrow the other way)",
+            ),
+        ),
+        (
+            1,
+            "mirror-v",
+            tr(
+                "Espelhar na vertical ao criar (balão com a ponta em cima)",
+                "Mirror vertically when drawing (balloon tail on top)",
+            ),
+        ),
+    ] {
+        if icons::button(ui, icon, tip, d.basic_flip[i], true).clicked() {
+            d.basic_flip[i] = !d.basic_flip[i];
+        }
+    }
     ui.separator();
     widgets::hint_line(
         ui,
@@ -1287,36 +1386,13 @@ fn basic_controls(ui: &mut egui::Ui, d: &mut crate::canvas::Defaults) {
 }
 
 fn spiral_controls(ui: &mut egui::Ui, d: &mut crate::canvas::Defaults) {
-    widgets::stack(ui, |ui, row| {
-        if row == 0 {
-            ui.label(tr("Voltas", "Turns"));
-            ui.add(
-                egui::DragValue::new(&mut d.spiral_turns)
-                    .range(0.25..=100.0)
-                    .speed(0.05),
-            );
-        } else {
-            ui.selectable_value(&mut d.spiral_log, false, tr("Simétrica", "Symmetric"));
-            ui.selectable_value(&mut d.spiral_log, true, tr("Logarítmica", "Logarithmic"));
-            if d.spiral_log {
-                let mut pct = ((d.spiral_expansion - 1.0) * 100.0).round();
-                if ui
-                    .add(
-                        egui::DragValue::new(&mut pct)
-                            .range(1.0..=900.0)
-                            .suffix("%"),
-                    )
-                    .on_hover_text(tr(
-                        "Quanto o raio cresce a cada volta",
-                        "How much the radius grows per turn",
-                    ))
-                    .changed()
-                {
-                    d.spiral_expansion = 1.0 + pct / 100.0;
-                }
-            }
-        }
-    });
+    spiral_params(
+        ui,
+        &mut d.spiral_turns,
+        &mut d.spiral_log,
+        &mut d.spiral_expansion,
+        &mut d.spiral_ribbon,
+    );
 }
 
 /// Papel gráfico (GD-PRI-06): colunas × linhas.
@@ -1338,16 +1414,23 @@ fn graph_controls(ui: &mut egui::Ui, d: &mut crate::canvas::Defaults) {
             );
         }
     });
+    ui.separator();
+    ui.label(tr("Calha", "Gutter")).on_hover_text(tr(
+        "Espaço entre as células: etiquetas, crachás e módulos separados para corte",
+        "Space between cells: labels, badges and modules separated for cutting",
+    ));
+    if let Some(v) = widgets::labeled_length(ui, "X", "grade-calha-x", d.grid_gap[0], None) {
+        d.grid_gap[0] = v.max(0.0);
+    }
+    if let Some(v) = widgets::labeled_length(ui, "Y", "grade-calha-y", d.grid_gap[1], None) {
+        d.grid_gap[1] = v.max(0.0);
+    }
 }
 
-pub fn polygon_controls(
-    ui: &mut egui::Ui,
-    sides: u32,
-    mode: &str,
-    sharpness: f64,
-) -> Option<(u32, String, f64)> {
-    let mut out = None;
-    let (mut n, mut m, mut k) = (sides, mode.to_string(), sharpness);
+/// Polígono e estrelas (GD-PRI-03/04): modo, lados, nitidez, cantos das
+/// pontas e dos vales e o miolo da estrela complexa. Devolve se mudou.
+pub fn polygon_controls(ui: &mut egui::Ui, p: &mut graphdraw_core::model::PolygonData) -> bool {
+    let before = p.clone();
     widgets::stack(ui, |ui, row| {
         if row == 0 {
             for (key, icon, tip) in [
@@ -1362,46 +1445,143 @@ pub fn polygon_controls(
                     ),
                 ),
             ] {
-                if icons::button(ui, icon, tip, m == key, true).clicked() && m != key {
-                    m = key.to_string();
-                    out = Some(());
+                if icons::button(ui, icon, tip, p.mode == key, true).clicked() {
+                    p.mode = key.to_string();
                 }
             }
         } else {
-            let label = if m == "polygon" {
+            ui.label(if p.mode == "polygon" {
                 tr("Lados", "Sides")
             } else {
                 tr("Pontas", "Points")
-            };
-            ui.label(label);
-            let min = if m == "complex" { 5 } else { 3 };
-            if ui
-                .add(egui::DragValue::new(&mut n).range(min..=500).speed(0.1))
-                .changed()
-            {
-                out = Some(());
-            }
-            if m != "polygon" {
+            });
+            let min = if p.mode == "complex" { 5 } else { 3 };
+            ui.add(
+                egui::DragValue::new(&mut p.sides)
+                    .range(min..=500)
+                    .speed(0.1),
+            );
+            if p.mode != "polygon" {
                 ui.label(tr("Nitidez", "Sharpness"));
-                let mut pct = (k * 100.0).round();
+                let mut pct = (p.sharpness * 100.0).round().clamp(1.0, 99.0);
                 if ui
-                    .add(
-                        egui::DragValue::new(&mut pct)
-                            .range(0.0..=100.0)
-                            .suffix("%"),
-                    )
+                    .add(egui::DragValue::new(&mut pct).range(1.0..=99.0).suffix("%"))
+                    .on_hover_text(tr(
+                        "Alta = pontas agulhadas; baixa = quase um polígono",
+                        "High = needle points; low = almost a polygon",
+                    ))
                     .changed()
                 {
-                    k = pct / 100.0;
-                    out = Some(());
+                    p.sharpness = pct / 100.0;
                 }
             }
         }
     });
-    if m == "complex" {
-        n = n.max(5);
+    if p.mode == "complex" {
+        p.sides = p.sides.max(5);
+        ui.checkbox(
+            &mut p.fill_crossings,
+            tr("Preencher cruzamentos", "Fill crossings"),
+        )
+        .on_hover_text(tr(
+            "Desligado: o miolo cruzado fica vazado; ligado: as áreas cruzadas se preenchem",
+            "Off: the crossed middle is hollow; on: crossed areas are filled",
+        ));
+    } else {
+        ui.add_enabled_ui(p.bend.is_none(), |ui| {
+            let tip = tr(
+                "Com os lados curvos, os cantos não se aplicam",
+                "With curved sides, corners do not apply",
+            );
+            if let Some(v) = widgets::labeled_length(
+                ui,
+                tr("Pontas", "Tips"),
+                "poli-canto-ext",
+                p.corner_outer,
+                None,
+            ) {
+                p.corner_outer = v.max(0.0);
+            }
+            if p.mode == "star"
+                && let Some(v) = widgets::labeled_length(
+                    ui,
+                    tr("Vales", "Valleys"),
+                    "poli-canto-int",
+                    p.corner_inner,
+                    None,
+                )
+            {
+                p.corner_inner = v.max(0.0);
+            }
+            ui.label("").on_disabled_hover_text(tip);
+        });
     }
-    out.map(|_| (n, m, k))
+    *p != before
+}
+
+/// Espiral (GD-PRI-05): voltas, modelo, expansão e a fita. Devolve se mudou.
+fn spiral_params(
+    ui: &mut egui::Ui,
+    turns: &mut f64,
+    log: &mut bool,
+    expansion: &mut f64,
+    ribbon: &mut Option<[f64; 2]>,
+) -> bool {
+    let before = (*turns, *log, *expansion, *ribbon);
+    ui.label(tr("Voltas", "Turns"));
+    ui.add(egui::DragValue::new(turns).range(0.25..=100.0).speed(0.05));
+    ui.selectable_value(log, false, tr("Simétrica", "Symmetric"))
+        .on_hover_text(tr(
+            "Espaço igual entre as voltas (Arquimedes)",
+            "Equal spacing between turns (Archimedes)",
+        ));
+    ui.selectable_value(log, true, tr("Logarítmica", "Logarithmic"))
+        .on_hover_text(tr(
+            "O espaço cresce a cada volta (concha, galáxia)",
+            "Spacing grows every turn (shell, galaxy)",
+        ));
+    if *log {
+        let mut pct = ((*expansion - 1.0) * 100.0).round();
+        if ui
+            .add(
+                egui::DragValue::new(&mut pct)
+                    .range(1.0..=900.0)
+                    .suffix("%"),
+            )
+            .on_hover_text(tr(
+                "Quanto o raio cresce a cada volta",
+                "How much the radius grows per turn",
+            ))
+            .changed()
+        {
+            *expansion = 1.0 + pct / 100.0;
+        }
+    }
+    ui.separator();
+    let mut on = ribbon.is_some();
+    if ui
+        .checkbox(&mut on, tr("Fita", "Ribbon"))
+        .on_hover_text(tr(
+            "Contorno fechado de largura variável, pronto para vinil e fresa",
+            "Closed outline of varying width, ready for vinyl and router",
+        ))
+        .changed()
+    {
+        *ribbon = on.then_some([500.0, 3_000.0]);
+    }
+    if let Some([w0, w1]) = ribbon.as_mut() {
+        if let Some(v) =
+            widgets::labeled_length(ui, tr("Centro", "Center"), "espiral-fita-0", *w0, None)
+        {
+            *w0 = v.max(0.0);
+        }
+        if let Some(v) =
+            widgets::labeled_length(ui, tr("Borda", "Edge"), "espiral-fita-1", *w1, None)
+        {
+            *w1 = v.max(0.0);
+        }
+    }
+    (*turns, *log, *expansion, *ribbon) != before
 }
 
 /// Seletor dos cantos do retângulo (2 × 2, como na tela): cada célula
@@ -1628,7 +1808,10 @@ fn select_bar(
     let has_primitive = objs.iter().any(|o| {
         matches!(
             o.kind,
-            ObjectKind::Rectangle(_) | ObjectKind::Ellipse(_) | ObjectKind::Polygon(_)
+            ObjectKind::Rectangle(_)
+                | ObjectKind::Ellipse(_)
+                | ObjectKind::Polygon(_)
+                | ObjectKind::Spiral(_)
         )
     });
     let single = (objs.len() == 1).then(|| objs[0].clone());
@@ -1715,16 +1898,88 @@ fn select_bar(
             }
             ObjectKind::Polygon(pd) => {
                 ui.separator();
-                if let Some((n, m, k)) = polygon_controls(ui, pd.sides, &pd.mode, pd.sharpness) {
+                let mut next = pd.clone();
+                let mut changed = polygon_controls(ui, &mut next);
+                if next.bend.is_some()
+                    && ui
+                        .button(tr("Lados retos", "Straight sides"))
+                        .on_hover_text(tr(
+                            "Tira a curvatura dos lados",
+                            "Removes the side curvature",
+                        ))
+                        .clicked()
+                {
+                    next.bend = None;
+                    changed = true;
+                }
+                if !next.free_nodes.is_empty()
+                    && ui
+                        .button(format!(
+                            "{} ({})",
+                            tr("Voltar à simetria", "Back to symmetry"),
+                            next.free_nodes.len()
+                        ))
+                        .on_hover_text(tr(
+                            "Os nós isolados voltam a seguir os outros",
+                            "Isolated nodes follow the others again",
+                        ))
+                        .clicked()
+                {
+                    next.free_nodes.clear();
+                    changed = true;
+                }
+                if changed {
+                    let count = if next.mode == "star" {
+                        2 * next.sides
+                    } else {
+                        next.sides
+                    };
+                    next.free_nodes.retain(|f| f.index < count);
                     ops::modify(
                         &mut doc.editor,
                         &sel,
                         tr("Alterar polígono", "Change polygon"),
                         |o| {
                             if let ObjectKind::Polygon(p) = &mut o.kind {
-                                p.sides = n;
-                                p.mode = m.clone();
-                                p.sharpness = k;
+                                let (rx, ry) = (p.rx, p.ry);
+                                *p = next.clone();
+                                p.rx = rx;
+                                p.ry = ry;
+                                return true;
+                            }
+                            false
+                        },
+                    );
+                }
+            }
+            ObjectKind::Spiral(sd) => {
+                ui.separator();
+                let mut n = sd.clone();
+                if spiral_params(
+                    ui,
+                    &mut n.turns,
+                    &mut n.logarithmic,
+                    &mut n.expansion,
+                    &mut n.ribbon,
+                ) {
+                    let ribbon_on = n.ribbon.is_some() && sd.ribbon.is_none();
+                    ops::modify(
+                        &mut doc.editor,
+                        &sel,
+                        tr("Alterar espiral", "Change spiral"),
+                        |o| {
+                            if let ObjectKind::Spiral(s) = &mut o.kind {
+                                s.turns = n.turns;
+                                s.logarithmic = n.logarithmic;
+                                s.expansion = n.expansion;
+                                s.ribbon = n.ribbon;
+                                // Fita nova: preenchida com a cor do contorno.
+                                if ribbon_on && o.fill.is_none() {
+                                    o.fill = o.stroke.as_ref().map(|st| {
+                                        graphdraw_core::model::Fill::solid(st.color.clone())
+                                    });
+                                    o.stroke = None;
+                                }
                                 return true;
                             }
                             false

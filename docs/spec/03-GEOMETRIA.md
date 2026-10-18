@@ -25,11 +25,11 @@ Mantêm parâmetros editáveis até "Converter em curvas".
 |---|---|---|---|
 | GD-PRI-01 | Retângulo | largura, altura; por canto: tipo (redondo/chanfro/recorte côncavo) e raio; cantos relativos à escala (opção) | Escala não uniforme não distorce raio se "cantos relativos" desligado |
 | GD-PRI-02 | Elipse | raios rx, ry; modo elipse/arco/fatia; ângulos; sentido | Arco = caminho aberto |
-| GD-PRI-03 | Polígono | nº lados (3–500), modo polígono/estrela, nitidez da ponta | Editar um vértice replica simetricamente nos demais |
-| GD-PRI-04 | Estrela complexa | pontas, nitidez | Gera auto-interseção controlada |
-| GD-PRI-05 | Espiral | voltas, simétrica/logarítmica, fator de expansão | Gera caminho aberto |
-| GD-PRI-06 | Papel gráfico | colunas × linhas | Gera grupo de retângulos |
-| GD-PRI-07 | Formas básicas (setas, fluxograma, banners, balões) | glifo paramétrico com alça(s) de ajuste | Biblioteca própria, desenhos originais |
+| GD-PRI-03 | Polígono e estrela | nº lados/pontas (3–500), modo polígono/estrela, nitidez da ponta (1–99%), curvatura simétrica dos lados, raio das pontas e raio dos vales (estrela), nós fora da simetria | Editar um vértice replica simetricamente nos demais; curvar um lado curva todos; Alt + arrastar um vértice o tira da simetria (os outros seguem os parâmetros) e Voltar à simetria o devolve; Delete na ferramenta Forma tira um lado; a alça de lados à direita da caixa soma (para cima) ou tira (para baixo) |
+| GD-PRI-04 | Estrela complexa | pontas (5–500), nitidez, preencher cruzamentos | Auto-interseção controlada; o miolo cruzado fica vazado (par-ímpar) ou preenchido (não-zero) |
+| GD-PRI-05 | Espiral | voltas (0,25–100), simétrica/logarítmica, fator de expansão, fita (largura no centro e na borda) | Objeto vivo até converter em curvas; sem fita, caminho aberto; com fita, contorno fechado de largura variável, pronto para corte |
+| GD-PRI-06 | Papel gráfico | colunas × linhas, calha horizontal e vertical | Gera grupo de retângulos; com calha, células separadas (etiquetas, crachás, módulos) |
+| GD-PRI-07 | Formas básicas (setas, fluxograma, banners, balões) | glifo paramétrico com alça(s) de ajuste; galeria com miniaturas; espelhar ao criar | Biblioteca própria, desenhos originais; a ponta do balão e a haste da seta ajustam sem deformar o corpo |
 
 ## Ferramentas de desenho de caminho (detalhe no doc 07)
 - Mão livre, Bézier (clique-arrasta), Caneta (com prévia), B-spline (pontos de controle fora da curva), Polilinha, 3 pontos (curva por 3 cliques), Mídia artística (pincel vetorial), Desenho inteligente (reconhece formas).

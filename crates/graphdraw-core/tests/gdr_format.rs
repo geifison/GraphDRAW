@@ -460,6 +460,11 @@ fn gd_pri_03_polygon_round_trip() {
             sides: 7,
             mode: "complex".into(),
             sharpness: 0.3,
+            bend: None,
+            corner_outer: 0.0,
+            corner_inner: 0.0,
+            fill_crossings: false,
+            free_nodes: Vec::new(),
             extra: Default::default(),
         })));
     doc.data.pages.push(p);

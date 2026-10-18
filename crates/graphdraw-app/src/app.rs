@@ -966,6 +966,41 @@ impl App {
         self.exporting = Some(Exporting { name, rx });
     }
 
+    /// Polígono selecionado na ferramenta Forma: um lado a menos (o mínimo
+    /// é 3; 5 na estrela complexa). `false` = não era polígono.
+    fn polygon_remove_side(&mut self) -> bool {
+        let Some(d) = &mut self.doc else { return false };
+        let [id] = d.selection.as_slice() else {
+            return false;
+        };
+        let is_poly = d
+            .editor
+            .find(id)
+            .and_then(|r| d.editor.get(&r))
+            .is_some_and(|o| matches!(o.kind, ObjectKind::Polygon(_)));
+        if !is_poly {
+            return false;
+        }
+        let sel = d.selection.clone();
+        ops::modify(&mut d.editor, &sel, tr("Tirar lado", "Remove side"), |o| {
+            if let ObjectKind::Polygon(p) = &mut o.kind {
+                let min = if p.mode == "complex" { 5 } else { 3 };
+                if p.sides > min {
+                    p.sides -= 1;
+                    let count = if p.mode == "star" {
+                        2 * p.sides
+                    } else {
+                        p.sides
+                    };
+                    p.free_nodes.retain(|f| f.index < count);
+                    return true;
+                }
+            }
+            false
+        });
+        true
+    }
+
     /// Já há uma exportação rodando? Avisa e não começa outra.
     fn export_busy(&mut self) -> bool {
         if let Some(e) = &self.exporting {
@@ -1624,7 +1659,10 @@ impl App {
         let pressed = |k| ctx.input(|i| i.key_pressed(k));
         let drafting = matches!(self.tool, Tool::Bezier | Tool::Polyline | Tool::BSpline);
         if pressed(Key::Delete) || pressed(Key::Backspace) && !drafting {
-            self.delete();
+            // Ferramenta Forma num polígono: apagar um nó tira um lado.
+            if !(self.tool == Tool::Shape && self.polygon_remove_side()) {
+                self.delete();
+            }
         }
         if pressed(Key::Enter)
             && drafting
@@ -4522,6 +4560,7 @@ pub(crate) fn kind_label(k: &ObjectKind) -> String {
             "complex" => tr("estrela complexa", "complex star"),
             _ => tr("polígono", "polygon"),
         },
+        ObjectKind::Spiral(_) => tr("espiral", "spiral"),
         ObjectKind::Group(_) => tr("grupo", "group"),
         ObjectKind::Text(_) => tr("texto", "text"),
         ObjectKind::Image(_) => tr("imagem", "image"),
@@ -4841,6 +4880,38 @@ mod tests {
             "{size:?}"
         );
         assert!(app.bitmap_dlg.is_some());
+    }
+
+    /// GD-PRI-03: Delete na ferramenta Forma tira um lado do polígono.
+    #[test]
+    fn delete_on_polygon_removes_side() {
+        use graphdraw_core::model::{Object, ObjectKind, PolygonData};
+        let ctx = crate::theme::test_ctx();
+        let mut app = App::with_ctx(&ctx, None);
+        let d = app.doc.as_mut().unwrap();
+        let o = Object::new(ObjectKind::Polygon(PolygonData {
+            rx: 10_000.0,
+            ry: 10_000.0,
+            sides: 6,
+            mode: "polygon".into(),
+            sharpness: 0.5,
+            bend: None,
+            corner_outer: 0.0,
+            corner_inner: 0.0,
+            fill_crossings: false,
+            free_nodes: Vec::new(),
+            extra: Default::default(),
+        }));
+        let id = ops::add_object(&mut d.editor, 0, 0, o, "p");
+        d.selection = vec![id.clone()];
+        app.tool = Tool::Shape;
+        assert!(app.polygon_remove_side());
+        let d = app.doc.as_ref().unwrap();
+        let ObjectKind::Polygon(p) = &d.editor.get(&d.editor.find(&id).unwrap()).unwrap().kind
+        else {
+            panic!()
+        };
+        assert_eq!(p.sides, 5, "o objeto continua, com um lado a menos");
     }
 
     #[test]

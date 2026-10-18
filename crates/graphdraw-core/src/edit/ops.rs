@@ -1634,6 +1634,7 @@ pub fn clear_transformations(ed: &mut Editor, sel: &[String]) {
             ObjectKind::Rectangle(_)
                 | ObjectKind::Ellipse(_)
                 | ObjectKind::Polygon(_)
+                | ObjectKind::Spiral(_)
                 | ObjectKind::Text(_)
         );
         if !primitive {

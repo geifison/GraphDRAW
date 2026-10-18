@@ -91,6 +91,8 @@ pub enum ObjectKind {
     Rectangle(RectData),
     Ellipse(EllipseData),
     Polygon(PolygonData),
+    /// Espiral viva (GD-PRI-05): continua editável até virar curvas.
+    Spiral(SpiralData),
     Group(GroupData),
     Text(TextData),
     Image(ImageData),
@@ -175,8 +177,62 @@ pub struct PolygonData {
     /// na complexa, quantos vértices cada linha pula.
     #[serde(default = "half")]
     pub sharpness: f64,
+    /// Curvatura simétrica dos lados: ponto de controle de cada lado em
+    /// [posição ao longo do lado 0–1, afastamento perpendicular em fração
+    /// do comprimento, positivo para fora]; `None` = lados retos.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bend: Option<[f64; 2]>,
+    /// Raio de arredondamento (µm) das pontas (vértices externos) e dos
+    /// vales (vértices internos das estrelas). Vale com os lados retos.
+    #[serde(default, skip_serializing_if = "poly_zero")]
+    pub corner_outer: f64,
+    #[serde(default, skip_serializing_if = "poly_zero")]
+    pub corner_inner: f64,
+    /// Estrela complexa: `true` preenche os cruzamentos (regra não-zero);
+    /// `false` deixa o miolo vazado (par-ímpar).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub fill_crossings: bool,
+    /// Vértices tirados da simetria: índice na sequência de vértices
+    /// (estrela: externos nos pares, internos nos ímpares) e posição local.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub free_nodes: Vec<FreeNode>,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
+}
+
+/// Espiral (GD-PRI-05) no quadro local (0, 0)–(width, height): começa no
+/// centro e termina na borda depois de `turns` voltas; simétrica
+/// (Arquimedes) ou logarítmica (o raio multiplica por `expansion` a cada
+/// volta). Com `ribbon` = [largura no centro, largura na borda] (µm) vira
+/// uma fita fechada, pronta para corte.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SpiralData {
+    pub width: f64,
+    pub height: f64,
+    pub turns: f64,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub logarithmic: bool,
+    #[serde(default = "spiral_expansion")]
+    pub expansion: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ribbon: Option<[f64; 2]>,
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+fn spiral_expansion() -> f64 {
+    2.0
+}
+
+/// Vértice do polígono fora da simetria (posição local própria).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FreeNode {
+    pub index: u32,
+    pub at: [f64; 2],
+}
+
+fn poly_zero(v: &f64) -> bool {
+    *v == 0.0
 }
 
 fn polygon_mode() -> String {
@@ -701,6 +757,7 @@ impl Object {
             ObjectKind::Rectangle(_) => "rectangle",
             ObjectKind::Ellipse(_) => "ellipse",
             ObjectKind::Polygon(_) => "polygon",
+            ObjectKind::Spiral(_) => "spiral",
             ObjectKind::Group(_) => "group",
             ObjectKind::Text(_) => "text",
             ObjectKind::Image(_) => "image",
@@ -806,6 +863,7 @@ impl Object {
             "rectangle" => ObjectKind::Rectangle(parse(rest, ty)?),
             "ellipse" => ObjectKind::Ellipse(parse(rest, ty)?),
             "polygon" => ObjectKind::Polygon(parse(rest, ty)?),
+            "spiral" => ObjectKind::Spiral(parse(rest, ty)?),
             "group" => ObjectKind::Group(parse(rest, ty)?),
             "text" => ObjectKind::Text(parse(rest, ty)?),
             "image" => ObjectKind::Image(parse(rest, ty)?),
@@ -888,6 +946,7 @@ impl Object {
             ObjectKind::Rectangle(d) => serde_json::to_value(d),
             ObjectKind::Ellipse(d) => serde_json::to_value(d),
             ObjectKind::Polygon(d) => serde_json::to_value(d),
+            ObjectKind::Spiral(d) => serde_json::to_value(d),
             ObjectKind::Group(d) => serde_json::to_value(d),
             ObjectKind::Text(d) => serde_json::to_value(d),
             ObjectKind::Image(d) => serde_json::to_value(d),

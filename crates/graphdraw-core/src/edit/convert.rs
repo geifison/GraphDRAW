@@ -75,6 +75,7 @@ pub fn to_curves(o: &Object) -> Option<Object> {
         ObjectKind::Ellipse(e) => ellipse_path(e),
         ObjectKind::Basic(b) => crate::render::basic::path(b),
         ObjectKind::BSpline(b) => crate::render::bspline::path(b),
+        ObjectKind::Spiral(s) => super::generate::spiral_path(s),
         ObjectKind::Polygon(p) => {
             let mut out = o.clone();
             out.kind = ObjectKind::Path(PathData {
@@ -160,6 +161,11 @@ mod polygon_tests {
             sides,
             mode: mode.into(),
             sharpness,
+            bend: None,
+            corner_outer: 0.0,
+            corner_inner: 0.0,
+            fill_crossings: false,
+            free_nodes: Vec::new(),
             extra: Map::new(),
         }
     }

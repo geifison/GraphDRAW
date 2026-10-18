@@ -392,7 +392,36 @@
               "ry": { "$ref": "#/$defs/um" },
               "sides": { "type": "integer", "minimum": 3, "maximum": 500 },
               "mode": { "enum": ["polygon", "star", "complex"] },
-              "sharpness": { "type": "number", "minimum": 0, "maximum": 1 }
+              "sharpness": { "type": "number", "minimum": 0, "maximum": 1 },
+              "bend": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
+              "cornerOuter": { "type": "number", "minimum": 0 },
+              "cornerInner": { "type": "number", "minimum": 0 },
+              "fillCrossings": { "type": "boolean" },
+              "freeNodes": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["index", "at"],
+                  "properties": {
+                    "index": { "type": "integer", "minimum": 0 },
+                    "at": { "$ref": "#/$defs/point" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "spiral" } } },
+          "then": {
+            "required": ["width", "height", "turns"],
+            "properties": {
+              "width": { "$ref": "#/$defs/um" },
+              "height": { "$ref": "#/$defs/um" },
+              "turns": { "type": "number", "minimum": 0.25, "maximum": 100 },
+              "logarithmic": { "type": "boolean" },
+              "expansion": { "type": "number", "minimum": 1 },
+              "ribbon": { "type": "array", "items": { "type": "number", "minimum": 0 }, "minItems": 2, "maxItems": 2 }
             }
           }
         },

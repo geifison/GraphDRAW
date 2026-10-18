@@ -47,6 +47,12 @@ entre parênteses são os requisitos de `docs/spec/`.
   cores, suavizar e inverter; seletor de cor com roda de matiz, canais,
   hexadecimal, paletas com busca e conta-gotas na janela; amostra original
   × nova; F11 e Shift+F11.
+- Formas paramétricas (doc 03): polígono e estrela com curvatura simétrica
+  dos lados, cantos das pontas e dos vales, nós isolados da simetria (Alt +
+  arrastar; Voltar à simetria), alça de lados na tela e Delete tirando um
+  lado; estrela complexa com Preencher cruzamentos; espiral viva (continua
+  editável) com Fita fechada de largura variável para corte; papel gráfico
+  com calha; galeria de formas básicas e espelhar ao criar.
 - Ícones em todos os menus e na janela de atalhos, os mesmos da caixa de
   ferramentas e das barras; 29 desenhos novos (imprimir, copiar, recortar,
   ortografia, zoom, páginas, texto e outros).

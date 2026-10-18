@@ -281,6 +281,7 @@ Em Linux: `apt install libcdr-dev librevenge-dev pkg-config g++` e o mesmo
 | GD-SEP-01 (prévia de separações) | `separation::tests::*` (core), `canvas::tests::separation_preview_on_canvas` (app) |
 | GD-FIL-04..06/10/12 (padrões, caminho aberto) | `pattern::tests::*` (core), `tests/patterns.rs`, `dialogs::tests::pattern_fill_dialog` (app) |
 | Doc 10 (efeitos dinâmicos, GD-EFX-01/02) | `effects::tests::*` (core), fixture `effects.gdr`, `canvas::tests::envelope_point_drag`, `canvas::tests::effect_tools_drag` (app) |
+| GD-PRI-03..07 vivos (curvatura, cantos, nós isolados, espiral com fita, calha) | `render::scene::polygon_tests`, `generate::tests::live_spiral_ribbon` (core), fixture `parametric.gdr`, `canvas::tests::polygon_bend_sides_and_free_node`, `app::tests::delete_on_polygon_removes_side` (app) |
 | Doc 29 (impressão) | `print::tests::*` (core: plano, ladrilhos, N-up, separações, raster, PDF), `printui::tests::dialog_plans_every_tab`, `printer::tests::print_to_virtual_printer` (app, ignorado: GDI de verdade na impressora virtual) |
 | Doc 11 (estilos e símbolos) | `edit::styles::tests::*` (core), fixture `styles.gdr`, `stylesui::tests::panel_lists_styles_and_symbols` (app) |
 | GD-TXT-06 (bidirecional) | `render::text::tests::bidi_orders_rtl_runs` (core), fixture `appearance.gdr` |

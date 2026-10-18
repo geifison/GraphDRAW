@@ -837,6 +837,116 @@ fn patterns() -> Document {
     d
 }
 
+/// GD-PRI-03..07 vivos: curvatura simétrica, cantos de ponta e de vale,
+/// nó fora da simetria, miolo da estrela complexa, espiral viva com fita e
+/// papel gráfico com calha.
+fn parametric() -> Document {
+    use graphdraw_core::model::{FreeNode, SpiralData};
+    let mut ids = Ids::new(25);
+    let mut p = page(&mut ids, 297.0 * MM, 210.0 * MM);
+    let mut d = doc_with(vec![], "Formas paramétricas");
+    let cmyk = Color::cmyk;
+    let poly = |ids: &mut Ids, x: f64, mode: &str, sides: u32, edit: &dyn Fn(&mut PolygonData)| {
+        let mut data = PolygonData {
+            rx: 22.0 * MM,
+            ry: 22.0 * MM,
+            sides,
+            mode: mode.into(),
+            sharpness: 0.5,
+            bend: None,
+            corner_outer: 0.0,
+            corner_inner: 0.0,
+            fill_crossings: false,
+            free_nodes: Vec::new(),
+            extra: Map::new(),
+        };
+        edit(&mut data);
+        let mut o = obj(ids, ObjectKind::Polygon(data));
+        o.transform = Transform::translate(x * MM, 160.0 * MM);
+        o.fill = Some(Fill::solid(cmyk(0.0, 0.4, 1.0, 0.0)));
+        o.stroke = Some(Stroke::new(0.4 * MM, cmyk(0.0, 0.0, 0.0, 1.0)));
+        o
+    };
+    p.layers[0]
+        .objects
+        .push(poly(&mut ids, 30.0, "polygon", 6, &|q| {
+            q.bend = Some([0.5, 0.25])
+        }));
+    p.layers[0]
+        .objects
+        .push(poly(&mut ids, 85.0, "star", 8, &|q| {
+            q.corner_outer = 3.0 * MM;
+            q.corner_inner = 1.5 * MM;
+        }));
+    p.layers[0]
+        .objects
+        .push(poly(&mut ids, 140.0, "complex", 7, &|q| {
+            q.fill_crossings = true
+        }));
+    p.layers[0]
+        .objects
+        .push(poly(&mut ids, 195.0, "star", 5, &|q| {
+            q.free_nodes = vec![FreeNode {
+                index: 0,
+                at: [0.0, 40.0 * MM],
+            }];
+        }));
+    let spiral = |ids: &mut Ids, x: f64, log: bool, ribbon: Option<[f64; 2]>| {
+        let mut o = obj(
+            ids,
+            ObjectKind::Spiral(SpiralData {
+                width: 50.0 * MM,
+                height: 50.0 * MM,
+                turns: 3.5,
+                logarithmic: log,
+                expansion: 1.8,
+                ribbon,
+                extra: Map::new(),
+            }),
+        );
+        o.transform = Transform::translate(x * MM, 40.0 * MM);
+        if ribbon.is_some() {
+            o.fill = Some(Fill::solid(cmyk(1.0, 0.3, 0.0, 0.0)));
+        } else {
+            o.stroke = Some(Stroke::new(0.5 * MM, cmyk(0.0, 0.0, 0.0, 1.0)));
+        }
+        o
+    };
+    p.layers[0]
+        .objects
+        .push(spiral(&mut ids, 10.0, false, None));
+    p.layers[0].objects.push(spiral(&mut ids, 70.0, true, None));
+    p.layers[0]
+        .objects
+        .push(spiral(&mut ids, 130.0, false, Some([0.5 * MM, 4.0 * MM])));
+    let like = {
+        let mut o = obj(
+            &mut ids,
+            ObjectKind::Rectangle(RectData {
+                width: 1.0,
+                height: 1.0,
+                corners: None,
+                extra: Map::new(),
+            }),
+        );
+        o.fill = Some(Fill::solid(cmyk(0.0, 0.0, 0.2, 0.0)));
+        o.stroke = Some(Stroke::new(0.3 * MM, cmyk(0.0, 0.0, 0.0, 1.0)));
+        o
+    };
+    let mut gp = graphdraw_core::edit::generate::graph_paper(
+        80.0 * MM,
+        50.0 * MM,
+        4,
+        3,
+        [3.0 * MM, 3.0 * MM],
+        &like,
+    );
+    gp.transform = Transform::translate(200.0 * MM, 40.0 * MM);
+    p.layers[0].objects.push(gp);
+    d.data.pages.push(p);
+    d
+}
+
 /// Doc 11: estilo de objeto, estilo de texto e símbolo com duas instâncias.
 fn styles() -> Document {
     use graphdraw_core::model::{ObjectStyle, SymbolDef, TextStyleDef};
@@ -939,6 +1049,11 @@ fn effects() -> Document {
                 sides: 5,
                 mode: "star".into(),
                 sharpness: 0.5,
+                bend: None,
+                corner_outer: 0.0,
+                corner_inner: 0.0,
+                fill_crossings: false,
+                free_nodes: Vec::new(),
                 extra: Map::new(),
             }),
         );
@@ -1080,6 +1195,11 @@ fn shapes() -> Document {
                 sides: *sides,
                 mode: (*mode).into(),
                 sharpness: *sharp,
+                bend: None,
+                corner_outer: 0.0,
+                corner_inner: 0.0,
+                fill_crossings: false,
+                free_nodes: Vec::new(),
                 extra: Map::new(),
             }),
         );
@@ -1114,7 +1234,8 @@ fn shapes() -> Document {
         o.stroke = Some(Stroke::new(0.3 * MM, Color::cmyk(0.0, 0.0, 0.0, 1.0)));
         o
     };
-    let mut gp = graphdraw_core::edit::generate::graph_paper(50.0 * MM, 40.0 * MM, 5, 4, &like);
+    let mut gp =
+        graphdraw_core::edit::generate::graph_paper(50.0 * MM, 40.0 * MM, 5, 4, [0.0, 0.0], &like);
     gp.transform = Transform::translate(230.0 * MM, 160.0 * MM);
     p.layers[0].objects.push(gp);
     for (i, shape) in graphdraw_core::render::basic::SHAPES.iter().enumerate() {
@@ -1875,6 +1996,7 @@ fn main() {
         ("appearance", appearance()),
         ("effects", effects()),
         ("styles", styles()),
+        ("parametric", parametric()),
     ];
     for (name, doc) in &docs {
         let path = dir.join(format!("{name}.gdr"));
