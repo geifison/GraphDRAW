@@ -89,10 +89,10 @@ fn registered() -> &'static std::sync::Mutex<std::collections::HashSet<String>> 
 /// Registra uma fonte incorporada no documento (GD-FNT-03); `key` é o nome
 /// do membro (com o hash). Devolve as famílias que ela trouxe.
 pub fn register_font(key: &str, data: Vec<u8>) -> Vec<String> {
-    if let Ok(mut r) = registered().lock() {
-        if !r.insert(key.to_string()) {
-            return Vec::new();
-        }
+    if let Ok(mut r) = registered().lock()
+        && !r.insert(key.to_string())
+    {
+        return Vec::new();
     }
     let mut db = font_lock().write().unwrap_or_else(|e| e.into_inner());
     let before: std::collections::HashSet<fontdb::ID> = db.faces().map(|f| f.id).collect();
