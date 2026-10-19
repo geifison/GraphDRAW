@@ -24,6 +24,7 @@ pub mod id;
 pub mod join;
 pub mod live;
 pub mod nodes;
+pub mod page_presets;
 pub mod painterly;
 pub mod paragraphs;
 mod press;

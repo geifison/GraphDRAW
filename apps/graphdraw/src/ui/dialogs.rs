@@ -657,7 +657,7 @@ pub enum Dialog {
     ColorManagement(Box<crate::ui::color_management::ColorManagementState>),
     FontManager(FontManagerState),
     PaletteEditor(PaletteEditorState),
-    NewDocument(crate::new_document::NewDocState),
+    NewDocument(Box<crate::new_document_window::NewDocWindow>),
     About,
     /// File > GitHub.
     GithubOpen(crate::github::GithubForm),
@@ -1826,7 +1826,7 @@ pub fn show(app: &mut App, ctx: &Context) {
         Dialog::FontManager(st) => font_manager_dialog(app, ctx, st, &mut close),
         Dialog::PaletteEditor(st) => palette_editor_dialog(app, ctx, st, &mut close),
         Dialog::NewDocument(st) => {
-            crate::new_document::new_document_dialog(app, ctx, st, &mut close)
+            crate::new_document_window::dialog(app, ctx, st, &mut close)
         }
         Dialog::PageNumberSettings => {
             window(ctx, tr("dialog.page_number_settings")).show(ctx, |ui| {
@@ -4393,9 +4393,8 @@ mod tests {
             Dialog::ColorManagement(Default::default()),
             Dialog::FontManager(FontManagerState::default()),
             Dialog::PaletteEditor(PaletteEditorState::default()),
-            Dialog::NewDocument(crate::new_document::NewDocState::from_settings(
-                &Default::default(),
-                "n".into(),
+            Dialog::NewDocument(Box::new(
+                crate::new_document_window::NewDocWindow::open("n".into()),
             )),
             Dialog::About,
             Dialog::WebNotice,

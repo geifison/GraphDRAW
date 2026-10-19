@@ -3917,12 +3917,9 @@ impl App {
     /// with the last used settings.
     pub fn request_new_document(&mut self) {
         if self.settings.show_new_document_dialog {
-            self.dialog = crate::ui::dialogs::Dialog::NewDocument(
-                crate::new_document::NewDocState::from_settings(
-                    &self.settings.new_document,
-                    self.peek_untitled_name(),
-                ),
-            );
+            self.dialog = crate::ui::dialogs::Dialog::NewDocument(Box::new(
+                crate::new_document_window::NewDocWindow::open(self.peek_untitled_name()),
+            ));
         } else {
             self.new_document();
         }

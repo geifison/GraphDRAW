@@ -596,3 +596,123 @@ fn help_shots() {
     std::fs::write(dir.join("shots.txt"), list).unwrap();
     eprintln!("{} screenshots; not made: {missed:#?}", made.len());
 }
+
+/// The New Document window step by step, the whole application drawn
+/// headlessly, into `$NEWDOC_SHOTS`: as it opens, a search, a category,
+/// lengths typed with units and sums, and the drawing it creates.
+#[test]
+#[ignore]
+fn new_document_window_shots() {
+    use crate::new_document_window::Filter;
+    use graphdraw_core::page_presets::Category;
+    let Some(dir) = std::env::var_os("NEWDOC_SHOTS") else {
+        return;
+    };
+    let dir = std::path::PathBuf::from(dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let mut sh = Shooter::new();
+    let mut app = App::headless();
+    crate::i18n::set_language(
+        &std::env::var("NEWDOC_SHOTS_LANG").unwrap_or_else(|_| "pt-BR".into()),
+    );
+    app.request_new_document();
+    assert!(matches!(app.dialog, Dialog::NewDocument(_)));
+    let key = |key: egui::Key, command: bool| egui::Event::Key {
+        key,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: if command {
+            egui::Modifiers::COMMAND
+        } else {
+            egui::Modifiers::NONE
+        },
+    };
+    let text = |t: &str| egui::Event::Text(t.to_string());
+    let mut run = |app: &mut App, events: Vec<egui::Event>, frames: usize| {
+        let mut c = None;
+        for n in 0..frames {
+            sh.time += 0.5;
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(W as f32, H as f32),
+                )),
+                time: Some(sh.time),
+                events: if n == 0 { events.clone() } else { Vec::new() },
+                ..Default::default()
+            };
+            let mut out = sh.ctx.run_ui(input, |ui| {
+                let ctx = ui.ctx().clone();
+                crate::ui::apply_theme(&ctx, &crate::settings::effective_theme(&app.settings));
+                crate::ui::root(app, ui);
+            });
+            sh.tex.apply(&out.textures_delta);
+            // Rasterising is slow: only the last frame of a step.
+            if n + 1 == frames {
+                let shapes = std::mem::take(&mut out.shapes);
+                let prims = sh.ctx.tessellate(shapes, out.pixels_per_point);
+                let mut canvas = Canvas::new(W, H);
+                canvas.paint(&sh.tex, &prims);
+                c = Some(canvas);
+            }
+            for id in &out.textures_delta.free {
+                sh.tex.0.remove(id);
+            }
+            out.textures_delta.clear();
+        }
+        c.unwrap()
+    };
+    let full = (0, 0, W, H);
+    let window = |app: &mut App| match &mut app.dialog {
+        Dialog::NewDocument(st) => Some(st.clone()),
+        _ => None,
+    };
+    run(&mut app, vec![], 4).save(&dir.join("01-janela-inicial.png"), full);
+    run(&mut app, vec![text("A5")], 3).save(&dir.join("02-busca-a5.png"), full);
+    if let Dialog::NewDocument(st) = &mut app.dialog {
+        st.search.clear();
+        st.filter = Filter::Cat(Category::Social);
+    }
+    run(&mut app, vec![], 3).save(&dir.join("03-categoria-social.png"), full);
+    if let Dialog::NewDocument(st) = &mut app.dialog {
+        st.filter = Filter::Custom;
+    }
+    run(&mut app, vec![], 2);
+    // Click the width field, select all and type; then the height.
+    let click = |x: f32, y: f32| {
+        let pos = egui::pos2(x, y);
+        vec![
+            egui::Event::PointerMoved(pos),
+            egui::Event::PointerButton {
+                pos,
+                button: egui::PointerButton::Primary,
+                pressed: true,
+                modifiers: egui::Modifiers::NONE,
+            },
+            egui::Event::PointerButton {
+                pos,
+                button: egui::PointerButton::Primary,
+                pressed: false,
+                modifiers: egui::Modifiers::NONE,
+            },
+        ]
+    };
+    run(&mut app, click(940.0, 549.0), 2);
+    run(&mut app, vec![key(egui::Key::A, true), text("8.5 in")], 2)
+        .save(&dir.join("04-largura-8.5in.png"), full);
+    run(&mut app, click(940.0, 577.0), 2);
+    run(&mut app, vec![key(egui::Key::A, true), text("100+10 mm")], 2)
+        .save(&dir.join("05-altura-100+10mm.png"), full);
+    run(&mut app, click(830.0, 470.0), 3).save(&dir.join("06-medidas-aplicadas.png"), full);
+    let st = window(&mut app).expect("window open");
+    eprintln!("width {} height {}", st.width, st.height);
+    assert!((st.width - 215.9).abs() < 1e-9 && (st.height - 110.0).abs() < 1e-9);
+    // Create document.
+    let (x, y) = (st.rect.right() - 76.0, st.rect.bottom() - 41.0);
+    run(&mut app, click(x, y), 4).save(&dir.join("07-documento-criado.png"), full);
+
+    assert!(matches!(app.dialog, Dialog::None));
+    let size = app.page_size();
+    eprintln!("page {} x {} mm", size.width, size.height);
+}
