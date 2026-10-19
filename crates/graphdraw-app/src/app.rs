@@ -1840,7 +1840,9 @@ impl App {
             C::New => self.request(Pending::New, ctx),
             C::Open => self.request(Pending::Open(None), ctx),
             C::Save => {
-                self.save(false);
+                if self.doc.as_ref().is_some_and(|d| d.editor.is_modified()) {
+                    self.save(false);
+                }
             }
             C::SaveAs => {
                 self.save(true);
@@ -2456,6 +2458,7 @@ impl App {
         let ctx = ui.ctx().clone();
         let has = self.doc.is_some();
         let has_sel = self.doc.as_ref().is_some_and(|d| !d.selection.is_empty());
+        let can_save = self.doc.as_ref().is_some_and(|d| d.editor.is_modified());
         let can_undo = self.doc.as_ref().is_some_and(|d| d.editor.can_undo());
         let can_redo = self.doc.as_ref().is_some_and(|d| d.editor.can_redo());
         egui::MenuBar::new().ui(ui, |ui| {
@@ -2478,7 +2481,7 @@ impl App {
                 ui.separator();
                 if ui
                     .add_enabled(
-                        has,
+                        can_save,
                         crate::keymap::item(ui, tr("Salvar", "Save"),
                             crate::keymap::Command::Save,),
                     )
@@ -3301,6 +3304,7 @@ impl App {
     fn standard_toolbar(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
         let has = self.doc.is_some();
+        let can_save = self.doc.as_ref().is_some_and(|d| d.editor.is_modified());
         let can_undo = self.doc.as_ref().is_some_and(|d| d.editor.can_undo());
         let can_redo = self.doc.as_ref().is_some_and(|d| d.editor.can_redo());
         ui.horizontal(|ui| {
@@ -3331,7 +3335,7 @@ impl App {
                 "file-save",
                 crate::keymap::hint(tr("Salvar", "Save"), crate::keymap::Command::Save),
                 false,
-                has,
+                can_save,
             )
             .clicked()
             {
