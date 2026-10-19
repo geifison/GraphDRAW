@@ -4677,6 +4677,7 @@ impl App {
                             ("Esc", tr("Cancelar / limpar seleção", "Cancel / clear selection")),
                             ("Enter", tr("Terminar curva Bézier", "Finish Bézier curve")),
                             (tr("Ctrl+clique", "Ctrl+click"), tr("Selecionar dentro do grupo", "Select inside group")),
+                            (tr("Ctrl desenhando", "Ctrl while drawing"), tr("Prender o ângulo da linha em passos de 15°", "Lock the line angle to 15° steps")),
                         ] {
                             ui.monospace(k);
                             ui.label(d);

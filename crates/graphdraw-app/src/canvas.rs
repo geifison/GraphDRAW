@@ -353,8 +353,8 @@ impl Tool {
                 "tool-polyline",
                 crate::keymap::hint(
                     tr(
-                        "Polilinha — cliques fazem retas, arrastar faz trecho livre; Enter ou duplo clique termina",
-                        "Polyline — clicks make straight lines, dragging makes a free stretch; Enter or double-click ends",
+                        "Polilinha — cliques fazem retas (Ctrl: ângulo em passos de 15°), arrastar faz trecho livre; Enter ou duplo clique termina",
+                        "Polyline — clicks make straight lines (Ctrl: angle in 15° steps), dragging makes a free stretch; Enter or double-click ends",
                     ),
                     crate::keymap::Command::ToolPolyline,
                 ),
@@ -375,8 +375,8 @@ impl Tool {
                 "tool-line2",
                 crate::keymap::hint(
                     tr(
-                        "Linha 2 pontos — arraste de um ponto ao outro (Shift: 15°)",
-                        "2-point line — drag from one point to the other (Shift: 15°)",
+                        "Linha 2 pontos — arraste de um ponto ao outro (Ctrl: ângulo em passos de 15°)",
+                        "2-point line — drag from one point to the other (Ctrl: angle in 15° steps)",
                     ),
                     crate::keymap::Command::ToolLine2,
                 ),
@@ -386,8 +386,8 @@ impl Tool {
                 "tool-curve3",
                 crate::keymap::hint(
                     tr(
-                        "Curva 3 pontos — arraste do início ao fim, depois clique para dar a curvatura",
-                        "3-point curve — drag from start to end, then click to set the curvature",
+                        "Curva 3 pontos — arraste do início ao fim (Ctrl: 15°), depois clique para dar a curvatura",
+                        "3-point curve — drag from start to end (Ctrl: 15°), then click to set the curvature",
                     ),
                     crate::keymap::Command::ToolCurve3,
                 ),
@@ -397,8 +397,8 @@ impl Tool {
                 "tool-knife",
                 crate::keymap::hint(
                     tr(
-                        "Faca — arraste através dos objetos para cortar em reta (Alt: à mão livre)",
-                        "Knife — drag across objects to cut in a straight line (Alt: freehand)",
+                        "Faca — arraste através dos objetos para cortar em reta (Ctrl: 15°; Alt: à mão livre)",
+                        "Knife — drag across objects to cut in a straight line (Ctrl: 15°; Alt: freehand)",
                     ),
                     crate::keymap::Command::ToolKnife,
                 ),
@@ -1042,6 +1042,8 @@ pub struct CanvasState {
     three: Option<ThreeDraft>,
     /// Passos de desfazer do desenho em andamento.
     drafts: DraftHistory,
+    /// Ctrl segurado neste quadro: nós da Bézier/polilinha em passos de 15°.
+    angle_lock: bool,
 }
 
 impl Default for CanvasState {
@@ -1124,6 +1126,7 @@ impl Default for CanvasState {
             shape_preview: Defaults::default(),
             three: None,
             drafts: DraftHistory::default(),
+            angle_lock: false,
         }
     }
 }
@@ -2766,6 +2769,7 @@ impl CanvasState {
         let tol = 5.0 / self.view.zoom; // 5 px em µm
         self.eyedrop.active = tool == Tool::Eyedropper;
         self.eyedrop.shift = mods.shift;
+        self.angle_lock = angle_locked(mods);
         self.eyedrop.now = ui.input(|i| i.time);
         self.eyedrop.new_stroke = Some(
             defaults
@@ -2936,7 +2940,9 @@ impl CanvasState {
                 Tool::Rect | Tool::Ellipse | Tool::Polygon | Tool::Bezier
             )
         {
-            self.snap_hit = self.cursor_page.and_then(|p| {
+            // Trava de ângulo na Bézier: o encaixe não vale, então não aparece.
+            let locked = tool == Tool::Bezier && self.angle_lock && self.bezier.is_some();
+            self.snap_hit = self.cursor_page.filter(|_| !locked).and_then(|p| {
                 let c = snap::candidates_doc(doc.doc(), doc.page, &self.snap, &[]);
                 snap::snap_guided_on(&self.guides, p, &c, &self.snap, snap_radius(&self.view))
             });
@@ -4029,7 +4035,11 @@ impl CanvasState {
             if let (Some(cur), Some(last)) = (self.cursor_page, d.nodes.last())
                 && !matches!(self.drag, Drag::BezierHandle)
             {
-                let cur = self.draw_end(cur);
+                let cur = if self.angle_lock {
+                    lock_angle(pt(last.p), cur)
+                } else {
+                    self.draw_end(cur)
+                };
                 path.curve_to(pt(last.handle_out.unwrap_or(last.p)), cur, cur);
             }
             self.stroke_bez(painter, rect, ph, &path, thin);
@@ -7077,14 +7087,22 @@ impl CanvasState {
         rect: Rect,
         ph: f64,
     ) -> bool {
-        let p = snap::snap_guided_on(
-            &self.guides,
-            p,
-            &snap::candidates_doc(doc.doc(), doc.page, &self.snap, &[]),
-            &self.snap,
-            snap_radius(&self.view),
-        )
-        .map_or(p, |s| s.point);
+        // Ctrl: o nó novo sai do anterior em passos de 15° (vale mais que o encaixe).
+        let locked_from = self
+            .angle_lock
+            .then(|| self.bezier.as_ref().and_then(|d| d.nodes.last()).map(|n| pt(n.p)))
+            .flatten();
+        let p = match locked_from {
+            Some(prev) => lock_angle(prev, p),
+            None => snap::snap_guided_on(
+                &self.guides,
+                p,
+                &snap::candidates_doc(doc.doc(), doc.page, &self.snap, &[]),
+                &self.snap,
+                snap_radius(&self.view),
+            )
+            .map_or(p, |s| s.point),
+        };
         if let Some(d) = &self.bezier
             && d.nodes.len() >= 2
             && (self.screen(rect, ph, pt(d.nodes[0].p)) - origin).length() <= 7.0
@@ -8534,6 +8552,20 @@ mod tests {
         tool: Tool,
         events: Vec<egui::Event>,
     ) {
+        canvas_frame_mods(ctx, cs, doc, tool, events, egui::Modifiers::NONE);
+    }
+
+    /// Como `canvas_frame`, com as teclas modificadoras seguradas.
+    fn canvas_frame_mods(
+        ctx: &egui::Context,
+        cs: &mut CanvasState,
+        doc: &mut DocState,
+        tool: Tool,
+        events: Vec<egui::Event>,
+        modifiers: egui::Modifiers,
+    ) {
+        let mut events = events;
+        events.insert(0, egui::Event::ModifiersChanged(modifiers));
         let input = egui::RawInput {
             screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(1366.0, 768.0))),
             events,
@@ -10841,6 +10873,70 @@ mod tests {
         doc.editor.undo();
         doc.editor.undo();
         assert!((bounds(&doc).width() - 20_000.0).abs() < 1e-6);
+    }
+
+    /// Trava de ângulo: o ponto vai à direção de 15° mais próxima, mesma distância.
+    #[test]
+    fn lock_angle_steps_of_15() {
+        let a = Point::new(10.0, 10.0);
+        let h = lock_angle(a, Point::new(110.0, 13.0));
+        assert_eq!(h.y, 10.0, "horizontal exata: {h:?}");
+        let v = lock_angle(a, Point::new(12.0, -90.0));
+        assert_eq!(v.x, 10.0, "vertical exata: {v:?}");
+        let d = lock_angle(a, Point::new(60.0, 62.0)) - a;
+        assert!((d.x - d.y).abs() < 1e-9, "45°: {d:?}");
+        assert!((d.hypot() - (50f64.powi(2) + 52f64.powi(2)).sqrt()).abs() < 1e-9);
+        let t = lock_angle(a, a + kurbo::Vec2::new(100.0, 25.0)) - a;
+        assert!((t.y.atan2(t.x).to_degrees() - 15.0).abs() < 1e-9, "15°: {t:?}");
+    }
+
+    /// Ctrl segurado: a linha 2 pontos sai reta e os nós da Bézier e da
+    /// polilinha saem do anterior em passos de 15°.
+    #[test]
+    fn ctrl_locks_line_angle_on_canvas() {
+        let (ctx, mut cs, mut doc, _id, rect, ph) = bdr_setup();
+        let view = cs.view;
+        let at = |x: f64, y: f64| {
+            let (a, b) = view.page_to_screen(ph, x, y);
+            rect.min + Vec2::new(a as f32, b as f32)
+        };
+        let ctrl = egui::Modifiers::CTRL | egui::Modifiers::COMMAND;
+        let frame = |cs: &mut CanvasState, doc: &mut DocState, tool: Tool, e: egui::Event| {
+            canvas_frame_mods(&ctx, cs, doc, tool, vec![e], ctrl);
+        };
+        let press = |p: Pos2, down: bool| egui::Event::PointerButton {
+            pos: p,
+            button: PointerButton::Primary,
+            pressed: down,
+            modifiers: ctrl,
+        };
+        let last_nodes = |doc: &DocState| -> Vec<[f64; 2]> {
+            match &doc.page().layers[0].objects.last().unwrap().kind {
+                ObjectKind::Path(p) => p.subpaths[0].nodes.iter().map(|n| n.p).collect(),
+                k => panic!("{k:?}"),
+            }
+        };
+        // Linha 2 pontos quase horizontal → horizontal exata.
+        let (a, b) = (at(60_000.0, 150_000.0), at(120_000.0, 153_000.0));
+        frame(&mut cs, &mut doc, Tool::Line2, egui::Event::PointerMoved(a));
+        frame(&mut cs, &mut doc, Tool::Line2, press(a, true));
+        for k in 1..=4 {
+            let q = a + (b - a) * (k as f32 / 4.0);
+            frame(&mut cs, &mut doc, Tool::Line2, egui::Event::PointerMoved(q));
+        }
+        frame(&mut cs, &mut doc, Tool::Line2, press(b, false));
+        let n = last_nodes(&doc);
+        assert!((n[0][1] - n[1][1]).abs() < 1e-6, "horizontal: {n:?}");
+        assert!(n[1][0] > n[0][0] + 50_000.0);
+        // Polilinha: segundo clique quase vertical → vertical exata.
+        for p in [at(150_000.0, 50_000.0), at(152_000.0, 120_000.0)] {
+            frame(&mut cs, &mut doc, Tool::Polyline, egui::Event::PointerMoved(p));
+            frame(&mut cs, &mut doc, Tool::Polyline, press(p, true));
+            frame(&mut cs, &mut doc, Tool::Polyline, press(p, false));
+        }
+        let d = cs.bezier.as_ref().expect("polilinha em andamento");
+        let (p0, p1) = (d.nodes[0].p, d.nodes[1].p);
+        assert!((p0[0] - p1[0]).abs() < 1e-6, "vertical: {p0:?} {p1:?}");
     }
 
     /// GD-FER-20/21/25/26 na tela: mão livre e linha 2 pontos (com
