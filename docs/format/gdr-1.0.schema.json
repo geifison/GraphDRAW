@@ -297,7 +297,9 @@
         "family": { "type": "string" },
         "size": { "type": "number", "exclusiveMinimum": 0, "description": "Corpo em µm." },
         "weight": { "type": "integer", "minimum": 1, "maximum": 1000 },
-        "italic": { "type": "boolean" }
+        "italic": { "type": "boolean" },
+        "caps": { "enum": ["small", "allSmall", "all"], "description": "Caixa tipográfica (GD-TXT-13): só o desenho." },
+        "capSpacing": { "type": "boolean", "description": "Espaçamento de capitais (GD-TXT-13)." }
       }
     },
     "textSpan": {

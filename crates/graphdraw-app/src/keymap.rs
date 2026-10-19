@@ -268,6 +268,11 @@ commands! {
     TextJustify = "text.justify", "Justificar texto", "Justify text", Text, Text, true;
     TextBold = "text.bold", "Negrito", "Bold", Text, Always, true;
     TextItalic = "text.italic", "Itálico", "Italic", Text, Always, true;
+    TextChangeCase = "text.change_case", "Mudar caixa…", "Change case…", Text, Always, true;
+    TextSmallCaps = "text.small_caps", "Versalete", "Small caps", Text, Always, true;
+    TextAllSmallCaps = "text.all_small_caps", "Todas em versalete", "All small caps", Text, Always, true;
+    TextAllCaps = "text.all_caps", "Todas em maiúsculas (só o desenho)", "All caps (display only)", Text, Always, true;
+    TextCapSpacing = "text.cap_spacing", "Espaçamento de capitais", "Capital spacing", Text, Always, true;
     TextToCurves = "text.to_curves", "Converter texto em curvas", "Convert text to curves", Text, Selection, true;
 }
 
@@ -552,6 +557,7 @@ impl Keymap {
                 (PageNew, "Ctrl+Shift+N"),
                 (PageJump, "Ctrl+J"),
                 (PageRename, "F2"),
+                (TextChangeCase, "Shift+F3"),
             ]),
         }
     }
@@ -618,6 +624,7 @@ impl Keymap {
                 (TextAlignCenter, "Ctrl+E"),
                 (TextAlignRight, "Ctrl+R"),
                 (TextJustify, "Ctrl+J"),
+                (TextChangeCase, "Shift+F3"),
                 // Arquivo e sistema
                 (New, "Ctrl+N"),
                 (Open, "Ctrl+O"),
@@ -1036,6 +1043,11 @@ impl Command {
             Command::TextJustify => "text-justify",
             Command::TextBold => "text-bold",
             Command::TextItalic => "text-italic",
+            Command::TextChangeCase => "text-case",
+            Command::TextSmallCaps => "text-small-caps",
+            Command::TextAllSmallCaps => "text-all-small-caps",
+            Command::TextAllCaps => "text-all-caps",
+            Command::TextCapSpacing => "text-cap-spacing",
             Command::TextToCurves => "to-curves",
         }
     }

@@ -29,6 +29,16 @@ entre parênteses são os requisitos de `docs/spec/`.
   (GD-CMS-04).
 
 ### Ferramentas
+- Mudar caixa (GD-TXT-11/12, Shift+F3, menu Texto e menu de contexto):
+  primeira letra da frase, minúsculas, MAIÚSCULAS, Todas as Iniciais e
+  inverter; Unicode completo (ß → SS, ǆ → ǅ, i turco); cada caractere
+  continua no seu trecho e estilo; um passo só no Desfazer; prévia na
+  janela e ciclo minúsculas → MAIÚSCULAS → Iniciais com Shift+F3 de novo.
+- Caixa tipográfica (GD-TXT-13), sem mudar o texto digitado: versalete
+  (glifos `smcp` da fonte ou sintético a 72%), todas em versalete, todas
+  em maiúsculas e espaçamento de capitais, na barra do texto e no menu
+  Texto; PDF com a escala do versalete sintético; SVG com
+  `font-variant`/`text-transform`.
 - Corte: faca, recortar, borracha, excluir segmento virtual
   (GD-FER-16..19).
 - Linhas: mão livre com suavização, polilinha, linha 2 pontos

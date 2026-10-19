@@ -6,6 +6,7 @@
 
 mod app;
 mod canvas;
+mod caseui;
 mod colorpick;
 mod colorui;
 mod ctxmenu;

@@ -264,6 +264,8 @@ fn text_object(o: &Object, d: &DimensionData, label: &str, at: Point, angle: f64
                     size: f.text_size,
                     weight: 400,
                     italic: false,
+                    caps: None,
+                    cap_spacing: false,
                     extra: Default::default(),
                 },
                 fill: None,

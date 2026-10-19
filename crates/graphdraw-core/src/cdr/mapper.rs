@@ -866,6 +866,8 @@ impl Mapper<'_> {
                 size,
                 weight,
                 italic: p.str("fo:font-style") == Some("italic"),
+                caps: None,
+                cap_spacing: false,
                 extra: Map::new(),
             },
             fill: p.str("fo:color").and_then(Color::from_hex).map(Fill::solid),

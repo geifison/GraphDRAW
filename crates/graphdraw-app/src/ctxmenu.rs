@@ -249,6 +249,13 @@ pub fn object_entries(doc: &DocState, clicked: &str, focus: bool) -> Vec<Entry> 
             Cmd::Run(Command::FitTextToPath),
         ));
     }
+    // Mudar caixa nos textos selecionados (GD-TXT-12).
+    if !texts.is_empty() {
+        text.push(item(
+            tr("Mudar caixa…", "Change case…"),
+            Cmd::Run(Command::TextChangeCase),
+        ));
+    }
     if n == 1 && graphdraw_core::edit::textpath::can_reattach(o) {
         text.push(item(
             tr("Reativar caminho de origem", "Reactivate source path"),

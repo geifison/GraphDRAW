@@ -310,6 +310,8 @@ pub const MISSING_FONTS_WIDTH: f32 = 640.0;
 pub const MISSING_FONTS_LIST: f32 = 320.0;
 /// Verificar ortografia: largura e altura da lista de sugestões.
 pub const SPELL_DIALOG_WIDTH: f32 = 520.0;
+/// Janela Mudar caixa (GD-TXT-12).
+pub const CASE_DIALOG_WIDTH: f32 = 360.0;
 /// Janela Imprimir (doc 29): opções à esquerda, prévia à direita.
 pub const PRINT_DIALOG_WIDTH: f32 = 900.0;
 pub const PRINT_OPTIONS_WIDTH: f32 = 340.0;

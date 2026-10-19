@@ -617,8 +617,8 @@ fn text_item(c: &mut Content, t: &crate::render::scene::TextItem, res: &mut Reso
         let f = &mut w.fonts[fi];
         for g in &run.glyphs {
             let cid = f.remapper.remap(g.id);
-            let width = if run.size > 0.0 {
-                (g.advance / run.size * 1000.0) as f32
+            let width = if run.size * g.scale > 0.0 {
+                (g.advance / (run.size * g.scale) * 1000.0) as f32
             } else {
                 0.0
             };
@@ -629,7 +629,9 @@ fn text_item(c: &mut Content, t: &crate::render::scene::TextItem, res: &mut Reso
             if entry.0.is_empty() && !g.text.is_empty() {
                 entry.0 = g.text.clone();
             }
-            c.set_text_matrix([1.0, 0.0, 0.0, 1.0, g.x as f32, g.y as f32]);
+            // Versalete sintético (GD-TXT-13): o glifo na escala reduzida.
+            let k = g.scale as f32;
+            c.set_text_matrix([k, 0.0, 0.0, k, g.x as f32, g.y as f32]);
             c.show(pdf_writer::Str(&cid.to_be_bytes()));
         }
         c.end_text();

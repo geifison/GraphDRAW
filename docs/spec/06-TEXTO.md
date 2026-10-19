@@ -13,7 +13,7 @@
 - **GD-TXT-08** Corretor ortográfico por idioma, opcional. No Windows usa o corretor do sistema (os dicionários de idioma do Windows, que também aceita dicionários Hunspell); em outros sistemas fica desligado.
 
 ## Atributos de caractere
-Fonte, estilo, tamanho, entrelinha-base, espaçamento entre caracteres (tracking), kerning (métrico/óptico/manual por par), deslocamento de linha base, sobrescrito/subscrito, versalete, caixa alta/baixa, sublinhado/tachado/sobrelinha (estilo e espessura), preenchimento e contorno por caractere, recursos OpenType (ligaduras, alternativos, frações, ordinais, numerais estilísticos, conjuntos estilísticos ss01–ss20), escala horizontal/vertical, rotação individual de caractere.
+Fonte, estilo, tamanho, entrelinha-base, espaçamento entre caracteres (tracking), kerning (métrico/óptico/manual por par), deslocamento de linha base, sobrescrito/subscrito, versalete e caixa alta tipográfica (GD-TXT-13), sublinhado/tachado/sobrelinha (estilo e espessura), preenchimento e contorno por caractere, recursos OpenType (ligaduras, alternativos, frações, ordinais, numerais estilísticos, conjuntos estilísticos ss01–ss20), escala horizontal/vertical, rotação individual de caractere.
 
 ## Atributos de parágrafo
 Alinhamento (esquerda, centro, direita, justificado, forçado), recuos (primeira linha, esquerda, direita), espaço antes/depois, entrelinha (% do tamanho, pontos, múltiplo), tabulações (esquerda/centro/direita/decimal, preenchimento), marcadores e numeração com níveis, capitulares (linhas, distância), colunas no quadro (nº, largura, medianiz), alinhamento vertical no quadro, alinhamento à grade de linha base, controle de viúvas/órfãs, espaçamento palavras/letras para justificação.
@@ -29,6 +29,27 @@ Alinhamento (esquerda, centro, direita, justificado, forçado), recuos (primeira
   - **Espaçamento entre letras** (todo texto): campo na barra (% do corpo, ícone arrastável) e, no texto em caminho, a bolinha azul no fim do texto — puxar para a frente abre, para trás fecha (o quanto o fim andou se reparte entre as letras).
   - **Construção:** o traço-guia marcado como construção não sai na impressão, no PDF/SVG nem no corte; só as letras.
 
+## Caixa alta e baixa
+Duas camadas: **Mudar caixa** reescreve os caracteres do texto (GD-TXT-11/12); a **caixa tipográfica** só muda o desenho na tela e na saída, e o texto digitado fica intacto (GD-TXT-13).
+
+- **GD-TXT-11** **Mudar caixa** (reescreve o texto), cinco modos:
+  - **Primeira letra da frase maiúscula:** a primeira letra (alfabética) do bloco e a primeira depois de `.`, `!` ou `?` seguido de espaço (aspas e parênteses de fechamento entre os dois não contam) vão para maiúscula; as demais letras, para minúscula. No texto de parágrafo a quebra de parágrafo também começa frase; no texto artístico o objeto é uma linha contínua única: só a primeira letra do texto vira maiúscula.
+  - **minúsculas** e **MAIÚSCULAS:** cada letra pelo mapeamento de caixa Unicode; números, pontuação e símbolos ficam iguais; acentos acompanham a letra.
+  - **Todas as Iniciais Maiúsculas:** a primeira letra de cada palavra em maiúscula e o resto da palavra em minúscula. Palavra = sequência de letras, algarismos e apóstrofos (`'`, `’`); espaço, quebra de linha, hífen, travessão, barra e as demais pontuações separam palavras (`sub-base multi-eixo` → `Sub-Base Multi-Eixo`; `3mm` fica `3mm`).
+  - **iNVERTER mAIÚSCULAS/mINÚSCULAS:** cada letra troca de caixa (`bOTÃO dIREITO` → `Botão Direito`).
+  - **Unicode:** mapeamento completo, inclusive os que mudam o número de letras (`ß` → `SS`) e os dígrafos de caixa de título (`ǆ` → `ǅ`); com o idioma do parágrafo turco ou azeri (`tr`, `az`), `i` ↔ `İ` e `ı` ↔ `I`.
+  - **Alcance:** o trecho selecionado na edição de texto; sem trecho, o texto inteiro de cada objeto de texto selecionado. O que vem antes do trecho decide o começo de frase e de palavra.
+  - **Estilos:** só os caracteres mudam; fonte, cor, contorno e os demais atributos de cada trecho ficam onde estavam.
+  - **Desfazer:** cada aplicação é um passo só do histórico (Ctrl+Z volta tudo).
+- **GD-TXT-12** **Janela Mudar caixa:** no menu Texto, no menu de contexto do texto e no atalho **Shift+F3**. Cinco opções exclusivas, uma prévia do resultado e Aplicar | Cancelar; abre com o último modo usado. Com a janela aberta, Shift+F3 de novo percorre minúsculas → MAIÚSCULAS → Todas as Iniciais Maiúsculas → minúsculas (a prévia acompanha); Enter aplica, Esc cancela. Sem texto selecionado nem em edição, o comando fica desativado.
+- **GD-TXT-13** **Caixa tipográfica** (atributo de caractere, não destrutivo), na barra de propriedades do texto e no menu Texto; vale para o trecho selecionado ou para o texto inteiro:
+  - **Versalete:** as minúsculas aparecem com desenho de maiúscula na altura-x. Com o recurso OpenType `smcp` na fonte, usa os glifos dela; sem ele, versalete sintético: maiúsculas a 72% do corpo (largura e altura) com +4% do corpo de espaço depois de cada uma.
+  - **Todas em versalete:** maiúsculas e minúsculas viram versalete (`c2sc` + `smcp`; sintético se a fonte não tiver os dois).
+  - **Todas em maiúsculas:** só o desenho vai para maiúscula (com o recurso `case`, formas próprias para caixa alta, quando a fonte tem); desligar volta o texto digitado como estava.
+  - Os três são exclusivos (ligar um desliga o outro; clicar no ligado volta ao normal).
+  - **Espaçamento de capitais:** liga/desliga; +5% do corpo entre duas maiúsculas seguidas (como aparecem, inclusive versalete e Todas em maiúsculas).
+  - Cursor, seleção, busca, cópia e o texto vivo do PDF usam o texto digitado; o PDF põe os glifos na escala do versalete sintético; o SVG grava `text-transform`/`font-variant`.
+
 ## Contorno de texto em objetos (text wrap)
 - **GD-TXT-10** Objeto pode afastar texto de parágrafo: estilos contorno/quadrado, lados (esquerda/direita/ambos/acima-abaixo), distância.
 
@@ -38,4 +59,4 @@ Alinhamento (esquerda, centro, direita, justificado, forçado), recuos (primeira
 - **GD-FNT-03** Incorporar fontes no `.gdr` — inteiras (P-11 a), quando a licença permitir (fsType OS/2: instalável ou editável); opção do documento, desligada por padrão. Ao abrir com fonte ausente: trocar (sugestão da mais parecida), converter em curvas ou manter.
 
 ## Ferramentas de texto
-- Inserir caractere especial (mapa Unicode), localizar/substituir (com atributos), estatísticas de texto, alterar caixa, colar texto sem formatação.
+- Inserir caractere especial (mapa Unicode), localizar/substituir (com atributos), estatísticas de texto, alterar caixa (GD-TXT-11), colar texto sem formatação.

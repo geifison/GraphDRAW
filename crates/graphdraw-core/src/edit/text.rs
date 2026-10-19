@@ -48,6 +48,8 @@ fn span(text: &str, family: &str, size: f64) -> TextSpan {
             size,
             weight: 400,
             italic: false,
+            caps: None,
+            cap_spacing: false,
             extra: Map::new(),
         },
         fill: None,
@@ -209,6 +211,10 @@ pub struct TextStyle {
     pub weight: Option<u16>,
     /// `left`, `center`, `right`, `justify`.
     pub align: Option<String>,
+    /// Caixa tipográfica (GD-TXT-13): `Some(None)` volta ao normal.
+    pub caps: Option<Option<String>>,
+    /// Espaçamento de capitais (GD-TXT-13).
+    pub cap_spacing: Option<bool>,
 }
 
 pub fn apply_style(t: &mut TextData, st: &TextStyle) {
@@ -217,21 +223,7 @@ pub fn apply_style(t: &mut TextData, st: &TextStyle) {
             p.align = a.clone();
         }
         for s in &mut p.spans {
-            if let Some(f) = &st.family {
-                s.font.family = f.clone();
-            }
-            if let Some(z) = st.size {
-                s.font.size = z;
-            }
-            if let Some(b) = st.bold {
-                s.font.weight = if b { 700 } else { 400 };
-            }
-            if let Some(w) = st.weight {
-                s.font.weight = w;
-            }
-            if let Some(i) = st.italic {
-                s.font.italic = i;
-            }
+            style_span(s, st);
         }
     }
 }
@@ -328,6 +320,12 @@ fn style_span(s: &mut TextSpan, st: &TextStyle) {
     if let Some(i) = st.italic {
         s.font.italic = i;
     }
+    if let Some(c) = &st.caps {
+        s.font.caps = c.clone();
+    }
+    if let Some(c) = st.cap_spacing {
+        s.font.cap_spacing = c;
+    }
 }
 
 /// Estilo só nos caracteres `[a, b)` (formatação por trecho, doc 06); o
@@ -382,6 +380,16 @@ pub fn style_at(t: &TextData, idx: usize) -> (String, f64, bool, bool, String) {
         ),
         None => current_style(t),
     }
+}
+
+/// Caixa tipográfica e espaçamento de capitais no índice (GD-TXT-13);
+/// sem índice, os do primeiro trecho.
+pub fn caps_at(t: &TextData, idx: Option<usize>) -> (Option<String>, bool) {
+    let s = match idx {
+        Some(i) => span_at(t, i).map(|(_, s)| s),
+        None => t.paragraphs.first().and_then(|p| p.spans.first()),
+    };
+    s.map_or((None, false), |s| (s.font.caps.clone(), s.font.cap_spacing))
 }
 
 /// Peso no índice.
