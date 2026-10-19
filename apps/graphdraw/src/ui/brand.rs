@@ -6,14 +6,14 @@ use egui::epaint::CubicBezierShape;
 use egui::{Color32, Context, CornerRadius, Painter, Pos2, Rect, Stroke, TextureHandle, Vec2};
 use std::sync::Arc;
 
-pub const TOP_LEFT: Color32 = Color32::from_rgb(0x24, 0x44, 0x75);
-pub const TOP_RIGHT: Color32 = Color32::from_rgb(0x1A, 0x31, 0x58);
-pub const BOTTOM: Color32 = Color32::from_rgb(0x0E, 0x19, 0x2D);
-pub const CURVE: Color32 = Color32::from_rgb(0x5C, 0xAE, 0xFF);
-pub const NAME_ACCENT: Color32 = Color32::from_rgb(0x7F, 0xC3, 0xFF);
-pub const TAGLINE: Color32 = Color32::from_rgb(0xC9, 0xD7, 0xEC);
+pub const TOP_LEFT: Color32 = Color32::from_rgb(0x10, 0x3E, 0x3A);
+pub const TOP_RIGHT: Color32 = Color32::from_rgb(0x0A, 0x2A, 0x2C);
+pub const BOTTOM: Color32 = Color32::from_rgb(0x05, 0x13, 0x1A);
+pub const CURVE: Color32 = Color32::from_rgb(0x4C, 0xC2, 0x7A);
+pub const NAME_ACCENT: Color32 = Color32::from_rgb(0x9B, 0xE8, 0xB0);
+pub const TAGLINE: Color32 = Color32::from_rgb(0xC4, 0xE6, 0xD2);
 #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
-pub const FOOTNOTE: Color32 = Color32::from_rgb(0x8F, 0xA3, 0xC0);
+pub const FOOTNOTE: Color32 = Color32::from_rgb(0x8C, 0xB0, 0xA0);
 
 /// The 256 px application icon, decoded once per session.
 pub fn icon(ctx: &Context) -> Option<TextureHandle> {
@@ -36,6 +36,41 @@ pub(crate) fn icon_image() -> Option<egui::ColorImage> {
         [w, h],
         img.as_raw(),
     ))
+}
+
+/// The splash artwork (1376 x 768 JPEG), decoded once per session.
+pub fn splash_art(ctx: &Context) -> Option<TextureHandle> {
+    let id = egui::Id::new("brand_splash_texture");
+    if let Some(t) = ctx.data(|d| d.get_temp::<TextureHandle>(id)) {
+        return Some(t);
+    }
+    let bytes = include_bytes!("../../../../assets/brand/splash.jpg");
+    let img = image::load_from_memory(bytes).ok()?.to_rgba8();
+    let (w, h) = (img.width() as usize, img.height() as usize);
+    let color = egui::ColorImage::from_rgba_unmultiplied([w, h], img.as_raw());
+    let tex = ctx.load_texture("brand_splash", color, egui::TextureOptions::LINEAR);
+    ctx.data_mut(|d| d.insert_temp(id, tex.clone()));
+    Some(tex)
+}
+
+/// Paint the part of the splash artwork that fills `rect` without
+/// distortion (the band starting `top` of the way down and covering the
+/// right `right_share` of its width), then a dark veil of `veil` alpha.
+pub fn paint_art_band(
+    painter: &Painter,
+    art: &TextureHandle,
+    rect: Rect,
+    top: f32,
+    right_share: f32,
+    veil: u8,
+) {
+    let [w, h] = art.size();
+    let uw = right_share.clamp(0.1, 1.0);
+    let uh = (uw * w as f32 * rect.height() / rect.width() / h as f32).min(1.0);
+    let v0 = top.clamp(0.0, 1.0 - uh);
+    let uv = Rect::from_min_max(Pos2::new(1.0 - uw, v0), Pos2::new(1.0, v0 + uh));
+    painter.image(art.id(), rect, uv, Color32::WHITE);
+    painter.rect_filled(rect, CornerRadius::ZERO, Color32::from_rgba_unmultiplied(0x06, 0x12, 0x18, veil));
 }
 
 /// The window (title bar and task bar) icon.

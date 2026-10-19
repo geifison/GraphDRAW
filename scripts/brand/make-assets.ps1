@@ -33,3 +33,18 @@ Save-Scaled $app (Join-Path $msix 'Square150x150Logo.png') 150 150 150
 Save-Scaled $app (Join-Path $msix 'Square310x310Logo.png') 310 310 310
 Save-Scaled $app (Join-Path $msix 'Wide310x150Logo.png') 310 150 150
 Save-Scaled $gdr (Join-Path $msix 'GdrFileLogo.png') 256 256 256
+
+# Splash art: scripts/brand/make-assets.ps1 -Splash <source.jpg> writes
+# assets/brand/splash.jpg (1376 px wide, JPEG quality 80).
+if ($args.Count -ge 2 -and $args[0] -eq '-Splash') {
+    $src = [System.Drawing.Image]::FromFile($args[1])
+    $w = 1376; $h = [int][Math]::Round($src.Height * $w / $src.Width)
+    $bmp = New-Object System.Drawing.Bitmap $w, $h
+    $g = [System.Drawing.Graphics]::FromImage($bmp)
+    $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+    $g.DrawImage($src, 0, 0, $w, $h); $g.Dispose(); $src.Dispose()
+    $codec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq 'image/jpeg' }
+    $ep = New-Object System.Drawing.Imaging.EncoderParameters 1
+    $ep.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter ([System.Drawing.Imaging.Encoder]::Quality), 80L
+    $bmp.Save((Join-Path $brand 'splash.jpg'), $codec, $ep); $bmp.Dispose()
+}
