@@ -74,5 +74,5 @@ prova düğmesi çizimi basılacağı gibi gösterir: CMYK mürekkeplerinin
 basamayacağı renkler daha mat görünür. [[docker.color]] paneli de bu tür
 renkler için uyarır.
 
-Yüklü profil olmadan TraceDraw renkleri, kuşe kâğıt üzerindeki işlem
+Yüklü profil olmadan GraphDraw renkleri, kuşe kâğıt üzerindeki işlem
 mürekkeplerinin kendi modeliyle dönüştürür.

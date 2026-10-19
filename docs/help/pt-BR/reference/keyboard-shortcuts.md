@@ -1,6 +1,6 @@
 # Atalhos de teclado
 
-Estes são os atalhos que vêm com o TraceDraw. Os menus mostram o atalho de cada
+Estes são os atalhos que vêm com o GraphDraw. Os menus mostram o atalho de cada
 comando ao lado dele, e você pode acrescentar os seus; veja
 [Opções de personalização](../customize/customization.md#commands). No macOS,
 <kbd>Ctrl</kbd> é a tecla Command.

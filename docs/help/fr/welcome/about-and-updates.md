@@ -1,6 +1,6 @@
-# À propos de TraceDraw et mises à jour
+# À propos de GraphDraw et mises à jour
 
-TraceDraw est libre et open source. Cette page explique comment voir quelle
+GraphDraw est libre et open source. Cette page explique comment voir quelle
 version vous avez, comment en obtenir une plus récente et où demander de
 l'aide.
 
@@ -11,17 +11,17 @@ l'auteur, la licence, un lien vers le code source et ce avec quoi le programme
 est construit. Appuyez sur [[dialog.close]], <kbd>Entrée</kbd> ou
 <kbd>Échap</kbd> pour la fermer.
 
-![La boîte À propos de TraceDraw](../../img/welcome-about-and-updates-about.png)
+![La boîte À propos de GraphDraw](../../img/welcome-about-and-updates-about.png)
 
 ## Rechercher des mises à jour {#updates}
 
-Sur ordinateur, TraceDraw peut vous prévenir quand une version plus récente
+Sur ordinateur, GraphDraw peut vous prévenir quand une version plus récente
 est publiée.
 
 Pour vérifier maintenant :
 
 1. Choisissez [[menu.help > menu.help.updates]].
-2. TraceDraw demande la dernière version à la page des versions du projet et
+2. GraphDraw demande la dernière version à la page des versions du projet et
    indique si elle est plus récente que la vôtre. Les versions de test et les
    versions nocturnes ne sont jamais proposées.
 3. Quand une version plus récente existe, choisissez quoi faire :
@@ -34,11 +34,11 @@ Pour vérifier maintenant :
    - **Ignorer cette version** cesse de proposer cette version.
    - [[dialog.close]] ferme la boîte.
 
-Quand TraceDraw fonctionne en AppImage Linux, la boîte peut aussi proposer
+Quand GraphDraw fonctionne en AppImage Linux, la boîte peut aussi proposer
 **Installer** : elle télécharge la nouvelle AppImage à côté de celle que vous
 utilisez, vérifie que le téléchargement est complet et authentique, et la met
 à la place de l'ancien fichier. La nouvelle version démarre à la prochaine
-ouverture de TraceDraw. Si une vérification échoue, l'ancien fichier reste tel
+ouverture de GraphDraw. Si une vérification échoue, l'ancien fichier reste tel
 quel et la boîte vous dit pourquoi.
 
 Si la vérification échoue (par exemple sans connexion internet), la boîte le
@@ -50,7 +50,7 @@ signale et propose la page des versions.
 
 [[menu.tools > menu.tools.options > menu.tools.options_global]], page
 [[options.general]], a un réglage pour rechercher les mises à jour au
-démarrage. Il est activé au départ : une fois par jour, TraceDraw vérifie
+démarrage. Il est activé au départ : une fois par jour, GraphDraw vérifie
 discrètement au démarrage et ne se manifeste que lorsqu'une version plus
 récente que vous n'avez pas ignorée est sortie.
 
@@ -59,7 +59,7 @@ récente que vous n'avez pas ignorée est sortie.
 
 ## L'écran d'accueil {#welcome-screen}
 
-L'écran d'accueil est le premier onglet au démarrage de TraceDraw. Il permet
+L'écran d'accueil est le premier onglet au démarrage de GraphDraw. Il permet
 de créer un dessin, d'ouvrir l'un des derniers dessins utilisés (chacun avec
 une miniature ; [[menu.file.clear_recent]] les oublie), de partir d'un modèle,
 de lire les nouvelles et de trouver des ressources d'apprentissage. Choisissez
@@ -75,4 +75,4 @@ de lire les nouvelles et de trouver des ressources d'apprentissage. Choisissez
 - [[menu.help > menu.help.support]] ouvre le suivi des problèmes, où vous
   pouvez signaler un problème.
 - [[menu.help > menu.help.message_settings]] ouvre les options où se règlent
-  les messages de TraceDraw.
+  les messages de GraphDraw.

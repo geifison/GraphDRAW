@@ -1,6 +1,6 @@
 # Fills
 
-A fill paints the inside of a closed object. TraceDraw has six kinds of
+A fill paints the inside of a closed object. GraphDraw has six kinds of
 fill: [[docker.fill_none]], [[docker.fill_uniform]] (one flat color),
 [[docker.fill_fountain]] (colors that blend into each other),
 [[docker.fill_pattern]], [[docker.fill_texture]] and [[docker.fill_mesh]]

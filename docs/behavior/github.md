@@ -7,12 +7,12 @@ Drawings kept in a GitHub repository, through GitHub's REST API
   address), branch (`main` when empty), the file's path in the
   repository, and a token. The file's description comes first (its blob
   id, and its text when it is under 1 MB); a larger file is fetched again
-  as raw bytes. A `.tdraw` opens as a new drawing named after the file;
+  as raw bytes. A `.gdr` opens as a new drawing named after the file;
   the drawing remembers the repository, branch, path and the version it
   was opened at.
 - **Save** (Ctrl+S) on such a drawing, and **Save to GitHub...** for any
   drawing, open the same form with a commit message ("Update
-  <file name>"). OK commits the drawing (as `.tdraw`, with its fonts)
+  <file name>"). OK commits the drawing (as `.gdr`, with its fonts)
   to that path on that branch, over the version it was opened or last
   saved at. When the file changed on GitHub meanwhile, GitHub refuses
   (409) and the dialog says so: save under another path or branch, or
@@ -47,5 +47,5 @@ OAuth, keeping the token in the system's keyring.
 - `github::tests::open_edit_save_and_conflict`
 - `github::tests::large_files_and_earlier_versions`
 - `github::tests::live_open_of_a_public_drawing` (run by hand, needs the
-  network): `sample.tdraw` of this repository opens without a token and
+  network): `sample.gdr` of this repository opens without a token and
   its history lists commits.

@@ -29,7 +29,7 @@ Objekte, die sie verwenden, behalten ihre Ersatzfarbe.
 Eine Palettendatei kann ein Buch von Volltonfarben sein (zum Beispiel eine
 `.ase`-Palette mit Volltoneinträgen). Ihre Volltoneinträge öffnen sich als
 Volltonfarben, benannt wie im Buch; wenn Sie einen anwenden, wird die Farbe der
-Zeichnung hinzugefügt. TraceDraw liefert keine lizenzierten Farbbücher mit,
+Zeichnung hinzugefügt. GraphDraw liefert keine lizenzierten Farbbücher mit,
 aber ein Buch, das Sie besitzen, öffnet sich wie jede Palette.
 
 ## Volltonfarben im Druck und in Exporten {#output}

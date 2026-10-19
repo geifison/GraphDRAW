@@ -22,7 +22,7 @@ salah satu di [[menu.window > menu.window.workspace]], atau di halaman
 
 ## Apa yang disimpan {#kept}
 
-Semua yang Anda ubah disimpan saat TraceDraw ditutup dan kembali pada
+Semua yang Anda ubah disimpan saat GraphDraw ditutup dan kembali pada
 kesempatan berikutnya: opsi, letak setiap bilah dan bilah mana yang tampil,
 alat yang ditampilkan setiap kelompok kotak alat, panel yang terbuka, satuan,
 penempelan, pengaturan yang dipakai objek baru, dan apa yang ditampilkan jendela.

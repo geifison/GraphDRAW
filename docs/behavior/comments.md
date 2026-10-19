@@ -1,7 +1,7 @@
 # Comments docker
 
 Window > Panels > Comments collects review notes on the drawing. They
-are saved with the drawing (`.tdraw`) and never printed or exported.
+are saved with the drawing (`.gdr`) and never printed or exported.
 
 ## Adding
 

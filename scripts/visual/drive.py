@@ -54,7 +54,7 @@ def hold(x, y, seconds=0.7):
     xtest.fake_input(d, X.ButtonRelease, 1); d.sync(); time.sleep(0.3)
 
 def alive():
-    return bool(subprocess.run(["pgrep", "-x", "tracedraw"], capture_output=True, text=True).stdout.strip())
+    return bool(subprocess.run(["pgrep", "-x", "graphdraw"], capture_output=True, text=True).stdout.strip())
 
 def typestr(s):
     for ch in s:
@@ -62,7 +62,7 @@ def typestr(s):
         key(name)
 
 def shot(name):
-    out = os.environ.get("TRACEDRAW_SHOTS", "/tmp/tracedraw-visual")
+    out = os.environ.get("GRAPHDRAW_SHOTS", "/tmp/graphdraw-visual")
     subprocess.run(["import", "-display", ":99", "-window", "root", f"{out}/{name}.png"], check=True)
     print("shot", name)
 

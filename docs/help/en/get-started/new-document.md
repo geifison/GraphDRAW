@@ -63,7 +63,7 @@ Tick [[newdoc.dont_show]] to create new drawings at once, with the values
 you used last. To see the dialog box again, turn on the matching setting on
 the [[options.general]] page of
 [[menu.tools > menu.tools.options > menu.tools.options_app]]. See
-[TraceDraw options](../customize/options-app.md#general).
+[GraphDraw options](../customize/options-app.md#general).
 
 ## Other ways to start {#other-ways}
 

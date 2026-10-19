@@ -8,7 +8,7 @@ use crate::app::{App, DockerTab};
 use crate::i18n::{tr, trf};
 use crate::theme::Tokens;
 use egui::Ui;
-use tracedraw_core::{document::ShapeKind, live::Effect, Color, Command, Fill, ShapeId};
+use graphdraw_core::{document::ShapeKind, live::Effect, Color, Command, Fill, ShapeId};
 
 fn color_button(ui: &mut Ui, c: &mut Color) -> bool {
     let [r, g, b] = c.to_rgb8();
@@ -128,7 +128,7 @@ fn color_styles(app: &mut App, ui: &mut Ui) {
             for s in app.selected_shapes() {
                 if let Some(c) = s.fill.preview_color() {
                     if !st.iter().any(|x| x.color == c) {
-                        st.push(tracedraw_core::ColorStyle {
+                        st.push(graphdraw_core::ColorStyle {
                             name: format!("Color {}", st.len() + 1),
                             color: c,
                             harmony: None,
@@ -140,7 +140,7 @@ fn color_styles(app: &mut App, ui: &mut Ui) {
         }
         if ui.button(tr("docker.new_color_style")).clicked() {
             let mut st = styles.clone();
-            st.push(tracedraw_core::ColorStyle {
+            st.push(graphdraw_core::ColorStyle {
                 name: format!("Color {}", st.len() + 1),
                 color: app.mixer_color,
                 harmony: None,
@@ -203,7 +203,7 @@ fn color_styles(app: &mut App, ui: &mut Ui) {
                 let mut st = app.doc().color_styles.clone();
                 let name = tr(h.key());
                 for (k, c) in h.colors(base).into_iter().enumerate() {
-                    st.push(tracedraw_core::ColorStyle {
+                    st.push(graphdraw_core::ColorStyle {
                         name: format!("{name} {}", k + 1),
                         color: c,
                         harmony: Some(name.clone()),
@@ -231,7 +231,7 @@ fn object_styles(app: &mut App, ui: &mut Ui) {
 }
 
 /// A fill swatch and an outline swatch (a red stroke across for none).
-fn style_swatches(ui: &mut Ui, fill: &Fill, stroke: &Option<tracedraw_core::Stroke>) {
+fn style_swatches(ui: &mut Ui, fill: &Fill, stroke: &Option<graphdraw_core::Stroke>) {
     let none = |ui: &mut Ui, r: egui::Rect| {
         ui.painter().line_segment(
             [r.left_bottom(), r.right_top()],
@@ -271,7 +271,7 @@ fn style_swatches(ui: &mut Ui, fill: &Fill, stroke: &Option<tracedraw_core::Stro
 
 /// Default Properties: what each kind of new object starts with.
 fn default_properties(app: &mut App, ui: &mut Ui) {
-    use tracedraw_core::{DefaultKind, ObjectDefaults};
+    use graphdraw_core::{DefaultKind, ObjectDefaults};
     ui.strong(tr("defaults.title"));
     let first = app.selected_shapes().first().cloned();
     for kind in DefaultKind::ALL {
@@ -915,7 +915,7 @@ fn lens(app: &mut App, ui: &mut Ui) {
                     }
                 }
                 None => {
-                    app.remove_effects_of_kind(&Effect::Lens(tracedraw_core::live::Lens::Invert))
+                    app.remove_effects_of_kind(&Effect::Lens(graphdraw_core::live::Lens::Invert))
                 }
             }
         }
@@ -923,7 +923,7 @@ fn lens(app: &mut App, ui: &mut Ui) {
             .add_enabled(has, egui::Button::new(tr("docker.remove")))
             .clicked()
         {
-            app.remove_effects_of_kind(&Effect::Lens(tracedraw_core::live::Lens::Invert));
+            app.remove_effects_of_kind(&Effect::Lens(graphdraw_core::live::Lens::Invert));
         }
     });
     dim(ui, tr("docker.lens_hint"));
@@ -973,7 +973,7 @@ use egui::Color32;
 /// Apply for two selected objects.
 fn blend(app: &mut App, ui: &mut Ui) {
     use crate::ui::docker_form::{section, wide_button};
-    use tracedraw_core::live::{BlendOptions, ColorBlend};
+    use graphdraw_core::live::{BlendOptions, ColorBlend};
     let cur = app.selected_blends().into_iter().next().map(|(_, e)| e);
     let (mut steps, mut accel_o, mut accel_c, mut rot, mut rotate_on_path, has_path, mut opt) =
         match &cur {
@@ -1781,7 +1781,7 @@ fn symbols(app: &mut App, ui: &mut Ui) {
 }
 
 fn pages(app: &mut App, ui: &mut Ui) {
-    let pages: Vec<(tracedraw_core::PageId, String, tracedraw_core::Size)> = app
+    let pages: Vec<(graphdraw_core::PageId, String, graphdraw_core::Size)> = app
         .doc()
         .pages
         .iter()
@@ -1857,7 +1857,7 @@ fn fonts(app: &mut App, ui: &mut Ui) {
         ui.strong(tr("docker.fonts_in_document"));
         for f in &used {
             let missing = !app.font_families.contains(f);
-            let carried = !missing && tracedraw_text::fonts().is_document_family(f);
+            let carried = !missing && graphdraw_text::fonts().is_document_family(f);
             ui.horizontal(|ui| {
                 if ui.selectable_label(app.text_font == *f, f).clicked() {
                     app.apply_text_font(f);
@@ -1865,7 +1865,7 @@ fn fonts(app: &mut App, ui: &mut Ui) {
                 if missing {
                     let label = ui
                         .colored_label(egui::Color32::from_rgb(200, 100, 0), tr("docker.missing"));
-                    if let Some(s) = tracedraw_text::fonts().substitute(f) {
+                    if let Some(s) = graphdraw_text::fonts().substitute(f) {
                         label.on_hover_text(trf("docker.missing_hint", &[("f", &s)]));
                     }
                 } else if carried {

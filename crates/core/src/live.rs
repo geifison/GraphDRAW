@@ -255,7 +255,7 @@ pub enum Lens {
     },
     /// Bitmap effects applied to whatever lies beneath, in order (the
     /// application supplies them to the renderer; see
-    /// `tracedraw_render::set_pixel_effects`).
+    /// `graphdraw_render::set_pixel_effects`).
     Effects {
         effects: Vec<crate::BitmapEffect>,
     },

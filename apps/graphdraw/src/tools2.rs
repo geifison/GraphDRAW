@@ -7,7 +7,7 @@ use crate::app::{App, Drag};
 use crate::i18n::tr;
 use crate::tools::Tool;
 use egui::{Modifiers, PointerButton, Response};
-use tracedraw_core::{
+use graphdraw_core::{
     document::{Shape, ShapeKind},
     geometry::{BezPath, Point, Rect, Shape as _, Vec2},
     shaping, Command, Fill, ShapeId, Stroke,
@@ -32,7 +32,7 @@ pub fn spiral_path(rect: Rect, revolutions: u32, logarithmic: bool) -> BezPath {
         };
         pts.push(Point::new(c.x + rx * r * a.cos(), c.y + ry * r * a.sin()));
     }
-    tracedraw_core::geometry::smooth_path(&pts, false)
+    graphdraw_core::geometry::smooth_path(&pts, false)
 }
 
 /// A grid of `rows` x `cols` cells covering `rect`: the outer frame and
@@ -100,7 +100,7 @@ pub fn calligraphic_path(points: &[Point], width: f64, angle_deg: f64) -> BezPat
     let mut right: Vec<Point> = points.iter().map(|p| *p - nib).collect();
     right.reverse();
     left.append(&mut right);
-    let p = tracedraw_core::geometry::smooth_path(&left, true);
+    let p = graphdraw_core::geometry::smooth_path(&left, true);
     shaping::simplify(&p)
 }
 
@@ -244,7 +244,7 @@ impl App {
         current: Point,
         from_center: bool,
     ) -> Option<BezPath> {
-        use tracedraw_core::geometry::{
+        use graphdraw_core::geometry::{
             ellipse_arc_path, ellipse_path, polygon_path, polygon_rect_for_bounds,
         };
         let r = App::box_rect(start, current, from_center);
@@ -259,7 +259,7 @@ impl App {
                 self.polygon_points,
                 0.0,
             ),
-            Tool::Star if self.star_complex => tracedraw_core::geometry::complex_star_path(
+            Tool::Star if self.star_complex => graphdraw_core::geometry::complex_star_path(
                 polygon_rect_for_bounds(r, self.complex_points, 0.0),
                 self.complex_points,
                 self.complex_sharpness,
@@ -348,7 +348,7 @@ impl App {
 
     pub fn create_table(&mut self, rect: Rect) {
         let (rows, cols) = (self.table_rows.max(1), self.table_cols.max(1));
-        let mut table = tracedraw_core::Table::new(rect, rows, cols, self.table_border.clone());
+        let mut table = graphdraw_core::Table::new(rect, rows, cols, self.table_border.clone());
         table.cell_fill = self.table_fill.clone();
         if let Some(id) = self.new_shape(ShapeKind::Table(table)) {
             self.select(vec![id]);
@@ -375,7 +375,7 @@ impl App {
             let pp = s.page_path();
             let mut out = BezPath::new();
             // A variable-width or calligraphic outline becomes its band.
-            let band = tracedraw_core::shaping::outline_band(&pp, st, 1.0);
+            let band = graphdraw_core::shaping::outline_band(&pp, st, 1.0);
             if let Some(b) = &band {
                 out = b.clone();
             }
@@ -384,19 +384,19 @@ impl App {
                 let pts = contour.0;
                 let style = StrokeStyle::new(width)
                     .line_join(match st.join {
-                        tracedraw_core::LineJoin::Round => IJoin::Round(0.05),
-                        tracedraw_core::LineJoin::Bevel => IJoin::Bevel,
-                        tracedraw_core::LineJoin::Miter => IJoin::Miter(4.0),
+                        graphdraw_core::LineJoin::Round => IJoin::Round(0.05),
+                        graphdraw_core::LineJoin::Bevel => IJoin::Bevel,
+                        graphdraw_core::LineJoin::Miter => IJoin::Miter(4.0),
                     })
                     .start_cap(match st.cap {
-                        tracedraw_core::LineCap::Round => ICap::Round(0.05),
-                        tracedraw_core::LineCap::Square => ICap::Square,
-                        tracedraw_core::LineCap::Butt => ICap::Butt,
+                        graphdraw_core::LineCap::Round => ICap::Round(0.05),
+                        graphdraw_core::LineCap::Square => ICap::Square,
+                        graphdraw_core::LineCap::Butt => ICap::Butt,
                     })
                     .end_cap(match st.cap {
-                        tracedraw_core::LineCap::Round => ICap::Round(0.05),
-                        tracedraw_core::LineCap::Square => ICap::Square,
-                        tracedraw_core::LineCap::Butt => ICap::Butt,
+                        graphdraw_core::LineCap::Round => ICap::Round(0.05),
+                        graphdraw_core::LineCap::Square => ICap::Square,
+                        graphdraw_core::LineCap::Butt => ICap::Butt,
                     });
                 let shapes_out = pts.stroke(style, closed);
                 for shape in shapes_out {
@@ -443,7 +443,7 @@ impl App {
 
 /// Flattened subpaths of a page path as point lists with a closed flag.
 fn polylines(path: &BezPath) -> Vec<(Vec<[f64; 2]>, bool)> {
-    use tracedraw_core::geometry::PathEl;
+    use graphdraw_core::geometry::PathEl;
     let mut out: Vec<(Vec<[f64; 2]>, bool)> = Vec::new();
     let mut cur: Vec<[f64; 2]> = Vec::new();
     let mut closed = false;
@@ -499,7 +499,7 @@ impl App {
 
 /// Even-odd point-in-polygon on a flattened path.
 pub fn point_in_path(path: &BezPath, p: Point) -> bool {
-    let pts = tracedraw_core::effects::resample(path, 256);
+    let pts = graphdraw_core::effects::resample(path, 256);
     let mut inside = false;
     let n = pts.len();
     if n < 3 {

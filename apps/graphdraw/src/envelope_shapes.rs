@@ -2,8 +2,8 @@
 //! (y up), each turned into an envelope frame around an object's box. A
 //! frame's corners are the outline nodes the box's corners map to.
 
-use tracedraw_core::envelope::Frame;
-use tracedraw_core::geometry::{Point, Rect};
+use graphdraw_core::envelope::Frame;
+use graphdraw_core::geometry::{Point, Rect};
 
 /// An outline being built: nodes, the handles of the segment from each
 /// node to the next, and the corner nodes.
@@ -107,7 +107,7 @@ impl Outline {
 
     /// The outline as points for a picture, `steps` per segment, y up.
     pub fn points(&self, steps: usize) -> Vec<Point> {
-        use tracedraw_core::geometry::{CubicBez, ParamCurve};
+        use graphdraw_core::geometry::{CubicBez, ParamCurve};
         let n = self.nodes.len();
         let mut out = Vec::new();
         for i in 0..n {

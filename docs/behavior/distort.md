@@ -3,7 +3,7 @@
 Push and Pull, Zipper and Twister as a live effect (`Effect::Distort`):
 the object keeps its own outline and draws the distorted one, so the
 distortion can be changed, moved or cleared at any time. The formulas
-are in `tracedraw_core::distort`; the tool in `distort_tool.rs`, its bar
+are in `graphdraw_core::distort`; the tool in `distort_tool.rs`, its bar
 in `ui/distort_bar.rs`.
 
 ## Formulas

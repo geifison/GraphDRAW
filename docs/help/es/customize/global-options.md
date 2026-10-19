@@ -68,7 +68,7 @@ aquí la opción para volver a verlo.
 ![La página Ubicaciones de archivos de las opciones globales](../../img/customize-global-options-file-locations.png)
 
 Muestra dónde se guardan las preferencias y las copias de seguridad
-automáticas. Las preferencias están en una carpeta `tracedraw-settings` junto
+automáticas. Las preferencias están en una carpeta `graphdraw-settings` junto
 al programa cuando existe (una copia portátil); si no, en el lugar que su
 sistema destina a los ajustes de los programas. La versión para navegador las
 guarda en el navegador.

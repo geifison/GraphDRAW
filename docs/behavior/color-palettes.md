@@ -90,5 +90,5 @@ update the document palette (on).
 - `ui::palette::tests::rows_fit_whole_swatches`
 - `color_drop::tests` (fill inside, outline on the edge, No Color, an
   object without a fill, the document palette)
-- `tracedraw_core` `engine::tests::amending_joins_the_last_step_only_right_after_it`
-- `tracedraw_cdr` `container::tests::document_palette_xml_reads_names_and_tints`
+- `graphdraw_core` `engine::tests::amending_joins_the_last_step_only_right_after_it`
+- `graphdraw_cdr` `container::tests::document_palette_xml_reads_names_and_tints`

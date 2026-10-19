@@ -4,7 +4,7 @@
 //! uniform transparency via ExtGState. Written by hand; no dependency.
 
 use std::fmt::Write as _;
-use tracedraw_core::{
+use graphdraw_core::{
     document::{Shape, ShapeKind},
     geometry::{Affine, PathEl, Rect},
     Color, Document, Fill, FountainKind, LineCap, LineJoin,
@@ -332,9 +332,9 @@ struct PageWriter<'a> {
     shadings: Vec<(String, usize)>,
     gstates: Vec<(String, usize)>,
     images: Vec<(String, usize)>,
-    symbols: &'a [tracedraw_core::Symbol],
+    symbols: &'a [graphdraw_core::Symbol],
     /// The drawing's spot inks, and the colour spaces this page uses.
-    inks: &'a [tracedraw_core::document::Ink],
+    inks: &'a [graphdraw_core::document::Ink],
     spaces: Vec<(String, usize)>,
 }
 
@@ -392,7 +392,7 @@ impl PageWriter<'_> {
         color_op_in(c.process(), fill, self.pdf.cmyk_only)
     }
 
-    fn path_ops(&mut self, path: &tracedraw_core::BezPath) {
+    fn path_ops(&mut self, path: &graphdraw_core::BezPath) {
         for el in path.elements() {
             match el {
                 PathEl::MoveTo(p) => {
@@ -438,8 +438,8 @@ impl PageWriter<'_> {
     fn paint_area(
         &mut self,
         fill: &Fill,
-        path: &tracedraw_core::BezPath,
-        bounds: tracedraw_core::geometry::Rect,
+        path: &graphdraw_core::BezPath,
+        bounds: graphdraw_core::geometry::Rect,
         nonzero: bool,
     ) {
         let (fill_op, clip) = if nonzero { ("f", "W") } else { ("f*", "W*") };
@@ -501,7 +501,7 @@ impl PageWriter<'_> {
             Fill::Fountain(_) | Fill::Pattern(_) | Fill::Texture(_) | Fill::Mesh(_) => {
                 // A shaped gradient covers the bounds of the path it follows.
                 let bounds = if matches!(fill, Fill::Fountain(_)) {
-                    use tracedraw_core::geometry::Shape as _;
+                    use graphdraw_core::geometry::Shape as _;
                     path.bounding_box()
                 } else {
                     bounds
@@ -541,7 +541,7 @@ impl PageWriter<'_> {
             return;
         }
         if !shape.effects.is_empty() {
-            let ev = tracedraw_core::live::evaluate(shape);
+            let ev = graphdraw_core::live::evaluate(shape);
             for b in &ev.below {
                 let mut b = b.clone();
                 b.effects.clear();
@@ -551,16 +551,16 @@ impl PageWriter<'_> {
             main.effects.clear();
             for e in &shape.effects {
                 match e {
-                    tracedraw_core::live::Effect::Transparency { mask, .. } => {
+                    graphdraw_core::live::Effect::Transparency { mask, .. } => {
                         main.opacity *= crate::svg::average_luminance(mask) as f64;
                     }
-                    tracedraw_core::live::Effect::Lens(
-                        tracedraw_core::live::Lens::Transparency { rate, color },
+                    graphdraw_core::live::Effect::Lens(
+                        graphdraw_core::live::Lens::Transparency { rate, color },
                     ) => {
                         main.fill = Fill::Solid(*color);
                         main.opacity *= rate / 100.0;
                     }
-                    tracedraw_core::live::Effect::Lens(_) => main.opacity *= 0.5,
+                    graphdraw_core::live::Effect::Lens(_) => main.opacity *= 0.5,
                     _ => {}
                 }
             }
@@ -635,7 +635,7 @@ impl PageWriter<'_> {
         if path.elements().is_empty() {
             return;
         }
-        use tracedraw_core::geometry::Shape as _;
+        use graphdraw_core::geometry::Shape as _;
         let bounds = path.bounding_box();
         self.content.push_str("q\n");
         if shape.opacity < 1.0 && self.pdf.allow_alpha {
@@ -720,7 +720,7 @@ impl PageWriter<'_> {
 
         // Outline.
         if let Some(s) = &shape.stroke {
-            let width = if s.width <= tracedraw_core::Stroke::HAIRLINE + 1e-9 {
+            let width = if s.width <= graphdraw_core::Stroke::HAIRLINE + 1e-9 {
                 0.0
             } else {
                 s.width * MM_PT
@@ -749,7 +749,7 @@ impl PageWriter<'_> {
             }
             if let Some(brush) = &s.painterly {
                 // Painterly brush: the marks, one filled path per opacity.
-                for (alpha, marks) in tracedraw_core::painterly::marks_by_opacity(
+                for (alpha, marks) in graphdraw_core::painterly::marks_by_opacity(
                     &shape.page_path(),
                     s.width,
                     brush,
@@ -772,7 +772,7 @@ impl PageWriter<'_> {
                     self.content.push_str("f\nQ\n");
                 }
             } else if let Some(band) =
-                tracedraw_core::shaping::outline_band(&shape.page_path(), s, 1.0)
+                graphdraw_core::shaping::outline_band(&shape.page_path(), s, 1.0)
             {
                 // Calligraphic nib or variable width: the band, filled.
                 let band = parent * band;
@@ -786,7 +786,7 @@ impl PageWriter<'_> {
                     self.content.push_str("f\n");
                 }
             } else if let Some((paint, area)) = outline_paint(s, transform)
-                .map(|p| (p, tracedraw_core::shaping::stroke_area(&path, s)))
+                .map(|p| (p, graphdraw_core::shaping::stroke_area(&path, s)))
                 .filter(|(_, a)| !a.elements().is_empty())
             {
                 // The outline's own paint: the area it covers, painted
@@ -800,7 +800,7 @@ impl PageWriter<'_> {
             // Arrowheads (presets and custom) are filled with the outline
             // colour. They are built on the page-space path, which already
             // carries the shape's own transform, so only the parent applies.
-            for head in tracedraw_core::arrowhead_paths(&shape.page_path(), s) {
+            for head in graphdraw_core::arrowhead_paths(&shape.page_path(), s) {
                 let op = self.color_op(s.color, true);
                 let _ = writeln!(self.content, "{op}");
                 self.path_ops(&(parent * head));
@@ -813,7 +813,7 @@ impl PageWriter<'_> {
 
 /// PDF stitching function over the fountain's stops (type 3 wrapping type 2
 /// segments), or a single type 2 function for two stops.
-fn stitching_function_in(ft: &tracedraw_core::Fountain, cmyk_only: bool) -> String {
+fn stitching_function_in(ft: &graphdraw_core::Fountain, cmyk_only: bool) -> String {
     let rgb_array = |c: Color| color_array(c, cmyk_only);
     // One run of stops with the edge pad, repeats, mirror and inversion
     // worked in.
@@ -879,7 +879,7 @@ fn stitching_function_in(ft: &tracedraw_core::Fountain, cmyk_only: bool) -> Stri
 
 /// An outline's own paint other than a plain colour, ready for page
 /// space: a mesh's nodes go through the object's `transform`.
-fn outline_paint(s: &tracedraw_core::Stroke, transform: Affine) -> Option<Fill> {
+fn outline_paint(s: &graphdraw_core::Stroke, transform: Affine) -> Option<Fill> {
     match s.fill.as_deref()? {
         Fill::None | Fill::Solid(_) => None,
         Fill::Mesh(m) => {
@@ -897,12 +897,12 @@ fn outline_paint(s: &tracedraw_core::Stroke, transform: Affine) -> Option<Fill> 
 /// `bounds` at 150 dpi (a shaped gradient follows `path`).
 fn rasterise_fill(
     fill: &Fill,
-    path: &tracedraw_core::BezPath,
-    bounds: tracedraw_core::geometry::Rect,
+    path: &graphdraw_core::BezPath,
+    bounds: graphdraw_core::geometry::Rect,
 ) -> Option<(Vec<u8>, u32, u32)> {
     let pm = match fill {
-        Fill::Fountain(_) => tracedraw_render::render_fill_image_in(fill, path, 150.0)?,
-        _ => tracedraw_render::render_fill_image(fill, bounds, 150.0)?,
+        Fill::Fountain(_) => graphdraw_render::render_fill_image_in(fill, path, 150.0)?,
+        _ => graphdraw_render::render_fill_image(fill, bounds, 150.0)?,
     };
     let (w, h) = (pm.width(), pm.height());
     Some((pm.encode_png().ok()?, w, h))
@@ -939,11 +939,11 @@ fn flate(data: &[u8]) -> Vec<u8> {
 /// covers its children; hidden objects have none.
 fn link_areas(
     shapes: &[Shape],
-    symbols: &[tracedraw_core::Symbol],
+    symbols: &[graphdraw_core::Symbol],
     parent: Affine,
     out: &mut Vec<(Rect, String)>,
 ) {
-    use tracedraw_core::geometry::Shape as _;
+    use graphdraw_core::geometry::Shape as _;
     for s in shapes {
         if !s.visible {
             continue;
@@ -997,8 +997,8 @@ fn needs_flattening(s: &Shape) -> bool {
     if s.effects.iter().any(|e| {
         matches!(
             e,
-            tracedraw_core::live::Effect::Transparency { .. }
-                | tracedraw_core::live::Effect::Lens(_)
+            graphdraw_core::live::Effect::Transparency { .. }
+                | graphdraw_core::live::Effect::Lens(_)
         )
     }) {
         return true;
@@ -1021,7 +1021,7 @@ fn needs_flattening(s: &Shape) -> bool {
 /// Replace every object that needs flattening by a raster of everything
 /// drawn up to and including it, cropped to its bounds, so the composite
 /// is kept without transparency in the file.
-fn flatten_page(doc: &Document, page: &tracedraw_core::document::Page, dpi: f64) -> Vec<Shape> {
+fn flatten_page(doc: &Document, page: &graphdraw_core::document::Page, dpi: f64) -> Vec<Shape> {
     let layers = doc.layers_for_page(page.id).unwrap_or_default();
     let ordered: Vec<Shape> = layers
         .iter()
@@ -1045,7 +1045,7 @@ fn flatten_page(doc: &Document, page: &tracedraw_core::document::Page, dpi: f64)
         tmp.pages[0].background = page.background.clone();
         tmp.pages[0].layers[0].shapes = ordered[..=i].to_vec();
         let pid = tmp.pages[0].id;
-        let Some(pm) = tracedraw_render::render_page_image(&tmp, pid, dpi) else {
+        let Some(pm) = graphdraw_render::render_page_image(&tmp, pid, dpi) else {
             out.push(s.clone());
             continue;
         };
@@ -1100,7 +1100,7 @@ const MASK_DPI: f64 = 300.0;
 fn raster_of(
     shape: &Shape,
     parent: Affine,
-    symbols: &[tracedraw_core::Symbol],
+    symbols: &[graphdraw_core::Symbol],
     dpi: f64,
 ) -> Option<Shape> {
     let b = parent.transform_rect_bbox(shape.bounds());
@@ -1109,7 +1109,7 @@ fn raster_of(
     }
     let area_in2 = (b.width() / 25.4) * (b.height() / 25.4);
     let dpi = dpi.min((40.0e6 / area_in2.max(1e-9)).sqrt()).max(1.0);
-    let mut tmp = Document::new("mask", tracedraw_core::Size::new(b.width(), b.height()));
+    let mut tmp = Document::new("mask", graphdraw_core::Size::new(b.width(), b.height()));
     tmp.symbols = symbols.to_vec();
     let mut placed = shape.clone();
     placed.transform = Affine::translate((-b.x0, -b.y0)) * parent * shape.transform;
@@ -1122,13 +1122,13 @@ fn raster_of(
         (b.width() * zoom).ceil().max(1.0) as u32,
         (b.height() * zoom).ceil().max(1.0) as u32,
     );
-    let pm = tracedraw_render::render_page(
+    let pm = graphdraw_render::render_page(
         &tmp,
         pid,
-        &tracedraw_render::RenderOptions {
+        &graphdraw_render::RenderOptions {
             width: w,
             height: h,
-            view: tracedraw_render::ViewTransform {
+            view: graphdraw_render::ViewTransform {
                 zoom,
                 origin_x: 0.0,
                 origin_y: h as f64,
@@ -1208,7 +1208,7 @@ pub fn document_to_pdf_with(doc: &Document, opts: &PdfOptions) -> Vec<u8> {
         };
         if let Some(bg) = &page.background {
             let mut bg_shape = Shape::new(
-                tracedraw_core::ShapeId(0),
+                graphdraw_core::ShapeId(0),
                 ShapeKind::Rect {
                     rect: page.rect(),
                     radius: 0.0,
@@ -1347,7 +1347,7 @@ pub fn document_to_pdf_with(doc: &Document, opts: &PdfOptions) -> Vec<u8> {
     };
     let date = pdf_date();
     let mut info = format!(
-        "<< /Title {} /Creator (TraceDraw) /Producer (TraceDraw) /CreationDate {} /ModDate {}",
+        "<< /Title {} /Creator (GraphDraw) /Producer (GraphDraw) /CreationDate {} /ModDate {}",
         pdf_text_any(&title),
         pdf_text(&date),
         pdf_text(&date)
@@ -1539,7 +1539,7 @@ fn xmp_packet(text: &XmpText, std_: PdfStandard, date: &str) -> String {
     x.push_str("<x:xmpmeta xmlns:x=\"adobe:ns:meta/\">\n<rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">\n");
     let _ = write!(
         x,
-        "<rdf:Description rdf:about=\"\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\" xmlns:pdf=\"http://ns.adobe.com/pdf/1.3/\" xmlns:pdfxid=\"http://www.npes.org/pdfx/ns/id/\" xmlns:pdfx=\"http://ns.adobe.com/pdfx/1.3/\">\n<dc:title><rdf:Alt><rdf:li xml:lang=\"x-default\">{}</rdf:li></rdf:Alt></dc:title>\n<xmp:CreatorTool>TraceDraw</xmp:CreatorTool>\n<xmp:CreateDate>{iso}</xmp:CreateDate>\n<xmp:ModifyDate>{iso}</xmp:ModifyDate>\n<pdf:Producer>TraceDraw</pdf:Producer>\n<pdf:Trapped>False</pdf:Trapped>\n",
+        "<rdf:Description rdf:about=\"\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\" xmlns:pdf=\"http://ns.adobe.com/pdf/1.3/\" xmlns:pdfxid=\"http://www.npes.org/pdfx/ns/id/\" xmlns:pdfx=\"http://ns.adobe.com/pdfx/1.3/\">\n<dc:title><rdf:Alt><rdf:li xml:lang=\"x-default\">{}</rdf:li></rdf:Alt></dc:title>\n<xmp:CreatorTool>GraphDraw</xmp:CreatorTool>\n<xmp:CreateDate>{iso}</xmp:CreateDate>\n<xmp:ModifyDate>{iso}</xmp:ModifyDate>\n<pdf:Producer>GraphDraw</pdf:Producer>\n<pdf:Trapped>False</pdf:Trapped>\n",
         esc(text.title)
     );
     // The same author, subject and keywords as the document information.
@@ -1576,7 +1576,7 @@ fn xmp_packet(text: &XmpText, std_: PdfStandard, date: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::geometry::Rect;
+    use graphdraw_core::geometry::Rect;
 
     #[test]
     fn multi_stop_fountain_uses_stitching_function() {
@@ -1591,24 +1591,24 @@ mod tests {
                 corners: None,
             },
         );
-        s.fill = Fill::Fountain(tracedraw_core::Fountain {
+        s.fill = Fill::Fountain(graphdraw_core::Fountain {
             kind: FountainKind::Linear,
             stops: vec![
-                tracedraw_core::Stop {
+                graphdraw_core::Stop {
                     pos: 0.0,
                     color: Color::rgb8(255, 0, 0),
                 },
-                tracedraw_core::Stop {
+                graphdraw_core::Stop {
                     pos: 0.3,
                     color: Color::rgb8(0, 255, 0),
                 },
-                tracedraw_core::Stop {
+                graphdraw_core::Stop {
                     pos: 1.0,
                     color: Color::rgb8(0, 0, 255),
                 },
             ],
             angle: 90.0,
-            offset: tracedraw_core::geometry::Point::ZERO,
+            offset: graphdraw_core::geometry::Point::ZERO,
             edge_pad: 0.0,
             ..Default::default()
         });
@@ -1618,7 +1618,7 @@ mod tests {
         assert!(text.contains("/Bounds [0.3]"));
     }
 
-    fn one_rect_pdf(fill: Fill, stroke: Option<tracedraw_core::Stroke>) -> String {
+    fn one_rect_pdf(fill: Fill, stroke: Option<graphdraw_core::Stroke>) -> String {
         let mut doc = Document::default();
         let layer = doc.pages[0].layers[0].id;
         let id = doc.ids_mut().shape();
@@ -1654,7 +1654,7 @@ mod tests {
 
     #[test]
     fn gradient_options_and_outline_paints_reach_the_pdf() {
-        use tracedraw_core::{Fountain, FountainRepeat};
+        use graphdraw_core::{Fountain, FountainRepeat};
         let red = Color::rgb8(255, 0, 0);
         let blue = Color::rgb8(0, 0, 255);
         // A sawtooth: hard edges are left out of the stitching, so the
@@ -1671,15 +1671,15 @@ mod tests {
         assert!(!text.contains("/ShadingType"), "{text}");
         // A gradient outline: its area clipped and shaded, not a stroke
         // in the outline colour.
-        let mut st = tracedraw_core::Stroke::new(Color::rgb8(0, 255, 0), 2.0);
+        let mut st = graphdraw_core::Stroke::new(Color::rgb8(0, 255, 0), 2.0);
         st.fill = Some(Box::new(Fill::linear(red, blue, 0.0)));
         let text = one_rect_pdf(Fill::None, Some(st.clone()));
         assert!(text.contains("/ShadingType 2"), "{text}");
         assert!(text.contains("W n /Sh0 sh"), "{text}");
         assert!(!text.contains("\nS\n"), "{text}");
         // A texture outline: the renderer's pixels in the outline's area.
-        st.fill = Some(Box::new(Fill::Texture(tracedraw_core::Texture {
-            kind: tracedraw_core::TextureKind::Wood,
+        st.fill = Some(Box::new(Fill::Texture(graphdraw_core::Texture {
+            kind: graphdraw_core::TextureKind::Wood,
             color_a: red,
             color_b: blue,
             scale: 4.0,
@@ -1688,7 +1688,7 @@ mod tests {
         let text = one_rect_pdf(Fill::None, Some(st.clone()));
         assert!(text.contains("/Subtype /Image"), "{text}");
         // A hairline keeps its plain stroke.
-        st.width = tracedraw_core::Stroke::HAIRLINE;
+        st.width = graphdraw_core::Stroke::HAIRLINE;
         let text = one_rect_pdf(Fill::None, Some(st));
         assert!(text.contains("\nS\n"), "{text}");
     }
@@ -1705,15 +1705,15 @@ mod tests {
                 arc: None,
             },
         );
-        s.fill = Fill::Pattern(tracedraw_core::Pattern::TwoColor {
-            tile: tracedraw_core::PatternTile::Dots,
+        s.fill = Fill::Pattern(graphdraw_core::Pattern::TwoColor {
+            tile: graphdraw_core::PatternTile::Dots,
             front: Color::BLACK,
             back: Color::WHITE,
             size_mm: 5.0,
         });
-        s.stroke = Some(tracedraw_core::Stroke {
-            end_arrow: tracedraw_core::Arrowhead::Arrow,
-            ..tracedraw_core::Stroke::new(Color::BLACK, 1.0)
+        s.stroke = Some(graphdraw_core::Stroke {
+            end_arrow: graphdraw_core::Arrowhead::Arrow,
+            ..graphdraw_core::Stroke::new(Color::BLACK, 1.0)
         });
         doc.layer_mut(layer).unwrap().shapes.push(s);
         let text = String::from_utf8_lossy(&document_to_pdf(&doc)).to_string();
@@ -1726,7 +1726,7 @@ mod tests {
         let mut doc = Document::default();
         let layer = doc.pages[0].layers[0].id;
         let mut tile_square = Shape::new(
-            tracedraw_core::ShapeId(7),
+            graphdraw_core::ShapeId(7),
             ShapeKind::Rect {
                 rect: Rect::new(0.0, 0.0, 5.0, 5.0),
                 radius: 0.0,
@@ -1744,9 +1744,9 @@ mod tests {
                 corners: None,
             },
         );
-        s.fill = Fill::Pattern(tracedraw_core::Pattern::Vector {
+        s.fill = Fill::Pattern(graphdraw_core::Pattern::Vector {
             shapes: vec![tile_square],
-            tile: tracedraw_core::geometry::Size::new(10.0, 10.0),
+            tile: graphdraw_core::geometry::Size::new(10.0, 10.0),
         });
         s.stroke = None;
         doc.layer_mut(layer).unwrap().shapes.push(s);
@@ -1760,16 +1760,16 @@ mod tests {
     fn custom_arrowhead_lands_at_the_line_end_in_the_content_stream() {
         let mut doc = Document::default();
         let layer = doc.pages[0].layers[0].id;
-        let mut tri = tracedraw_core::BezPath::new();
+        let mut tri = graphdraw_core::BezPath::new();
         tri.move_to((0.0, 0.0));
         tri.line_to((20.0, 10.0));
         tri.line_to((0.0, 20.0));
         tri.close_path();
         let mut line = Shape::new(
-            tracedraw_core::ShapeId(1),
+            graphdraw_core::ShapeId(1),
             ShapeKind::Path {
                 path: {
-                    let mut p = tracedraw_core::BezPath::new();
+                    let mut p = graphdraw_core::BezPath::new();
                     p.move_to((10.0, 50.0));
                     p.line_to((60.0, 50.0));
                     p
@@ -1778,9 +1778,9 @@ mod tests {
             },
         );
         line.fill = Fill::None;
-        line.stroke = Some(tracedraw_core::Stroke {
-            end_arrow: tracedraw_core::Arrowhead::from_shape_path(&tri, "Tri"),
-            ..tracedraw_core::Stroke::new(Color::BLACK, 2.0)
+        line.stroke = Some(graphdraw_core::Stroke {
+            end_arrow: graphdraw_core::Arrowhead::from_shape_path(&tri, "Tri"),
+            ..graphdraw_core::Stroke::new(Color::BLACK, 2.0)
         });
         line.transform = Affine::translate((0.0, 100.0));
         doc.layer_mut(layer).unwrap().shapes.push(line);
@@ -1816,7 +1816,7 @@ mod tests {
     #[test]
     fn spot_colors_print_on_separation_color_spaces() {
         let mut doc = Document::default();
-        doc.inks.push(tracedraw_core::document::Ink {
+        doc.inks.push(graphdraw_core::document::Ink {
             id: 1,
             name: "Gold 871".into(),
             cmyk: [0.0, 0.2, 0.8, 0.1],
@@ -1832,7 +1832,7 @@ mod tests {
             },
         );
         s.fill = Fill::Solid(doc.inks[0].color(0.5));
-        s.stroke = Some(tracedraw_core::Stroke::new(doc.inks[0].color(1.0), 1.0));
+        s.stroke = Some(graphdraw_core::Stroke::new(doc.inks[0].color(1.0), 1.0));
         doc.layer_mut(layer).unwrap().shapes.push(s);
         let bytes = document_to_pdf(&doc);
         let text = String::from_utf8_lossy(&bytes);
@@ -1880,7 +1880,7 @@ mod tests {
                 contents: vec![contents],
             },
         );
-        clip.opacity_mask = Some(tracedraw_core::document::OpacityMask::default());
+        clip.opacity_mask = Some(graphdraw_core::document::OpacityMask::default());
         doc.layer_mut(layer).unwrap().shapes.push(clip);
         let text = String::from_utf8_lossy(&document_to_pdf(&doc)).to_string();
         assert!(text.contains("/Subtype /Image"), "a picture");
@@ -1920,10 +1920,10 @@ mod tests {
 #[cfg(test)]
 mod pdfx_tests {
     use super::*;
-    use tracedraw_core::geometry::Rect;
+    use graphdraw_core::geometry::Rect;
 
     fn doc_with_transparent_rect() -> Document {
-        let mut doc = Document::new("Flyer", tracedraw_core::Size::new(100.0, 50.0));
+        let mut doc = Document::new("Flyer", graphdraw_core::Size::new(100.0, 50.0));
         let mut ids = doc.ids().clone();
         let mut base = Shape::new(
             ids.shape(),

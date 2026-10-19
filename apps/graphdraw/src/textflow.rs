@@ -8,7 +8,7 @@
 
 use crate::app::App;
 use crate::i18n::tr;
-use tracedraw_core::{
+use graphdraw_core::{
     document::text_outline::TextRequest,
     document::{ShapeKind, TextSpan},
     Command, ShapeId,
@@ -180,7 +180,7 @@ impl App {
             }
             kinds.push(s.kind.clone());
         }
-        let fonts = tracedraw_text::fonts();
+        let fonts = graphdraw_text::fonts();
         let mut cmds = Vec::new();
         let mut rest = all;
         let n = chain.len();
@@ -206,7 +206,7 @@ impl App {
                     para: &para,
                     on_path: on_path.as_ref(),
                 });
-                let (head, tail) = tracedraw_core::split_spans_at(&rest, layout.fitted_chars);
+                let (head, tail) = graphdraw_core::split_spans_at(&rest, layout.fitted_chars);
                 rest = tail;
                 head
             };
@@ -250,8 +250,8 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::geometry::{Point, Size};
-    use tracedraw_core::TextAlign;
+    use graphdraw_core::geometry::{Point, Size};
+    use graphdraw_core::TextAlign;
 
     fn frame(app: &mut App, text: &str, w: f64, h: f64) -> ShapeId {
         let kind = ShapeKind::Text {
@@ -267,7 +267,7 @@ mod tests {
 
     #[test]
     fn linking_flows_overflow_into_the_second_frame() {
-        tracedraw_text::install();
+        graphdraw_text::install();
         let mut app = App::headless();
         let long = "one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty";
         let a = frame(&mut app, long, 30.0, 8.0);

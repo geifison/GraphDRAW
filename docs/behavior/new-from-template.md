@@ -14,7 +14,7 @@ button) opens a dialog for starting a drawing from a template.
   one, a double click opens it. With Show template details on, a pane at
   the right shows the picked template large with its category, page size
   and source, or "No Selection".
-- Bottom left: a button to open any `.tdt` or `.tdraw` file as a
+- Bottom left: a button to open any `.tdt` or `.gdr` file as a
   template (its tooltip names the folder of the user's templates) and a
   slider for the thumbnail size (40 to 160 points, 64 at first).
 - Bottom: Show template details (on at first), Open (greyed until a

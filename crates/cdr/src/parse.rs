@@ -16,7 +16,7 @@ use crate::container::Version;
 use crate::riff::{Chunk, Tree};
 use crate::text::{self, RunStyle, StyleRec};
 use std::collections::HashMap;
-use tracedraw_core::{
+use graphdraw_core::{
     document::{
         Corners, EllipseArc, Layer, Page, ParagraphStyle, Shape, ShapeKind, TextAlign, TextSpan,
     },
@@ -286,7 +286,7 @@ struct Ctx<'a> {
     v3_effect_warned: bool,
     stand_in_warned: bool,
     /// Guidelines of the page being read (objects of type 0x16).
-    guides: Vec<tracedraw_core::document::Guide>,
+    guides: Vec<graphdraw_core::document::Guide>,
     /// The last object read was a guideline, not a skipped object.
     last_was_guide: bool,
     /// The transform of the linked groups (`LIST lnkg`) being read, which
@@ -297,7 +297,7 @@ struct Ctx<'a> {
     pending_on_path: Option<OnPathText>,
     /// Texts fitted to a path, by shape, until their list is read and the
     /// path found among their siblings.
-    on_path: HashMap<tracedraw_core::ShapeId, OnPathText>,
+    on_path: HashMap<graphdraw_core::ShapeId, OnPathText>,
     /// The transform of the paragraph text being read when its frame took
     /// the object's scale (see [`unscaled_frame`]).
     pending_text_transform: Option<Affine>,
@@ -307,11 +307,11 @@ struct Ctx<'a> {
 
     /// The node types a curve's node bytes give where its handles read
     /// otherwise, for the shape being read.
-    pending_node_types: std::collections::BTreeMap<usize, tracedraw_core::nodes::NodeType>,
+    pending_node_types: std::collections::BTreeMap<usize, graphdraw_core::nodes::NodeType>,
     /// The CMYK profile the file carries, for CMYK bitmaps.
-    cmyk_profile: Option<tracedraw_core::icc::Profile>,
+    cmyk_profile: Option<graphdraw_core::icc::Profile>,
     /// CMYK to RGB through that profile, built for the first CMYK bitmap.
-    cmyk_lut: Option<tracedraw_core::icc::CmykLut>,
+    cmyk_lut: Option<graphdraw_core::icc::CmykLut>,
     report: ParseReport,
 }
 
@@ -389,8 +389,8 @@ pub fn parse_document_with(
     let mut ctx = Ctx::new(main, tree, version.0);
     ctx.report.version = Some(version);
     ctx.cmyk_profile = cmyk_profile
-        .and_then(|b| tracedraw_core::icc::Profile::parse(b).ok())
-        .filter(|p| p.color_space() == tracedraw_core::icc::ColorSpace::Cmyk);
+        .and_then(|b| graphdraw_core::icc::Profile::parse(b).ok())
+        .filter(|p| p.color_space() == graphdraw_core::icc::ColorSpace::Cmyk);
 
     // The `vrsn` chunk carries the version as a number (1300 = version 13, 801 =
     // CDR 8 bidi); prefer it over the form-type letter when it is sane.
@@ -961,7 +961,7 @@ impl<'a> Ctx<'a> {
         if shapes.is_empty() {
             return None;
         }
-        Some(Fill::Pattern(tracedraw_core::style::Pattern::Vector {
+        Some(Fill::Pattern(graphdraw_core::style::Pattern::Vector {
             shapes,
             tile,
         }))
@@ -1829,8 +1829,8 @@ impl<'a> Ctx<'a> {
                     Some(a) if aligns_differ => code(*a),
                     _ => align,
                 };
-                let target = tracedraw_core::ParagraphFormat::of(a, fmt);
-                tracedraw_core::paragraphs::edit_paragraph_formats(
+                let target = graphdraw_core::ParagraphFormat::of(a, fmt);
+                graphdraw_core::paragraphs::edit_paragraph_formats(
                     &mut kind,
                     Some((*start, *start)),
                     |f| *f = target.clone(),
@@ -2135,8 +2135,8 @@ impl<'a> Ctx<'a> {
         d: &[u8],
         arg: Arg,
         page_size: Size,
-    ) -> Option<tracedraw_core::document::Guide> {
-        use tracedraw_core::document::{Guide, GuideLine};
+    ) -> Option<graphdraw_core::document::Guide> {
+        use graphdraw_core::document::{Guide, GuideLine};
         if self.v16() || arg.end.saturating_sub(arg.off) < 32 {
             return None;
         }
@@ -2566,7 +2566,7 @@ impl<'a> Ctx<'a> {
     fn read_object(
         &mut self,
         oc: &Chunk,
-        id: tracedraw_core::ShapeId,
+        id: graphdraw_core::ShapeId,
         page_size: Size,
     ) -> Option<Shape> {
         let mut loda = None;
@@ -2582,7 +2582,7 @@ impl<'a> Ctx<'a> {
         self.pending_clip = None;
         self.pending_on_path = None;
         self.pending_text_transform = None;
-        let mut v3_envelope_of: Option<(Affine, Rect, tracedraw_core::envelope::Frame, Affine)> =
+        let mut v3_envelope_of: Option<(Affine, Rect, graphdraw_core::envelope::Frame, Affine)> =
             None;
         let mut transform = self.outer_transform
             * trfd
@@ -2625,7 +2625,7 @@ impl<'a> Ctx<'a> {
         let mut style_id: Option<u32> = None;
         let mut style_string: Option<String> = None;
         let mut opacity = 1.0;
-        let mut lens: Option<tracedraw_core::live::Lens> = None;
+        let mut lens: Option<graphdraw_core::live::Lens> = None;
 
         for arg in &l.args {
             match arg.ty {
@@ -2732,12 +2732,12 @@ impl<'a> Ctx<'a> {
             match closed {
                 Some(closed) => {
                     let local = Shape::new(id, kind.clone()).local_path();
-                    let path = tracedraw_core::envelope::apply_in(
+                    let path = graphdraw_core::envelope::apply_in(
                         &(before * local),
                         rect,
                         &frame,
                         false,
-                        tracedraw_core::envelope::Mapping::Putty,
+                        graphdraw_core::envelope::Mapping::Putty,
                     );
                     kind = ShapeKind::Path { path, closed };
                     transform = self.outer_transform * after;
@@ -2776,14 +2776,14 @@ impl<'a> Ctx<'a> {
         if let Some((mask, target)) = mask {
             shape
                 .effects
-                .push(tracedraw_core::live::Effect::Transparency {
+                .push(graphdraw_core::live::Effect::Transparency {
                     mask,
-                    merge: tracedraw_core::live::MergeMode::Normal,
+                    merge: graphdraw_core::live::MergeMode::Normal,
                     target,
                 });
         }
         if let Some(l) = lens {
-            shape.effects.push(tracedraw_core::live::Effect::Lens(l));
+            shape.effects.push(graphdraw_core::live::Effect::Lens(l));
         }
         if let Some(mut fitted) = self.pending_on_path.take() {
             fitted.page_box = self
@@ -2821,7 +2821,7 @@ impl<'a> Ctx<'a> {
         &mut self,
         shape: Shape,
         clip: u32,
-        ids: &mut tracedraw_core::id::IdSource,
+        ids: &mut graphdraw_core::id::IdSource,
         page_size: Size,
         depth: usize,
     ) -> Shape {
@@ -2861,7 +2861,7 @@ impl<'a> Ctx<'a> {
     fn read_objects(
         &mut self,
         list: &Chunk,
-        ids: &mut tracedraw_core::id::IdSource,
+        ids: &mut graphdraw_core::id::IdSource,
         page_size: Size,
         depth: usize,
     ) -> Vec<Shape> {
@@ -2877,7 +2877,7 @@ impl<'a> Ctx<'a> {
     fn collect_objects(
         &mut self,
         list: &Chunk,
-        ids: &mut tracedraw_core::id::IdSource,
+        ids: &mut graphdraw_core::id::IdSource,
         page_size: Size,
         depth: usize,
         out: &mut Vec<Shape>,
@@ -3045,7 +3045,7 @@ impl<'a> Ctx<'a> {
     /// invert lens (a version 15 file whose preview shows each colour
     /// beneath the object as its complement). Other types are reported and
     /// read as before, as a transparency.
-    fn read_lens(&mut self, d: &'a [u8], arg: Arg) -> Option<tracedraw_core::live::Lens> {
+    fn read_lens(&mut self, d: &'a [u8], arg: Arg) -> Option<graphdraw_core::live::Lens> {
         if self.v < 13 {
             return None;
         }
@@ -3060,7 +3060,7 @@ impl<'a> Ctx<'a> {
             return None;
         }
         match body.get(5).copied()? {
-            3 => Some(tracedraw_core::live::Lens::Invert),
+            3 => Some(graphdraw_core::live::Lens::Invert),
             other => {
                 self.report.warn(format!(
                     "lens type {other} not read; drawn without its lens"
@@ -3388,13 +3388,13 @@ impl<'a> Ctx<'a> {
             .any(|d| bitmap_header(d, v).is_some_and(|h| h.model == BITMAP_CMYK && h.bpp == 32));
         if cmyk && self.cmyk_lut.is_none() {
             self.cmyk_lut = self.cmyk_profile.as_ref().and_then(|p| {
-                let t = tracedraw_core::icc::Transform::new(
+                let t = graphdraw_core::icc::Transform::new(
                     p,
-                    &tracedraw_core::icc::Profile::srgb(),
-                    tracedraw_core::icc::Intent::default(),
+                    &graphdraw_core::icc::Profile::srgb(),
+                    graphdraw_core::icc::Intent::default(),
                     false,
                 )?;
-                tracedraw_core::icc::CmykLut::new(&t)
+                graphdraw_core::icc::CmykLut::new(&t)
             });
         }
         let lut = self.cmyk_lut.as_ref();
@@ -3467,7 +3467,7 @@ fn bitmap_header(d: &[u8], v: u16) -> Option<BitmapHeader> {
 fn decode_bitmap(
     d: &[u8],
     v: u16,
-    lut: Option<&tracedraw_core::icc::CmykLut>,
+    lut: Option<&graphdraw_core::icc::CmykLut>,
 ) -> Option<Result<(u32, BitmapDef), String>> {
     let h = bitmap_header(d, v)?;
     let (image_id, width, height, bpp) = (h.id, h.width, h.height, h.bpp);
@@ -3667,7 +3667,7 @@ const BITMAP_CMYK: u32 = 3;
 
 /// One CMYK pixel (ink bytes, 255 = full ink) as opaque RGBA: through
 /// `lut` when given, else one minus the ink times one minus the black.
-fn cmyk_pixel(ink: [u8; 4], lut: Option<&tracedraw_core::icc::CmykLut>) -> [u8; 4] {
+fn cmyk_pixel(ink: [u8; 4], lut: Option<&graphdraw_core::icc::CmykLut>) -> [u8; 4] {
     let f = |v: u8| v as f32 / 255.0;
     let rgb = match lut {
         Some(l) => l.eval([f(ink[0]), f(ink[1]), f(ink[2]), f(ink[3])]),
@@ -3689,7 +3689,7 @@ fn cmyk_pixel(ink: [u8; 4], lut: Option<&tracedraw_core::icc::CmykLut>) -> [u8; 
 fn crop_to_clip_frame(
     mut shape: Shape,
     crop: BezPath,
-    ids: &mut tracedraw_core::id::IdSource,
+    ids: &mut graphdraw_core::id::IdSource,
 ) -> Shape {
     let mut frame = Shape::new(
         ids.shape(),
@@ -3747,9 +3747,9 @@ fn text_on(
     path: BezPath,
     fitted: &OnPathText,
     per_mm: f64,
-) -> (tracedraw_core::TextOnPath, TextAlign, f64) {
+) -> (graphdraw_core::TextOnPath, TextAlign, f64) {
     let Some(s) = fitted.settings else {
-        let tp = tracedraw_core::TextOnPath {
+        let tp = graphdraw_core::TextOnPath {
             path,
             offset: 0.0,
             distance: 0.0,
@@ -3763,7 +3763,7 @@ fn text_on(
     // follows the path backwards.
     let mirror = s.mirror_h && s.mirror_v;
     let distance = f64::from(s.distance) * UNIT_MM * per_mm;
-    let mut tp = tracedraw_core::TextOnPath {
+    let mut tp = graphdraw_core::TextOnPath {
         path,
         offset: 0.0,
         distance: if mirror { -distance } else { distance },
@@ -3854,7 +3854,7 @@ fn anchored_path_for_text(
         };
         let path = text_path_of(curve);
         let cb = {
-            use tracedraw_core::geometry::Shape as _;
+            use graphdraw_core::geometry::Shape as _;
             path.bounding_box()
         };
         let middle = cb.center();
@@ -3863,7 +3863,7 @@ fn anchored_path_for_text(
         if !len.is_finite() || len < 0.1 * cb.width().max(cb.height()) {
             continue;
         }
-        let dir = tracedraw_core::geometry::Vec2::new(ax / len, ay / len);
+        let dir = graphdraw_core::geometry::Vec2::new(ax / len, ay / len);
         // The box's support point in that direction.
         let target = Point::new(
             if dir.x >= 0.0 { pb.x1 } else { pb.x0 },
@@ -3914,7 +3914,7 @@ fn cap_height_mm(t: &Shape) -> f64 {
 /// The distance from `p` to the first subpath of `path` (sampled every
 /// half millimetre).
 fn distance_to_path(path: &BezPath, p: Point) -> Option<f64> {
-    let tp = tracedraw_core::TextOnPath {
+    let tp = graphdraw_core::TextOnPath {
         path: path.clone(),
         offset: 0.0,
         distance: 0.0,
@@ -3925,7 +3925,7 @@ fn distance_to_path(path: &BezPath, p: Point) -> Option<f64> {
 }
 
 /// The arc length along `b` of the point nearest `p`, and its distance.
-fn nearest_on(b: &tracedraw_core::document::Baseline, p: Point) -> Option<(f64, f64)> {
+fn nearest_on(b: &graphdraw_core::document::Baseline, p: Point) -> Option<(f64, f64)> {
     let total = b.length();
     if !total.is_finite() || total <= 0.0 {
         return None;
@@ -3967,7 +3967,7 @@ fn fit_text_at(t: &mut Shape, curve: &Shape, anchor: Anchor) -> bool {
     let path = to_local * text_path_of(curve);
     let target = to_local * anchor.target;
     let middle = to_local * anchor.middle;
-    let mut tp = tracedraw_core::TextOnPath {
+    let mut tp = graphdraw_core::TextOnPath {
         path,
         offset: 0.0,
         distance: 0.0,
@@ -3982,7 +3982,7 @@ fn fit_text_at(t: &mut Shape, curve: &Shape, anchor: Anchor) -> bool {
     let Some((q, dir)) = tp.baseline().at(at) else {
         return false;
     };
-    let left = tracedraw_core::geometry::Vec2::new(-dir.y, dir.x);
+    let left = graphdraw_core::geometry::Vec2::new(-dir.y, dir.x);
     let (ox, oy) = (q.x - middle.x, q.y - middle.y);
     if left.x * ox + left.y * oy < 0.0 {
         tp.mirror = true;
@@ -4056,7 +4056,7 @@ fn bounds_of(pts: &[Point]) -> Option<Rect> {
 /// make an arrow (filled) or an open arrow (not closed); four corners make
 /// a square (axis-aligned, near 1:1), a bar (thin) or a diamond (rotated).
 pub(crate) fn classify_arrowhead(path: &BezPath, pts: &[Point], types: &[u8]) -> Arrowhead {
-    use tracedraw_core::geometry::Shape as _;
+    use graphdraw_core::geometry::Shape as _;
     if path.elements().is_empty() {
         return Arrowhead::None;
     }
@@ -4146,7 +4146,7 @@ pub(crate) fn color_from_model(model: u16, b: [u8; 4]) -> Option<Color> {
 /// A version 3 object's transformations, split at its envelope.
 struct V3Transforms {
     before: Affine,
-    envelope: Option<(Rect, tracedraw_core::envelope::Frame)>,
+    envelope: Option<(Rect, graphdraw_core::envelope::Frame)>,
     after: Affine,
 }
 
@@ -4156,7 +4156,7 @@ struct V3Transforms {
 /// then the points (i16 pairs). The points run clockwise from the
 /// bottom-left corner up the left side, three a cubic segment (node and
 /// two handles), the last one closing on the first.
-fn v3_envelope(g: &[u8], at: usize) -> Option<(Rect, tracedraw_core::envelope::Frame)> {
+fn v3_envelope(g: &[u8], at: usize) -> Option<(Rect, graphdraw_core::envelope::Frame)> {
     let i = |k: usize| {
         g.get(at + k..at + k + 2)
             .map(|b| i16::from_le_bytes([b[0], b[1]]) as f64)
@@ -4175,7 +4175,7 @@ fn v3_envelope(g: &[u8], at: usize) -> Option<(Rect, tracedraw_core::envelope::F
     let total = i(20)? as usize;
     if total < 13
         || !(total - 1).is_multiple_of(3)
-        || total > 3 * tracedraw_core::envelope::MAX_NODES + 1
+        || total > 3 * graphdraw_core::envelope::MAX_NODES + 1
     {
         return None;
     }
@@ -4199,7 +4199,7 @@ fn v3_envelope(g: &[u8], at: usize) -> Option<(Rect, tracedraw_core::envelope::F
         .collect();
     corners.sort_unstable();
     corners.dedup();
-    let frame = tracedraw_core::envelope::Frame::from_parts(&nodes, &handles, &corners)?;
+    let frame = graphdraw_core::envelope::Frame::from_parts(&nodes, &handles, &corners)?;
     (rect.width() > 0.0 && rect.height() > 0.0).then_some((rect, frame))
 }
 
@@ -4248,8 +4248,8 @@ pub(crate) fn file_node_types(
     path: &BezPath,
     pts: &[Point],
     types: &[u8],
-) -> std::collections::BTreeMap<usize, tracedraw_core::nodes::NodeType> {
-    use tracedraw_core::nodes::{self, NodeType};
+) -> std::collections::BTreeMap<usize, graphdraw_core::nodes::NodeType> {
+    use graphdraw_core::nodes::{self, NodeType};
     let ends: Vec<(Point, u8)> = pts
         .iter()
         .zip(types)
@@ -4492,11 +4492,11 @@ mod tests {
             0.0
         );
     }
-    use tracedraw_core::geometry::Shape as _;
+    use graphdraw_core::geometry::Shape as _;
 
     #[test]
     fn continuity_bits_give_the_node_types_the_handles_do_not() {
-        use tracedraw_core::nodes::NodeType;
+        use graphdraw_core::nodes::NodeType;
         let pts = [
             Point::new(0.0, 0.0),
             Point::new(10.0, 10.0),
@@ -4845,7 +4845,7 @@ mod tests {
         let mut ctx = Ctx::new(&main, &tree, 18);
         ctx.vector_patterns.insert(12, &drawing);
         ctx.read_fill(tree.root.find(b"fild").unwrap());
-        let Fill::Pattern(tracedraw_core::style::Pattern::Vector { shapes, tile }) =
+        let Fill::Pattern(graphdraw_core::style::Pattern::Vector { shapes, tile }) =
             &ctx.fills[&5].fill
         else {
             panic!("{:?}", ctx.fills[&5].fill)
@@ -5670,7 +5670,7 @@ mod tests {
     fn facing_page_objects_move_to_the_side_holding_most_of_them() {
         let rect = |x: f64| {
             let mut s = Shape::new(
-                tracedraw_core::ShapeId(1),
+                graphdraw_core::ShapeId(1),
                 ShapeKind::Rect {
                     rect: Rect::new(x, 10.0, x + 20.0, 30.0),
                     radius: 0.0,
@@ -5686,7 +5686,7 @@ mod tests {
         };
         // Measured from the spine with the page to its right: half a page
         // too far right when placed from the page centre.
-        let mut layers = vec![Layer::new(tracedraw_core::LayerId(1), "L")];
+        let mut layers = vec![Layer::new(graphdraw_core::LayerId(1), "L")];
         layers[0].shapes = vec![rect(150.0), rect(250.0), rect(280.0)];
         shift_onto_page(&mut layers, 210.0);
         assert!((centre_x(&layers) - 55.0).abs() < 1e-9);
@@ -6105,7 +6105,7 @@ mod tests {
         assert_eq!(&raw[5..9], &[127, 127, 127, 255]);
         // Through a table, the table decides.
         let lut =
-            tracedraw_core::icc::CmykLut::with_points(3, |[c, _, _, k]| Some([1.0 - c, 0.5, k]))
+            graphdraw_core::icc::CmykLut::with_points(3, |[c, _, _, k]| Some([1.0 - c, 0.5, k]))
                 .unwrap();
         assert_eq!(cmyk_pixel([255, 0, 0, 255], Some(&lut)), [0, 128, 255, 255]);
         // A profile that is not CMYK is not used.
@@ -7689,7 +7689,7 @@ mod tests {
 
     /// A one-rectangle version 14 page whose transparency argument is a
     /// record tagged 1300 with `body`.
-    fn rect_with_transparency_record(body: &[u8]) -> (tracedraw_core::Document, ParseReport) {
+    fn rect_with_transparency_record(body: &[u8]) -> (graphdraw_core::Document, ParseReport) {
         let mut op = u32s(&[0x514, body.len() as u32]);
         op.extend_from_slice(body);
         let obj = list(
@@ -7712,7 +7712,7 @@ mod tests {
 
     #[test]
     fn lens_records_in_the_transparency_argument() {
-        use tracedraw_core::live::{Effect, Lens};
+        use graphdraw_core::live::{Effect, Lens};
         // As in a version 15 file: kind 1, an id, type 3 (invert), then
         // two colour slots (CMYK white, the empty colour) and padding.
         let mut lens = vec![1u8, 0x48, 0x8b, 0x06, 0x0b, 3, 0, 0];
@@ -7866,7 +7866,7 @@ mod tests {
         assert_eq!(arrows(4), (Arrowhead::None, Arrowhead::None));
         match arrows(5).0 {
             Arrowhead::Custom { path, name } => {
-                use tracedraw_core::geometry::Shape as _;
+                use graphdraw_core::geometry::Shape as _;
                 assert_eq!(name, "Arrowhead 11");
                 let b = path.bounding_box();
                 // Normalised: one unit tall, tip at x = 0, body towards -x.
@@ -7969,7 +7969,7 @@ mod tests {
 
     #[test]
     fn node_types_of_a_long_curve_are_read_in_one_pass() {
-        use tracedraw_core::nodes::NodeType;
+        use graphdraw_core::nodes::NodeType;
         // A zigzag of 20 000 line nodes, every third marked smooth in the
         // file (its straight segments read as cusps): each marked node is
         // kept with its type. Searching the whole curve for every node
@@ -7994,8 +7994,8 @@ mod tests {
 
     #[test]
     fn a_fitted_text_without_settings_follows_the_curve_its_box_rests_on() {
-        use tracedraw_core::document::{ParagraphStyle, TextSpan};
-        use tracedraw_core::ShapeId;
+        use graphdraw_core::document::{ParagraphStyle, TextSpan};
+        use graphdraw_core::ShapeId;
         let circle = |id: u64, r: f64| {
             Shape::new(
                 ShapeId(id),
@@ -8307,7 +8307,7 @@ mod tests {
         assert_eq!(rep.shapes, 1, "{:?}", rep.warnings);
         match &first_shape(&doc).kind {
             ShapeKind::Path { path, closed } => {
-                use tracedraw_core::geometry::Shape as _;
+                use graphdraw_core::geometry::Shape as _;
                 assert!(!closed);
                 assert_eq!(path.elements().len(), 2);
                 let b = path.bounding_box();
@@ -8348,7 +8348,7 @@ mod tests {
         .concat();
         let (doc, rep) = parse(&riff(b"CDR9", &body), 9);
         assert_eq!(rep.skipped_objects, 0, "{:?}", rep.warnings);
-        use tracedraw_core::document::GuideLine;
+        use graphdraw_core::document::GuideLine;
         let page = &doc.pages[0];
         let (cx, cy) = (page.size.width / 2.0, page.size.height / 2.0);
         let lines: Vec<GuideLine> = page.guides.iter().map(|g| g.line).collect();

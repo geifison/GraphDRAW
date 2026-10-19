@@ -1500,6 +1500,152 @@ dependencies = [
 ]
 
 [[package]]
+name = "graphdraw"
+version = "0.9.4"
+dependencies = [
+ "arboard",
+ "base64 0.22.1",
+ "boa_engine",
+ "csv",
+ "eframe",
+ "egui",
+ "env_logger",
+ "flate2",
+ "getrandom 0.2.17",
+ "getrandom 0.3.4",
+ "graphdraw-cdr",
+ "graphdraw-core",
+ "graphdraw-io",
+ "graphdraw-render",
+ "graphdraw-text",
+ "graphdraw-vba",
+ "graphdraw-vba-project",
+ "i_overlay",
+ "image",
+ "jiff",
+ "js-sys",
+ "kurbo",
+ "log",
+ "lopdf",
+ "qrcode",
+ "rfd",
+ "rqrr",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tiny-skia",
+ "ureq",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "web-time",
+ "winresource",
+]
+
+[[package]]
+name = "graphdraw-cdr"
+version = "0.9.4"
+dependencies = [
+ "encoding_rs",
+ "flate2",
+ "graphdraw-core",
+ "log",
+ "thiserror 2.0.21",
+ "tiny-skia",
+ "ttf-parser",
+ "zip",
+]
+
+[[package]]
+name = "graphdraw-cli"
+version = "0.9.4"
+dependencies = [
+ "env_logger",
+ "flate2",
+ "graphdraw-cdr",
+ "graphdraw-core",
+ "graphdraw-io",
+ "graphdraw-render",
+ "graphdraw-text",
+ "image",
+ "log",
+ "zip",
+]
+
+[[package]]
+name = "graphdraw-core"
+version = "0.9.4"
+dependencies = [
+ "base64 0.22.1",
+ "i_overlay",
+ "kurbo",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "graphdraw-io"
+version = "0.9.4"
+dependencies = [
+ "aes",
+ "base64 0.22.1",
+ "cbc",
+ "flate2",
+ "getrandom 0.3.4",
+ "graphdraw-core",
+ "graphdraw-render",
+ "image",
+ "lopdf",
+ "md-5",
+ "roxmltree 0.21.1",
+ "sha2",
+ "thiserror 2.0.21",
+ "tiny-skia",
+ "usvg",
+ "web-time",
+ "zip",
+]
+
+[[package]]
+name = "graphdraw-render"
+version = "0.9.4"
+dependencies = [
+ "graphdraw-core",
+ "log",
+ "tiny-skia",
+]
+
+[[package]]
+name = "graphdraw-text"
+version = "0.9.4"
+dependencies = [
+ "fontdb",
+ "graphdraw-core",
+ "kurbo",
+ "log",
+ "rustybuzz",
+ "ttf-parser",
+]
+
+[[package]]
+name = "graphdraw-vba"
+version = "0.9.4"
+dependencies = [
+ "boa_engine",
+]
+
+[[package]]
+name = "graphdraw-vba-project"
+version = "0.9.4"
+dependencies = [
+ "cfb",
+ "chardetng",
+ "encoding_rs",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "guillotiere"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3908,152 +4054,6 @@ name = "toml_writer"
 version = "1.1.3+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "06bdbd8cfc056b8d2e2e85f29b56a3bdbecb527cef81eb39e3e7b98af4652770"
-
-[[package]]
-name = "tracedraw"
-version = "0.9.4"
-dependencies = [
- "arboard",
- "base64 0.22.1",
- "boa_engine",
- "csv",
- "eframe",
- "egui",
- "env_logger",
- "flate2",
- "getrandom 0.2.17",
- "getrandom 0.3.4",
- "i_overlay",
- "image",
- "jiff",
- "js-sys",
- "kurbo",
- "log",
- "lopdf",
- "qrcode",
- "rfd",
- "rqrr",
- "serde",
- "serde_json",
- "sha2",
- "tiny-skia",
- "tracedraw-cdr",
- "tracedraw-core",
- "tracedraw-io",
- "tracedraw-render",
- "tracedraw-text",
- "tracedraw-vba",
- "tracedraw-vba-project",
- "ureq",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
- "web-time",
- "winresource",
-]
-
-[[package]]
-name = "tracedraw-cdr"
-version = "0.9.4"
-dependencies = [
- "encoding_rs",
- "flate2",
- "log",
- "thiserror 2.0.21",
- "tiny-skia",
- "tracedraw-core",
- "ttf-parser",
- "zip",
-]
-
-[[package]]
-name = "tracedraw-cli"
-version = "0.9.4"
-dependencies = [
- "env_logger",
- "flate2",
- "image",
- "log",
- "tracedraw-cdr",
- "tracedraw-core",
- "tracedraw-io",
- "tracedraw-render",
- "tracedraw-text",
- "zip",
-]
-
-[[package]]
-name = "tracedraw-core"
-version = "0.9.4"
-dependencies = [
- "base64 0.22.1",
- "i_overlay",
- "kurbo",
- "serde",
- "serde_json",
- "thiserror 2.0.21",
-]
-
-[[package]]
-name = "tracedraw-io"
-version = "0.9.4"
-dependencies = [
- "aes",
- "base64 0.22.1",
- "cbc",
- "flate2",
- "getrandom 0.3.4",
- "image",
- "lopdf",
- "md-5",
- "roxmltree 0.21.1",
- "sha2",
- "thiserror 2.0.21",
- "tiny-skia",
- "tracedraw-core",
- "tracedraw-render",
- "usvg",
- "web-time",
- "zip",
-]
-
-[[package]]
-name = "tracedraw-render"
-version = "0.9.4"
-dependencies = [
- "log",
- "tiny-skia",
- "tracedraw-core",
-]
-
-[[package]]
-name = "tracedraw-text"
-version = "0.9.4"
-dependencies = [
- "fontdb",
- "kurbo",
- "log",
- "rustybuzz",
- "tracedraw-core",
- "ttf-parser",
-]
-
-[[package]]
-name = "tracedraw-vba"
-version = "0.9.4"
-dependencies = [
- "boa_engine",
-]
-
-[[package]]
-name = "tracedraw-vba-project"
-version = "0.9.4"
-dependencies = [
- "cfb",
- "chardetng",
- "encoding_rs",
- "thiserror 2.0.21",
-]
 
 [[package]]
 name = "tracing"

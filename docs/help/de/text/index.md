@@ -1,6 +1,6 @@
 # Text
 
-TraceDraw kennt zwei Arten von Text. **Grafiktext** ist eine Zeile oder einige
+GraphDraw kennt zwei Arten von Text. **Grafiktext** ist eine Zeile oder einige
 Zeilen an einem Punkt: Titel, Beschriftungen, Logos. **Mengentext** fließt in
 einem Rahmen und bricht an dessen Rändern um: Fließtext, Spalten, Listen.
 Beide lassen sich Zeichen für Zeichen formatieren, an Pfade anpassen und auf

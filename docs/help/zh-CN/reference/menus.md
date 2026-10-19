@@ -430,17 +430,17 @@
 
 | 命令 | 参阅 |
 |---|---|
-| [[menu.help.help_topics]] | [欢迎使用 TraceDraw 帮助](../index.md#in-the-app) |
-| [[menu.help.product_help]] | [欢迎使用 TraceDraw 帮助](../index.md#in-the-app) |
-| [[menu.help.welcome_screen]] | [关于 TraceDraw 和更新](../welcome/about-and-updates.md) |
-| [[menu.help.video_tutorials]] | [关于 TraceDraw 和更新](../welcome/about-and-updates.md) |
+| [[menu.help.help_topics]] | [欢迎使用 GraphDraw 帮助](../index.md#in-the-app) |
+| [[menu.help.product_help]] | [欢迎使用 GraphDraw 帮助](../index.md#in-the-app) |
+| [[menu.help.welcome_screen]] | [关于 GraphDraw 和更新](../welcome/about-and-updates.md) |
+| [[menu.help.video_tutorials]] | [关于 GraphDraw 和更新](../welcome/about-and-updates.md) |
 | [[menu.help.hints]] | [The Hints panel](../get-started/hints.md) |
-| [[menu.help.quick_start_guide]] | [关于 TraceDraw 和更新](../welcome/about-and-updates.md) |
-| [[menu.help.user_guide]] | [关于 TraceDraw 和更新](../welcome/about-and-updates.md) |
+| [[menu.help.quick_start_guide]] | [关于 GraphDraw 和更新](../welcome/about-and-updates.md) |
+| [[menu.help.user_guide]] | [关于 GraphDraw 和更新](../welcome/about-and-updates.md) |
 | [[menu.help.whats_new]] | [新增功能](../welcome/whats-new.md) |
 | [[menu.help.highlight_whats_new]] | [新增功能](../welcome/whats-new.md) |
-| [[menu.help.updates]] | [关于 TraceDraw 和更新](../welcome/about-and-updates.md) |
-| [[menu.help.message_settings]] | [关于 TraceDraw 和更新](../welcome/about-and-updates.md) |
-| [[menu.help.community]] | [关于 TraceDraw 和更新](../welcome/about-and-updates.md) |
-| [[menu.help.support]] | [关于 TraceDraw 和更新](../welcome/about-and-updates.md) |
-| [[menu.help.about]] | [关于 TraceDraw 和更新](../welcome/about-and-updates.md) |
+| [[menu.help.updates]] | [关于 GraphDraw 和更新](../welcome/about-and-updates.md) |
+| [[menu.help.message_settings]] | [关于 GraphDraw 和更新](../welcome/about-and-updates.md) |
+| [[menu.help.community]] | [关于 GraphDraw 和更新](../welcome/about-and-updates.md) |
+| [[menu.help.support]] | [关于 GraphDraw 和更新](../welcome/about-and-updates.md) |
+| [[menu.help.about]] | [关于 GraphDraw 和更新](../welcome/about-and-updates.md) |

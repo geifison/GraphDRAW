@@ -5,7 +5,7 @@
 //! arithmetic, strings, arrays) is complete enough to run the prologs that
 //! drawing programs emit, so their private operators (defined with `def`
 //! in the file) work without special cases. The graphics operators build
-//! paths, fills, outlines, images, text and shadings into TraceDraw
+//! paths, fills, outlines, images, text and shadings into GraphDraw
 //! objects. Fonts are not rasterised: `show` makes a text object with the
 //! font's name and size, and embedded Type 1 programs (`eexec`) are
 //! skipped. Everything is bounded (operations, recursion, sizes) and no
@@ -14,7 +14,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use tracedraw_core::{
+use graphdraw_core::{
     document::{ParagraphStyle, Shape, ShapeKind, TextSpan},
     geometry::{Affine, BezPath, PathEl, Point, Rect, Shape as _, Size, Vec2},
     id::IdSource,
@@ -2421,7 +2421,7 @@ impl<'a> Interp<'a> {
             | "currentcolorrendering" => self.push(Obj::Dict(mk_dict())),
             "usertime" | "realtime" => self.push(Obj::Int((self.ops % 1_000_000) as i64)),
             "version" => self.push(mk_str(b"3010")),
-            "product" => self.push(mk_str(b"TraceDraw")),
+            "product" => self.push(mk_str(b"GraphDraw")),
             "revision" | "serialnumber" => self.push(Obj::Int(1)),
             "languagelevel" => self.push(Obj::Int(3)),
             "vmstatus" => {
@@ -2757,7 +2757,7 @@ impl<'a> Interp<'a> {
             "flattenpath" | "strokepath" => {}
             "reversepath" => {
                 let p = std::mem::take(&mut self.gs.path);
-                self.gs.path = tracedraw_core::nodes::reverse(&p);
+                self.gs.path = graphdraw_core::nodes::reverse(&p);
             }
             "pathbbox" => {
                 let b = self.gs.path.bounding_box();
@@ -2945,7 +2945,7 @@ impl<'a> Interp<'a> {
             }
             "currenthsbcolor" => {
                 let [r, g, b] = self.gs.color.to_rgb_f32();
-                let (h, s, v) = tracedraw_core::color::rgb_to_hsb(r, g, b);
+                let (h, s, v) = graphdraw_core::color::rgb_to_hsb(r, g, b);
                 for x in [h / 360.0, s, v] {
                     self.push(Obj::Real(x as f64));
                 }
@@ -3562,11 +3562,11 @@ impl<'a> Interp<'a> {
         if tile_shapes.is_empty() {
             return;
         }
-        self.gs.pattern = Some(Fill::Pattern(tracedraw_core::Pattern::Vector {
+        self.gs.pattern = Some(Fill::Pattern(graphdraw_core::Pattern::Vector {
             shapes: tile_shapes,
             tile: Size::new(
-                (xstep.abs() * scale).max(tracedraw_core::Pattern::MIN_TILE_MM),
-                (ystep.abs() * scale).max(tracedraw_core::Pattern::MIN_TILE_MM),
+                (xstep.abs() * scale).max(graphdraw_core::Pattern::MIN_TILE_MM),
+                (ystep.abs() * scale).max(graphdraw_core::Pattern::MIN_TILE_MM),
             ),
         }));
     }

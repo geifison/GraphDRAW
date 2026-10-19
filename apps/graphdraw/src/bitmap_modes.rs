@@ -1054,8 +1054,8 @@ impl crate::app::App {
     /// foreground (black) ones with a right-click. False (nothing done)
     /// unless every selected object is a monochrome bitmap without
     /// effects.
-    pub fn recolor_mono_bitmaps(&mut self, foreground: bool, c: tracedraw_core::Color) -> bool {
-        use tracedraw_core::document::ShapeKind;
+    pub fn recolor_mono_bitmaps(&mut self, foreground: bool, c: graphdraw_core::Color) -> bool {
+        use graphdraw_core::document::ShapeKind;
         let shapes = self.selected_shapes();
         if shapes.is_empty() {
             return false;
@@ -1081,7 +1081,7 @@ impl crate::app::App {
             let Some(png) = crate::bitmap_fx::encode(&out) else {
                 return false;
             };
-            cmds.push(tracedraw_core::Command::SetShapeKind {
+            cmds.push(graphdraw_core::Command::SetShapeKind {
                 shape: s.id,
                 kind: ShapeKind::Bitmap {
                     rect: *rect,
@@ -1105,7 +1105,7 @@ impl crate::app::App {
         label: &'static str,
         f: impl Fn(&RgbaImage, f32) -> RgbaImage,
     ) {
-        use tracedraw_core::{document::ShapeKind, Command};
+        use graphdraw_core::{document::ShapeKind, Command};
         let mut cmds = Vec::new();
         for s in self.selected_shapes() {
             let ShapeKind::Bitmap {
@@ -1156,7 +1156,7 @@ mod tests {
 
     #[test]
     fn monochrome_bitmaps_take_palette_colours() {
-        use tracedraw_core::document::ShapeKind;
+        use graphdraw_core::document::ShapeKind;
         let img: RgbaImage = ImageBuffer::from_fn(8, 4, |x, _| {
             if x < 4 {
                 Rgba([0, 0, 0, 255])
@@ -1171,7 +1171,7 @@ mod tests {
         let png = crate::bitmap_fx::encode(&img).expect("png");
         let id = app
             .new_shape(ShapeKind::Bitmap {
-                rect: tracedraw_core::Rect::new(0.0, 0.0, 8.0, 4.0),
+                rect: graphdraw_core::Rect::new(0.0, 0.0, 8.0, 4.0),
                 width_px: 8,
                 height_px: 4,
                 png,
@@ -1185,11 +1185,11 @@ mod tests {
         };
         let stroke = app.doc().find_shape(id).expect("bitmap").stroke.clone();
         // A click colours the background, a right-click the foreground.
-        app.apply_fill(tracedraw_core::Fill::Solid(tracedraw_core::Color::rgb8(
+        app.apply_fill(graphdraw_core::Fill::Solid(graphdraw_core::Color::rgb8(
             255, 0, 0,
         )));
         assert_eq!(shown(&app).get_pixel(6, 0).0, [255, 0, 0, 255]);
-        app.apply_outline_color(Some(tracedraw_core::Color::rgb8(0, 0, 255)));
+        app.apply_outline_color(Some(graphdraw_core::Color::rgb8(0, 0, 255)));
         assert_eq!(shown(&app).get_pixel(1, 0).0, [0, 0, 255, 255]);
         assert_eq!(shown(&app).get_pixel(6, 0).0, [255, 0, 0, 255]);
         // The object's own outline is left alone.
@@ -1328,7 +1328,7 @@ mod tests {
 
     #[test]
     fn conversions_apply_to_every_selected_bitmap_in_one_step() {
-        use tracedraw_core::{document::ShapeKind, geometry::Rect};
+        use graphdraw_core::{document::ShapeKind, geometry::Rect};
         let mut app = crate::app::App::headless();
         let img = gray_ramp();
         let png = crate::bitmap_fx::encode(&img).expect("png");

@@ -13,7 +13,7 @@
 
 use crate::app::App;
 use serde::{Deserialize, Serialize};
-use tracedraw_core::{
+use graphdraw_core::{
     document::{Shape, ShapeKind},
     geometry::{BezPath, PathEl, Point, Rect},
     Command, Fill, ShapeId,
@@ -370,7 +370,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::geometry::{Affine, Vec2};
+    use graphdraw_core::geometry::{Affine, Vec2};
 
     fn rect(app: &mut App, x0: f64, y0: f64) -> ShapeId {
         app.new_shape(ShapeKind::Rect {

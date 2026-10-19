@@ -1,4 +1,4 @@
-//! Help > About TraceDraw: a deep blue banner with the application icon,
+//! Help > About GraphDraw: a deep blue banner with the application icon,
 //! the name, the tagline and the version over a few faint curves with a
 //! selected node (see `brand.rs`), then a short description, the facts
 //! (author, license, source code, how it is built) as a two-column list,

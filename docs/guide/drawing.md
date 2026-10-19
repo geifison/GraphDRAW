@@ -89,7 +89,7 @@ from the curve flyout.
 
 ### Freehand (`F5`)
 
-- **Drag** to draw as with a pencil. TraceDraw smooths the stroke as you
+- **Drag** to draw as with a pencil. GraphDraw smooths the stroke as you
   let go; set the smoothing (0 to 100, 50 to start with) on the property
   bar.
 - **Click, then click** again to draw a straight line. Hold **Ctrl** to

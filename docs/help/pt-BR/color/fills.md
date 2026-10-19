@@ -1,6 +1,6 @@
 # Preenchimentos
 
-Um preenchimento pinta o interior de um objeto fechado. O TraceDraw tem seis
+Um preenchimento pinta o interior de um objeto fechado. O GraphDraw tem seis
 tipos de preenchimento: [[docker.fill_none]], [[docker.fill_uniform]] (uma cor
 lisa), [[docker.fill_fountain]] (cores que se misturam),
 [[docker.fill_pattern]], [[docker.fill_texture]] e [[docker.fill_mesh]] (cores

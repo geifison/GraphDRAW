@@ -27,7 +27,7 @@ zachowują jej kolor zamiennika.
 Plik palety może być wzornikiem kolorów dodatkowych (na przykład paleta `.ase`
 z pozycjami kolorów dodatkowych). Jego pozycje kolorów dodatkowych otwierają się
 jako kolory dodatkowe, nazwane tak jak we wzorniku; zastosowanie jednej z nich
-dodaje farbę do rysunku. TraceDraw nie dostarcza licencjonowanych wzorników
+dodaje farbę do rysunku. GraphDraw nie dostarcza licencjonowanych wzorników
 kolorów, ale posiadany wzornik otwiera się jak każda paleta.
 
 ## Kolory dodatkowe w druku i eksporcie {#output}

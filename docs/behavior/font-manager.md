@@ -62,9 +62,9 @@ dialogs it keeps the rest of the application waiting until it closes.
   levels down, off the interface thread; its faces show as not
   installed unless their file is already loaded.
 - Install loads the picked faces' files into the font database for this
-  session and keeps their paths in the settings: TraceDraw loads them
+  session and keeps their paths in the settings: GraphDraw loads them
   again at every start. Add Font installs one file at once.
-- Uninstall takes out files installed for TraceDraw; the system's own
+- Uninstall takes out files installed for GraphDraw; the system's own
   fonts (in the operating system's font folders) are protected and are
   never uninstalled.
 - Folders, installed files, Favorites, collections, the sample text and

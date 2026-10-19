@@ -71,5 +71,5 @@ of the status bar, shows the drawing as it would print: colors that CMYK inks
 cannot print look duller. The [[docker.color]] panel also warns about such
 colors.
 
-Without loaded profiles, TraceDraw converts colors with its own model of
+Without loaded profiles, GraphDraw converts colors with its own model of
 process inks on coated paper.

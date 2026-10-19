@@ -36,7 +36,7 @@ screen tips on, its name.
 
 Points win over guidelines, guidelines over the grids, and edges come last.
 The modes, the radius and the marks are set on the [[options.snapping]] page
-of the options; see [TraceDraw options](../customize/options-app.md#snapping).
+of the options; see [GraphDraw options](../customize/options-app.md#snapping).
 
 ## Snapping while moving {#moving}
 

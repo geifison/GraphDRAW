@@ -16,7 +16,7 @@
 use crate::app::App;
 use crate::i18n::tr;
 use serde::{Deserialize, Serialize};
-use tracedraw_core::{
+use graphdraw_core::{
     document::{Shape, ShapeKind, TextAlign, TextSpan},
     geometry::{ellipse_path, rect_path, Affine, BezPath, PathEl, Point, Rect},
     Arrowhead, Color, Command, Fill, ShapeId, Stroke,
@@ -222,7 +222,7 @@ pub fn text_box(t: &Shape) -> Option<Rect> {
                 .filter(|v| v.is_finite() && *v > 0.0)
                 .unwrap_or(12.0);
             let h = size * 25.4 / 72.0;
-            let text = tracedraw_core::spans_text(spans);
+            let text = graphdraw_core::spans_text(spans);
             let lines = text.split('\n').count().max(1) as f64;
             let longest = text
                 .split('\n')
@@ -793,7 +793,7 @@ mod tests {
         let (pts3, _, _) = parts_of(&app, g);
         assert!(near(
             pts3[2],
-            pts2[2] + tracedraw_core::geometry::Vec2::new(5.0, -8.0)
+            pts2[2] + graphdraw_core::geometry::Vec2::new(5.0, -8.0)
         ));
         assert!(near(pts3[1], pts[1]));
         // Undo puts both back and leaves Redo there: the restored drawing
@@ -867,7 +867,7 @@ mod tests {
         // middle of its right side at the third click.
         let tb = text_box(&text).expect("box");
         let frame = shape.expect("frame").local_path();
-        let fb = tracedraw_core::geometry::Shape::bounding_box(&frame);
+        let fb = graphdraw_core::geometry::Shape::bounding_box(&frame);
         assert!((fb.x1 - (tb.x1 + 2.0)).abs() < 1e-6 && (fb.y0 - (tb.y0 - 2.0)).abs() < 1e-6);
         assert!(near(pts[2], Point::new(20.0, 20.0)), "{pts:?} {fb:?}");
         // Style changes go to the selected callout, one step: an ellipse,
@@ -883,7 +883,7 @@ mod tests {
         assert_eq!(app.engine.history_labels().0.len(), before + 1);
         let (pts2, shape2, text2) = parts_of(&app, g);
         let shape2 = shape2.expect("ellipse");
-        let eb = tracedraw_core::geometry::Shape::bounding_box(&shape2.local_path());
+        let eb = graphdraw_core::geometry::Shape::bounding_box(&shape2.local_path());
         let tb2 = text_box(&text2).expect("box");
         assert!(eb.width() > tb2.width() + 4.0);
         assert!((pts2[2].x - eb.x1).abs() < 1e-3, "{pts2:?} {eb:?}");

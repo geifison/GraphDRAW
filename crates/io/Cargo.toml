@@ -1,13 +1,13 @@
 [package]
-name = "tracedraw-io"
+name = "graphdraw-io"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Import/export between the TraceDraw document model and other formats (SVG, native .tdraw)"
+description = "Import/export between the GraphDraw document model and other formats (SVG, native .gdr)"
 
 [dependencies]
-tracedraw-core.workspace = true
-tracedraw-render.workspace = true
+graphdraw-core.workspace = true
+graphdraw-render.workspace = true
 thiserror.workspace = true
 base64 = "0.22"
 flate2 = "1"

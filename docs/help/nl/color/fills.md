@@ -1,6 +1,6 @@
 # Vullingen
 
-Een vulling kleurt de binnenkant van een gesloten object. TraceDraw kent zes
+Een vulling kleurt de binnenkant van een gesloten object. GraphDraw kent zes
 soorten vulling: [[docker.fill_none]], [[docker.fill_uniform]] (één egale
 kleur), [[docker.fill_fountain]] (kleuren die in elkaar overlopen),
 [[docker.fill_pattern]], [[docker.fill_texture]] en [[docker.fill_mesh]]

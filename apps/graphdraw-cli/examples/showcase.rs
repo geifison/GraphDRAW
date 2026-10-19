@@ -1,24 +1,24 @@
 //! Writes the showcase drawings the README screenshots are made from:
-//! `cargo run -p tracedraw-cli --example showcase -- <out-dir>`
+//! `cargo run -p graphdraw-cli --example showcase -- <out-dir>`
 //!
-//! - `poster.tdraw`: an illustrated poster on five layers (gradients, a
+//! - `poster.gdr`: an illustrated poster on five layers (gradients, a
 //!   contour glow, a blend, a drop shadow, artistic text).
-//! - `effects.tdraw`: six live effects side by side.
-//! - `type.tdraw`: a page of type (headline, two-column paragraph text with
+//! - `effects.gdr`: six live effects side by side.
+//! - `type.gdr`: a page of type (headline, two-column paragraph text with
 //!   a drop cap, text on a path and a table).
-//! - `fills.tdraw`: every fill type.
-//! - `photo.tdraw`: the poster rendered and placed as a bitmap.
-//! - `leaf.tdraw`: a leaf of smooth curves, for node editing.
-//! - `brushes.tdraw`: a landscape painted with the painterly brushes.
-//! - `room.tdraw`: a room in one-point perspective (floor tiles, wall
+//! - `fills.gdr`: every fill type.
+//! - `photo.gdr`: the poster rendered and placed as a bitmap.
+//! - `leaf.gdr`: a leaf of smooth curves, for node editing.
+//! - `brushes.gdr`: a landscape painted with the painterly brushes.
+//! - `room.gdr`: a room in one-point perspective (floor tiles, wall
 //!   panels and ceiling lights laid onto the planes of the default grid).
 //!
 //! Everything is drawn here from scratch; the fonts are open fonts (Inter
 //! and Lora) and fall back to the system's when missing.
 
 use std::path::{Path, PathBuf};
-use tracedraw_core::live::Effect;
-use tracedraw_core::{
+use graphdraw_core::live::Effect;
+use graphdraw_core::{
     effects::Distort, Affine, BezPath, Color, Document, Fill, Fountain, FountainKind, Layer,
     LayerId, Mesh, ParagraphStyle, Pattern, PatternTile, Point, Rect, Shadow, Shape, ShapeKind,
     Size, Stop, Stroke, Table, TextAlign, TextOnPath, TextSpan, Texture, TextureKind, Vec2,
@@ -77,7 +77,7 @@ impl Build {
 
     fn save(&self, dir: &Path, file: &str) {
         let path: PathBuf = dir.join(file);
-        match tracedraw_io::save_native(&self.doc, &path) {
+        match graphdraw_io::save_native(&self.doc, &path) {
             Ok(()) => println!("wrote {}", path.display()),
             Err(e) => eprintln!("{}: {e}", path.display()),
         }
@@ -258,7 +258,7 @@ fn poster(dir: &Path) -> Document {
             closed: false,
         });
         let mut st = Stroke::new(hex("#2A2145"), 0.55);
-        st.cap = tracedraw_core::LineCap::Round;
+        st.cap = graphdraw_core::LineCap::Round;
         bird.stroke = Some(st);
         b.add(bird, &format!("Bird {}", i + 1));
     }
@@ -383,14 +383,14 @@ fn poster(dir: &Path) -> Document {
     let mut sub = b.shape(artistic(vec![sub_span], 105.0, 234.0, TextAlign::Center));
     sub.fill = Fill::Solid(hex("#FFE6D4"));
     b.add(sub, "Subtitle");
-    let mut foot_span = span("TRACEDRAW  \u{b7}  SHOWCASE", SANS, 8.5);
+    let mut foot_span = span("GRAPHDRAW  \u{b7}  SHOWCASE", SANS, 8.5);
     foot_span.bold = true;
     foot_span.tracking_pct = 40.0;
     let mut foot = b.shape(artistic(vec![foot_span], 105.0, 12.0, TextAlign::Center));
     foot.fill = Fill::Solid(Color::WHITE);
     foot.opacity = 0.7;
     b.add(foot, "Footer");
-    b.save(dir, "poster.tdraw");
+    b.save(dir, "poster.gdr");
     b.doc
 }
 
@@ -400,7 +400,7 @@ fn photo(dir: &Path, poster: &Document) {
     let Some(page) = poster.pages.first() else {
         return;
     };
-    let Some(pm) = tracedraw_render::render_page_image(poster, page.id, 150.0) else {
+    let Some(pm) = graphdraw_render::render_page_image(poster, page.id, 150.0) else {
         eprintln!("photo: render failed");
         return;
     };
@@ -425,7 +425,7 @@ fn photo(dir: &Path, poster: &Document) {
         fx: None,
     });
     b.add(s, "Quiet Lake (bitmap)");
-    b.save(dir, "photo.tdraw");
+    b.save(dir, "photo.gdr");
 }
 
 /// A light rounded panel with a label, for the samplers.
@@ -614,9 +614,9 @@ fn effects(dir: &Path) {
         &[(0.0, "#7B5CFF"), (1.0, "#FF5A9E")],
     );
     let lb = t.local_path();
-    let bb = tracedraw_core::geometry::Shape::bounding_box(&lb);
+    let bb = graphdraw_core::geometry::Shape::bounding_box(&lb);
     if bb.width() > 1.0 {
-        use tracedraw_core::envelope::{Frame, Mapping, Mode};
+        use graphdraw_core::envelope::{Frame, Mapping, Mode};
         let mut frame = Frame::around(bb);
         let lift = bb.height() * 0.55;
         // BL, BM, BR, RM, TR, TM, TL, LM: raise the middles, drop the sides,
@@ -642,10 +642,10 @@ fn effects(dir: &Path) {
         center: None,
     }));
     b.add(st, "Distort");
-    b.save(dir, "effects.tdraw");
+    b.save(dir, "effects.gdr");
 }
 
-const BODY: &str = "Vector drawings are made of instructions rather than pixels: a curve is a few points and the handles that bend it, so it stays sharp at any size and on any press. TraceDraw keeps every object editable for as long as you need it. A contour can change its number of steps after the fact, a blend can follow a new path, and paragraph text reflows the moment its frame is resized.\nType works the same way. Paragraph text runs in columns with justification, hyphenation, indents, tabs and drop caps, and it can wrap around the objects it meets. Artistic text takes effects like any other shape, and every character can still be retyped. When a page is done, it goes out as PDF, SVG, EPS or a bitmap, with fonts turned into curves or kept as text.\nNothing here needs a plug-in or an account. Drawings open from the files you already have, stay on your computer, and save to an open format that any program can read.";
+const BODY: &str = "Vector drawings are made of instructions rather than pixels: a curve is a few points and the handles that bend it, so it stays sharp at any size and on any press. GraphDraw keeps every object editable for as long as you need it. A contour can change its number of steps after the fact, a blend can follow a new path, and paragraph text reflows the moment its frame is resized.\nType works the same way. Paragraph text runs in columns with justification, hyphenation, indents, tabs and drop caps, and it can wrap around the objects it meets. Artistic text takes effects like any other shape, and every character can still be retyped. When a page is done, it goes out as PDF, SVG, EPS or a bitmap, with fonts turned into curves or kept as text.\nNothing here needs a plug-in or an account. Drawings open from the files you already have, stay on your computer, and save to an open format that any program can read.";
 
 fn typography(dir: &Path) {
     let mut b = Build::new("The shape of words", Size::new(210.0, 297.0));
@@ -714,7 +714,7 @@ fn typography(dir: &Path) {
             Point::new(x, y)
         })
         .collect();
-    let wave = tracedraw_core::geometry::smooth_path(&pts, false);
+    let wave = graphdraw_core::geometry::smooth_path(&pts, false);
     let mut w = b.shape(ShapeKind::Path {
         path: wave.clone(),
         closed: false,
@@ -784,7 +784,7 @@ fn typography(dir: &Path) {
     let mut t = b.shape(ShapeKind::Table(table));
     t.fill = Fill::Solid(hex("#2B3045"));
     b.add(t, "Tools table");
-    b.save(dir, "type.tdraw");
+    b.save(dir, "type.gdr");
 }
 
 fn fills(dir: &Path) {
@@ -871,14 +871,14 @@ fn fills(dir: &Path) {
         t.fill = Fill::Solid(hex("#2B3045"));
         b.add(t, &format!("{label} label"));
     }
-    b.save(dir, "fills.tdraw");
+    b.save(dir, "fills.gdr");
 }
 
 /// A leaf drawn with smooth curves, for node editing.
 fn leaf(dir: &Path) {
     let mut b = Build::new("Leaf", Size::new(297.0, 210.0));
     b.layer("Leaf");
-    let outline = tracedraw_core::geometry::smooth_path(
+    let outline = graphdraw_core::geometry::smooth_path(
         &[
             Point::new(252.0, 121.0),
             Point::new(207.0, 162.0),
@@ -902,7 +902,7 @@ fn leaf(dir: &Path) {
     );
     l.stroke = Some(Stroke::new(hex("#0B5E3B"), 0.5));
     b.add(l, "Leaf");
-    let vein = tracedraw_core::geometry::smooth_path(
+    let vein = graphdraw_core::geometry::smooth_path(
         &[
             Point::new(58.0, 108.0),
             Point::new(112.0, 111.0),
@@ -916,11 +916,11 @@ fn leaf(dir: &Path) {
         closed: false,
     });
     let mut vs = Stroke::new(hex("#E6FFF1"), 0.9);
-    vs.cap = tracedraw_core::LineCap::Round;
+    vs.cap = graphdraw_core::LineCap::Round;
     v.stroke = Some(vs);
     v.opacity = 0.85;
     b.add(v, "Vein");
-    let stem = tracedraw_core::geometry::smooth_path(
+    let stem = graphdraw_core::geometry::smooth_path(
         &[
             Point::new(57.0, 108.0),
             Point::new(36.0, 92.0),
@@ -933,7 +933,7 @@ fn leaf(dir: &Path) {
         closed: false,
     });
     let mut ss = Stroke::new(hex("#0B5E3B"), 1.6);
-    ss.cap = tracedraw_core::LineCap::Round;
+    ss.cap = graphdraw_core::LineCap::Round;
     st.stroke = Some(ss);
     b.add(st, "Stem");
     for (i, (x, y, r)) in [(120.0, 140.0, 4.0), (176.0, 92.0, 2.6), (205.0, 138.0, 1.8)]
@@ -949,7 +949,7 @@ fn leaf(dir: &Path) {
         d.opacity = 0.8;
         b.add(d, &format!("Dew drop {}", i + 1));
     }
-    b.save(dir, "leaf.tdraw");
+    b.save(dir, "leaf.gdr");
 }
 
 /// A brushstroke along smooth points.
@@ -958,18 +958,18 @@ fn brushstroke(
     pts: &[(f64, f64)],
     color: &str,
     size: f64,
-    brush: tracedraw_core::painterly::PainterlyBrush,
+    brush: graphdraw_core::painterly::PainterlyBrush,
     seed: u32,
     name: &str,
 ) {
     let points: Vec<Point> = pts.iter().map(|(x, y)| Point::new(*x, *y)).collect();
-    let path = tracedraw_core::geometry::smooth_path(&points, false);
+    let path = graphdraw_core::geometry::smooth_path(&points, false);
     let mut s = b.shape(ShapeKind::Path {
         path,
         closed: false,
     });
     let mut st = Stroke::new(hex(color), size);
-    st.painterly = Some(tracedraw_core::painterly::Painterly {
+    st.painterly = Some(graphdraw_core::painterly::Painterly {
         brush,
         transparency: 0.1,
         seed,
@@ -979,7 +979,7 @@ fn brushstroke(
 }
 
 fn brushes(dir: &Path) {
-    use tracedraw_core::painterly::PainterlyBrush as P;
+    use graphdraw_core::painterly::PainterlyBrush as P;
     let mut b = Build::new("Brushes", Size::new(297.0, 210.0));
     b.layer("Paper");
     let mut paper = b.shape(rect(0.0, 0.0, 297.0, 210.0, 0.0));
@@ -1116,7 +1116,7 @@ fn brushes(dir: &Path) {
         62,
         "Ribbon",
     );
-    b.save(dir, "brushes.tdraw");
+    b.save(dir, "brushes.gdr");
 }
 
 fn room(dir: &Path) {
@@ -1155,10 +1155,10 @@ fn room(dir: &Path) {
                 fill: Fill,
                 name: &str| {
         let q = planes[plane];
-        let Some(hm) = tracedraw_core::live::homography(&unit, &q) else {
+        let Some(hm) = graphdraw_core::live::homography(&unit, &q) else {
             return;
         };
-        let m = |u: f64, v: f64| tracedraw_core::live::map_homography(&hm, Point::new(u, v));
+        let m = |u: f64, v: f64| graphdraw_core::live::map_homography(&hm, Point::new(u, v));
         let corners = [m(u0, w0), m(u1, w0), m(u1, w1), m(u0, w1)];
         let mut bx = Rect::from_points(corners[0], corners[1]);
         for c in &corners[2..] {
@@ -1270,11 +1270,11 @@ fn room(dir: &Path) {
             "Light",
         );
     }
-    b.save(dir, "room.tdraw");
+    b.save(dir, "room.gdr");
 }
 
 fn main() {
-    tracedraw_text::install();
+    graphdraw_text::install();
     let dir = PathBuf::from(std::env::args().nth(1).unwrap_or_else(|| "showcase".into()));
     if let Err(e) = std::fs::create_dir_all(&dir) {
         eprintln!("{}: {e}", dir.display());

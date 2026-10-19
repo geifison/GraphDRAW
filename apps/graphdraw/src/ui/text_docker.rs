@@ -32,7 +32,7 @@ use crate::theme::Tokens;
 use crate::ui::field::NumField;
 use crate::ui::propbar::{pic_button, Pic};
 use egui::{Color32, Rect, Sense, Stroke, Ui, Vec2};
-use tracedraw_core::{
+use graphdraw_core::{
     Color, Fill, LeadingUnit, ParagraphStyle, ShapeKind, TextAlign, TextSpan, VerticalAlign,
 };
 
@@ -413,7 +413,7 @@ pub(crate) fn edit_spans(app: &mut App, f: impl Fn(&mut TextSpan) + Clone) {
         app.text_apply_style(f);
         return;
     }
-    let cmds: Vec<tracedraw_core::Command> = app
+    let cmds: Vec<graphdraw_core::Command> = app
         .selected_shapes()
         .iter()
         .filter_map(|s| match &s.kind {
@@ -427,7 +427,7 @@ pub(crate) fn edit_spans(app: &mut App, f: impl Fn(&mut TextSpan) + Clone) {
             } => {
                 let mut spans = spans.clone();
                 spans.iter_mut().for_each(f.clone());
-                Some(tracedraw_core::Command::SetShapeKind {
+                Some(graphdraw_core::Command::SetShapeKind {
                     shape: s.id,
                     kind: ShapeKind::Text {
                         spans,
@@ -624,7 +624,7 @@ fn fill_row(
     out
 }
 
-fn character(app: &mut App, ui: &mut Ui, first: Option<&tracedraw_core::Shape>) {
+fn character(app: &mut App, ui: &mut Ui, first: Option<&graphdraw_core::Shape>) {
     let span = first.and_then(|t| match &t.kind {
         ShapeKind::Text { spans, .. } => spans.first().cloned(),
         _ => None,
@@ -843,7 +843,7 @@ fn set_text_fill(app: &mut App, fill: Option<Fill>) {
     app.apply_fill(fill.unwrap_or(Fill::None));
 }
 
-fn paragraph(app: &mut App, ui: &mut Ui, first: Option<&tracedraw_core::Shape>) {
+fn paragraph(app: &mut App, ui: &mut Ui, first: Option<&graphdraw_core::Shape>) {
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 2.0;
         for (a, pic, key) in [
@@ -958,10 +958,10 @@ fn paragraph(app: &mut App, ui: &mut Ui, first: Option<&tracedraw_core::Shape>) 
     }
     if pc {
         // Only what changed reaches the paragraphs, each keeping the rest.
-        let before = tracedraw_core::ParagraphFormat::of(TextAlign::Left, &before);
-        let after = tracedraw_core::ParagraphFormat::of(TextAlign::Left, &p);
+        let before = graphdraw_core::ParagraphFormat::of(TextAlign::Left, &before);
+        let after = graphdraw_core::ParagraphFormat::of(TextAlign::Left, &p);
         edit_paragraphs(app, move |q| {
-            let mut f = tracedraw_core::ParagraphFormat::of(TextAlign::Left, q);
+            let mut f = graphdraw_core::ParagraphFormat::of(TextAlign::Left, q);
             f.take_changes(&before, &after);
             f.apply_to(q);
         });
@@ -969,7 +969,7 @@ fn paragraph(app: &mut App, ui: &mut Ui, first: Option<&tracedraw_core::Shape>) 
 }
 
 /// The largest font size of a text, points.
-fn t_size_pt(t: &tracedraw_core::Shape) -> f64 {
+fn t_size_pt(t: &graphdraw_core::Shape) -> f64 {
     match &t.kind {
         ShapeKind::Text { spans, .. } => {
             spans.iter().map(|s| s.size_pt).fold(0.0, f64::max).max(1.0)
@@ -994,7 +994,7 @@ pub(crate) fn convert_leading(v: f64, from: LeadingUnit, to: LeadingUnit, size_p
     (out * 10.0).round() / 10.0
 }
 
-fn frame(app: &mut App, ui: &mut Ui, first: Option<&tracedraw_core::Shape>) {
+fn frame(app: &mut App, ui: &mut Ui, first: Option<&graphdraw_core::Shape>) {
     let para_text = first.and_then(|t| match &t.kind {
         ShapeKind::Text { frame: Some(_), .. } => app.paragraph_style_of(t).map(|(_, p)| (t.id, p)),
         _ => None,
@@ -1121,7 +1121,7 @@ fn frame(app: &mut App, ui: &mut Ui, first: Option<&tracedraw_core::Shape>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::{Point, Size, TextSpan};
+    use graphdraw_core::{Point, Size, TextSpan};
 
     fn draw(app: &mut App) {
         let ctx = crate::theme::ui_context();

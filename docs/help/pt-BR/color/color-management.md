@@ -72,5 +72,5 @@ barra de status, mostra o desenho como ele seria impresso: cores que as tintas
 CMYK não conseguem imprimir ficam mais apagadas. O painel [[docker.color]]
 também avisa sobre essas cores.
 
-Sem perfis carregados, o TraceDraw converte as cores com o próprio modelo de
+Sem perfis carregados, o GraphDraw converte as cores com o próprio modelo de
 tintas de processo em papel revestido.

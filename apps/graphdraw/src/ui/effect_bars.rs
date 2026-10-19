@@ -7,7 +7,7 @@ use crate::i18n::tr;
 use crate::theme::Tokens;
 use crate::ui::field::NumField;
 use egui::Ui;
-use tracedraw_core::live::Effect;
+use graphdraw_core::live::Effect;
 
 fn dim(ui: &mut Ui, text: String) {
     ui.label(
@@ -107,7 +107,7 @@ pub fn blend_bar(app: &mut App, ui: &mut Ui) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::{Rect, ShapeKind};
+    use graphdraw_core::{Rect, ShapeKind};
 
     /// The bar draws with and without a blend; a blend's settings change
     /// live as one undo step for a run of changes.

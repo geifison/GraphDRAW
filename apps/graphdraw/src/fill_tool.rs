@@ -8,7 +8,7 @@
 //! offset. The formulas match `docs/behavior/gradient-fill.md`.
 
 use crate::app::App;
-use tracedraw_core::{
+use graphdraw_core::{
     geometry::{Point, Rect, Vec2},
     style::{Fountain, FountainKind},
     Command, Fill, ShapeId,
@@ -112,7 +112,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::{document::ShapeKind, Color};
+    use graphdraw_core::{document::ShapeKind, Color};
 
     #[test]
     fn linear_handles_sit_on_the_axis_and_dragging_sets_the_angle() {

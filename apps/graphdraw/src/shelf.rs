@@ -1,6 +1,6 @@
 //! The Shelf (Window > Dockers > Shelf): objects kept apart from any
 //! drawing, to place in this drawing or another one, now or after
-//! TraceDraw restarts. Each item holds copies of the objects added
+//! GraphDraw restarts. Each item holds copies of the objects added
 //! together, with the object styles they link to (a placed object keeps
 //! its link only where the drawing has the same style) and every symbol
 //! instance turned into the symbol's objects, so that an item never
@@ -9,7 +9,7 @@
 //! placing adds to another drawing's.
 //!
 //! The shelf is kept in the preferences folder as `shelf.json`
-//! (`{"kind": "tracedraw-shelf", "version": 1, "items": [...]}`), in local
+//! (`{"kind": "graphdraw-shelf", "version": 1, "items": [...]}`), in local
 //! storage in a browser. A missing, damaged or foreign file gives an
 //! empty shelf; items beyond the limits are left out.
 
@@ -18,11 +18,11 @@ use crate::i18n::{tr, trf};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use tracedraw_core::document::Symbol;
-use tracedraw_core::geometry::{Affine, Point, Rect, Size, Vec2};
-use tracedraw_core::{Command, ObjectStyle, Shape, ShapeKind};
+use graphdraw_core::document::Symbol;
+use graphdraw_core::geometry::{Affine, Point, Rect, Size, Vec2};
+use graphdraw_core::{Command, ObjectStyle, Shape, ShapeKind};
 
-pub const KIND: &str = "tracedraw-shelf";
+pub const KIND: &str = "graphdraw-shelf";
 pub const VERSION: u32 = 1;
 /// The most items the shelf keeps.
 pub const MAX_ITEMS: usize = 500;
@@ -34,7 +34,7 @@ const MAX_NAME: usize = 120;
 const MAX_DEPTH: usize = 16;
 /// The browser build's local storage key.
 #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
-const WEB_KEY: &str = "tracedraw-shelf";
+const WEB_KEY: &str = "graphdraw-shelf";
 
 /// One item on the shelf.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -47,10 +47,10 @@ pub struct ShelfItem {
     pub styles: Vec<ObjectStyle>,
     /// A colour item: document palette colours and colour styles.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub colors: Vec<tracedraw_core::Color>,
+    pub colors: Vec<graphdraw_core::Color>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub color_styles: Vec<tracedraw_core::document::ColorStyle>,
-    /// Tells items apart while TraceDraw runs (thumbnails, selection).
+    pub color_styles: Vec<graphdraw_core::document::ColorStyle>,
+    /// Tells items apart while GraphDraw runs (thumbnails, selection).
     #[serde(skip)]
     pub uid: u64,
 }
@@ -62,7 +62,7 @@ impl ShelfItem {
     }
 
     /// Every colour the item holds: palette colours, then colour styles.
-    pub fn all_colors(&self) -> Vec<tracedraw_core::Color> {
+    pub fn all_colors(&self) -> Vec<graphdraw_core::Color> {
         self.colors
             .iter()
             .copied()
@@ -145,7 +145,7 @@ pub fn items_from_bytes(bytes: &[u8]) -> Option<Vec<ShelfItem>> {
     }
     if file.version > VERSION {
         log::warn!(
-            "the shelf was written by a newer TraceDraw (version {}); reading what this one knows",
+            "the shelf was written by a newer GraphDraw (version {}); reading what this one knows",
             file.version
         );
     }
@@ -418,8 +418,8 @@ pub fn make_item(
 /// A colour item holding a drawing's palette and colour styles.
 pub fn make_color_item(
     name: &str,
-    colors: &[tracedraw_core::Color],
-    styles: &[tracedraw_core::document::ColorStyle],
+    colors: &[graphdraw_core::Color],
+    styles: &[graphdraw_core::document::ColorStyle],
 ) -> ShelfItem {
     ShelfItem {
         name: clean_name(name),
@@ -433,7 +433,7 @@ pub fn make_color_item(
 
 /// A colour item's picture: its colours as squares (at most 64, in rows
 /// of 8), premultiplied RGBA.
-fn color_thumbnail(colors: &[tracedraw_core::Color], px: u32) -> Option<(Vec<u8>, u32, u32)> {
+fn color_thumbnail(colors: &[graphdraw_core::Color], px: u32) -> Option<(Vec<u8>, u32, u32)> {
     if colors.is_empty() {
         return None;
     }
@@ -478,7 +478,7 @@ pub fn thumbnail(item: &ShelfItem, px: u32) -> Option<(Vec<u8>, u32, u32)> {
     let zoom = px / longest;
     let w = (b.width() * zoom).ceil().clamp(1.0, px) as u32;
     let h = (b.height() * zoom).ceil().clamp(1.0, px) as u32;
-    let mut tmp = tracedraw_core::Document::new("shelf", Size::new(b.width(), b.height()));
+    let mut tmp = graphdraw_core::Document::new("shelf", Size::new(b.width(), b.height()));
     let layer = tmp.pages.first()?.layers.first()?.id;
     let page = tmp.pages.first()?.id;
     for s in &item.shapes {
@@ -488,13 +488,13 @@ pub fn thumbnail(item: &ShelfItem, px: u32) -> Option<(Vec<u8>, u32, u32)> {
             l.shapes.push(c);
         }
     }
-    let pm = tracedraw_render::render_page(
+    let pm = graphdraw_render::render_page(
         &tmp,
         page,
-        &tracedraw_render::RenderOptions {
+        &graphdraw_render::RenderOptions {
             width: w,
             height: h,
-            view: tracedraw_render::ViewTransform {
+            view: graphdraw_render::ViewTransform {
                 zoom,
                 origin_x: 0.0,
                 origin_y: h as f64,
@@ -504,7 +504,7 @@ pub fn thumbnail(item: &ShelfItem, px: u32) -> Option<(Vec<u8>, u32, u32)> {
             anti_alias: true,
             draft: true,
             focus: None,
-            ..tracedraw_render::RenderOptions::default()
+            ..graphdraw_render::RenderOptions::default()
         },
     )?;
     Some((pm.data().to_vec(), w, h))
@@ -712,7 +712,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::{Color, Fill, ShapeId};
+    use graphdraw_core::{Color, Fill, ShapeId};
 
     fn rect(app: &mut App, x: f64, y: f64, w: f64, h: f64) -> ShapeId {
         let id = app
@@ -801,7 +801,7 @@ mod tests {
 
     #[test]
     fn colors_go_on_the_shelf_and_into_another_drawing() {
-        use tracedraw_core::{document::ColorStyle, Color};
+        use graphdraw_core::{document::ColorStyle, Color};
         let mut app = App::headless();
         assert!(!app.shelf_add_colors(), "no colours yet");
         let red = Color::rgb8(255, 0, 0);
@@ -913,7 +913,7 @@ mod tests {
 
     #[test]
     fn the_shelf_is_kept_between_sessions() {
-        let dir = std::env::temp_dir().join(format!("tracedraw-shelf-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("graphdraw-shelf-{}", std::process::id()));
         let file = dir.join("shelf.json");
         let mut app = App::headless();
         let a = rect(&mut app, 0.0, 0.0, 5.0, 5.0);
@@ -933,8 +933,8 @@ mod tests {
         // Damaged, foreign and empty files give an empty shelf.
         for bad in [
             &b"{not json"[..],
-            br#"{"kind": "tracedraw-workspace", "version": 1}"#,
-            br#"{"kind": "tracedraw-shelf", "version": 1, "items": [{"name": "x", "shapes": []}]}"#,
+            br#"{"kind": "graphdraw-workspace", "version": 1}"#,
+            br#"{"kind": "graphdraw-shelf", "version": 1, "items": [{"name": "x", "shapes": []}]}"#,
             b"",
         ] {
             std::fs::write(&file, bad).expect("write");

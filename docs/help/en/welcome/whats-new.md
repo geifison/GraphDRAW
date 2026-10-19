@@ -1,6 +1,6 @@
 # What's new
 
-Each version of TraceDraw adds features and fixes. This page explains how to
+Each version of GraphDraw adds features and fixes. This page explains how to
 find out what changed and lists the highlights of the latest versions.
 
 ## Seeing what is new in the program {#in-the-program}
@@ -11,15 +11,15 @@ find out what changed and lists the highlights of the latest versions.
   in this version in the menus: a small dot appears at the end of each new
   command, beside the arrow of a submenu that leads to one, and over the
   title of a menu that holds one. The marks go away when you turn the
-  command off, and the command is off again the next time TraceDraw starts.
+  command off, and the command is off again the next time GraphDraw starts.
 - The complete list of changes of every version is in the project's
-  [change log](https://github.com/igtoth/tracedraw/blob/main/CHANGELOG.md).
+  [change log](https://github.com/geifison/GraphDRAW/blob/main/CHANGELOG.md).
 
 ## Highlights of recent versions {#highlights}
 
 - **Help in your language.** Every **?** button and <kbd>F1</kbd> open the
   page of this Help about the dialog box, panel or tool in front of you, in
-  the language TraceDraw is set to.
+  the language GraphDraw is set to.
 - **Document properties.** [[menu.file > menu.file.document_properties]]
   keeps the language, title, subject, author, copyright, tags, notes and
   rating of a drawing, over a full report of what the drawing holds. See

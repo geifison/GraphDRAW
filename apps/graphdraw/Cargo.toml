@@ -1,28 +1,28 @@
 [package]
-name = "tracedraw"
+name = "graphdraw"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
 homepage.workspace = true
-description = "TraceDraw: an open-source vector illustration editor"
+description = "GraphDraw: an open-source vector illustration editor"
 
 [[bin]]
-name = "tracedraw"
+name = "graphdraw"
 path = "src/main.rs"
 
 [build-dependencies]
 winresource = "0.1"
 
 [dependencies]
-tracedraw-core.workspace = true
-tracedraw-cdr.workspace = true
-tracedraw-io.workspace = true
-tracedraw-text.workspace = true
-tracedraw-render.workspace = true
-tracedraw-vba.workspace = true
-tracedraw-vba-project.workspace = true
+graphdraw-core.workspace = true
+graphdraw-cdr.workspace = true
+graphdraw-io.workspace = true
+graphdraw-text.workspace = true
+graphdraw-render.workspace = true
+graphdraw-vba.workspace = true
+graphdraw-vba-project.workspace = true
 kurbo.workspace = true
 tiny-skia.workspace = true
 serde.workspace = true
@@ -65,21 +65,21 @@ jiff = { version = "0.2", features = ["js"] }
 # Reads back the PDFs the tests publish; ICC profiles built for tests.
 [dev-dependencies]
 lopdf = { version = "0.36", default-features = false }
-tracedraw-core = { workspace = true, features = ["test-profiles"] }
+graphdraw-core = { workspace = true, features = ["test-profiles"] }
 
 [package.metadata.deb]
-name = "tracedraw"
-maintainer = "TraceDraw contributors <noreply@tracedraw.dev>"
-copyright = "2026, Ighor Toth and the TraceDraw contributors"
+name = "graphdraw"
+maintainer = "GraphDraw contributors <noreply@graphdraw.dev>"
+copyright = "2026, Ighor Toth and the TraceDraw contributors and GraphDraw contributors"
 license-file = ["../../LICENSE-MIT", "0"]
 extended-description = "Open-source vector illustration editor with a classic desktop workflow and a .cdr reader."
 section = "graphics"
 priority = "optional"
 depends = "$auto"
 assets = [
-    ["target/release/tracedraw", "usr/bin/", "755"],
-    ["target/release/tracedraw-cli", "usr/bin/", "755"],
-    ["../../packaging/linux/tracedraw.desktop", "usr/share/applications/", "644"],
-    ["../../assets/icon/tracedraw-256.png", "usr/share/icons/hicolor/256x256/apps/tracedraw.png", "644"],
-    ["../../README.md", "usr/share/doc/tracedraw/README", "644"],
+    ["target/release/graphdraw", "usr/bin/", "755"],
+    ["target/release/graphdraw-cli", "usr/bin/", "755"],
+    ["../../packaging/linux/graphdraw.desktop", "usr/share/applications/", "644"],
+    ["../../assets/icon/graphdraw-256.png", "usr/share/icons/hicolor/256x256/apps/graphdraw.png", "644"],
+    ["../../README.md", "usr/share/doc/graphdraw/README", "644"],
 ]

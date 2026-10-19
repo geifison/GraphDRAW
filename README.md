@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="assets/icon/tracedraw-256.png" alt="TraceDraw" width="120">
+  <img src="assets/icon/graphdraw-256.png" alt="GraphDraw" width="120">
 </p>
 
-<h1 align="center">TraceDraw</h1>
+<h1 align="center">GraphDraw</h1>
 
 <p align="center">
   <b>Vector illustration, page layout and print; an open-source, clean-room vector editor rebuilt from scratch in pure Rust.</b><br>
@@ -19,20 +19,20 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/igtoth/tracedraw/releases"><b>Download</b></a> &middot;
-  <a href="https://igtoth.github.io/tracedraw/">Open it in the browser</a> &middot;
+  <a href="https://github.com/geifison/GraphDRAW/releases"><b>Download</b></a> &middot;
+  <a href="https://geifison.github.io/GraphDRAW/">Open it in the browser</a> &middot;
   <a href="docs/features.md">Feature status</a> &middot;
   <a href="CONTRIBUTING.md">Contribute</a>
 </p>
 
 <p align="center">
-  <sub>Alpha: expect bugs. A <code>.cdr</code> file that does not open right? <a href="https://github.com/igtoth/tracedraw/issues/new?template=cdr_file.yml">Send it in an issue</a>: sample files are what improves the reader most.</sub>
+  <sub>Alpha: expect bugs. A <code>.cdr</code> file that does not open right? <a href="https://github.com/geifison/GraphDRAW/issues/new?template=cdr_file.yml">Send it in an issue</a>: sample files are what improves the reader most.</sub>
 </p>
 
 <br>
 
 <p align="center">
-  <img src="docs/images/tracedraw-hero.jpg" alt="TraceDraw with an illustrated poster of a lake at dusk: the title is selected, the property bar shows its font, size and alignment, and the Objects panel lists the five layers and their named objects" width="100%">
+  <img src="docs/images/graphdraw-hero.jpg" alt="GraphDraw with an illustrated poster of a lake at dusk: the title is selected, the property bar shows its font, size and alignment, and the Objects panel lists the five layers and their named objects" width="100%">
   <br>
   <sub>A poster drawn on five layers, its title selected, every object named in the Objects panel.</sub>
 </p>
@@ -75,16 +75,16 @@
 
 ## Features
 
-Every screenshot is TraceDraw itself, captured headless by
+Every screenshot is GraphDraw itself, captured headless by
 `scripts/visual/readme_shots.sh` from drawings made from scratch by
-`apps/tracedraw-cli/examples/showcase.rs`. Some are in the Dark and
+`apps/graphdraw-cli/examples/showcase.rs`. Some are in the Dark and
 Medium Dark themes (Options &rsaquo; Customization &rsaquo; Appearance,
 or the moon button at the right of the status bar).
 
 <table>
   <tr>
     <td width="50%" valign="top">
-      <img src="docs/images/tracedraw-curves.jpg" alt="A leaf drawn with smooth curves; the Shape tool has every node selected, showing the handles, and the property bar shows the node buttons" width="100%">
+      <img src="docs/images/graphdraw-curves.jpg" alt="A leaf drawn with smooth curves; the Shape tool has every node selected, showing the handles, and the property bar shows the node buttons" width="100%">
       <br>
       <sub>The Shape tool on a leaf, every node selected with its handles.</sub>
       <h3>Curves you can shape</h3>
@@ -93,7 +93,7 @@ or the moon button at the right of the status bar).
       Shaping tools (weld, trim, intersect, simplify, front and back minus), Smear, Twirl, Attract, Repel and Roughen, Knife, Eraser, Crop and Segment Delete reshape the rest.
     </td>
     <td width="50%" valign="top">
-      <img src="docs/images/tracedraw-effects.jpg" alt="A page of six live effects (Blend, Contour, Extrude, Drop Shadow, Envelope and Distort) with the blend selected and the Blend panel open on the right" width="100%">
+      <img src="docs/images/graphdraw-effects.jpg" alt="A page of six live effects (Blend, Contour, Extrude, Drop Shadow, Envelope and Distort) with the blend selected and the Blend panel open on the right" width="100%">
       <br>
       <sub>Six live effects on one page; the blend's steps and accelerations in its panel.</sub>
       <h3>Effects that stay live</h3>
@@ -102,7 +102,7 @@ or the moon button at the right of the status bar).
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <img src="docs/images/tracedraw-type.jpg" alt="A page of type at 100 percent: a headline, two columns of justified paragraph text with drop caps and hyphenation, and the Text panel with character and paragraph settings" width="100%">
+      <img src="docs/images/graphdraw-type.jpg" alt="A page of type at 100 percent: a headline, two columns of justified paragraph text with drop caps and hyphenation, and the Text panel with character and paragraph settings" width="100%">
       <br>
       <sub>Two justified columns with drop caps and hyphenation, and the Text panel.</sub>
       <h3>Type that sets properly</h3>
@@ -111,7 +111,7 @@ or the moon button at the right of the status bar).
       Spell check, find and replace, a glyph browser and a font manager that substitutes missing fonts keep long documents in order.
     </td>
     <td width="50%" valign="top">
-      <img src="docs/images/tracedraw-fills.jpg" alt="Eight tiles filled with uniform, linear, radial, conical, square, pattern, texture and mesh fills; the Interactive Fill tool shows the gradient's handles on the linear tile" width="100%">
+      <img src="docs/images/graphdraw-fills.jpg" alt="Eight tiles filled with uniform, linear, radial, conical, square, pattern, texture and mesh fills; the Interactive Fill tool shows the gradient's handles on the linear tile" width="100%">
       <br>
       <sub>Eight fill types; the Interactive Fill tool editing a gradient on the object.</sub>
       <h3>Every kind of fill</h3>
@@ -122,7 +122,7 @@ or the moon button at the right of the status bar).
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <img src="docs/images/tracedraw-bitmaps.jpg" alt="The poster placed as a bitmap with the Swirl dialog open, showing the bitmap before and after the effect" width="100%">
+      <img src="docs/images/graphdraw-bitmaps.jpg" alt="The poster placed as a bitmap with the Swirl dialog open, showing the bitmap before and after the effect" width="100%">
       <br>
       <sub>Effects &rsaquo; Distort &rsaquo; Swirl, previewed before and after.</sub>
       <h3>Bitmaps, too</h3>
@@ -131,7 +131,7 @@ or the moon button at the right of the status bar).
       Colour modes, a colour mask, straighten, crop and resample complete the set.
     </td>
     <td width="50%" valign="top">
-      <img src="docs/images/tracedraw-trace.jpg" alt="The Trace Bitmap dialog with the Clipart preset: the bitmap before and its traced curves after, with the detail, smoothing and colour settings" width="100%">
+      <img src="docs/images/graphdraw-trace.jpg" alt="The Trace Bitmap dialog with the Clipart preset: the bitmap before and its traced curves after, with the detail, smoothing and colour settings" width="100%">
       <br>
       <sub>Trace Bitmap with the Clipart preset: the bitmap and the curves it becomes.</sub>
       <h3>From pixels to curves</h3>
@@ -140,7 +140,7 @@ or the moon button at the right of the status bar).
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <img src="docs/images/tracedraw-export.jpg" alt="The Export dialog set to PNG at 300 dpi: a preview of the page, a transparent background option, the size in pixels and an estimated file size" width="100%">
+      <img src="docs/images/graphdraw-export.jpg" alt="The Export dialog set to PNG at 300 dpi: a preview of the page, a transparent background option, the size in pixels and an estimated file size" width="100%">
       <br>
       <sub>Export as PNG with a preview, the size in pixels and an estimated file size.</sub>
       <h3>Out in any format</h3>
@@ -149,7 +149,7 @@ or the moon button at the right of the status bar).
       Print goes through a PDF; Print Merge fills a design from a CSV file.
     </td>
     <td width="50%" valign="top">
-      <img src="docs/images/tracedraw-languages.jpg" alt="The page of type in TraceDraw with the interface in Japanese: menus, property bar, Text panel and status bar" width="100%">
+      <img src="docs/images/graphdraw-languages.jpg" alt="The page of type in GraphDraw with the interface in Japanese: menus, property bar, Text panel and status bar" width="100%">
       <br>
       <sub>The same page with the interface in Japanese.</sub>
       <h3>In your language</h3>
@@ -158,30 +158,30 @@ or the moon button at the right of the status bar).
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <img src="docs/images/tracedraw-templates.jpg" alt="The New from Template dialog: a search field, source and category lists, a grid of template thumbnails with the invoice picked, and a details pane with its category and page size" width="100%">
+      <img src="docs/images/graphdraw-templates.jpg" alt="The New from Template dialog: a search field, source and category lists, a grid of template thumbnails with the invoice picked, and a details pane with its category and page size" width="100%">
       <br>
       <sub>File &rsaquo; New From Template with the invoice picked.</sub>
       <h3>Start from a template</h3>
       Blank pages in the usual sizes and designed templates (business cards, flyers, a poster, a letterhead, a certificate, an invoice, a banner, a social post, a label), every part an ordinary editable object. Search them, filter by category, and keep your own: File &rsaquo; Save as Template puts a drawing in the list.
     </td>
     <td width="50%" valign="top">
-      <img src="docs/images/tracedraw-ai.jpg" alt="The AI Generate docker in the dark theme with a prompt, the Watercolor style and the Warm palette picked, next to the poster" width="100%">
+      <img src="docs/images/graphdraw-ai.jpg" alt="The AI Generate docker in the dark theme with a prompt, the Watercolor style and the Warm palette picked, next to the poster" width="100%">
       <br>
       <sub>The AI Generate docker, in the dark theme.</sub>
       <h3>AI with your own keys</h3>
-      Create pictures from a prompt with aspect ratio, style and palette presets, remix a selected picture, create vectors (a generated illustration traced into curves), remove a picture's background, and draw shapes from a request in words. TraceDraw has no AI of its own and no account: Tools &rsaquo; Options &rsaquo; AI connects the services you choose (Google Gemini, OpenAI or compatible APIs, local servers included), and nothing is sent until you ask.
+      Create pictures from a prompt with aspect ratio, style and palette presets, remix a selected picture, create vectors (a generated illustration traced into curves), remove a picture's background, and draw shapes from a request in words. GraphDraw has no AI of its own and no account: Tools &rsaquo; Options &rsaquo; AI connects the services you choose (Google Gemini, OpenAI or compatible APIs, local servers included), and nothing is sent until you ask.
     </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <img src="docs/images/tracedraw-painterly.jpg" alt="A landscape painted with painterly brushes (watercolour sky, ink wash and dry brush hills, bristle and fur grass, speckled flowers) with the brush picker open on the property bar" width="100%">
+      <img src="docs/images/graphdraw-painterly.jpg" alt="A landscape painted with painterly brushes (watercolour sky, ink wash and dry brush hills, bristle and fur grass, speckled flowers) with the brush picker open on the property bar" width="100%">
       <br>
       <sub>The Painterly Brush tool and its brush picker.</sub>
       <h3>Paint with brushes</h3>
       Twelve painterly brushes in three groups (chalk, charcoal, pastel; ink wash, watercolour, dry brush; bristle, fur, spray, speckle, cloud, silk ribbon) paint freehand strokes or the outline of any object. A brushstroke stays a curve: reshape it with the Shape tool, recolour it from the palette, change its brush, size or transparency, and export it to SVG and PDF.
     </td>
     <td width="50%" valign="top">
-      <img src="docs/images/tracedraw-perspective.jpg" alt="Draw in Perspective in the medium dark theme: a one-point grid over a room with checked floor tiles, windows and doors on the walls and lights on the ceiling" width="100%">
+      <img src="docs/images/graphdraw-perspective.jpg" alt="Draw in Perspective in the medium dark theme: a one-point grid over a room with checked floor tiles, windows and doors on the walls and lights on the ceiling" width="100%">
       <br>
       <sub>Draw in Perspective with a one-point grid.</sub>
       <h3>Draw in perspective</h3>
@@ -216,9 +216,9 @@ or the moon button at the right of the status bar).
     </td>
     <td width="33%" valign="top">
       <h4>Formats</h4>
-      Open: <code>.tdraw</code>, <code>.cdr</code> (versions 1 to 27) and its templates, CMX, SVG and SVGZ, PDF and AI, EPS, DXF, PSD, EMF, WMF, HPGL (PLT), TXT, RTF and DOCX, and bitmaps.
+      Open: <code>.gdr</code>, <code>.cdr</code> (versions 1 to 27) and its templates, CMX, SVG and SVGZ, PDF and AI, EPS, DXF, PSD, EMF, WMF, HPGL (PLT), TXT, RTF and DOCX, and bitmaps.
       <br><br>
-      Save and export: <code>.tdraw</code> (JSON), <code>.cdr</code> (versions 7 to 27), SVG, PDF, AI, EPS, DXF, EMF, WMF, PLT, PSD, HTML, PNG, JPEG, WebP, GIF, BMP and TIFF.
+      Save and export: <code>.gdr</code> (JSON), <code>.cdr</code> (versions 7 to 27), SVG, PDF, AI, EPS, DXF, EMF, WMF, PLT, PSD, HTML, PNG, JPEG, WebP, GIF, BMP and TIFF.
     </td>
     <td width="33%" valign="top">
       <h4>The everyday essentials</h4>
@@ -231,7 +231,7 @@ or the moon button at the right of the status bar).
 
 ## .cdr files, read and written independently
 
-TraceDraw's `.cdr` support lives in its own crate (`crates/cdr`), written
+GraphDraw's `.cdr` support lives in its own crate (`crates/cdr`), written
 from public format notes and from files we own, never from decompiled
 programs or other implementations. `CLEANROOM.md` records where each piece
 of format knowledge comes from and when; `docs/cdr-format.md` records what
@@ -250,7 +250,7 @@ is confirmed and what is still assumed.
   document palette; what the reader cannot map yet is counted and
   reported, never silently dropped.
 - **Writing back, in the version you need:** drawings save as `.cdr` in
-  any version from 7 to 27, as well as in TraceDraw's own JSON format. A
+  any version from 7 to 27, as well as in GraphDraw's own JSON format. A
   drawing opened from a `.cdr` saves in its own version unless you pick
   another. Save As offers versions 14 to 27, the ones checked to open in
   the program that wrote the samples; versions 7 to 13 are experimental
@@ -258,7 +258,7 @@ is confirmed and what is still assumed.
   to save in). From version 16 the file can carry the drawing's CMYK
   colour profile and the fonts its text uses (when their licence allows
   embedding).
-- **Never crashes on a file:** `tracedraw-cli stress` runs mutation tests
+- **Never crashes on a file:** `graphdraw-cli stress` runs mutation tests
   against the reader, opening any file always yields a document, and
   what a file may decompress to is capped.
 
@@ -269,27 +269,27 @@ and redo. The window, the command line, the JavaScript object model and the
 MCP server all go through it, so anything a click can do, a script can do.
 
 ```sh
-# Convert between any format TraceDraw opens and any it writes
-tracedraw-cli convert poster.cdr poster.pdf
-TRACEDRAW_DPI=300 tracedraw-cli convert poster.tdraw poster.png
-TRACEDRAW_PAGE=2 tracedraw-cli convert brochure.cdr page2.png
-TRACEDRAW_CDR_VERSION=15 tracedraw-cli convert logo.svg logo.cdr   # .cdr version 15 (14 to 27)
+# Convert between any format GraphDraw opens and any it writes
+graphdraw-cli convert poster.cdr poster.pdf
+GRAPHDRAW_DPI=300 graphdraw-cli convert poster.gdr poster.png
+GRAPHDRAW_PAGE=2 graphdraw-cli convert brochure.cdr page2.png
+GRAPHDRAW_CDR_VERSION=15 graphdraw-cli convert logo.svg logo.cdr   # .cdr version 15 (14 to 27)
 
 # A PDF with a bookmark per page that cannot be printed or copied
 # without its permissions password
-TRACEDRAW_PDF_BOOKMARKS=1 TRACEDRAW_PDF_OWNER_PASSWORD=boss \
-  TRACEDRAW_PDF_DENY=print,copy tracedraw-cli convert brochure.cdr brochure.pdf
+GRAPHDRAW_PDF_BOOKMARKS=1 GRAPHDRAW_PDF_OWNER_PASSWORD=boss \
+  GRAPHDRAW_PDF_DENY=print,copy graphdraw-cli convert brochure.cdr brochure.pdf
 
 # Look inside a .cdr: the chunk tree, and what the reader made of it
-tracedraw-cli inspect drawing.cdr
-tracedraw-cli info drawing.cdr
-TRACEDRAW_OBJECTS=1 tracedraw-cli info drawing.cdr   # every object
+graphdraw-cli inspect drawing.cdr
+graphdraw-cli info drawing.cdr
+GRAPHDRAW_OBJECTS=1 graphdraw-cli info drawing.cdr   # every object
 
 # Serve the editor to an AI agent over the Model Context Protocol
-tracedraw --mcp
+graphdraw --mcp
 # ... or let the agent edit the drawing open in the window (Options >
 # Global > General > Let AI agents on this computer edit the open drawing)
-tracedraw --mcp-window
+graphdraw --mcp-window
 ```
 
 The Scripts panel runs JavaScript against an object model of documents,
@@ -310,7 +310,7 @@ See [`docs/behavior/mcp.md`](docs/behavior/mcp.md) for the MCP tools.
 what to draw or change, and an AI service you set up with your own key
 (the Messages API, any chat completions service, or a model server on
 your own computer) writes the script, which runs as one undo step without
-access to your files. TraceDraw has no AI service or account of its own;
+access to your files. GraphDraw has no AI service or account of its own;
 see [`docs/behavior/ai-drawing.md`](docs/behavior/ai-drawing.md).
 
 ## Under the hood
@@ -332,10 +332,10 @@ see [`docs/behavior/ai-drawing.md`](docs/behavior/ai-drawing.md).
 ## Get started
 
 ```sh
-git clone https://github.com/igtoth/tracedraw
-cd tracedraw
-cargo run --release -p tracedraw                  # the editor
-cargo run --release -p tracedraw -- drawing.cdr   # open a file
+git clone https://github.com/geifison/GraphDRAW
+cd graphdraw
+cargo run --release -p graphdraw                  # the editor
+cargo run --release -p graphdraw -- drawing.cdr   # open a file
 cargo test --workspace                            # the test suite
 ```
 
@@ -347,13 +347,13 @@ New contributors and AI agents: start with [`AGENTS.md`](AGENTS.md), then
 
 > [!IMPORTANT]
 > **Status: alpha.** Most of what a vector editor is expected to do is in
-> place and covered by tests, but TraceDraw is young and has barely met
+> place and covered by tests, but GraphDraw is young and has barely met
 > real users: expect bugs and rough edges,
 > some formats and effects that are close in look rather than identical,
 > and gaps listed in [`docs/blueprint-gaps.md`](docs/blueprint-gaps.md).
 > [`docs/features.md`](docs/features.md) is the honest, row-by-row picture.
 > Issues with a sample file and a screenshot are the most helpful; there
-> are [templates](https://github.com/igtoth/tracedraw/issues/new/choose)
+> are [templates](https://github.com/geifison/GraphDRAW/issues/new/choose)
 > for bugs, `.cdr` files and feature requests.
 
 ## Help wanted
@@ -361,20 +361,20 @@ New contributors and AI agents: start with [`AGENTS.md`](AGENTS.md), then
 Anyone who wants to help is welcome, with or without writing code:
 
 - **Try it on your own files.** A `.cdr` that does not open right, sent
-  in [an issue](https://github.com/igtoth/tracedraw/issues/new?template=cdr_file.yml),
+  in [an issue](https://github.com/geifison/GraphDRAW/issues/new?template=cdr_file.yml),
   improves the reader more than anything else (only files you may share).
   Files of versions 4 and 6, and old files that use perspective,
   pattern or PostScript fills, with a picture of how they look, are the
   most wanted: those are the parts still read from few samples.
 - **Open our test files in your copy of the reference program.** The
-  [`interop` branch](https://github.com/igtoth/tracedraw/tree/interop/bundles)
-  holds small `.cdr` files saved by TraceDraw in versions 7 to 15; telling
-  us which ones open (and which do not) is what lets TraceDraw save
+  [`interop` branch](https://github.com/geifison/GraphDRAW/tree/interop/bundles)
+  holds small `.cdr` files saved by GraphDraw in versions 7 to 15; telling
+  us which ones open (and which do not) is what lets GraphDraw save
   versions 7 to 13 again. Releases from 2021 on open version 15 and newer only,
   so versions 7 to 14 need CorelDRAW 2020 or older.
 - **Report bugs** with the steps and a screenshot
-  ([bug report](https://github.com/igtoth/tracedraw/issues/new?template=bug_report.yml)).
-- **Review a translation** in your language (`apps/tracedraw/lang/`):
+  ([bug report](https://github.com/geifison/GraphDRAW/issues/new?template=bug_report.yml)).
+- **Review a translation** in your language (`apps/graphdraw/lang/`):
   native speakers catch what no test does.
 - **Pick a row** of [`docs/features.md`](docs/features.md) that is not
   "works" yet, or a gap in [`docs/blueprint-gaps.md`](docs/blueprint-gaps.md),
@@ -387,19 +387,19 @@ sign-off line and how pull requests are checked.
 ## Downloads
 
 Each version gets a release with installers for every platform: take the
-[latest release](https://github.com/igtoth/tracedraw/releases/latest)
+[latest release](https://github.com/geifison/GraphDRAW/releases/latest)
 (what changed is in [`CHANGELOG.md`](CHANGELOG.md)). Every push to `main`
 also refreshes the **Nightly build** pre-release. `<version>` in the file
 names is the version number.
 
 | Platform | Files |
 |---|---|
-| Windows (x64) | `tracedraw-<version>-windows-x86_64-setup.exe` (installer), `tracedraw-<version>-windows-x86_64-portable.zip` (not signed yet: if SmartScreen warns, More info > Run anyway) |
-| macOS (Apple silicon, Intel) | `tracedraw-<version>-macos-arm64.dmg`, `tracedraw-<version>-macos-x86_64.dmg` (unsigned for now: right-click, Open) |
-| Linux (x86_64) | `.deb`, `tracedraw-<version>-linux-x86_64.AppImage`, `tracedraw-<version>-linux-x86_64.tar.gz` |
-| Web | no download: [open it in the browser](https://igtoth.github.io/tracedraw/), nothing to install |
+| Windows (x64) | `graphdraw-<version>-windows-x86_64-setup.exe` (installer), `graphdraw-<version>-windows-x86_64-portable.zip` (not signed yet: if SmartScreen warns, More info > Run anyway) |
+| macOS (Apple silicon, Intel) | `graphdraw-<version>-macos-arm64.dmg`, `graphdraw-<version>-macos-x86_64.dmg` (unsigned for now: right-click, Open) |
+| Linux (x86_64) | `.deb`, `graphdraw-<version>-linux-x86_64.AppImage`, `graphdraw-<version>-linux-x86_64.tar.gz` |
+| Web | no download: [open it in the browser](https://geifison.github.io/GraphDRAW/), nothing to install |
 
-Each download includes `tracedraw-cli` next to the editor. Packaging sources
+Each download includes `graphdraw-cli` next to the editor. Packaging sources
 are in [`packaging/`](packaging/); the browser build is described in
 [`docs/behavior/web.md`](docs/behavior/web.md).
 
@@ -420,7 +420,7 @@ is described in [`docs/code-signing.md`](docs/code-signing.md).
 
 Privacy policy: this program will not transfer any information to other
 networked systems unless specifically requested by the user or the person
-installing or operating it. TraceDraw opens web pages (help, the project's
+installing or operating it. GraphDraw opens web pages (help, the project's
 pages) in your browser only when you choose to. The full policy is in
 [`PRIVACY.md`](PRIVACY.md).
 
@@ -444,9 +444,9 @@ pages) in your browser only when you choose to. The full policy is in
 
 ## License and credits
 
-TraceDraw is dual-licensed under [MIT](LICENSE-MIT) or
+GraphDraw is dual-licensed under [MIT](LICENSE-MIT) or
 [Apache-2.0](LICENSE-APACHE), at your option.
-Copyright &copy; 2026 Ighor Toth and the TraceDraw contributors.
+Copyright &copy; 2026 Ighor Toth and the TraceDraw contributors and GraphDraw contributors.
 
 Written by Ighor Toth with Claude Code, Anthropic's AI coding assistant,
 as co-author: commits it helped write carry a `Co-Authored-By` line, and
@@ -455,12 +455,12 @@ the About box says so too.
 Bundled fonts, icons and other assets keep their own open licenses; each
 is listed with its author, source and license in
 [ATTRIBUTION.md](ATTRIBUTION.md). Every drawing in the screenshots was made
-for TraceDraw.
+for GraphDraw.
 
-<sub>TraceDraw is an independent open-source project, not affiliated with,
+<sub>GraphDraw is an independent open-source project, not affiliated with,
 sponsored by or endorsed by any other software vendor. Trademarks and
 product names belong to their owners; file format names such as
 <code>.cdr</code>, <code>.ai</code>, <code>.psd</code> and <code>.pdf</code>
-are used only to describe the files TraceDraw reads and writes. The
+are used only to describe the files GraphDraw reads and writes. The
 software is provided "as is", without warranty of any kind, as the
 licenses state.</sub>

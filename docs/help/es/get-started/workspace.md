@@ -1,6 +1,6 @@
 # El espacio de trabajo
 
-La ventana de TraceDraw contiene sus dibujos y todo lo que necesita para
+La ventana de GraphDraw contiene sus dibujos y todo lo que necesita para
 trabajar en ellos. Esta página nombra sus partes, para que el resto de esta
 Ayuda tenga sentido.
 

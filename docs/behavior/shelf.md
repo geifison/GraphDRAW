@@ -1,7 +1,7 @@
 # Shelf
 
 A docker that keeps objects apart from any drawing, to place them in
-this drawing or another one, in this session or after TraceDraw
+this drawing or another one, in this session or after GraphDraw
 restarts. Code: `shelf.rs` (items, file, placing, pictures) and
 `ui/shelf_docker.rs` (the docker).
 
@@ -82,16 +82,16 @@ restarts. Code: `shelf.rs` (items, file, placing, pictures) and
 - Desktop: `shelf.json` in the preferences folder, rewritten after every
   change through a temporary file (`shelf.json.tmp`, then renamed), so a
   failed write leaves the previous shelf.
-- Browser: the page's local storage (`tracedraw-shelf`); browsers limit
+- Browser: the page's local storage (`graphdraw-shelf`); browsers limit
   it to a few megabytes, so large bitmaps may not be kept there.
-- The file: `{"kind": "tracedraw-shelf", "version": 1, "items": [{"name",
-  "shapes", "styles"}]}`; shapes are written as in `.tdraw` files.
+- The file: `{"kind": "graphdraw-shelf", "version": 1, "items": [{"name",
+  "shapes", "styles"}]}`; shapes are written as in `.gdr` files.
 - Reading: a missing file, a damaged one, one of another kind or one over
   64 MB gives an empty shelf (a warning in the log); items without
   objects are left out and names cleaned; a file from a newer version is
   read for what this version knows.
 - The shelf is read the first time the docker shows or something is
-  added, not while TraceDraw starts.
+  added, not while GraphDraw starts.
 
 ## Checks
 

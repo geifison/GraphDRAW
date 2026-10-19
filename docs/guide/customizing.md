@@ -1,22 +1,22 @@
 # Customizing
 
-TraceDraw can be set up to suit the way you work: preferences, the
+GraphDraw can be set up to suit the way you work: preferences, the
 layout of the window, keyboard shortcuts, the interface language, and
 scripts that do repetitive work for you.
 
 Your preferences are saved as soon as they change, so they survive even
-if TraceDraw does not close normally. On the desktop they live in a
+if GraphDraw does not close normally. On the desktop they live in a
 settings file; in the browser, in that browser's storage on that
 computer.
 
 ## Options
 
-**Tools > Options** is a submenu with five dialogs: **TraceDraw**
+**Tools > Options** is a submenu with five dialogs: **GraphDraw**
 (`Ctrl+J`), **Customization**, **Tools**, **Global** and **Workspaces**.
 Changes show at once; **OK** keeps them, and **Cancel** (or **Esc**) puts
 everything back. Highlights:
 
-### TraceDraw
+### GraphDraw
 
 - **General**: what to show at start-up (the Welcome Screen, a new
   document, or the last edited document), the New Document dialog, the
@@ -153,18 +153,18 @@ It changes at once. Shortcuts are the same in every language.
 
 ## Reset your settings
 
-To put every preference back to how TraceDraw comes:
+To put every preference back to how GraphDraw comes:
 
 - **Tools > Options > Global > Reset all settings...**, or
 - press `F8` while the splash screen shows.
 
-TraceDraw asks first. Your recent drawings, the last folder and the
+GraphDraw asks first. Your recent drawings, the last folder and the
 window size are kept, and your drawings are never touched. See
 [the start-up notes](../behavior/about-and-startup.md#back-to-the-defaults).
 
 ## Scripts and automation
 
-Every menu item, tool and panel in TraceDraw works through one set of
+Every menu item, tool and panel in GraphDraw works through one set of
 commands with undo, so scripts can do anything a click can.
 
 ### The Scripts panel
@@ -175,7 +175,7 @@ scripts, and **record a macro**: what you do is written down as a script
 you can run again. An example is in the
 [project README](../../README.md#made-to-be-automated).
 
-A script can also add a file format: one that defines `TraceDrawFilter`
+A script can also add a file format: one that defines `GraphDrawFilter`
 with a name, its extensions and an `Import` or `Export` function becomes
 a filter with **Install as Filter**, and its format then appears in
 **File > Import** and **File > Export**. See
@@ -192,23 +192,23 @@ stop. See [the debugger notes](../behavior/script-debugger.md).
 blue wheels") into a drawing. It uses an AI service you set up yourself,
 with your own key: a Messages API service, any chat completions service,
 or a model server on your own computer. The service writes a script,
-which runs as one undo step without access to your files. TraceDraw has
+which runs as one undo step without access to your files. GraphDraw has
 no AI service or account of its own, and nothing is sent until you press
 **Draw**. See [the AI Drawing notes](../behavior/ai-drawing.md).
 
 ### The command line
 
-Every download includes `tracedraw-cli`. For example, to convert between
-any format TraceDraw opens and any it writes:
+Every download includes `graphdraw-cli`. For example, to convert between
+any format GraphDraw opens and any it writes:
 
 ```sh
-tracedraw-cli convert poster.cdr poster.pdf
-TRACEDRAW_DPI=300 tracedraw-cli convert poster.tdraw poster.png
+graphdraw-cli convert poster.cdr poster.pdf
+GRAPHDRAW_DPI=300 graphdraw-cli convert poster.gdr poster.png
 ```
 
 ### AI agents
 
-`tracedraw --mcp` serves the editor to AI agents over the Model Context
+`graphdraw --mcp` serves the editor to AI agents over the Model Context
 Protocol. To let an agent on your computer edit the drawing open in your
 window, turn on **Tools > Options > Global > General > Let AI agents on
 this computer edit the open drawing** (off to start with). See

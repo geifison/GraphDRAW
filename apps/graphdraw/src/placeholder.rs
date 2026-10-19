@@ -4,7 +4,7 @@
 //! pseudo-Latin passage printers have used for centuries (public domain).
 
 use crate::app::App;
-use tracedraw_core::{geometry::Affine, Command, Shape, ShapeKind, TextSpan};
+use graphdraw_core::{geometry::Affine, Command, Shape, ShapeKind, TextSpan};
 
 /// The filler, cycled as often as a frame needs.
 const FILLER: &str = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do \
@@ -135,8 +135,8 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::geometry::{Point, Size};
-    use tracedraw_core::{ShapeId, TextAlign};
+    use graphdraw_core::geometry::{Point, Size};
+    use graphdraw_core::{ShapeId, TextAlign};
 
     #[test]
     fn filler_ends_with_a_full_stop_in_paragraphs() {
@@ -171,7 +171,7 @@ mod tests {
 
     #[test]
     fn frames_fill_up_to_their_size() {
-        tracedraw_text::install();
+        graphdraw_text::install();
         let mut app = App::headless();
         let small = frame(&mut app, "", 40.0, 20.0);
         let large = frame(&mut app, "keep my style", 120.0, 90.0);

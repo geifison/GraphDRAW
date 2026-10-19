@@ -1,11 +1,11 @@
-# Opcje TraceDraw
+# Opcje GraphDraw
 
 [[menu.tools > menu.tools.options > menu.tools.options_app]] (<kbd>Ctrl+J</kbd>)
 określa sposób działania programu. Wybierz stronę z listy po lewej stronie.
 
 ## Ogólne {#general}
 
-![Strona Ogólne opcji TraceDraw](../../img/customize-options-app-general.png)
+![Strona Ogólne opcji GraphDraw](../../img/customize-options-app-general.png)
 
 - [[options.on_startup]]: wyświetl ekran powitalny, utwórz nowy dokument lub
   otwórz ostatnio edytowany dokument.
@@ -16,7 +16,7 @@ określa sposób działania programu. Wybierz stronę z listy po lewej stronie.
 
 ## Wyświetlanie {#display}
 
-![Strona Wyświetlanie opcji TraceDraw](../../img/customize-options-app-display.png)
+![Strona Wyświetlanie opcji GraphDraw](../../img/customize-options-app-display.png)
 
 - [[menu.view.proof_colors]]: pokazuj kolory tak, jak zostaną wydrukowane.
 - [[options.show_tooltips]] (włączone), [[options.hide_bbox_curve_tools]]
@@ -31,7 +31,7 @@ określa sposób działania programu. Wybierz stronę z listy po lewej stronie.
 
 ## Edycja {#edit}
 
-![Strona Edycja opcji TraceDraw](../../img/customize-options-app-edit.png)
+![Strona Edycja opcji GraphDraw](../../img/customize-options-app-edit.png)
 
 - [[options.constrain_angle]]: krok kąta z <kbd>Ctrl</kbd> podczas obracania
   i rysowania (domyślnie 15 stopni).
@@ -42,7 +42,7 @@ określa sposób działania programu. Wybierz stronę z listy po lewej stronie.
 
 ## Węzły i uchwyty {#nodes-and-handles}
 
-![Strona Węzły i uchwyty opcji TraceDraw](../../img/customize-options-app-nodes-and-handles.png)
+![Strona Węzły i uchwyty opcji GraphDraw](../../img/customize-options-app-nodes-and-handles.png)
 
 - [[options.node_size]]: mały, średni lub duży.
 - [[options.node_shape]] dla węzłów [[options.node_cusp]],
@@ -54,7 +54,7 @@ określa sposób działania programu. Wybierz stronę z listy po lewej stronie.
 
 ## Ramka przycinania {#clip-frame}
 
-![Strona Ramka przycinania opcji TraceDraw](../../img/customize-options-app-clip-frame.png)
+![Strona Ramka przycinania opcji GraphDraw](../../img/customize-options-app-clip-frame.png)
 
 - [[options.auto_center]]: [[options.auto_center_outside]] (domyślnie),
   [[options.auto_center_always]] lub [[options.auto_center_never]].
@@ -64,7 +64,7 @@ Zobacz [Umieszczanie obiektów w ramce](../objects/clip-frames.md).
 
 ## Przyciąganie {#snapping}
 
-![Strona Przyciąganie opcji TraceDraw](../../img/customize-options-app-snapping.png)
+![Strona Przyciąganie opcji GraphDraw](../../img/customize-options-app-snapping.png)
 
 - [[options.snap_to_objects]], [[options.snap_to_page]],
   [[options.snap_to_guidelines]], [[options.snap_to_grid]], siatka linii
@@ -78,7 +78,7 @@ Zobacz [Przyciąganie](../pages-layout/snapping.md).
 
 ## Zapisywanie {#save}
 
-![Strona Zapisywanie opcji TraceDraw](../../img/customize-options-app-save.png)
+![Strona Zapisywanie opcji GraphDraw](../../img/customize-options-app-save.png)
 
 - [[options.backup]]: [[options.backup_before_save]] (włączone) zachowuje
   poprzedni plik jako `backup_of_<name>`, [[options.backup_to]]
@@ -90,7 +90,7 @@ Zobacz [Przyciąganie](../pages-layout/snapping.md).
 
 ## Tekst {#text}
 
-![Strona Tekst opcji TraceDraw](../../img/customize-options-app-text.png)
+![Strona Tekst opcji GraphDraw](../../img/customize-options-app-text.png)
 
 - [[options.keyboard_text_increment]]: o ile <kbd>Ctrl+8</kbd>
   i <kbd>Ctrl+2</kbd> powiększają i zmniejszają zaznaczony tekst (1 punkt).

@@ -485,17 +485,17 @@ fn settings(app: &mut App, ui: &mut Ui) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::{document::ShapeKind, geometry::Size, Document};
+    use graphdraw_core::{document::ShapeKind, geometry::Size, Document};
 
     #[test]
     fn picking_an_issue_selects_its_object_and_the_dialog_draws() {
         let mut app = App::headless();
         let mut doc = Document::new("t", Size::new(100.0, 100.0));
         let id = doc.ids_mut().shape();
-        let mut s = tracedraw_core::Shape::new(
+        let mut s = graphdraw_core::Shape::new(
             id,
             ShapeKind::Rect {
-                rect: tracedraw_core::Rect::new(200.0, 10.0, 210.0, 20.0),
+                rect: graphdraw_core::Rect::new(200.0, 10.0, 210.0, 20.0),
                 radius: 0.0,
                 corners: None,
             },

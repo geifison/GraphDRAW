@@ -1,7 +1,7 @@
 # Menggambar dan membuat gambar dengan AI
 
-TraceDraw dapat menggambar dari deskripsi kata-kata dan membuat gambar dengan
-layanan AI yang Anda pilih dan atur dengan kunci Anda sendiri. TraceDraw tidak
+GraphDraw dapat menggambar dari deskripsi kata-kata dan membuat gambar dengan
+layanan AI yang Anda pilih dan atur dengan kunci Anda sendiri. GraphDraw tidak
 memiliki AI sendiri dan tidak memerlukan akun: tidak ada yang dikirim sampai
 Anda menjalankan perintah AI, dan saat itu hanya apa yang dibutuhkan perintah
 tersebut yang dikirim ke layanan yang Anda atur. Setiap permintaan ditagih oleh
@@ -48,7 +48,7 @@ lingkaran dan letakkan judul di bawahnya", di bilah perintah atau di mode
 **Gambar dengan kata-kata** pada panel [[docker.ai_generate]]
 ([[menu.object > menu.object.ai_generate > menu.object.ai_draw_words]]), lalu
 tekan **Gambar** atau <kbd>Enter</kbd>. Layanan menulis skrip untuk gambar,
-yang dijalankan TraceDraw sebagai satu langkah urungkan. Percakapan disimpan,
+yang dijalankan GraphDraw sebagai satu langkah urungkan. Percakapan disimpan,
 jadi Anda dapat meminta perubahan; **Percakapan baru** memulai dari awal.
 **Buka di Skrip** menampilkan skripnya.
 

@@ -1,24 +1,24 @@
 # AGENTS.md: guide for AI agents and contributors
 
-TraceDraw is an open-source vector editor in **Rust only**: native egui/eframe
+GraphDraw is an open-source vector editor in **Rust only**: native egui/eframe
 desktop app and the same app compiled to WebAssembly for the browser. No
 Electron, Tauri or webview.
-The product name is **TraceDraw** in prose; machine names are `tracedraw`
-(`tracedraw-core`, `tracedraw-cdr`, `.tdraw` files).
+The product name is **GraphDraw** in prose; machine names are `graphdraw`
+(`graphdraw-core`, `graphdraw-cdr`, `.gdr` files).
 
 ## Golden rules
 
 1. **Everything is a command.** New user-visible behaviour is a variant of
-   `tracedraw_core::Command`, applied through `Engine::run`. The UI only builds
+   `graphdraw_core::Command`, applied through `Engine::run`. The UI only builds
    commands and reads the document; it never mutates it directly.
 2. **Never panic on input.** Non-test code does not use `unwrap`, `expect`,
    `panic!`, `todo!` or raw indexing on data that came from a file or the
    user. Return `Result`, log a warning, skip the object. Opening any file
    must always yield a document.
-3. **Clean-room and independence.** TraceDraw stands on its own: never
+3. **Clean-room and independence.** GraphDraw stands on its own: never
    name other graphics editors or their makers anywhere in the repo (code,
    comments, docs, commit messages, packaging, file names), and never
-   describe TraceDraw or a feature as modelled on another program.
+   describe GraphDraw or a feature as modelled on another program.
    Features carry our own names: generic terms (Fill, Blend, Contour,
    Envelope, Weld) are fine, distinctive product or feature names of other
    software are never used. File formats go by their usual names (`.cdr`,
@@ -50,10 +50,10 @@ crates/cdr    container.rs (RIFF/ZIP), riff.rs (chunk tree), parse.rs
 crates/text   font database, shaping, outlines
 crates/render CPU rasteriser
 crates/io     svg.rs, pdf.rs, lib.rs (native format)
-apps/tracedraw    main.rs, app.rs, interaction.rs, canvas.rs, ops.rs,
+apps/graphdraw    main.rs, app.rs, interaction.rs, canvas.rs, ops.rs,
                   tools.rs, tools2.rs, ui/ (menus, toolbar, toolbox,
                   dockers, palette, status, dialogs, icons)
-apps/tracedraw-cli
+apps/graphdraw-cli
 ```
 
 ## Visual checks
@@ -74,7 +74,7 @@ screen; CI runs it on the Linux build.
 ## Browser build
 
 The app must keep compiling for `wasm32-unknown-unknown`. File dialogs and
-file access go through `apps/tracedraw/src/files.rs` (never `rfd` or
+file access go through `apps/graphdraw/src/files.rs` (never `rfd` or
 `std::fs` directly in UI code); anything that needs a desktop (processes,
 temporary folders, system clipboard images) checks `files::WEB` or is
 `#[cfg(not(target_arch = "wasm32"))]`. `std::time::Instant`,
@@ -91,7 +91,7 @@ behind it, and never add a feature without updating the row.
 
 - `cargo test --workspace` before every commit.
 - Commits carry a `Signed-off-by:` line (DCO, see `CONTRIBUTING.md`).
-- `cargo build -p tracedraw` and `cargo clippy --workspace` must stay
+- `cargo build -p graphdraw` and `cargo clippy --workspace` must stay
   warning-free (CI runs clippy with `-D warnings` on the library crates,
   on the pinned toolchain 1.97.0; use the same version locally so the
   lint set matches).

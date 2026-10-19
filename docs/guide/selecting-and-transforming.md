@@ -134,13 +134,13 @@ Click a selected object a second time. The handles change to arrows:
 
 - **Curved arrows** at the corners rotate the selection about the centre
   of rotation. Hold **Ctrl** to turn in steps of the constrain angle
-  (15 degrees; change it in **Tools > Options > TraceDraw > Edit**).
+  (15 degrees; change it in **Tools > Options > GraphDraw > Edit**).
 - **Straight double arrows** at the sides skew (slant) the selection,
   with the opposite side fixed. Hold **Shift** to skew about the centre
   line.
 - The **centre of rotation**, a ring with a dot, can be dragged to turn
   about another point. Double-click it to put it back in the middle.
-  TraceDraw remembers where you put it for that object.
+  GraphDraw remembers where you put it for that object.
 
 Click the object again to go back to the scale handles.
 
@@ -156,7 +156,7 @@ original. See [the Free Transform notes](../behavior/free-transform.md).
 ## Snapping
 
 Snapping pulls the pointer to useful points while you draw and move. To
-start with, TraceDraw snaps to objects, guidelines and the page.
+start with, GraphDraw snaps to objects, guidelines and the page.
 
 - `Alt+Q` turns all snapping off and on (also the **Snap Off** button).
 - `Alt+Z` snaps to objects; `Ctrl+Y` snaps to the document grid.
@@ -166,7 +166,7 @@ start with, TraceDraw snaps to objects, guidelines and the page.
 When you start a move on one of the selection's points (a node, a
 midpoint, the centre), that point is the one carried onto other objects.
 A mark and a small label, such as "node" or "midpoint", show what you
-snapped to. **Tools > Options > TraceDraw > Snapping** has the snapping
+snapped to. **Tools > Options > GraphDraw > Snapping** has the snapping
 radius (10 pixels) and the snapping modes: node, intersection, midpoint,
 quadrant, tangent, perpendicular, edge, centre and text baseline.
 

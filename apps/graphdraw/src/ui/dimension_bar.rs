@@ -11,7 +11,7 @@ use crate::theme::Tokens;
 use crate::tools::Tool;
 use crate::ui::field::NumField;
 use egui::{Color32, Painter, Stroke, Ui};
-use tracedraw_core::geometry::PathEl;
+use graphdraw_core::geometry::PathEl;
 
 fn dim(ui: &mut Ui, text: String) {
     ui.label(
@@ -182,7 +182,7 @@ pub fn draw_preview(app: &App, painter: &Painter) {
     let Some(d) = app.dimension_preview(at) else {
         return;
     };
-    let ids = [tracedraw_core::ShapeId(0); 3];
+    let ids = [graphdraw_core::ShapeId(0); 3];
     for s in d.shapes(ids, &app.text_font, app.units) {
         let path = s.page_path();
         let mut line: Vec<egui::Pos2> = Vec::new();
@@ -195,7 +195,7 @@ pub fn draw_preview(app: &App, painter: &Painter) {
             }
             line.clear();
         };
-        tracedraw_core::geometry::flatten(&path, 0.05, &mut |el| match el {
+        graphdraw_core::geometry::flatten(&path, 0.05, &mut |el| match el {
             PathEl::MoveTo(p) => {
                 flush(&mut line);
                 line.push(app.view.to_screen(p));
@@ -215,7 +215,7 @@ pub fn draw_preview(app: &App, painter: &Painter) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::geometry::Point;
+    use graphdraw_core::geometry::Point;
 
     #[test]
     fn the_bar_and_the_preview_draw() {

@@ -1,6 +1,6 @@
 //! PDF (and PDF-compatible AI) import.
 //!
-//! The content stream of every page is interpreted into TraceDraw objects:
+//! The content stream of every page is interpreted into GraphDraw objects:
 //! paths with fills and outlines, images, text runs, form XObjects, axial
 //! and radial shadings as fountain fills, constant alpha from ExtGStates,
 //! and clipping paths as clip frames. The object parsing (xref, streams,
@@ -13,7 +13,7 @@
 use lopdf::content::{Content, Operation};
 use lopdf::{Dictionary, Document as PdfDoc, Object, Stream};
 use std::collections::HashMap;
-use tracedraw_core::{
+use graphdraw_core::{
     document::{ParagraphStyle, Shape, ShapeKind, TextSpan},
     geometry::{Affine, BezPath, Point, Rect, Shape as _, Size, Vec2},
     id::IdSource,
@@ -304,14 +304,14 @@ fn load(bytes: &[u8], password: &str) -> Result<PdfDoc, ImportError> {
 }
 
 /// Convert an imported PDF into a document (one page per PDF page).
-pub fn to_document(imp: ImportedPdf, title: &str) -> tracedraw_core::Document {
-    use tracedraw_core::document::{Layer, Page};
+pub fn to_document(imp: ImportedPdf, title: &str) -> graphdraw_core::Document {
+    use graphdraw_core::document::{Layer, Page};
     let first = imp
         .pages
         .first()
         .map(|p| p.size)
-        .unwrap_or(tracedraw_core::document::paper::A4);
-    let mut doc = tracedraw_core::Document::new(imp.title.as_deref().unwrap_or(title), first);
+        .unwrap_or(graphdraw_core::document::paper::A4);
+    let mut doc = graphdraw_core::Document::new(imp.title.as_deref().unwrap_or(title), first);
     doc.pages.clear();
     for (i, p) in imp.pages.into_iter().enumerate() {
         let pid = doc.ids_mut().page();
@@ -594,7 +594,7 @@ impl<'a> Importer<'a> {
         let Ok(page) = self.doc.get_dictionary(page_id) else {
             self.warn(format!("page {} is not a dictionary", index + 1));
             return ImportedPage {
-                size: tracedraw_core::document::paper::A4,
+                size: graphdraw_core::document::paper::A4,
                 shapes: Vec::new(),
             };
         };
@@ -1295,7 +1295,7 @@ impl<'a> Importer<'a> {
         let closed = path
             .elements()
             .iter()
-            .any(|e| matches!(e, tracedraw_core::geometry::PathEl::ClosePath));
+            .any(|e| matches!(e, graphdraw_core::geometry::PathEl::ClosePath));
         let mut shape = self.new_shape(ShapeKind::Path {
             path: path.clone(),
             closed: closed || fill,
@@ -1514,7 +1514,7 @@ impl<'a> Importer<'a> {
                     // Decoded JPEG size wins over the dictionary.
                     let (jw, jh) = (img.width(), img.height());
                     if jw != w || jh != h {
-                        return Some((tracedraw_render_png(jw, jh, &rgba), jw, jh));
+                        return Some((graphdraw_render_png(jw, jh, &rgba), jw, jh));
                     }
                 }
             }
@@ -1613,7 +1613,7 @@ impl<'a> Importer<'a> {
                 }
             }
         }
-        Some((tracedraw_render_png(w, h, &rgba), w, h))
+        Some((graphdraw_render_png(w, h, &rgba), w, h))
     }
 
     /// An SMask as 8-bit alpha, resampled to `w` x `h` (nearest).
@@ -1727,10 +1727,10 @@ impl<'a> Importer<'a> {
                 return None;
             }
             let tile_size = Size::new(
-                (xstep.abs() * scale).max(tracedraw_core::Pattern::MIN_TILE_MM),
-                (ystep.abs() * scale).max(tracedraw_core::Pattern::MIN_TILE_MM),
+                (xstep.abs() * scale).max(graphdraw_core::Pattern::MIN_TILE_MM),
+                (ystep.abs() * scale).max(graphdraw_core::Pattern::MIN_TILE_MM),
             );
-            return Some(Fill::Pattern(tracedraw_core::Pattern::Vector {
+            return Some(Fill::Pattern(graphdraw_core::Pattern::Vector {
                 shapes,
                 tile: tile_size,
             }));
@@ -2512,7 +2512,7 @@ fn expand_inline_keys(d: &mut Dictionary) {
     }
 }
 
-fn tracedraw_render_png(w: u32, h: u32, rgba: &[u8]) -> Vec<u8> {
+fn graphdraw_render_png(w: u32, h: u32, rgba: &[u8]) -> Vec<u8> {
     crate::svg::encode_png(w, h, rgba)
 }
 

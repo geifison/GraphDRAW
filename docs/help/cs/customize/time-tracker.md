@@ -1,7 +1,7 @@
 # Sledování času
 
 Sledování času zaznamenává čas, který nad kresbou strávíte, úkol po úkolu, a
-uchovává záznamy v kresbě (v souborech `.tdraw`). Čas se počítá jen během
+uchovává záznamy v kresbě (v souborech `.gdr`). Čas se počítá jen během
 práce: po několika minutách nečinnosti hodiny čekají a vaše další akce je
 opět spustí.
 

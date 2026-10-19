@@ -1,6 +1,6 @@
 # Přizpůsobení a automatizace
 
-TraceDraw lze nastavit podle toho, jak pracujete: volby programu a každého
+GraphDraw lze nastavit podle toho, jak pracujete: volby programu a každého
 nástroje, vzhled rozhraní, klávesové zkratky, panely a pracovní prostory.
 Práci můžete také automatizovat skripty, připojit službu AI, která kreslí podle
 popisu, a sledovat čas strávený nad kresbou.

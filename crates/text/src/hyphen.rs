@@ -200,7 +200,7 @@ mod tests {
 
     #[test]
     fn names_and_acronyms_are_not_broken() {
-        assert!(break_points("TraceDraw").is_empty());
+        assert!(break_points("GraphDraw").is_empty());
         assert!(break_points("Portugal").is_empty());
         assert!(break_points("UNESCO").is_empty());
     }

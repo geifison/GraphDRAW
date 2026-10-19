@@ -28,7 +28,7 @@ ponechají její náhradní barvu.
 Soubor palety může být vzorníkem přímých barev (například paleta `.ase` s
 přímými položkami). Jeho přímé položky se otevřou jako přímé barvy,
 pojmenované jako ve vzorníku; použitím jedné z nich se barva přidá do kresby.
-TraceDraw nedodává licencované vzorníky barev, ale vzorník, který vlastníte,
+GraphDraw nedodává licencované vzorníky barev, ale vzorník, který vlastníte,
 se otevře jako jakákoli paleta.
 
 ## Přímé barvy v tisku a exportech {#output}

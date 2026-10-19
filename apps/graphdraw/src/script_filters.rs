@@ -1,5 +1,5 @@
 //! Script filters: file formats read or written by JavaScript. A filter
-//! script defines `TraceDrawFilter` (see `docs/behavior/script-filters.md`);
+//! script defines `GraphDrawFilter` (see `docs/behavior/script-filters.md`);
 //! Scripts panel > Install as Filter keeps it in the settings, and File >
 //! Import and File > Export offer its formats.
 
@@ -88,11 +88,11 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::document::ShapeKind;
+    use graphdraw_core::document::ShapeKind;
 
     /// A format of one rectangle per line: "x y w h".
     const BOXES: &str = r#"
-const TraceDrawFilter = {
+const GraphDrawFilter = {
   name: 'Boxes',
   extensions: ['.BOX', 'bx'],
   Import(text) {
@@ -136,10 +136,10 @@ const TraceDrawFilter = {
         // Scripts that are no filter.
         for bad in [
             "print('hi')",
-            "const TraceDrawFilter = {extensions: ['a'], Import() {}};",
-            "const TraceDrawFilter = {name: 'A', Import() {}};",
-            "const TraceDrawFilter = {name: 'A', extensions: ['a']};",
-            "const TraceDrawFilter = {name: 'A', extensions: ['a'], Import() {}}; while (true) {}",
+            "const GraphDrawFilter = {extensions: ['a'], Import() {}};",
+            "const GraphDrawFilter = {name: 'A', Import() {}};",
+            "const GraphDrawFilter = {name: 'A', extensions: ['a']};",
+            "const GraphDrawFilter = {name: 'A', extensions: ['a'], Import() {}}; while (true) {}",
             "syntax error here (",
         ] {
             assert!(scripting::filter_info(bad).is_err(), "{bad}");
@@ -213,7 +213,7 @@ const TraceDrawFilter = {
     #[test]
     fn path_data_is_in_page_millimetres() {
         let src = r#"
-const TraceDrawFilter = { name: 'Paths', extensions: ['pd'],
+const GraphDrawFilter = { name: 'Paths', extensions: ['pd'],
   Export() { return ActivePage.Shapes.All.Shapes.map(s => s.PathData).join('\n'); } };
 "#;
         let f = scripting::filter_info(src).expect("filter");

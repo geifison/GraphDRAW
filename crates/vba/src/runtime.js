@@ -1,4 +1,4 @@
-// VBA runtime for TraceDraw: the helpers compiled VBA calls (`__v`) and
+// VBA runtime for GraphDraw: the helpers compiled VBA calls (`__v`) and
 // the VBA library (`__b`). Evaluated after the host's object model and
 // before the compiled program.
 var __v, __b;
@@ -45,7 +45,7 @@ V.raise = function (n, detail) {
 };
 
 V.unsupported = function (what) {
-  throw new VbError(445, "Not supported in TraceDraw: " + what);
+  throw new VbError(445, "Not supported in GraphDraw: " + what);
 };
 
 V.toVbError = function (e) {

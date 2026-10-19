@@ -1,11 +1,11 @@
-# Možnosti TraceDraw
+# Možnosti GraphDraw
 
 [[menu.tools > menu.tools.options > menu.tools.options_app]] (<kbd>Ctrl+J</kbd>)
 nastavuje, jak program pracuje. Stránku zvolte ze seznamu vlevo.
 
 ## Obecné {#general}
 
-![Stránka Obecné v možnostech TraceDraw](../../img/customize-options-app-general.png)
+![Stránka Obecné v možnostech GraphDraw](../../img/customize-options-app-general.png)
 
 - [[options.on_startup]]: zobrazit úvodní obrazovku, začít nový dokument,
   nebo otevřít naposledy upravovaný dokument.
@@ -16,7 +16,7 @@ nastavuje, jak program pracuje. Stránku zvolte ze seznamu vlevo.
 
 ## Zobrazení {#display}
 
-![Stránka Zobrazení v možnostech TraceDraw](../../img/customize-options-app-display.png)
+![Stránka Zobrazení v možnostech GraphDraw](../../img/customize-options-app-display.png)
 
 - [[menu.view.proof_colors]]: zobrazovat barvy tak, jak se vytisknou.
 - [[options.show_tooltips]] (zapnuto), [[options.hide_bbox_curve_tools]] a
@@ -31,7 +31,7 @@ nastavuje, jak program pracuje. Stránku zvolte ze seznamu vlevo.
 
 ## Úpravy {#edit}
 
-![Stránka Úpravy v možnostech TraceDraw](../../img/customize-options-app-edit.png)
+![Stránka Úpravy v možnostech GraphDraw](../../img/customize-options-app-edit.png)
 
 - [[options.constrain_angle]]: krok s klávesou <kbd>Ctrl</kbd> při otáčení a
   kreslení (výchozí 15 stupňů).
@@ -42,7 +42,7 @@ nastavuje, jak program pracuje. Stránku zvolte ze seznamu vlevo.
 
 ## Uzly a úchyty {#nodes-and-handles}
 
-![Stránka Uzly a úchyty v možnostech TraceDraw](../../img/customize-options-app-nodes-and-handles.png)
+![Stránka Uzly a úchyty v možnostech GraphDraw](../../img/customize-options-app-nodes-and-handles.png)
 
 - [[options.node_size]]: malý, střední nebo velký.
 - [[options.node_shape]] pro uzly typu [[options.node_cusp]],
@@ -54,7 +54,7 @@ nastavuje, jak program pracuje. Stránku zvolte ze seznamu vlevo.
 
 ## Ořezový rámeček {#clip-frame}
 
-![Stránka Ořezový rámeček v možnostech TraceDraw](../../img/customize-options-app-clip-frame.png)
+![Stránka Ořezový rámeček v možnostech GraphDraw](../../img/customize-options-app-clip-frame.png)
 
 - [[options.auto_center]]: [[options.auto_center_outside]] (výchozí),
   [[options.auto_center_always]] nebo [[options.auto_center_never]].
@@ -64,7 +64,7 @@ Viz [Umístění objektů do rámečku](../objects/clip-frames.md).
 
 ## Přichytávání {#snapping}
 
-![Stránka Přichytávání v možnostech TraceDraw](../../img/customize-options-app-snapping.png)
+![Stránka Přichytávání v možnostech GraphDraw](../../img/customize-options-app-snapping.png)
 
 - [[options.snap_to_objects]], [[options.snap_to_page]],
   [[options.snap_to_guidelines]], [[options.snap_to_grid]], mřížka účaří a
@@ -78,7 +78,7 @@ Viz [Přichytávání](../pages-layout/snapping.md).
 
 ## Ukládání {#save}
 
-![Stránka Ukládání v možnostech TraceDraw](../../img/customize-options-app-save.png)
+![Stránka Ukládání v možnostech GraphDraw](../../img/customize-options-app-save.png)
 
 - [[options.backup]]: [[options.backup_before_save]] (zapnuto) uchová
   předchozí soubor jako `backup_of_<name>`, [[options.backup_to]]
@@ -90,7 +90,7 @@ Viz [Přichytávání](../pages-layout/snapping.md).
 
 ## Text {#text}
 
-![Stránka Text v možnostech TraceDraw](../../img/customize-options-app-text.png)
+![Stránka Text v možnostech GraphDraw](../../img/customize-options-app-text.png)
 
 - [[options.keyboard_text_increment]]: o kolik <kbd>Ctrl+8</kbd> a
   <kbd>Ctrl+2</kbd> zvětší a zmenší vybraný text (1 bod).

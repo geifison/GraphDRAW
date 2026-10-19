@@ -10,11 +10,11 @@ bearbeitbaren Formen oder zu einem Bild werden.
 
 ## In einer anderen Form einfügen {#paste-as}
 
-1. Kopieren Sie etwas, in TraceDraw oder in einem anderen Programm.
+1. Kopieren Sie etwas, in GraphDraw oder in einem anderen Programm.
 2. Wählen Sie [[menu.edit > menu.edit.paste_special]].
 3. Wählen Sie unter [[dialog.paste_as]] eine der Formen, die die
    Zwischenablage anbietet:
-   - [[dialog.paste_objects]]: in TraceDraw kopierte Objekte, unverändert;
+   - [[dialog.paste_objects]]: in GraphDraw kopierte Objekte, unverändert;
    - [[dialog.paste_svg]]: SVG-Text, umgewandelt in Formen, die Sie bearbeiten
      können;
    - [[dialog.paste_bitmap]]: ein Bild, als Bitmap;

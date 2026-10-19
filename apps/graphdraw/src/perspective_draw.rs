@@ -11,9 +11,9 @@ use crate::app::App;
 use crate::tools::Tool;
 use egui::{Color32, Painter, Pos2, Stroke as EStroke};
 use std::collections::HashSet;
-use tracedraw_core::geometry::{Affine, Point, Rect};
-use tracedraw_core::live::{homography, map_homography, Effect};
-use tracedraw_core::{Command, ShapeId};
+use graphdraw_core::geometry::{Affine, Point, Rect};
+use graphdraw_core::live::{homography, map_homography, Effect};
+use graphdraw_core::{Command, ShapeId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
@@ -439,7 +439,7 @@ impl App {
             return false;
         };
         let parent = doc.parent_transform(id).unwrap_or(Affine::IDENTITY);
-        use tracedraw_core::geometry::Shape as _;
+        use graphdraw_core::geometry::Shape as _;
         let b = shape.local_path().bounding_box();
         let Some(corners) = laid_corners(b, parent * shape.transform, &to_page, &to_plane) else {
             return false;
@@ -711,9 +711,9 @@ mod tests {
         app.tool = Tool::Rectangle;
         let layer = app.active_layer().expect("a layer");
         let id = app.engine.new_shape_id();
-        let shape = tracedraw_core::Shape::new(
+        let shape = graphdraw_core::Shape::new(
             id,
-            tracedraw_core::ShapeKind::Rect {
+            graphdraw_core::ShapeKind::Rect {
                 rect: Rect::new(60.0, 30.0, 120.0, 60.0),
                 radius: 0.0,
                 corners: None,
@@ -752,9 +752,9 @@ mod tests {
         // With the Pick tool, new objects (pasted, duplicated) stay flat.
         app.tool = Tool::Pick;
         let id2 = app.engine.new_shape_id();
-        let shape = tracedraw_core::Shape::new(
+        let shape = graphdraw_core::Shape::new(
             id2,
-            tracedraw_core::ShapeKind::Rect {
+            graphdraw_core::ShapeKind::Rect {
                 rect: Rect::new(10.0, 10.0, 20.0, 20.0),
                 radius: 0.0,
                 corners: None,

@@ -5,13 +5,13 @@ effect stack of the first selected object: its live effects (contour,
 blend, distortion, envelope, perspective, extrude, bevel, block shadow,
 symmetry, lens, transparency) in the order they apply, from the top
 down. Code: `ui/effects_docker.rs`; the stack in
-`tracedraw_core::document::Shape::effect_stack`.
+`graphdraw_core::document::Shape::effect_stack`.
 
 Each row:
 
 - The check box switches the effect on or off. An effect switched off is
   kept with the object, at its place in the stack (`parked_effects` in
-  `.tdraw`), and is not drawn, exported or printed; switching it on puts
+  `.gdr`), and is not drawn, exported or printed; switching it on puts
   it back where it was.
 - The name, dimmed while the effect is off.
 - Up and down arrows move the effect one place earlier or later in the

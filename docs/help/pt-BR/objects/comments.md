@@ -2,7 +2,7 @@
 
 O painel [[docker.comments]] reúne observações de revisão sobre um desenho:
 alfinetes, caixas e setas na página, cada um com um texto e respostas. Os
-comentários são salvos com o desenho (em arquivos `.tdraw`) e nunca são
+comentários são salvos com o desenho (em arquivos `.gdr`) e nunca são
 impressos nem exportados. Abra o painel em [[menu.window > menu.window.dockers]].
 
 ![O painel Comentários](../../img/objects-comments.png)

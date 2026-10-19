@@ -1,4 +1,4 @@
-//! Drawings kept in a GitHub repository (File > GitHub): open a `.tdraw`
+//! Drawings kept in a GitHub repository (File > GitHub): open a `.gdr`
 //! from a repository, save it back as a commit with a message, list the
 //! commits that changed it and open an earlier version. Everything goes
 //! through GitHub's REST API (`api.github.com`) with the user's own token
@@ -138,7 +138,7 @@ fn headers(token: &str, accept: &str) -> Vec<(String, String)> {
     if !crate::files::WEB {
         h.push((
             "User-Agent".to_string(),
-            concat!("TraceDraw/", env!("CARGO_PKG_VERSION")).to_string(),
+            concat!("GraphDraw/", env!("CARGO_PKG_VERSION")).to_string(),
         ));
     }
     h
@@ -406,7 +406,7 @@ impl App {
             f.branch = r.branch.clone();
             f.path = r.path.clone();
         } else if saving && f.path.trim().is_empty() {
-            f.path = format!("{}.tdraw", self.document_title().trim_end_matches('*'));
+            f.path = format!("{}.gdr", self.document_title().trim_end_matches('*'));
         }
         if saving {
             f.message = trf(
@@ -475,7 +475,7 @@ impl App {
         }
         self.github_remember(f);
         self.flush_tracked_time();
-        let bytes = tracedraw_text::fonts()
+        let bytes = graphdraw_text::fonts()
             .with_carried_fonts(self.engine.document())
             .to_json()
             .map_err(|e| e.to_string())?
@@ -589,10 +589,10 @@ impl App {
     /// A file came: open it as a drawing (tied to GitHub unless it is an
     /// earlier version).
     fn github_opened(&mut self, r: Remote, commit: Option<String>, text: &str) {
-        match tracedraw_core::Document::from_json(text) {
+        match graphdraw_core::Document::from_json(text) {
             Ok(mut doc) => {
                 let name = r.file_name();
-                let stem = name.strip_suffix(".tdraw").unwrap_or(&name).to_string();
+                let stem = name.strip_suffix(".gdr").unwrap_or(&name).to_string();
                 doc.title = match &commit {
                     Some(c) => format!("{stem} @ {}", &c[..c.len().min(7)]),
                     None => stem,
@@ -625,7 +625,7 @@ mod tests {
             owner: "me".into(),
             repo: "art".into(),
             branch: "main".into(),
-            path: "logos/My Logo.tdraw".into(),
+            path: "logos/My Logo.gdr".into(),
             sha: String::new(),
         }
     }
@@ -650,8 +650,8 @@ mod tests {
             assert_eq!(parse_repo(s), None, "{s}");
         }
         assert_eq!(
-            clean_path("/a//b/./c.tdraw").as_deref(),
-            Some("a/b/c.tdraw")
+            clean_path("/a//b/./c.gdr").as_deref(),
+            Some("a/b/c.gdr")
         );
         assert_eq!(clean_path("../x"), None);
         assert_eq!(clean_path(" / "), None);
@@ -664,7 +664,7 @@ mod tests {
         assert_eq!(m.method, "GET");
         assert_eq!(
             m.url,
-            "https://api.github.com/repos/me/art/contents/logos/My%20Logo.tdraw?ref=main"
+            "https://api.github.com/repos/me/art/contents/logos/My%20Logo.gdr?ref=main"
         );
         assert!(m
             .headers
@@ -697,7 +697,7 @@ mod tests {
         let h = history_request(&r, "");
         assert!(h
             .url
-            .contains("commits?path=logos%2FMy%20Logo.tdraw&sha=main"));
+            .contains("commits?path=logos%2FMy%20Logo.gdr&sha=main"));
     }
 
     #[test]
@@ -734,7 +734,7 @@ mod tests {
     }
 
     fn drawing_json() -> String {
-        let doc = tracedraw_core::Document::new("x", tracedraw_core::Size::new(100.0, 50.0));
+        let doc = graphdraw_core::Document::new("x", graphdraw_core::Size::new(100.0, 50.0));
         doc.to_json().expect("json")
     }
 
@@ -753,7 +753,7 @@ mod tests {
     fn open_edit_save_and_conflict() {
         let mut app = App::headless();
         let docs = app.docs.len();
-        app.github_open(&form("a.tdraw")).expect("form");
+        app.github_open(&form("a.gdr")).expect("form");
         assert!(app.github.busy());
         // The token is kept for the session only.
         assert_eq!(app.github.token, "tok");
@@ -768,10 +768,10 @@ mod tests {
         );
         assert_eq!(app.docs.len(), docs + 1);
         let r = app.remote.clone().expect("remote");
-        assert_eq!((r.sha.as_str(), r.path.as_str()), ("v1", "a.tdraw"));
+        assert_eq!((r.sha.as_str(), r.path.as_str()), ("v1", "a.gdr"));
         assert_eq!(app.doc().title, "a");
         // Save: over v1; the answer gives v2.
-        app.github_save(&form("a.tdraw")).expect("save");
+        app.github_save(&form("a.gdr")).expect("save");
         let put: Value = serde_json::from_str(&app.github.last_request.clone().expect("sent").body)
             .expect("json");
         assert_eq!(put["sha"], "v1");
@@ -784,7 +784,7 @@ mod tests {
         assert!(!app.engine.is_dirty());
         // Someone else saved meanwhile: GitHub says 409, the drawing stays
         // tied to v2 and the reason is shown.
-        app.github_save(&form("a.tdraw")).expect("save");
+        app.github_save(&form("a.gdr")).expect("save");
         let (step, _) = app.github.pending.take().expect("pending");
         app.github_answer(
             step,
@@ -796,7 +796,7 @@ mod tests {
         assert_eq!(app.remote.as_ref().map(|r| r.sha.as_str()), Some("v2"));
         assert!(app.github.status.contains(&tr("github.conflict")));
         // No message, no commit.
-        let mut silent = form("a.tdraw");
+        let mut silent = form("a.gdr");
         silent.message = " ".into();
         assert!(app.github_save(&silent).is_err());
     }
@@ -804,7 +804,7 @@ mod tests {
     #[test]
     fn large_files_and_earlier_versions() {
         let mut app = App::headless();
-        app.github_open(&form("big.tdraw")).expect("form");
+        app.github_open(&form("big.gdr")).expect("form");
         let (step, _) = app.github.pending.take().expect("pending");
         app.github_answer(
             step,
@@ -846,7 +846,7 @@ mod tests {
         assert!(app.remote.is_none());
         assert_eq!(app.doc().title, "big @ c0ffee1");
         // Not a drawing.
-        app.github_open(&form("notes.tdraw")).expect("form");
+        app.github_open(&form("notes.gdr")).expect("form");
         let (step, _) = app.github.pending.take().expect("pending");
         let text = base64::engine::general_purpose::STANDARD.encode("hello");
         app.github_answer(
@@ -864,10 +864,10 @@ mod tests {
     #[ignore]
     fn live_open_of_a_public_drawing() {
         let r = Remote {
-            owner: "igtoth".into(),
-            repo: "tracedraw".into(),
+            owner: "geifison".into(),
+            repo: "GraphDRAW".into(),
             branch: "main".into(),
-            path: "sample.tdraw".into(),
+            path: "sample.gdr".into(),
             sha: String::new(),
         };
         let resp = crate::net::send(&meta_request(&r, "main", ""), MAX_BYTES).expect("answer");
@@ -881,7 +881,7 @@ mod tests {
                     .body
             }
         };
-        tracedraw_core::Document::from_json(&text).expect("a drawing");
+        graphdraw_core::Document::from_json(&text).expect("a drawing");
         let resp = crate::net::send(&history_request(&r, ""), MAX_BYTES).expect("answer");
         assert!(!parse_commits(&resp.body).expect("commits").is_empty());
     }

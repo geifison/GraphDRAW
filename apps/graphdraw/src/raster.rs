@@ -3,8 +3,8 @@
 
 use crate::view::View;
 use egui::{ColorImage, Context, Rect, TextureHandle, TextureId, TextureOptions};
-use tracedraw_core::{geometry::Affine, Document, PageId, ShapeId};
-use tracedraw_render::{render_page, Preview, RenderOptions, ViewTransform};
+use graphdraw_core::{geometry::Affine, Document, PageId, ShapeId};
+use graphdraw_render::{render_page, Preview, RenderOptions, ViewTransform};
 
 #[derive(Default)]
 pub struct Raster {
@@ -32,7 +32,7 @@ impl ProofLut {
         for r in 0..n {
             for g in 0..n {
                 for b in 0..n {
-                    table.push(tracedraw_core::color::proof_rgb([
+                    table.push(graphdraw_core::color::proof_rgb([
                         r as f32 * step,
                         g as f32 * step,
                         b as f32 * step,
@@ -146,11 +146,11 @@ pub fn pixel_window(view: &View, rect: Rect, dpi: f64, ppp: f32) -> Option<Pixel
     if w <= 0 || h <= 0 || w > MAX_PIXELS || h > MAX_PIXELS {
         return None;
     }
-    let a = view.to_screen(tracedraw_core::geometry::Point::new(
+    let a = view.to_screen(graphdraw_core::geometry::Point::new(
         ix0 as f64 / k,
         iy1 as f64 / k,
     ));
-    let b = view.to_screen(tracedraw_core::geometry::Point::new(
+    let b = view.to_screen(graphdraw_core::geometry::Point::new(
         ix1 as f64 / k,
         iy0 as f64 / k,
     ));
@@ -284,20 +284,20 @@ impl Raster {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::geometry::Size;
+    use graphdraw_core::geometry::Size;
 
     #[test]
     fn proofed_pixels_follow_the_grid_of_proofed_colours() {
         let lut = ProofLut::new();
         // On the grid, the proofed colour itself.
         let blue = lut.apply([0.0, 0.0, 1.0]);
-        let want = tracedraw_core::color::proof_rgb([0.0, 0.0, 1.0]);
+        let want = graphdraw_core::color::proof_rgb([0.0, 0.0, 1.0]);
         for (a, b) in blue.iter().zip(want) {
             assert!((a - b).abs() < 1e-5);
         }
         // Between, close to the colour proofed directly.
         let c = [0.31, 0.62, 0.18];
-        let (got, want) = (lut.apply(c), tracedraw_core::color::proof_rgb(c));
+        let (got, want) = (lut.apply(c), graphdraw_core::color::proof_rgb(c));
         for (a, b) in got.iter().zip(want) {
             assert!((a - b).abs() < 0.03, "{got:?} {want:?}");
         }

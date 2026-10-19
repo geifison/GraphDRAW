@@ -34,7 +34,7 @@ object". The settings are kept in the preferences (`tools.brush_radius`,
 
 ## Checks
 
-- `tracedraw_core::effects::tests::brushes_touch_only_the_subpaths_they_reach`
+- `graphdraw_core::effects::tests::brushes_touch_only_the_subpaths_they_reach`
 - `brushes::tests::a_stroke_is_one_step_and_follows_the_settings`
 - `brushes::tests::attract_repel_and_twirl_follow_their_modes`
 - `ui::brush_bars::tests::brush_settings_scale_and_stay_in_range`

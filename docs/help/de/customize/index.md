@@ -1,6 +1,6 @@
 # Anpassen und automatisieren
 
-TraceDraw lässt sich auf Ihre Arbeitsweise einstellen: Optionen für das
+GraphDraw lässt sich auf Ihre Arbeitsweise einstellen: Optionen für das
 Programm und für jedes Werkzeug, das Aussehen der Oberfläche, Tastenkürzel,
 Leisten und Arbeitsbereiche. Sie können auch Arbeit mit Skripten
 automatisieren, einen KI-Dienst anbinden, der nach einer Beschreibung zeichnet,

@@ -73,5 +73,5 @@ bilah status, menampilkan gambar seperti saat dicetak: warna yang tidak dapat
 dicetak tinta CMYK terlihat lebih kusam. Panel [[docker.color]] juga
 memperingatkan tentang warna semacam itu.
 
-Tanpa profil yang dimuat, TraceDraw mengonversi warna dengan modelnya sendiri
+Tanpa profil yang dimuat, GraphDraw mengonversi warna dengan modelnya sendiri
 untuk tinta proses di atas kertas berlapis.

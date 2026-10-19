@@ -149,10 +149,10 @@ pub fn font_sampler(app: &mut App, ui: &mut Ui) {
                 });
                 // A family that is not installed shows in its stand-in.
                 let ppp = ui.ctx().pixels_per_point();
-                let stand_in = if tracedraw_text::fonts().has_family(family) {
+                let stand_in = if graphdraw_text::fonts().has_family(family) {
                     None
                 } else {
-                    tracedraw_text::fonts().substitute(family)
+                    graphdraw_text::fonts().substitute(family)
                 };
                 let shown_family = stand_in.clone().unwrap_or_else(|| family.clone());
                 let picture = app.font_previews.picture(

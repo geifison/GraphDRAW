@@ -4,7 +4,7 @@
 
 use crate::app::App;
 use crate::tools::Tool;
-use tracedraw_core::{
+use graphdraw_core::{
     corner_cut::{cut_corners, CornerCut},
     document::ShapeKind,
     geometry::BezPath,
@@ -186,7 +186,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::geometry::{Rect, Shape as _};
+    use graphdraw_core::geometry::{Rect, Shape as _};
 
     #[test]
     fn the_docker_cuts_rectangles_as_curves_in_one_step() {
@@ -266,12 +266,12 @@ mod tests {
         assert_eq!(app.selection, vec![b]);
         assert!(app.doc().find_shape(a).is_none());
         let s = app.selected_shapes()[0].clone();
-        let pts: Vec<_> = tracedraw_core::nodes::nodes(&s.page_path())
+        let pts: Vec<_> = graphdraw_core::nodes::nodes(&s.page_path())
             .into_iter()
             .map(|n| n.pos)
             .collect();
         assert!(
-            pts.contains(&tracedraw_core::geometry::Point::new(10.0, 0.0)),
+            pts.contains(&graphdraw_core::geometry::Point::new(10.0, 0.0)),
             "{pts:?}"
         );
     }

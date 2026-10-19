@@ -1,16 +1,16 @@
 [package]
-name = "tracedraw-cli"
+name = "graphdraw-cli"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Headless TraceDraw: inspect .cdr files and convert documents"
+description = "Headless GraphDraw: inspect .cdr files and convert documents"
 
 [dependencies]
-tracedraw-core.workspace = true
-tracedraw-cdr.workspace = true
-tracedraw-io.workspace = true
-tracedraw-render.workspace = true
-tracedraw-text.workspace = true
+graphdraw-core.workspace = true
+graphdraw-cdr.workspace = true
+graphdraw-io.workspace = true
+graphdraw-render.workspace = true
+graphdraw-text.workspace = true
 env_logger.workspace = true
 log.workspace = true
 flate2 = "1"

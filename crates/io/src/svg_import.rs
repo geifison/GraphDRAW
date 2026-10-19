@@ -9,7 +9,7 @@
 
 use std::sync::Arc;
 
-use tracedraw_core::{
+use graphdraw_core::{
     document::{Shape, ShapeKind},
     geometry::{Affine, BezPath, PathEl, Point, Rect, Size},
     id::IdSource,
@@ -192,7 +192,7 @@ fn convert_path(p: &usvg::Path, to_page: Affine, ids: &mut IdSource) -> Option<S
 }
 
 fn bbox(path: &BezPath) -> Rect {
-    use tracedraw_core::geometry::Shape as _;
+    use graphdraw_core::geometry::Shape as _;
     path.bounding_box()
 }
 
@@ -385,7 +385,7 @@ mod tests {
 #[cfg(test)]
 mod clip_tests {
     use super::*;
-    use tracedraw_core::document::ShapeKind;
+    use graphdraw_core::document::ShapeKind;
 
     #[test]
     fn clip_paths_follow_the_root_scale_and_become_clip_frames() {

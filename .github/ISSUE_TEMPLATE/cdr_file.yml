@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thank you. A file that TraceDraw gets wrong is the most useful report there is: the `.cdr` reader is written from public notes and from sample files, so every new file teaches it something.
+        Thank you. A file that GraphDraw gets wrong is the most useful report there is: the `.cdr` reader is written from public notes and from sample files, so every new file teaches it something.
 
         Only attach a file you are allowed to share, never confidential work. A small drawing made just for this report is perfect. GitHub does not take `.cdr` attachments directly: put the file in a `.zip` first.
   - type: dropdown
@@ -17,7 +17,7 @@ body:
         - It does not open
         - It opens, but objects are missing
         - It opens, but some objects look different
-        - TraceDraw stops or freezes
+        - GraphDraw stops or freezes
         - Something else
     validations:
       required: true
@@ -25,20 +25,20 @@ body:
     id: details
     attributes:
       label: Details
-      description: What is missing or different? A screenshot of how it should look and how TraceDraw shows it helps a lot.
+      description: What is missing or different? A screenshot of how it should look and how GraphDraw shows it helps a lot.
     validations:
       required: true
   - type: textarea
     id: info
     attributes:
       label: What the reader sees
-      description: The output of `tracedraw-cli info yourfile.cdr` (tracedraw-cli comes with every download, next to the editor).
+      description: The output of `graphdraw-cli info yourfile.cdr` (graphdraw-cli comes with every download, next to the editor).
       render: text
   - type: dropdown
     id: format
     attributes:
       label: The file's version
-      description: The `version:` line of `tracedraw-cli info yourfile.cdr`, or the version chosen when the file was saved.
+      description: The `version:` line of `graphdraw-cli info yourfile.cdr`, or the version chosen when the file was saved.
       options:
         - I don't know
         - Older than 7
@@ -61,7 +61,7 @@ body:
     id: features
     attributes:
       label: What the drawing uses
-      description: Tick what you know is in it; these are the parts TraceDraw does not read yet or reads only in part.
+      description: Tick what you know is in it; these are the parts GraphDraw does not read yet or reads only in part.
       options:
         - label: B-spline curves
         - label: Lenses
@@ -74,7 +74,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: TraceDraw version
+      label: GraphDraw version
       description: Help > About, or the name of the file you downloaded.
   - type: textarea
     id: file

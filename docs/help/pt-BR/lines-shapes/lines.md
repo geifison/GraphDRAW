@@ -1,6 +1,6 @@
 # Desenhar linhas e curvas
 
-No TraceDraw, uma linha é uma **curva**: um caminho feito de **segmentos** que
+No GraphDraw, uma linha é uma **curva**: um caminho feito de **segmentos** que
 se unem em **nós**. Os segmentos podem ser retos ou curvos. Uma curva pode ser
 aberta, com duas pontas, ou fechada, quando o fim encontra o início, e então
 pode ser preenchida.
@@ -17,7 +17,7 @@ arrasta, como um lápis.
 1. Escolha a ferramenta [[tool.freehand]].
 2. Arraste na página. Solte o botão para terminar.
 
-O TraceDraw segue o ponteiro e suaviza a linha quando você solta. A suavização
+O GraphDraw segue o ponteiro e suaviza a linha quando você solta. A suavização
 (0 a 100, 50 de início) na barra de propriedades define o quanto: um valor maior
 dá menos nós e uma linha mais suave. Com o zoom aproximado, a linha guarda mais
 detalhes.

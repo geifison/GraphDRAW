@@ -12,7 +12,7 @@ used in the dialog. Every new drawing opens in its own tab.
 | Section | Control | Default |
 |---|---|---|
 | General | Name | the next `Untitled-N` of the session |
-| | Preset (destination) and a menu button with Save Preset / Delete Preset | TraceDraw default |
+| | Preset (destination) and a menu button with Save Preset / Delete Preset | GraphDraw default |
 | | Number of pages | 1 (1..999) |
 | | Primary color mode: CMYK or RGB | CMYK |
 | Dimensions | Page size (paper list, or Custom) | A4 |
@@ -39,7 +39,7 @@ Cancel buttons.
 
 | Preset | Colour mode | Size | Units | Resolution |
 |---|---|---|---|---|
-| TraceDraw default | CMYK | A4 | mm | 300 dpi |
+| GraphDraw default | CMYK | A4 | mm | 300 dpi |
 | Default CMYK | CMYK | A4 | mm | 300 dpi |
 | Default RGB | RGB | A4 | mm | 300 dpi |
 | Web | RGB | 1920 x 1080 px | px | 72 dpi |

@@ -1,5 +1,5 @@
 //! The open window as an MCP server: with Options > Global > General >
-//! "Let AI agents on this computer edit the open drawing" on, TraceDraw
+//! "Let AI agents on this computer edit the open drawing" on, GraphDraw
 //! listens on a port of this computer only (127.0.0.1, a free one) and
 //! answers Model Context Protocol requests (JSON-RPC 2.0 in HTTP POSTs to
 //! `/mcp`) on the drawings in the window, with the tools of the headless
@@ -8,7 +8,7 @@
 //!
 //! The port and a random token are written to `mcp-window.json` in the
 //! preferences folder; requests without the token, or sent by a web page
-//! (an `Origin` header), are refused. `tracedraw --mcp-window` is the
+//! (an `Origin` header), are refused. `graphdraw --mcp-window` is the
 //! bridge an MCP client starts: it reads that file and forwards standard
 //! input to the window, line by line. See docs/behavior/mcp.md.
 
@@ -246,7 +246,7 @@ fn serve_connection(stream: TcpStream, token: &str, tx: &Sender<Incoming>, wake:
     }
 }
 
-/// `tracedraw --mcp-window`: forward standard input to the open window
+/// `graphdraw --mcp-window`: forward standard input to the open window
 /// and its answers to standard output, one JSON-RPC message per line.
 /// Without a window that accepts agents, every request gets an error
 /// saying so.
@@ -291,7 +291,7 @@ pub fn forward(info: Option<&LinkInfo>, line: &str) -> Option<String> {
         })
     };
     let Some(info) = info else {
-        return error("no TraceDraw window accepts agents: open TraceDraw and turn on Options > Global > General > Let AI agents on this computer edit the open drawing");
+        return error("no GraphDraw window accepts agents: open GraphDraw and turn on Options > Global > General > Let AI agents on this computer edit the open drawing");
     };
     let agent: ureq::Agent = ureq::Agent::config_builder()
         .timeout_global(Some(ANSWER_WAIT + Duration::from_secs(5)))
@@ -313,10 +313,10 @@ pub fn forward(info: Option<&LinkInfo>, line: &str) -> Option<String> {
             match status {
                 200 => Some(body),
                 202 => None,
-                _ => error(&format!("the TraceDraw window answered {status}")),
+                _ => error(&format!("the GraphDraw window answered {status}")),
             }
         }
-        Err(e) => error(&format!("the TraceDraw window cannot be reached: {e}")),
+        Err(e) => error(&format!("the GraphDraw window cannot be reached: {e}")),
     }
 }
 
@@ -366,7 +366,7 @@ mod tests {
     use serde_json::json;
 
     fn temp_dir(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("tracedraw-{name}-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("graphdraw-{name}-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&dir);
         dir
     }
@@ -422,7 +422,7 @@ mod tests {
         });
         let init: serde_json::Value =
             serde_json::from_str(&answers.0.expect("an answer")).expect("json");
-        assert_eq!(init["result"]["serverInfo"]["name"], "tracedraw");
+        assert_eq!(init["result"]["serverInfo"]["name"], "graphdraw");
         assert_eq!(answers.1, None, "notifications get no answer");
         let draw: serde_json::Value =
             serde_json::from_str(&answers.2.expect("an answer")).expect("json");

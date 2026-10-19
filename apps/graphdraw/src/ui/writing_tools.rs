@@ -7,7 +7,7 @@ use crate::i18n::{tr, trf};
 use crate::theme::Tokens;
 use crate::ui::dialogs::window;
 use egui::{Context, Ui};
-use tracedraw_core::{document::ShapeKind, ShapeId};
+use graphdraw_core::{document::ShapeKind, ShapeId};
 
 /// What the spell checker and the grammar checker look at.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -835,7 +835,7 @@ pub fn install_custom_hyphens(app: &App) {
         .iter()
         .filter_map(|(_, w, h)| parse_hyphenated(w, h).map(|p| (w.to_lowercase(), p)))
         .collect();
-    tracedraw_text::hyphen::set_custom(defs);
+    graphdraw_text::hyphen::set_custom(defs);
     app.raster.borrow_mut().invalidate();
 }
 
@@ -1050,7 +1050,7 @@ pub fn custom_hyphens_dialog(
 mod tests {
     use super::*;
     use crate::ui::dialogs::Dialog;
-    use tracedraw_core::{ParagraphStyle, Point, Size, TextAlign, TextSpan};
+    use graphdraw_core::{ParagraphStyle, Point, Size, TextAlign, TextSpan};
 
     fn text(app: &mut App, s: &str, frame: Option<Size>) -> ShapeId {
         app.new_shape(ShapeKind::Text {
@@ -1123,7 +1123,7 @@ mod tests {
 
     #[test]
     fn hyphenated_words_give_break_points() {
-        assert_eq!(parse_hyphenated("TraceDraw", "Trace-Draw"), Some(vec![5]));
+        assert_eq!(parse_hyphenated("GraphDraw", "Trace-Draw"), Some(vec![5]));
         assert_eq!(
             parse_hyphenated("hyphenation", "hy-phen-a-tion"),
             Some(vec![2, 6, 7])
@@ -1135,13 +1135,13 @@ mod tests {
     #[test]
     fn custom_hyphens_turn_hyphenation_on_and_break_words() {
         let mut app = App::headless();
-        app.settings.custom_hyphens = vec![("en".into(), "TraceDraw".into(), "Trace-Draw".into())];
+        app.settings.custom_hyphens = vec![("en".into(), "GraphDraw".into(), "Trace-Draw".into())];
         install_custom_hyphens(&app);
-        assert_eq!(tracedraw_text::hyphen::break_points("tracedraw"), vec![5]);
-        assert_eq!(tracedraw_text::hyphen::break_points("TraceDraw"), vec![5]);
+        assert_eq!(graphdraw_text::hyphen::break_points("graphdraw"), vec![5]);
+        assert_eq!(graphdraw_text::hyphen::break_points("GraphDraw"), vec![5]);
         let a = text(
             &mut app,
-            "Made with TraceDraw today",
+            "Made with GraphDraw today",
             Some(Size::new(30.0, 40.0)),
         );
         let b = text(&mut app, "Nothing here", Some(Size::new(30.0, 40.0)));
@@ -1152,7 +1152,7 @@ mod tests {
         };
         assert!(hy(&app, a) && !hy(&app, b));
         // Pasted text with the word gets it too.
-        let c = text(&mut app, "TraceDraw", Some(Size::new(30.0, 40.0)));
+        let c = text(&mut app, "GraphDraw", Some(Size::new(30.0, 40.0)));
         app.select(vec![c]);
         app.copy();
         app.paste();

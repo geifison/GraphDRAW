@@ -47,5 +47,5 @@ follow.
 - SVG: one filled path per opacity step (12 steps) with `fill-opacity`.
 - PDF: the same, each step with its own transparency state (left opaque
   in PDF/X-1a and X-3, which do not allow transparency).
-- `.tdraw` keeps the brush, transparency and seed; `.cdr` files are
+- `.gdr` keeps the brush, transparency and seed; `.cdr` files are
   written with the plain outline.

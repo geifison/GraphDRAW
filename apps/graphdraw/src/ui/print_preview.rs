@@ -9,7 +9,7 @@ use crate::i18n::{tr, trf};
 use crate::theme::Tokens;
 use crate::ui::dialogs::PrintState;
 use egui::Ui;
-use tracedraw_core::Document;
+use graphdraw_core::Document;
 
 /// The open preview: the settings it shows, the sheet and plate on screen
 /// and what was last built from them.
@@ -65,7 +65,7 @@ pub fn shown_page(
     sheet: usize,
     plate: usize,
     separations: bool,
-) -> Option<tracedraw_core::document::Page> {
+) -> Option<graphdraw_core::document::Page> {
     let page = doc.pages.get(sheet)?;
     if !separations || plate == 0 {
         return Some(page.clone());
@@ -280,26 +280,26 @@ pub fn show(app: &mut App, ui: &mut Ui) {
 
 /// The sheet as a bitmap on white paper.
 fn render_sheet(
-    page: &tracedraw_core::document::Page,
+    page: &graphdraw_core::document::Page,
     w: u32,
     h: u32,
     zoom: f64,
 ) -> Option<egui::ColorImage> {
     let mut doc = Document::new("sheet", page.size);
     doc.pages = vec![page.clone()];
-    let opts = tracedraw_render::RenderOptions {
+    let opts = graphdraw_render::RenderOptions {
         width: w,
         height: h,
-        view: tracedraw_render::ViewTransform {
+        view: graphdraw_render::ViewTransform {
             zoom,
             origin_x: 0.0,
             origin_y: page.size.height * zoom,
         },
         preview: None,
         wireframe: false,
-        ..tracedraw_render::RenderOptions::default()
+        ..graphdraw_render::RenderOptions::default()
     };
-    let pm = tracedraw_render::render_page(&doc, page.id, &opts)?;
+    let pm = graphdraw_render::render_page(&doc, page.id, &opts)?;
     let mut white = tiny_skia::Pixmap::new(pm.width(), pm.height())?;
     white.fill(tiny_skia::Color::WHITE);
     white.draw_pixmap(
@@ -319,16 +319,16 @@ fn render_sheet(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::{Color, Fill, Shape, ShapeKind};
+    use graphdraw_core::{Color, Fill, Shape, ShapeKind};
 
     #[test]
     fn plates_split_the_sheet_by_ink() {
-        let mut doc = Document::new("t", tracedraw_core::geometry::Size::new(100.0, 100.0));
+        let mut doc = Document::new("t", graphdraw_core::geometry::Size::new(100.0, 100.0));
         let id = doc.ids_mut().shape();
         let mut s = Shape::new(
             id,
             ShapeKind::Rect {
-                rect: tracedraw_core::geometry::Rect::new(0.0, 0.0, 10.0, 10.0),
+                rect: graphdraw_core::geometry::Rect::new(0.0, 0.0, 10.0, 10.0),
                 radius: 0.0,
                 corners: None,
             },

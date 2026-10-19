@@ -1,8 +1,8 @@
 # Dessiner et générer avec l'IA
 
-TraceDraw peut dessiner à partir d'une description en mots et créer des
+GraphDraw peut dessiner à partir d'une description en mots et créer des
 images avec un service d'IA que vous choisissez et configurez avec votre
-propre clé. TraceDraw n'a ni IA propre ni compte : rien n'est envoyé tant
+propre clé. GraphDraw n'a ni IA propre ni compte : rien n'est envoyé tant
 que vous ne lancez pas une commande d'IA, et seul ce dont la commande a
 besoin part alors vers le service configuré. Chaque requête est facturée par
 votre service ; les serveurs de modèles locaux sur votre ordinateur ne
@@ -54,7 +54,7 @@ cercle et mets le titre en dessous", dans la barre d'invite ou dans le mode
 **Dessiner avec des mots** du panneau [[docker.ai_generate]]
 ([[menu.object > menu.object.ai_generate > menu.object.ai_draw_words]]), et
 appuyez sur **Dessiner** ou sur <kbd>Entrée</kbd>. Le service écrit un
-script pour le dessin, que TraceDraw exécute en une seule étape
+script pour le dessin, que GraphDraw exécute en une seule étape
 d'annulation. La conversation est conservée : vous pouvez donc demander des
 modifications ; **Nouvelle conversation** recommence. **Ouvrir dans
 Scripts** affiche le script.

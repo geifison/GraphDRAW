@@ -6,7 +6,7 @@
 
 use crate::app::App;
 use serde::{Deserialize, Serialize};
-use tracedraw_core::{
+use graphdraw_core::{
     document::{Shape, ShapeKind},
     geometry::{self, Affine, BezPath, Point, Rect, Vec2},
     Command,
@@ -345,7 +345,7 @@ impl App {
         shape.transform = r.transform;
         self.doc().defaults.apply_to(&mut shape);
         if matches!(shape.kind, ShapeKind::Path { closed: false, .. }) {
-            shape.fill = tracedraw_core::Fill::None;
+            shape.fill = graphdraw_core::Fill::None;
         }
         self.run(Command::AddShape { layer, shape });
         self.select(vec![id]);
@@ -355,7 +355,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::geometry::Shape as _;
+    use graphdraw_core::geometry::Shape as _;
 
     fn wobble(i: usize) -> f64 {
         ((i as f64) * 2.399).sin() * 0.3

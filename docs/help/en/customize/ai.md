@@ -1,7 +1,7 @@
 # AI drawing and generating
 
-TraceDraw can draw from a description in words and make pictures with an AI
-service you choose and set up with your own key. TraceDraw has no AI of its
+GraphDraw can draw from a description in words and make pictures with an AI
+service you choose and set up with your own key. GraphDraw has no AI of its
 own and no account: nothing is sent until you run an AI command, and then
 only what that command needs goes to the service you set up. Each request is
 billed by your service; local model servers on your computer cost nothing.
@@ -46,7 +46,7 @@ bigger and put the title under it", in the prompt bar or in the **Draw with
 words** mode of the [[docker.ai_generate]] panel
 ([[menu.object > menu.object.ai_generate > menu.object.ai_draw_words]]), and
 press **Draw** or <kbd>Enter</kbd>. The service writes a script for the
-drawing, which TraceDraw runs as one undo step. The conversation is kept, so
+drawing, which GraphDraw runs as one undo step. The conversation is kept, so
 you can ask for changes; **New conversation** starts again. **Open in
 Scripts** shows the script.
 

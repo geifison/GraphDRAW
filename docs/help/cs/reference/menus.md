@@ -431,17 +431,17 @@ viz [Volby přizpůsobení](../customize/customization.md#commands).
 
 | Příkaz | Viz |
 |---|---|
-| [[menu.help.help_topics]] | [Vítejte v nápovědě TraceDraw](../index.md#in-the-app) |
-| [[menu.help.product_help]] | [Vítejte v nápovědě TraceDraw](../index.md#in-the-app) |
-| [[menu.help.welcome_screen]] | [O aplikaci TraceDraw a aktualizace](../welcome/about-and-updates.md) |
-| [[menu.help.video_tutorials]] | [O aplikaci TraceDraw a aktualizace](../welcome/about-and-updates.md) |
+| [[menu.help.help_topics]] | [Vítejte v nápovědě GraphDraw](../index.md#in-the-app) |
+| [[menu.help.product_help]] | [Vítejte v nápovědě GraphDraw](../index.md#in-the-app) |
+| [[menu.help.welcome_screen]] | [O aplikaci GraphDraw a aktualizace](../welcome/about-and-updates.md) |
+| [[menu.help.video_tutorials]] | [O aplikaci GraphDraw a aktualizace](../welcome/about-and-updates.md) |
 | [[menu.help.hints]] | [The Hints panel](../get-started/hints.md) |
-| [[menu.help.quick_start_guide]] | [O aplikaci TraceDraw a aktualizace](../welcome/about-and-updates.md) |
-| [[menu.help.user_guide]] | [O aplikaci TraceDraw a aktualizace](../welcome/about-and-updates.md) |
+| [[menu.help.quick_start_guide]] | [O aplikaci GraphDraw a aktualizace](../welcome/about-and-updates.md) |
+| [[menu.help.user_guide]] | [O aplikaci GraphDraw a aktualizace](../welcome/about-and-updates.md) |
 | [[menu.help.whats_new]] | [Co je nového](../welcome/whats-new.md) |
 | [[menu.help.highlight_whats_new]] | [Co je nového](../welcome/whats-new.md) |
-| [[menu.help.updates]] | [O aplikaci TraceDraw a aktualizace](../welcome/about-and-updates.md) |
-| [[menu.help.message_settings]] | [O aplikaci TraceDraw a aktualizace](../welcome/about-and-updates.md) |
-| [[menu.help.community]] | [O aplikaci TraceDraw a aktualizace](../welcome/about-and-updates.md) |
-| [[menu.help.support]] | [O aplikaci TraceDraw a aktualizace](../welcome/about-and-updates.md) |
-| [[menu.help.about]] | [O aplikaci TraceDraw a aktualizace](../welcome/about-and-updates.md) |
+| [[menu.help.updates]] | [O aplikaci GraphDraw a aktualizace](../welcome/about-and-updates.md) |
+| [[menu.help.message_settings]] | [O aplikaci GraphDraw a aktualizace](../welcome/about-and-updates.md) |
+| [[menu.help.community]] | [O aplikaci GraphDraw a aktualizace](../welcome/about-and-updates.md) |
+| [[menu.help.support]] | [O aplikaci GraphDraw a aktualizace](../welcome/about-and-updates.md) |
+| [[menu.help.about]] | [O aplikaci GraphDraw a aktualizace](../welcome/about-and-updates.md) |

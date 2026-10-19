@@ -1256,7 +1256,7 @@ const Application = {
   get Version() { return '27.0'; },
   get VersionMajor() { return 27; },
   get VersionMinor() { return 0; },
-  get Name() { return 'TraceDraw'; },
+  get Name() { return 'GraphDraw'; },
   get Visible() { return true; },
   get Optimization() { return __vg.optimization; },
   set Optimization(v) { __vg.optimization = !!v; },
@@ -1287,7 +1287,7 @@ for (const name of Object.getOwnPropertyNames(Application)) {
 // ----- Members published macros use ---------------------------------------
 
 function __no(member, why) {
-  throw new Error(member + ' is not available in TraceDraw' + (why ? ': ' + why : ''));
+  throw new Error(member + ' is not available in GraphDraw' + (why ? ': ' + why : ''));
 }
 function __def(cls, name, get, set) {
   Object.defineProperty(cls.prototype, name, { get: get, set: set, configurable: true });

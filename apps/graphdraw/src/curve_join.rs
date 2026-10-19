@@ -7,8 +7,8 @@
 //! subpaths makes them one. See docs/behavior/curve-tools.md.
 
 use crate::app::App;
-use tracedraw_core::geometry::{BezPath, PathEl, Point};
-use tracedraw_core::{Command, ShapeId, ShapeKind};
+use graphdraw_core::geometry::{BezPath, PathEl, Point};
+use graphdraw_core::{Command, ShapeId, ShapeKind};
 
 /// One segment of a subpath, by its end point.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -199,7 +199,7 @@ fn joined(curve: &BezPath, line: &BezPath, tol: f64) -> Option<BezPath> {
 impl App {
     /// The selected curve a new line may join: one open curve lying on a
     /// layer.
-    fn join_candidate(&self) -> Option<tracedraw_core::Shape> {
+    fn join_candidate(&self) -> Option<graphdraw_core::Shape> {
         let [id] = self.selection.as_slice() else {
             return None;
         };
@@ -259,7 +259,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::geometry::Rect;
+    use graphdraw_core::geometry::Rect;
 
     fn line(a: (f64, f64), b: (f64, f64)) -> BezPath {
         let mut p = BezPath::new();
@@ -358,7 +358,7 @@ mod tests {
         // The curve is moved, so its space is not the page's.
         app.run(Command::TransformShapes {
             shapes: vec![id],
-            transform: tracedraw_core::geometry::Affine::translate((5.0, 5.0)),
+            transform: graphdraw_core::geometry::Affine::translate((5.0, 5.0)),
         });
         assert!(app.on_join_end(Point::new(55.0, 15.0)));
         assert!(!app.on_join_end(Point::new(30.0, 15.0)));

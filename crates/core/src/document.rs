@@ -1622,7 +1622,7 @@ impl Default for QrCode {
     fn default() -> Self {
         QrCode {
             kind: QrKind::Url,
-            fields: vec!["https://github.com/igtoth/tracedraw".into()],
+            fields: vec!["https://github.com/geifison/GraphDRAW".into()],
             pixel_mm: 2.5,
             dark: Fill::Solid(crate::Color::BLACK),
             light: Fill::Solid(crate::Color::WHITE),
@@ -3592,21 +3592,21 @@ impl Document {
         given
     }
 
-    /// Serialize to the native `.tdraw` JSON format: the document's
-    /// fields and `format_version` ([`TDRAW_FORMAT_VERSION`]).
+    /// Serialize to the native `.gdr` JSON format: the document's
+    /// fields and `format_version` ([`GDR_FORMAT_VERSION`]).
     pub fn to_json(&self) -> Result<String> {
-        self.to_json_version(TDRAW_FORMAT_VERSION)
+        self.to_json_version(GDR_FORMAT_VERSION)
     }
 
-    /// Serialize as a `.tdraw` file of format `version` (the current one
-    /// for a newer number), for an older TraceDraw: the current layout is
+    /// Serialize as a `.gdr` file of format `version` (the current one
+    /// for a newer number), for an older GraphDraw: the current layout is
     /// taken down one step at a time ([`DOWN_STEPS`]).
     pub fn to_json_version(&self, version: u32) -> Result<String> {
         let mut v = serde_json::to_value(self)?;
         if let serde_json::Value::Object(m) = &mut v {
             m.insert(
                 FORMAT_VERSION_KEY.into(),
-                serde_json::Value::from(TDRAW_FORMAT_VERSION),
+                serde_json::Value::from(GDR_FORMAT_VERSION),
             );
         }
         for step in DOWN_STEPS.iter().skip(version as usize).rev() {
@@ -3615,12 +3615,12 @@ impl Document {
         Ok(serde_json::to_string_pretty(&v)?)
     }
 
-    /// Read a `.tdraw` file of any version: older ones are brought up to
+    /// Read a `.gdr` file of any version: older ones are brought up to
     /// date by [`migrate`]; newer ones are read as far as this version
     /// knows them (fields it does not know are left out).
     pub fn from_json(s: &str) -> Result<Self> {
         let mut v: serde_json::Value = serde_json::from_str(s)?;
-        let from = tdraw_version(&v);
+        let from = gdr_version(&v);
         migrate(&mut v, from);
         if let serde_json::Value::Object(m) = &mut v {
             m.remove(FORMAT_VERSION_KEY);
@@ -3632,27 +3632,27 @@ impl Document {
     }
 }
 
-/// The `.tdraw` format's version, written into every file. A change that
-/// an older TraceDraw would read wrongly (a field renamed, moved or given
+/// The `.gdr` format's version, written into every file. A change that
+/// an older GraphDraw would read wrongly (a field renamed, moved or given
 /// another meaning) raises it and adds a step to [`migrate`]; a new field
-/// with a default does not. See `docs/tdraw-format.md`.
-pub const TDRAW_FORMAT_VERSION: u32 = 1;
+/// with a default does not. See `docs/gdr-format.md`.
+pub const GDR_FORMAT_VERSION: u32 = 1;
 
 const FORMAT_VERSION_KEY: &str = "format_version";
 
-/// The format version a `.tdraw` file's JSON says it has: 0 for files
+/// The format version a `.gdr` file's JSON says it has: 0 for files
 /// written before versions were recorded.
-pub fn tdraw_version(v: &serde_json::Value) -> u32 {
+pub fn gdr_version(v: &serde_json::Value) -> u32 {
     v.get(FORMAT_VERSION_KEY)
         .and_then(serde_json::Value::as_u64)
         .map(|n| n.min(u64::from(u32::MAX)) as u32)
         .unwrap_or(0)
 }
 
-/// The version a `.tdraw` text says it has (0 for unreadable text).
-pub fn tdraw_text_version(s: &str) -> u32 {
+/// The version a `.gdr` text says it has (0 for unreadable text).
+pub fn gdr_text_version(s: &str) -> u32 {
     serde_json::from_str::<serde_json::Value>(s)
-        .map(|v| tdraw_version(&v))
+        .map(|v| gdr_version(&v))
         .unwrap_or(0)
 }
 
@@ -3660,14 +3660,14 @@ pub fn tdraw_text_version(s: &str) -> u32 {
 type Step = fn(&mut serde_json::Value);
 
 /// `STEPS[i]` takes a file from version `i` to `i + 1`.
-const STEPS: [Step; TDRAW_FORMAT_VERSION as usize] = [
+const STEPS: [Step; GDR_FORMAT_VERSION as usize] = [
     // 0 to 1: versions start being recorded; the layout is the same.
     |_| {},
 ];
 
 /// `DOWN_STEPS[i]` takes a file from version `i + 1` back to `i`, for
 /// saving in an older version.
-const DOWN_STEPS: [Step; TDRAW_FORMAT_VERSION as usize] = [
+const DOWN_STEPS: [Step; GDR_FORMAT_VERSION as usize] = [
     // 1 to 0: no recorded version.
     |v| {
         if let serde_json::Value::Object(m) = v {
@@ -3676,12 +3676,12 @@ const DOWN_STEPS: [Step; TDRAW_FORMAT_VERSION as usize] = [
     },
 ];
 
-/// The TraceDraw release that first wrote each `.tdraw` format version
-/// (`TDRAW_RELEASES[v]`), for Save As.
-pub const TDRAW_RELEASES: [&str; TDRAW_FORMAT_VERSION as usize + 1] = ["0.4", "0.5"];
+/// The GraphDraw release that first wrote each `.gdr` format version
+/// (`GDR_RELEASES[v]`), for Save As.
+pub const GDR_RELEASES: [&str; GDR_FORMAT_VERSION as usize + 1] = ["0.4", "0.5"];
 
-/// Bring a `.tdraw` file's JSON from version `from` up to
-/// [`TDRAW_FORMAT_VERSION`], one step at a time.
+/// Bring a `.gdr` file's JSON from version `from` up to
+/// [`GDR_FORMAT_VERSION`], one step at a time.
 pub fn migrate(v: &mut serde_json::Value, from: u32) {
     for step in STEPS.iter().skip(from as usize) {
         step(v);
@@ -3824,17 +3824,17 @@ mod tests {
     use crate::geometry::Point;
 
     #[test]
-    fn tdraw_files_carry_their_format_version_and_older_ones_open() {
+    fn gdr_files_carry_their_format_version_and_older_ones_open() {
         let doc = Document::new("v", crate::geometry::Size::new(100.0, 50.0));
         let json = doc.to_json().expect("json");
-        assert_eq!(tdraw_text_version(&json), TDRAW_FORMAT_VERSION);
+        assert_eq!(gdr_text_version(&json), GDR_FORMAT_VERSION);
         assert_eq!(Document::from_json(&json).expect("load").title, "v");
         // Before versions were recorded: version 0, same layout.
         let mut old: serde_json::Value = serde_json::from_str(&json).expect("value");
         old.as_object_mut()
             .expect("object")
             .remove("format_version");
-        assert_eq!(tdraw_version(&old), 0);
+        assert_eq!(gdr_version(&old), 0);
         assert_eq!(
             Document::from_json(&old.to_string()).expect("old").title,
             "v"
@@ -3850,7 +3850,7 @@ mod tests {
                 .title,
             "v"
         );
-        assert_eq!(tdraw_text_version("not json"), 0);
+        assert_eq!(gdr_text_version("not json"), 0);
     }
 
     /// A circle of radius `r` about the origin, from its top clockwise.
@@ -3871,19 +3871,19 @@ mod tests {
     }
 
     #[test]
-    fn tdraw_files_can_be_written_in_an_older_format_version() {
+    fn gdr_files_can_be_written_in_an_older_format_version() {
         let doc = Document {
             title: "Older".into(),
             ..Default::default()
         };
-        for version in 0..=TDRAW_FORMAT_VERSION {
+        for version in 0..=GDR_FORMAT_VERSION {
             let json = doc.to_json_version(version).expect("json");
-            assert_eq!(tdraw_text_version(&json), version);
+            assert_eq!(gdr_text_version(&json), version);
             assert_eq!(Document::from_json(&json).expect("reads").title, "Older");
         }
-        let newer = doc.to_json_version(TDRAW_FORMAT_VERSION + 5).expect("json");
-        assert_eq!(tdraw_text_version(&newer), TDRAW_FORMAT_VERSION);
-        assert_eq!(TDRAW_RELEASES.len(), TDRAW_FORMAT_VERSION as usize + 1);
+        let newer = doc.to_json_version(GDR_FORMAT_VERSION + 5).expect("json");
+        assert_eq!(gdr_text_version(&newer), GDR_FORMAT_VERSION);
+        assert_eq!(GDR_RELEASES.len(), GDR_FORMAT_VERSION as usize + 1);
     }
 
     #[test]

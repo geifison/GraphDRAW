@@ -1,6 +1,6 @@
 # Bitmapy
 
-Bitmapy jsou obrázky složené z pixelů, například fotografie a skeny. TraceDraw
+Bitmapy jsou obrázky složené z pixelů, například fotografie a skeny. GraphDraw
 je umisťuje do kreseb, mění jejich barevný režim a velikost, narovnává je,
 maskuje barvy, používá efekty a vektorizuje je na tvary. Umí také převést
 vektorové objekty na bitmapy.

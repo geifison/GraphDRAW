@@ -5,7 +5,7 @@
 //! edges on a new layer. See docs/behavior/border-and-grommet.md.
 
 use crate::app::App;
-use tracedraw_core::{
+use graphdraw_core::{
     document::ShapeKind,
     geometry::{Affine, BezPath, Point, Rect, Size},
     Color, Command, Fill, Shape, Stroke,
@@ -293,7 +293,7 @@ fn render_page(app: &App, area: Rect) -> Option<(image::RgbaImage, f64)> {
     let size = app.page_size();
     let longest = size.width.max(size.height).max(1.0);
     let dpi = (4000.0 * 25.4 / longest).clamp(10.0, 150.0);
-    let pm = tracedraw_render::render_page_image(app.doc(), app.page, dpi)?;
+    let pm = graphdraw_render::render_page_image(app.doc(), app.page, dpi)?;
     let (w, h) = (pm.width(), pm.height());
     // The background is opaque white, so premultiplied data is plain RGBA.
     let img = image::RgbaImage::from_raw(w, h, pm.data().to_vec())?;

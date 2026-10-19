@@ -70,5 +70,5 @@ stavového řádku zobrazí kresbu tak, jak by se vytiskla: barvy, které tiskov
 barvy CMYK nedokážou vytisknout, vypadají matněji. Na takové barvy upozorňuje
 také panel [[docker.color]].
 
-Bez načtených profilů převádí TraceDraw barvy vlastním modelem procesních
+Bez načtených profilů převádí GraphDraw barvy vlastním modelem procesních
 barev na křídovém papíře.

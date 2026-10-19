@@ -3,7 +3,7 @@
 The Outline Pen tool (F12) opens the Properties
 panel on the Outline section and returns to the Pick tool; Outline
 Colour (Shift+F12) opens the Colour panel. The model is
-`tracedraw_core::Stroke`.
+`graphdraw_core::Stroke`.
 
 ## Fields and defaults
 

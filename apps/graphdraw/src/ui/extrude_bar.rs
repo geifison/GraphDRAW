@@ -15,7 +15,7 @@ use crate::ui::field::NumField;
 use crate::ui::fill_tool_bars::color_pick;
 use crate::ui::propbar::sep;
 use egui::{Color32, Painter, Stroke, Ui};
-use tracedraw_core::extrude::ExtrudeKind;
+use graphdraw_core::extrude::ExtrudeKind;
 
 fn dim(ui: &mut Ui, text: String) {
     ui.label(
@@ -274,10 +274,10 @@ pub fn extrude_actions(app: &mut App, ui: &mut Ui) {
     let bare = app.selected_shapes().iter().any(|s| {
         !s.effects
             .iter()
-            .any(|e| matches!(e, tracedraw_core::live::Effect::Extrude { .. }))
+            .any(|e| matches!(e, graphdraw_core::live::Effect::Extrude { .. }))
             && !matches!(
                 s.kind,
-                tracedraw_core::ShapeKind::Bitmap { .. } | tracedraw_core::ShapeKind::Group { .. }
+                graphdraw_core::ShapeKind::Bitmap { .. } | graphdraw_core::ShapeKind::Group { .. }
             )
     });
     ui.horizontal(|ui| {
@@ -566,7 +566,7 @@ pub fn extrude_docker(app: &mut App, ui: &mut Ui) {
                     .map(|b| b.center())
                     .unwrap_or_default()
             } else {
-                tracedraw_core::geometry::Point::ZERO
+                graphdraw_core::geometry::Point::ZERO
             };
             let (mut x, mut y) = if vp {
                 (s.vanishing.x - origin.x, s.vanishing.y - origin.y)
@@ -579,9 +579,9 @@ pub fn extrude_docker(app: &mut App, ui: &mut Ui) {
             let cy = length(ui, app, &mut y, "y");
             if cx || cy {
                 if vp {
-                    s.vanishing = tracedraw_core::geometry::Point::new(x + origin.x, y + origin.y);
+                    s.vanishing = graphdraw_core::geometry::Point::new(x + origin.x, y + origin.y);
                 } else {
-                    s.vector = tracedraw_core::geometry::Vec2::new(x, y);
+                    s.vector = graphdraw_core::geometry::Vec2::new(x, y);
                 }
                 changed = true;
             }
@@ -744,7 +744,7 @@ pub fn extrude_docker(app: &mut App, ui: &mut Ui) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::{geometry::Rect, live::Effect, ShapeKind};
+    use graphdraw_core::{geometry::Rect, live::Effect, ShapeKind};
 
     #[test]
     fn the_bar_and_the_panel_draw_for_every_kind() {

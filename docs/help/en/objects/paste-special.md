@@ -9,10 +9,10 @@ an SVG copied from a web page can become editable shapes or a picture.
 
 ## To paste in another form {#paste-as}
 
-1. Copy something, in TraceDraw or in another program.
+1. Copy something, in GraphDraw or in another program.
 2. Choose [[menu.edit > menu.edit.paste_special]].
 3. Under [[dialog.paste_as]], choose one of the forms the clipboard offers:
-   - [[dialog.paste_objects]]: objects copied in TraceDraw, as they were;
+   - [[dialog.paste_objects]]: objects copied in GraphDraw, as they were;
    - [[dialog.paste_svg]]: SVG text, turned into shapes you can edit;
    - [[dialog.paste_bitmap]]: an image, as a bitmap;
    - [[dialog.paste_text]]: plain text, as a line of text.

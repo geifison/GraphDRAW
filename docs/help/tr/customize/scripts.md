@@ -9,7 +9,7 @@ menu.tools.scripts_docker]]) JavaScript ile yazılır.
 
 ## Betik yazma ve çalıştırma {#run}
 
-Bir betik TraceDraw'un nesneleriyle çalışır: `Application`,
+Bir betik GraphDraw'un nesneleriyle çalışır: `Application`,
 `ActiveDocument`, `ActivePage`, `ActiveLayer` ve şekiller, dolgular,
 anahatlar, renkler, eğriler ve efektler. Örneğin:
 
@@ -37,7 +37,7 @@ betiğin duraklatıldığı yerde değerlendirmek için bir ifade yazın.
 
 ## Betik filtreleri {#filters}
 
-Bir adı, uzantıları ve bir `Import` veya `Export` işleviyle `TraceDrawFilter`
+Bir adı, uzantıları ve bir `Import` veya `Export` işleviyle `GraphDrawFilter`
 tanımlayan bir betik, [[menu.file.import]] ve [[menu.file.export]]
 komutlarına bir dosya biçimi ekler. Saklamak için [[docker.install_filter]]
 düğmesine tıklayın; [[docker.script_filters]] yüklü filtreleri
@@ -45,24 +45,24 @@ düğmesine tıklayın; [[docker.script_filters]] yüklü filtreleri
 
 ## YZ asistanları (MCP) {#mcp}
 
-TraceDraw Model Context Protocol'ü konuşur; böylece bilgisayarınızdaki YZ
+GraphDraw Model Context Protocol'ü konuşur; böylece bilgisayarınızdaki YZ
 asistanları çizimleri açabilir, düzenleyebilir, inceleyebilir, dışa
 aktarabilir ve kaydedebilir:
 
-- `tracedraw --mcp`, TraceDraw'u bir asistan için penceresiz çalıştırır.
+- `graphdraw --mcp`, GraphDraw'u bir asistan için penceresiz çalıştırır.
 - Bir asistanın pencerenizde açık olan çizimi düzenlemesine izin vermek
   için [[menu.tools > menu.tools.options > menu.tools.options_global]]
   altındaki [[options.general]] sayfasında [[options.mcp_window]]
-  seçeneğini açın ve asistana komut olarak `tracedraw --mcp-window` verin.
+  seçeneğini açın ve asistana komut olarak `graphdraw --mcp-window` verin.
   Her değişiklik geri alabileceğiniz bir geri alma adımıdır. Yalnızca
-  bilgisayarınızda bulunan ve TraceDraw'un yazdığı gizli belirteci taşıyan
+  bilgisayarınızda bulunan ve GraphDraw'un yazdığı gizli belirteci taşıyan
   programlar bağlanabilir.
 
 ## Komut satırı aracı {#cli}
 
 Her indirmede, toplu işler için çizimleri programı açmadan biçimler arasında
-dönüştüren `tracedraw-cli` de bulunur.
+dönüştüren `graphdraw-cli` de bulunur.
 
 ## Makrolar {#macros}
 
-TraceDraw, çizim programları için yazılmış VBA makro projelerini çalıştırır (masaüstü sürümü). [[menu.tools > menu.tools.macros > menu.tools.macros_load]] bir proje (`.gms`) veya modül dosyaları (`.bas`, `.cls`, `.frm`) ekler; projeler saklanır ve açılışta yüklenir. [[docker.macros]] paneli makroları listeler: birine çift tıklayın veya çalıştırmak için [[menu.tools > menu.tools.macros > menu.tools.macros_run]] (<kbd>Alt+Shift+F8</kbd>) kullanın. Makronun formları, ileti ve giriş kutuları ekranda görünür, <kbd>Esc</kbd> veya [[menu.tools > menu.tools.macros > menu.tools.macros_stop]] onu durdurur ve bir çalıştırmanın değiştirdiği her şey tek bir geri alma adımıdır. [[menu.tools > menu.tools.macros > menu.tools.macro_editor]] (<kbd>Alt+F11</kbd>) kodu gösterir ve düzenler. Windows işlevlerini veya düzenleyicinin kendi nesne modelini çağıran makrolar çalışmaz.
+GraphDraw, çizim programları için yazılmış VBA makro projelerini çalıştırır (masaüstü sürümü). [[menu.tools > menu.tools.macros > menu.tools.macros_load]] bir proje (`.gms`) veya modül dosyaları (`.bas`, `.cls`, `.frm`) ekler; projeler saklanır ve açılışta yüklenir. [[docker.macros]] paneli makroları listeler: birine çift tıklayın veya çalıştırmak için [[menu.tools > menu.tools.macros > menu.tools.macros_run]] (<kbd>Alt+Shift+F8</kbd>) kullanın. Makronun formları, ileti ve giriş kutuları ekranda görünür, <kbd>Esc</kbd> veya [[menu.tools > menu.tools.macros > menu.tools.macros_stop]] onu durdurur ve bir çalıştırmanın değiştirdiği her şey tek bir geri alma adımıdır. [[menu.tools > menu.tools.macros > menu.tools.macro_editor]] (<kbd>Alt+F11</kbd>) kodu gösterir ve düzenler. Windows işlevlerini veya düzenleyicinin kendi nesne modelini çağıran makrolar çalışmaz.

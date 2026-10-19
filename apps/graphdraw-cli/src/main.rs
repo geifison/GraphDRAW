@@ -1,9 +1,9 @@
-//! tracedraw-cli: headless tools.
+//! graphdraw-cli: headless tools.
 //!
 //! ```text
-//! tracedraw-cli inspect file.cdr          dump the RIFF chunk tree
-//! tracedraw-cli info file.cdr             version, pages, objects, warnings
-//! tracedraw-cli convert in.cdr out.svg    export the first page (or .tdraw)
+//! graphdraw-cli inspect file.cdr          dump the RIFF chunk tree
+//! graphdraw-cli info file.cdr             version, pages, objects, warnings
+//! graphdraw-cli convert in.cdr out.svg    export the first page (or .gdr)
 //! ```
 
 use std::process::ExitCode;
@@ -11,7 +11,7 @@ use std::process::ExitCode;
 /// Damage a file deterministically: truncate, flip bytes, cut a span, or
 /// overwrite a few 32-bit words.
 /// `println!` that ends the program quietly when the reader of its output
-/// went away (`tracedraw-cli inspect file | head`) instead of panicking.
+/// went away (`graphdraw-cli inspect file | head`) instead of panicking.
 macro_rules! outln {
     () => {
         outln!("")
@@ -80,7 +80,7 @@ fn mutate(data: &[u8], seed: u64) -> Vec<u8> {
 }
 
 fn usage() -> ExitCode {
-    eprintln!("usage:\n  tracedraw-cli inspect <file.cdr> [chunk id]\n  tracedraw-cli info <file.cdr|file.cmx|file.tdraw>\n  tracedraw-cli icc <profile.icc>\n  tracedraw-cli stress <file> [iterations]   mutation test of the file's reader\n  tracedraw-cli convert <in.cdr|in.cmx|in.tdraw|in.svg|in.pdf|in.ai|in.eps|in.ps|in.prn|in.dxf|in.psd|in.emf|in.wmf|in.plt|in.txt|in.rtf|in.docx> <out.svg|out.pdf|out.eps|out.ps|out.prn|out.dxf|out.emf|out.wmf|out.plt|out.psd|out.html|out.png|out.tdraw|out.cdr>");
+    eprintln!("usage:\n  graphdraw-cli inspect <file.cdr> [chunk id]\n  graphdraw-cli info <file.cdr|file.cmx|file.gdr>\n  graphdraw-cli icc <profile.icc>\n  graphdraw-cli stress <file> [iterations]   mutation test of the file's reader\n  graphdraw-cli convert <in.cdr|in.cmx|in.gdr|in.svg|in.pdf|in.ai|in.eps|in.ps|in.prn|in.dxf|in.psd|in.emf|in.wmf|in.plt|in.txt|in.rtf|in.docx> <out.svg|out.pdf|out.eps|out.ps|out.prn|out.dxf|out.emf|out.wmf|out.plt|out.psd|out.html|out.png|out.gdr|out.cdr>");
     ExitCode::from(2)
 }
 
@@ -92,13 +92,13 @@ fn pdf_security(
     open: Option<String>,
     owner: Option<String>,
     deny: Option<String>,
-) -> Option<tracedraw_io::pdf_crypt::Security> {
+) -> Option<graphdraw_io::pdf_crypt::Security> {
     let open = open.unwrap_or_default();
     let owner = owner.unwrap_or_default();
     if open.is_empty() && owner.is_empty() {
         return None;
     }
-    let mut p = tracedraw_io::pdf_crypt::Permissions::default();
+    let mut p = graphdraw_io::pdf_crypt::Permissions::default();
     if !owner.is_empty() {
         for item in deny.unwrap_or_default().split(',') {
             match item.trim().to_ascii_lowercase().as_str() {
@@ -120,7 +120,7 @@ fn pdf_security(
     } else {
         owner
     };
-    Some(tracedraw_io::pdf_crypt::Security {
+    Some(graphdraw_io::pdf_crypt::Security {
         user_password: open,
         owner_password: owner,
         permissions: p,
@@ -131,21 +131,21 @@ fn pdf_security(
 /// loaded for its text.
 fn load(
     path: &str,
-) -> Result<(tracedraw_core::Document, Option<tracedraw_cdr::ParseReport>), String> {
+) -> Result<(graphdraw_core::Document, Option<graphdraw_cdr::ParseReport>), String> {
     let mut loaded = read_document(path)?;
     if !loaded.0.fonts.is_empty() {
-        tracedraw_text::fonts().add_document_fonts(&loaded.0.fonts);
+        graphdraw_text::fonts().add_document_fonts(&loaded.0.fonts);
     }
     // Paragraph text flows around the objects marked to wrap it.
     loaded.0.refresh_text_flow();
     // CMYK colours render through the profile the drawing carries.
     if let Some(p) = &loaded.0.cmyk_profile {
-        match tracedraw_core::icc::Profile::parse(&p.data) {
-            Ok(profile) if profile.color_space() == tracedraw_core::icc::ColorSpace::Cmyk => {
-                tracedraw_core::color::engine::install(tracedraw_core::color::IccEngine::new(
+        match graphdraw_core::icc::Profile::parse(&p.data) {
+            Ok(profile) if profile.color_space() == graphdraw_core::icc::ColorSpace::Cmyk => {
+                graphdraw_core::color::engine::install(graphdraw_core::color::IccEngine::new(
                     None,
                     Some(profile),
-                    tracedraw_core::icc::Intent::default(),
+                    graphdraw_core::icc::Intent::default(),
                     false,
                 ));
             }
@@ -157,25 +157,25 @@ fn load(
 
 fn read_document(
     path: &str,
-) -> Result<(tracedraw_core::Document, Option<tracedraw_cdr::ParseReport>), String> {
+) -> Result<(graphdraw_core::Document, Option<graphdraw_cdr::ParseReport>), String> {
     let lower = path.to_ascii_lowercase();
     if lower.ends_with(".cdr")
         || lower.ends_with(".cdt")
         || lower.ends_with(".cdrt")
         || lower.ends_with(".cmx")
     {
-        tracedraw_cdr::open(path)
+        graphdraw_cdr::open(path)
             .map(|(d, r)| (d, Some(r)))
             .map_err(|e| e.to_string())
     } else if lower.ends_with(".pdf")
         || (lower.ends_with(".ai") && !std::fs::read(path).is_ok_and(|b| b.starts_with(b"%!")))
     {
         let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
-        // TRACEDRAW_PASSWORD opens a protected file.
-        let password = std::env::var("TRACEDRAW_PASSWORD").unwrap_or_default();
-        let imported = tracedraw_io::pdf_import::parse_with_password(
+        // GRAPHDRAW_PASSWORD opens a protected file.
+        let password = std::env::var("GRAPHDRAW_PASSWORD").unwrap_or_default();
+        let imported = graphdraw_io::pdf_import::parse_with_password(
             &bytes,
-            &mut tracedraw_core::id::IdSource::default(),
+            &mut graphdraw_core::id::IdSource::default(),
             &password,
         )
         .map_err(|e| e.to_string())?;
@@ -187,7 +187,7 @@ fn read_document(
             .map(|s| s.to_string_lossy().to_string())
             .unwrap_or_default();
         Ok((
-            tracedraw_io::pdf_import::to_document(imported, &title),
+            graphdraw_io::pdf_import::to_document(imported, &title),
             None,
         ))
     } else if [".eps", ".ps", ".prn", ".ai"]
@@ -196,7 +196,7 @@ fn read_document(
     {
         let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
         let imported =
-            tracedraw_io::eps_import::parse(&bytes, &mut tracedraw_core::id::IdSource::default())?;
+            graphdraw_io::eps_import::parse(&bytes, &mut graphdraw_core::id::IdSource::default())?;
         for w in &imported.warnings {
             eprintln!("warning: {w}");
         }
@@ -205,17 +205,17 @@ fn read_document(
         let first = pages
             .first()
             .map(|p| p.1)
-            .unwrap_or(tracedraw_core::document::paper::A4);
-        let mut doc = tracedraw_core::Document::new("eps", first);
+            .unwrap_or(graphdraw_core::document::paper::A4);
+        let mut doc = graphdraw_core::Document::new("eps", first);
         let mut ids = doc.ids().clone();
         for (i, (shapes, size)) in pages.into_iter().enumerate() {
             if i == 0 {
                 doc.pages[0].layers[0].shapes = shapes;
                 continue;
             }
-            let mut layer = tracedraw_core::Layer::new(ids.layer(), "Layer 1");
+            let mut layer = graphdraw_core::Layer::new(ids.layer(), "Layer 1");
             layer.shapes = shapes;
-            doc.pages.push(tracedraw_core::Page {
+            doc.pages.push(graphdraw_core::Page {
                 id: ids.page(),
                 name: format!("Page {}", i + 1),
                 size,
@@ -229,17 +229,17 @@ fn read_document(
     } else if lower.ends_with(".psd") || lower.ends_with(".psb") {
         let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
         let imported =
-            tracedraw_io::psd::parse(&bytes, &mut tracedraw_core::id::IdSource::default())?;
+            graphdraw_io::psd::parse(&bytes, &mut graphdraw_core::id::IdSource::default())?;
         for w in &imported.warnings {
             eprintln!("warning: {w}");
         }
-        let mut doc = tracedraw_core::Document::new("psd", imported.size);
+        let mut doc = graphdraw_core::Document::new("psd", imported.size);
         doc.pages[0].layers[0].shapes = imported.shapes;
         Ok((doc, None))
     } else if lower.ends_with(".emf") || lower.ends_with(".wmf") {
         let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
         let imported =
-            tracedraw_io::emf::parse(&bytes, &mut tracedraw_core::id::IdSource::default())?;
+            graphdraw_io::emf::parse(&bytes, &mut graphdraw_core::id::IdSource::default())?;
         for w in &imported.warnings {
             eprintln!("warning: {w}");
         }
@@ -247,11 +247,11 @@ fn read_document(
             .file_stem()
             .map(|s| s.to_string_lossy().to_string())
             .unwrap_or_default();
-        Ok((tracedraw_io::emf::to_document(imported, &title), None))
+        Ok((graphdraw_io::emf::to_document(imported, &title), None))
     } else if lower.ends_with(".plt") || lower.ends_with(".hpgl") || lower.ends_with(".hgl") {
         let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
         let imported =
-            tracedraw_io::plt::parse(&bytes, &mut tracedraw_core::id::IdSource::default())?;
+            graphdraw_io::plt::parse(&bytes, &mut graphdraw_core::id::IdSource::default())?;
         for w in &imported.warnings {
             eprintln!("warning: {w}");
         }
@@ -259,23 +259,23 @@ fn read_document(
             .file_stem()
             .map(|s| s.to_string_lossy().to_string())
             .unwrap_or_default();
-        Ok((tracedraw_io::plt::to_document(imported, &title), None))
+        Ok((graphdraw_io::plt::to_document(imported, &title), None))
     } else if lower.ends_with(".txt") || lower.ends_with(".rtf") || lower.ends_with(".docx") {
         let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
         let imported = if lower.ends_with(".rtf") {
-            tracedraw_io::text_import::parse_rtf(&bytes)?
+            graphdraw_io::text_import::parse_rtf(&bytes)?
         } else if lower.ends_with(".docx") {
-            tracedraw_io::text_import::parse_docx(&bytes)?
+            graphdraw_io::text_import::parse_docx(&bytes)?
         } else {
-            tracedraw_io::text_import::parse_txt(&bytes)
+            graphdraw_io::text_import::parse_txt(&bytes)
         };
         for w in &imported.warnings {
             eprintln!("warning: {w}");
         }
-        let mut doc = tracedraw_core::Document::new("text", tracedraw_core::document::paper::A4);
+        let mut doc = graphdraw_core::Document::new("text", graphdraw_core::document::paper::A4);
         let mut ids = doc.ids().clone();
-        let mut shape = imported.to_shape(tracedraw_io::text_import::Placement::a4(), &mut ids);
-        shape.fill = tracedraw_core::Fill::Solid(tracedraw_core::Color::BLACK);
+        let mut shape = imported.to_shape(graphdraw_io::text_import::Placement::a4(), &mut ids);
+        shape.fill = graphdraw_core::Fill::Solid(graphdraw_core::Color::BLACK);
         shape.stroke = None;
         doc.pages[0].layers[0].shapes.push(shape);
         doc.set_ids(ids);
@@ -285,7 +285,7 @@ fn read_document(
             .map_err(|e| e.to_string())
             .map(|b| String::from_utf8_lossy(&b).into_owned())?;
         let imported =
-            tracedraw_io::dxf::parse(&text, &mut tracedraw_core::id::IdSource::default())?;
+            graphdraw_io::dxf::parse(&text, &mut graphdraw_core::id::IdSource::default())?;
         for w in &imported.warnings {
             eprintln!("warning: {w}");
         }
@@ -293,7 +293,7 @@ fn read_document(
             .file_stem()
             .map(|s| s.to_string_lossy().to_string())
             .unwrap_or_default();
-        Ok((tracedraw_io::dxf::to_document(imported, &title), None))
+        Ok((graphdraw_io::dxf::to_document(imported, &title), None))
     } else if lower.ends_with(".svg") || lower.ends_with(".svgz") {
         let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
         let text = if bytes.len() > 2 && bytes[0] == 0x1f && bytes[1] == 0x8b {
@@ -307,12 +307,12 @@ fn read_document(
             String::from_utf8(bytes).map_err(|e| e.to_string())?
         };
         let imported =
-            tracedraw_io::svg_import::parse(&text, &mut tracedraw_core::id::IdSource::default())?;
-        let mut doc = tracedraw_core::Document::new("svg", imported.size);
+            graphdraw_io::svg_import::parse(&text, &mut graphdraw_core::id::IdSource::default())?;
+        let mut doc = graphdraw_core::Document::new("svg", imported.size);
         doc.pages[0].layers[0].shapes = imported.shapes;
         Ok((doc, None))
     } else {
-        tracedraw_io::load_native(path)
+        graphdraw_io::load_native(path)
             .map(|d| (d, None))
             .map_err(|e| e.to_string())
     }
@@ -320,7 +320,7 @@ fn read_document(
 
 fn main() -> ExitCode {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
-    tracedraw_text::install();
+    graphdraw_text::install();
     let args: Vec<String> = std::env::args().collect();
     match args.get(1).map(String::as_str) {
         Some("inspect") => {
@@ -334,7 +334,7 @@ fn main() -> ExitCode {
                     return ExitCode::FAILURE;
                 }
             };
-            let container = match tracedraw_cdr::container::detect(&bytes) {
+            let container = match graphdraw_cdr::container::detect(&bytes) {
                 Ok(c) => c,
                 Err(e) => {
                     eprintln!("{path}: {e}");
@@ -346,15 +346,15 @@ fn main() -> ExitCode {
                 container.kind,
                 container.version.name()
             );
-            let riff = match tracedraw_cdr::container::riff_stream(&bytes, &container) {
+            let riff = match graphdraw_cdr::container::riff_stream(&bytes, &container) {
                 Ok(r) => r,
                 Err(e) => {
                     eprintln!("{path}: {e}");
                     return ExitCode::FAILURE;
                 }
             };
-            let externals = tracedraw_cdr::container::external_streams(&bytes, &container);
-            match tracedraw_cdr::riff::parse_with_externals(&riff, externals, container.version.0) {
+            let externals = graphdraw_cdr::container::external_streams(&bytes, &container);
+            match graphdraw_cdr::riff::parse_with_externals(&riff, externals, container.version.0) {
                 Ok(tree) => match args.get(3) {
                     // `inspect file.cdr arrw`: the data of every chunk with
                     // that id, in hex.
@@ -408,9 +408,9 @@ fn main() -> ExitCode {
                     if let Some(p) = &doc.cmyk_profile {
                         outln!("carries CMYK profile: {} ({} bytes)", p.name, p.data.len());
                     }
-                    // TRACEDRAW_OBJECTS=1 lists every object, for checking a
+                    // GRAPHDRAW_OBJECTS=1 lists every object, for checking a
                     // reader against what the file holds.
-                    if std::env::var("TRACEDRAW_OBJECTS").is_ok_and(|v| v != "0") {
+                    if std::env::var("GRAPHDRAW_OBJECTS").is_ok_and(|v| v != "0") {
                         for p in &doc.pages {
                             outln!("{}:", p.name);
                             for l in &p.layers {
@@ -458,7 +458,7 @@ fn main() -> ExitCode {
                     return ExitCode::FAILURE;
                 }
             };
-            let profile = match tracedraw_core::icc::Profile::parse(&bytes) {
+            let profile = match graphdraw_core::icc::Profile::parse(&bytes) {
                 Ok(p) => p,
                 Err(e) => {
                     eprintln!("{path}: {e}");
@@ -476,9 +476,9 @@ fn main() -> ExitCode {
                 profile.has_device_to_pcs(),
                 profile.has_pcs_to_device()
             );
-            let srgb = tracedraw_core::icc::Profile::srgb();
-            let intent = tracedraw_core::icc::Intent::default();
-            if let Some(t) = tracedraw_core::icc::Transform::new(&profile, &srgb, intent, true) {
+            let srgb = graphdraw_core::icc::Profile::srgb();
+            let intent = graphdraw_core::icc::Intent::default();
+            if let Some(t) = graphdraw_core::icc::Transform::new(&profile, &srgb, intent, true) {
                 let n = profile.channels();
                 let samples: Vec<Vec<f32>> = if n == 4 {
                     vec![
@@ -519,34 +519,34 @@ fn main() -> ExitCode {
                 let m = mutate(&data, seed * 7919 + 13);
                 let lower = lower.clone();
                 let ok = std::panic::catch_unwind(move || {
-                    let mut ids = tracedraw_core::id::IdSource::default();
+                    let mut ids = graphdraw_core::id::IdSource::default();
                     if lower.ends_with(".cdr")
                         || lower.ends_with(".cdt")
                         || lower.ends_with(".cdrt")
                         || lower.ends_with(".cmx")
                     {
-                        let _ = tracedraw_cdr::open_bytes(&m, "stress");
+                        let _ = graphdraw_cdr::open_bytes(&m, "stress");
                     } else if lower.ends_with(".pdf") || lower.ends_with(".ai") {
-                        let _ = tracedraw_io::pdf_import::parse(&m, &mut ids);
+                        let _ = graphdraw_io::pdf_import::parse(&m, &mut ids);
                     } else if lower.ends_with(".eps") || lower.ends_with(".ps") {
-                        let _ = tracedraw_io::eps_import::parse(&m, &mut ids);
+                        let _ = graphdraw_io::eps_import::parse(&m, &mut ids);
                     } else if lower.ends_with(".dxf") {
-                        let _ = tracedraw_io::dxf::parse(&String::from_utf8_lossy(&m), &mut ids);
+                        let _ = graphdraw_io::dxf::parse(&String::from_utf8_lossy(&m), &mut ids);
                     } else if lower.ends_with(".psd") || lower.ends_with(".psb") {
-                        let _ = tracedraw_io::psd::parse(&m, &mut ids);
+                        let _ = graphdraw_io::psd::parse(&m, &mut ids);
                     } else if lower.ends_with(".emf") || lower.ends_with(".wmf") {
-                        let _ = tracedraw_io::emf::parse(&m, &mut ids);
+                        let _ = graphdraw_io::emf::parse(&m, &mut ids);
                     } else if lower.ends_with(".plt") {
-                        let _ = tracedraw_io::plt::parse(&m, &mut ids);
+                        let _ = graphdraw_io::plt::parse(&m, &mut ids);
                     } else if lower.ends_with(".rtf") {
-                        let _ = tracedraw_io::text_import::parse_rtf(&m);
+                        let _ = graphdraw_io::text_import::parse_rtf(&m);
                     } else if lower.ends_with(".docx") {
-                        let _ = tracedraw_io::text_import::parse_docx(&m);
+                        let _ = graphdraw_io::text_import::parse_docx(&m);
                     } else if lower.ends_with(".svg") {
                         let _ =
-                            tracedraw_io::svg_import::parse(&String::from_utf8_lossy(&m), &mut ids);
+                            graphdraw_io::svg_import::parse(&String::from_utf8_lossy(&m), &mut ids);
                     } else {
-                        let _ = tracedraw_core::Document::from_json(&String::from_utf8_lossy(&m));
+                        let _ = graphdraw_core::Document::from_json(&String::from_utf8_lossy(&m));
                     }
                 })
                 .is_ok();
@@ -574,68 +574,68 @@ fn main() -> ExitCode {
                 }
             };
             let res = if output.to_ascii_lowercase().ends_with(".svg") {
-                tracedraw_io::save_svg(&doc, 0, output)
+                graphdraw_io::save_svg(&doc, 0, output)
             } else if output.to_ascii_lowercase().ends_with(".pdf") {
-                // TRACEDRAW_PDFX=x1a|x3|x4 selects a PDF/X level; TRACEDRAW_ICC
-                // names the output profile and TRACEDRAW_BLEED the bleed in mm.
-                // TRACEDRAW_PDF_BOOKMARKS=1 adds a bookmark per page; the
-                // TRACEDRAW_PDF_*PASSWORD and _DENY variables protect it.
-                let standard = match std::env::var("TRACEDRAW_PDFX")
+                // GRAPHDRAW_PDFX=x1a|x3|x4 selects a PDF/X level; GRAPHDRAW_ICC
+                // names the output profile and GRAPHDRAW_BLEED the bleed in mm.
+                // GRAPHDRAW_PDF_BOOKMARKS=1 adds a bookmark per page; the
+                // GRAPHDRAW_PDF_*PASSWORD and _DENY variables protect it.
+                let standard = match std::env::var("GRAPHDRAW_PDFX")
                     .unwrap_or_default()
                     .to_ascii_lowercase()
                     .as_str()
                 {
-                    "x1a" | "x-1a" => tracedraw_io::pdf::PdfStandard::X1a,
-                    "x3" | "x-3" => tracedraw_io::pdf::PdfStandard::X3,
-                    "x4" | "x-4" => tracedraw_io::pdf::PdfStandard::X4,
-                    _ => tracedraw_io::pdf::PdfStandard::None,
+                    "x1a" | "x-1a" => graphdraw_io::pdf::PdfStandard::X1a,
+                    "x3" | "x-3" => graphdraw_io::pdf::PdfStandard::X3,
+                    "x4" | "x-4" => graphdraw_io::pdf::PdfStandard::X4,
+                    _ => graphdraw_io::pdf::PdfStandard::None,
                 };
-                let opts = tracedraw_io::pdf::PdfOptions {
+                let opts = graphdraw_io::pdf::PdfOptions {
                     standard,
-                    output_profile: std::env::var("TRACEDRAW_ICC")
+                    output_profile: std::env::var("GRAPHDRAW_ICC")
                         .ok()
                         .and_then(|p| std::fs::read(p).ok()),
-                    output_condition: std::env::var("TRACEDRAW_CONDITION").unwrap_or_default(),
-                    bleed_mm: std::env::var("TRACEDRAW_BLEED")
+                    output_condition: std::env::var("GRAPHDRAW_CONDITION").unwrap_or_default(),
+                    bleed_mm: std::env::var("GRAPHDRAW_BLEED")
                         .ok()
                         .and_then(|v| v.parse().ok())
                         .unwrap_or(0.0),
                     title: None,
                     flatten_dpi: 300.0,
-                    bookmarks: std::env::var("TRACEDRAW_PDF_BOOKMARKS")
+                    bookmarks: std::env::var("GRAPHDRAW_PDF_BOOKMARKS")
                         .is_ok_and(|v| !matches!(v.as_str(), "" | "0" | "no" | "false")),
                     security: pdf_security(
-                        std::env::var("TRACEDRAW_PDF_OPEN_PASSWORD").ok(),
-                        std::env::var("TRACEDRAW_PDF_OWNER_PASSWORD").ok(),
-                        std::env::var("TRACEDRAW_PDF_DENY").ok(),
+                        std::env::var("GRAPHDRAW_PDF_OPEN_PASSWORD").ok(),
+                        std::env::var("GRAPHDRAW_PDF_OWNER_PASSWORD").ok(),
+                        std::env::var("GRAPHDRAW_PDF_DENY").ok(),
                     ),
                     ..Default::default()
                 };
-                std::fs::write(output, tracedraw_io::pdf::document_to_pdf_with(&doc, &opts))
-                    .map_err(tracedraw_io::Error::from)
+                std::fs::write(output, graphdraw_io::pdf::document_to_pdf_with(&doc, &opts))
+                    .map_err(graphdraw_io::Error::from)
             } else if output.to_ascii_lowercase().ends_with(".eps") {
-                std::fs::write(output, tracedraw_io::eps::page_to_eps(&doc, 0))
-                    .map_err(tracedraw_io::Error::from)
+                std::fs::write(output, graphdraw_io::eps::page_to_eps(&doc, 0))
+                    .map_err(graphdraw_io::Error::from)
             } else if [".ps", ".prn"]
                 .iter()
                 .any(|e| output.to_ascii_lowercase().ends_with(e))
             {
-                std::fs::write(output, tracedraw_io::eps::document_to_ps(&doc))
-                    .map_err(tracedraw_io::Error::from)
+                std::fs::write(output, graphdraw_io::eps::document_to_ps(&doc))
+                    .map_err(graphdraw_io::Error::from)
             } else if output.to_ascii_lowercase().ends_with(".cdr") {
-                // TRACEDRAW_CDR_VERSION picks the version written (14 to
+                // GRAPHDRAW_CDR_VERSION picks the version written (14 to
                 // 27, the versions checked to open in other programs; the
-                // experimental 7 to 13 only with TRACEDRAW_CDR_EXPERIMENTAL=1).
-                let asked: u16 = std::env::var("TRACEDRAW_CDR_VERSION")
+                // experimental 7 to 13 only with GRAPHDRAW_CDR_EXPERIMENTAL=1).
+                let asked: u16 = std::env::var("GRAPHDRAW_CDR_VERSION")
                     .ok()
                     .and_then(|v| v.trim().parse().ok())
-                    .unwrap_or(tracedraw_cdr::write::DEFAULT_VERSION);
+                    .unwrap_or(graphdraw_cdr::write::DEFAULT_VERSION);
                 let experimental =
-                    std::env::var("TRACEDRAW_CDR_EXPERIMENTAL").is_ok_and(|v| v.trim() == "1");
+                    std::env::var("GRAPHDRAW_CDR_EXPERIMENTAL").is_ok_and(|v| v.trim() == "1");
                 let allowed = if experimental {
-                    tracedraw_cdr::write::versions()
+                    graphdraw_cdr::write::versions()
                 } else {
-                    tracedraw_cdr::write::checked_versions()
+                    graphdraw_cdr::write::checked_versions()
                 };
                 if !allowed.contains(&asked) {
                     eprintln!(
@@ -645,7 +645,7 @@ fn main() -> ExitCode {
                         if experimental {
                             ""
                         } else {
-                            " (7 to 13 are experimental: TRACEDRAW_CDR_EXPERIMENTAL=1)"
+                            " (7 to 13 are experimental: GRAPHDRAW_CDR_EXPERIMENTAL=1)"
                         }
                     );
                     std::process::exit(2);
@@ -653,76 +653,76 @@ fn main() -> ExitCode {
                 let version = asked;
                 std::fs::write(
                     output,
-                    tracedraw_cdr::write::document_to_cdr_version_with(&doc, version, &{
-                        let pages: Vec<tracedraw_cdr::write::Png> =
-                            tracedraw_io::page_pictures(&doc, 256)
+                    graphdraw_cdr::write::document_to_cdr_version_with(&doc, version, &{
+                        let pages: Vec<graphdraw_cdr::write::Png> =
+                            graphdraw_io::page_pictures(&doc, 256)
                                 .into_iter()
-                                .map(|(data, width, height)| tracedraw_cdr::write::Png {
+                                .map(|(data, width, height)| graphdraw_cdr::write::Png {
                                     data,
                                     width,
                                     height,
                                 })
                                 .collect();
                         // The text's faces go in the font table (from 16);
-                        // TRACEDRAW_CDR_EMBED_FONTS=1 embeds them.
-                        let fonts = tracedraw_text::fonts();
-                        tracedraw_cdr::write::Previews {
+                        // GRAPHDRAW_CDR_EMBED_FONTS=1 embeds them.
+                        let fonts = graphdraw_text::fonts();
+                        graphdraw_cdr::write::Previews {
                             thumbnail: pages.first().cloned(),
                             pages,
                             fonts: doc
                                 .font_faces_used()
                                 .into_iter()
-                                .map(|(family, bold, italic)| tracedraw_cdr::write::FontFace {
+                                .map(|(family, bold, italic)| graphdraw_cdr::write::FontFace {
                                     data: fonts.face_file(&family, bold, italic),
                                     family,
                                     bold,
                                     italic,
                                 })
                                 .collect(),
-                            embed_fonts: std::env::var("TRACEDRAW_CDR_EMBED_FONTS")
+                            embed_fonts: std::env::var("GRAPHDRAW_CDR_EMBED_FONTS")
                                 .is_ok_and(|v| v.trim() == "1"),
                         }
                     }),
                 )
-                .map_err(tracedraw_io::Error::from)
+                .map_err(graphdraw_io::Error::from)
             } else if output.to_ascii_lowercase().ends_with(".emf") {
-                tracedraw_io::save_emf(&doc, page_index(), output)
+                graphdraw_io::save_emf(&doc, page_index(), output)
             } else if output.to_ascii_lowercase().ends_with(".wmf") {
-                tracedraw_io::save_wmf(&doc, page_index(), output)
+                graphdraw_io::save_wmf(&doc, page_index(), output)
             } else if output.to_ascii_lowercase().ends_with(".plt") {
-                tracedraw_io::save_plt(&doc, page_index(), output)
+                graphdraw_io::save_plt(&doc, page_index(), output)
             } else if output.to_ascii_lowercase().ends_with(".psd") {
-                let dpi = std::env::var("TRACEDRAW_DPI")
+                let dpi = std::env::var("GRAPHDRAW_DPI")
                     .ok()
                     .and_then(|v| v.parse().ok())
                     .unwrap_or(96.0);
-                tracedraw_io::save_psd(&doc, page_index(), dpi, output)
+                graphdraw_io::save_psd(&doc, page_index(), dpi, output)
             } else if output.to_ascii_lowercase().ends_with(".dxf") {
-                tracedraw_io::save_dxf(&doc, page_index(), output)
+                graphdraw_io::save_dxf(&doc, page_index(), output)
             } else if output.to_ascii_lowercase().ends_with(".html") {
-                std::fs::write(output, tracedraw_io::html::document_to_html(&doc))
-                    .map_err(tracedraw_io::Error::from)
+                std::fs::write(output, graphdraw_io::html::document_to_html(&doc))
+                    .map_err(graphdraw_io::Error::from)
             } else if output.to_ascii_lowercase().ends_with(".png") {
-                // Rasterise the first page (or TRACEDRAW_PAGE) at 96 dpi
-                // (or TRACEDRAW_DPI).
-                let dpi = std::env::var("TRACEDRAW_DPI")
+                // Rasterise the first page (or GRAPHDRAW_PAGE) at 96 dpi
+                // (or GRAPHDRAW_DPI).
+                let dpi = std::env::var("GRAPHDRAW_DPI")
                     .ok()
                     .and_then(|v| v.parse().ok())
                     .unwrap_or(96.0);
                 match doc
                     .pages
                     .get(page_index())
-                    .and_then(|p| tracedraw_render::render_page_image(&doc, p.id, dpi))
+                    .and_then(|p| graphdraw_render::render_page_image(&doc, p.id, dpi))
                 {
                     Some(pm) => pm
                         .save_png(output)
-                        .map_err(|e| tracedraw_io::Error::Io(std::io::Error::other(e))),
-                    None => Err(tracedraw_io::Error::Io(std::io::Error::other(
+                        .map_err(|e| graphdraw_io::Error::Io(std::io::Error::other(e))),
+                    None => Err(graphdraw_io::Error::Io(std::io::Error::other(
                         "render failed",
                     ))),
                 }
             } else {
-                tracedraw_io::save_native(&doc, output)
+                graphdraw_io::save_native(&doc, output)
             };
             match res {
                 Ok(()) => ExitCode::SUCCESS,
@@ -738,8 +738,8 @@ fn main() -> ExitCode {
 
 /// One line per object (and its children), indented by `depth`: kind,
 /// geometry, transform, fill, outline and text.
-fn describe_shape(s: &tracedraw_core::Shape, depth: usize) -> String {
-    use tracedraw_core::document::ShapeKind;
+fn describe_shape(s: &graphdraw_core::Shape, depth: usize) -> String {
+    use graphdraw_core::document::ShapeKind;
     let pad = "  ".repeat(depth);
     let kind = match &s.kind {
         ShapeKind::Rect {
@@ -830,8 +830,8 @@ fn describe_shape(s: &tracedraw_core::Shape, depth: usize) -> String {
     let b = s.bounds();
     let t = s.transform.as_coeffs();
     let fill = match &s.fill {
-        tracedraw_core::Fill::None => "none".to_string(),
-        tracedraw_core::Fill::Solid(c) => format!("{c:?}"),
+        graphdraw_core::Fill::None => "none".to_string(),
+        graphdraw_core::Fill::Solid(c) => format!("{c:?}"),
         other => format!("{:?}", std::mem::discriminant(other)),
     };
     let stroke = s
@@ -860,10 +860,10 @@ fn describe_shape(s: &tracedraw_core::Shape, depth: usize) -> String {
     out
 }
 
-/// The page the single-page exports write: TRACEDRAW_PAGE, counted from
+/// The page the single-page exports write: GRAPHDRAW_PAGE, counted from
 /// 1 (the first page when unset or unreadable).
 fn page_index() -> usize {
-    page_from(std::env::var("TRACEDRAW_PAGE").ok().as_deref())
+    page_from(std::env::var("GRAPHDRAW_PAGE").ok().as_deref())
 }
 
 fn page_from(v: Option<&str>) -> usize {

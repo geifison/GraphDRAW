@@ -527,7 +527,7 @@ mod tests {
 
     #[test]
     fn native_read_and_write_use_the_file_system() {
-        let dir = std::env::temp_dir().join(format!("tracedraw-files-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("graphdraw-files-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let p = dir.join("a.bin");
         write(&p, [1u8, 2, 3]).unwrap();

@@ -2,7 +2,7 @@
 //! space (pixels, Y down).
 
 use egui::{Pos2, Rect as ERect, Vec2};
-use tracedraw_core::geometry::{Point, Rect};
+use graphdraw_core::geometry::{Point, Rect};
 
 #[derive(Debug, Clone, Copy)]
 pub struct View {

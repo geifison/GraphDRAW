@@ -1,6 +1,6 @@
 # Fontes e glifos
 
-O TraceDraw usa as fontes instaladas no seu computador, as fontes que você
+O GraphDraw usa as fontes instaladas no seu computador, as fontes que você
 acrescenta no Gerenciador de fontes e as fontes que vêm com um desenho. Esta
 página explica os painéis e a caixa de diálogo para trabalhar com fontes e
 caracteres especiais.
@@ -24,7 +24,7 @@ O painel [[docker.fonts]] lista as famílias de fontes.
 Quando um desenho usa fontes que não estão instaladas, uma mensagem informa os
 nomes depois que ele abre (veja
 [Avisos depois de abrir](../get-started/open-and-save.md#open-notes)). Instale
-as fontes e o texto volta a aparecer nelas. Desenhos salvos como `.tdraw`, e
+as fontes e o texto volta a aparecer nelas. Desenhos salvos como `.gdr`, e
 arquivos `.cdr` com fontes incorporadas, podem levar as fontes junto.
 
 ## O Amostrador de fontes {#font-sampler}
@@ -89,7 +89,7 @@ Para usar o Gerenciador de fontes:
 - **Acrescentar pasta** procura arquivos de fonte (TTF, OTF, TTC, OTC) em uma
   pasta; as fontes aparecem como não instaladas. **Acrescentar fonte** instala
   um arquivo de uma vez.
-- **Instalar** torna as fontes escolhidas disponíveis no TraceDraw, agora e a
+- **Instalar** torna as fontes escolhidas disponíveis no GraphDraw, agora e a
   cada início. **Desinstalar** as remove; as fontes do próprio sistema são
   protegidas.
 - **Acrescentar à coleção** e **Remover da coleção** organizam as fontes;

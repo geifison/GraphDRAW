@@ -57,6 +57,6 @@ izquierda). Esta página enumera cada panel y la página que lo explica.
 - El botón de cerrar de la barra de título de un panel lo quita de las
   pestañas; el botón de contraer pliega el área de paneles.
 - Los paneles que deja abiertos vuelven la próxima vez que se inicia
-  TraceDraw.
+  GraphDraw.
 - Los atajos de los paneles alternan: pulsar uno cuando su panel está al
   frente oculta los paneles.

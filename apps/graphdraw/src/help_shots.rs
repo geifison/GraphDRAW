@@ -2,7 +2,7 @@
 //! drawn headlessly in English on a small demo drawing, rasterised in
 //! software from egui's meshes and cropped to the window.
 //!
-//! `web/help_shots.sh` runs `cargo test -p tracedraw help_shots -- --ignored`
+//! `web/help_shots.sh` runs `cargo test -p graphdraw help_shots -- --ignored`
 //! with `HELP_SHOTS` set to the output folder (`docs/help/img`). The
 //! images are named after the Help topic they illustrate (see
 //! docs/behavior/help.md).
@@ -286,8 +286,8 @@ impl Shooter {
 /// A drawing to show: a filled rectangle, an ellipse, a line of text
 /// and a small generated bitmap, the rectangle selected.
 fn demo_app() -> App {
-    use tracedraw_core::geometry::{Point, Rect};
-    use tracedraw_core::{Color, Fill, ShapeKind};
+    use graphdraw_core::geometry::{Point, Rect};
+    use graphdraw_core::{Color, Fill, ShapeKind};
     let mut app = App::headless();
     crate::i18n::set_language("en");
     let rect = app.new_shape(ShapeKind::Rect {
@@ -300,7 +300,7 @@ fn demo_app() -> App {
         arc: None,
     });
     let _ = app.new_shape(ShapeKind::Text {
-        spans: vec![tracedraw_core::TextSpan::new(
+        spans: vec![graphdraw_core::TextSpan::new(
             "Sample text",
             "Selawik",
             24.0,
@@ -440,8 +440,8 @@ fn shots() -> Vec<(String, Shot, bool)> {
         name("templates-styles/object-styles#document-defaults"),
         Shot::Dialog(|_| {
             Dialog::ChangeDefaults(crate::ui::defaults_dialog::State {
-                change: crate::defaults::DefaultChange::Fill(tracedraw_core::Fill::Solid(
-                    tracedraw_core::Color::rgb8(70, 130, 220),
+                change: crate::defaults::DefaultChange::Fill(graphdraw_core::Fill::Solid(
+                    graphdraw_core::Color::rgb8(70, 130, 220),
                 )),
                 kinds: [true, false, false],
                 dont_ask: false,

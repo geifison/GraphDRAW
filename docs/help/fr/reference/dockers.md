@@ -57,6 +57,6 @@ l'explique.
   l'onglet du premier plan pour replier les panneaux.
 - Le bouton de fermeture de la barre de titre d'un panneau le retire des
   onglets ; le bouton de réduction replie la zone des panneaux.
-- Les panneaux laissés ouverts reviennent au prochain démarrage de TraceDraw.
+- Les panneaux laissés ouverts reviennent au prochain démarrage de GraphDraw.
 - Les raccourcis des panneaux basculent : appuyer sur l'un quand son panneau
   est au premier plan masque les panneaux.

@@ -7,9 +7,9 @@
 
 use crate::app::App;
 use crate::i18n::tr;
-use tracedraw_core::geometry::{BezPath, Point};
-use tracedraw_core::painterly::{Painterly, PainterlyBrush};
-use tracedraw_core::{Color, Command, Fill, Shape, ShapeId, ShapeKind, Stroke};
+use graphdraw_core::geometry::{BezPath, Point};
+use graphdraw_core::painterly::{Painterly, PainterlyBrush};
+use graphdraw_core::{Color, Command, Fill, Shape, ShapeId, ShapeKind, Stroke};
 
 /// The tool's brush and size for new strokes.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -63,11 +63,11 @@ impl App {
     /// with the brush.
     pub fn add_painterly_stroke(&mut self, points: &[Point]) -> Option<ShapeId> {
         let tol = self.settings.curves.freehand_tolerance_px() / self.view.zoom.max(1e-6) as f64;
-        let pts = tracedraw_core::geometry::simplify(points, tol.max(0.02));
+        let pts = graphdraw_core::geometry::simplify(points, tol.max(0.02));
         if pts.len() < 2 {
             return None;
         }
-        let path: BezPath = tracedraw_core::geometry::smooth_path(&pts, false);
+        let path: BezPath = graphdraw_core::geometry::smooth_path(&pts, false);
         let layer = self.active_layer()?;
         let id = self.engine.new_shape_id();
         let mut shape = Shape::new(

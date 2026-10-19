@@ -2,7 +2,7 @@
 
 Die Zeiterfassung zeichnet die Zeit auf, die Sie an einer Zeichnung arbeiten,
 Aufgabe für Aufgabe, und speichert die Einträge in der Zeichnung (in
-`.tdraw`-Dateien). Gezählt wird nur, während Sie arbeiten: Nach einigen
+`.gdr`-Dateien). Gezählt wird nur, während Sie arbeiten: Nach einigen
 Minuten ohne Eingabe wartet die Uhr, und Ihre nächste Aktion startet sie
 wieder.
 

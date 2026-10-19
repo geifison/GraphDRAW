@@ -1,7 +1,7 @@
 # Zaman izleyici
 
 Zaman izleyici bir çizim üzerinde harcadığınız süreyi görev görev kaydeder
-ve kayıtları çizimin içinde (`.tdraw` dosyalarında) tutar. Süre yalnızca
+ve kayıtları çizimin içinde (`.gdr` dosyalarında) tutar. Süre yalnızca
 çalışırken sayılır: birkaç dakika boşta kalındıktan sonra saat bekler ve bir
 sonraki eyleminiz onu yeniden başlatır.
 

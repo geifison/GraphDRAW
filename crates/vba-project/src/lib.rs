@@ -1,4 +1,4 @@
-//! Reading VBA macro projects so their macros can run in TraceDraw: the
+//! Reading VBA macro projects so their macros can run in GraphDraw: the
 //! compound files drawing suites keep their macros in (`.gms` and any
 //! other file holding a VBA project storage), and the module files the
 //! VBA editor exports (`.bas`, `.cls`, `.frm` with its `.frx`). A

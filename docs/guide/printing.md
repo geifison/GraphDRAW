@@ -1,6 +1,6 @@
 # Printing
 
-TraceDraw prints by building a print-ready PDF and handing it to your
+GraphDraw prints by building a print-ready PDF and handing it to your
 system's PDF viewer, where you choose the printer. This page covers the
 Print dialog, imposition and marks, separations, checking a drawing
 before it goes out, and publishing PDF and PDF/X files.
@@ -101,7 +101,7 @@ It checks for:
 - objects on layers that will not print.
 
 Click an issue to go to its page and select the object. Under the list,
-TraceDraw says what to do about the kind of issue you picked.
+GraphDraw says what to do about the kind of issue you picked.
 **Choose Checks...** turns checks on and off and sets the thresholds;
 **Check Again** runs them again. See [the preflight notes](../behavior/preflight.md).
 
@@ -137,7 +137,7 @@ PDF...** (also on the standard toolbar).
 
 The two passwords must differ. PDF/X files cannot be protected, because
 the standards forbid it; the Security page says so when a PDF/X level is
-chosen. TraceDraw never keeps your passwords; your other choices are
+chosen. GraphDraw never keeps your passwords; your other choices are
 remembered for next time.
 
 Press **OK** and choose where to save (in the browser the PDF is

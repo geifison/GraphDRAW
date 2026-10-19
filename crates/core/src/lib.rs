@@ -1,4 +1,4 @@
-//! tracedraw-core: the pure-data heart of TraceDraw.
+//! graphdraw-core: the pure-data heart of GraphDraw.
 //!
 //! Everything in this crate is independent of any UI or file format.
 //! The UI, the CLI and the importers all talk to the engine through

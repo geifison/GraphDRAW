@@ -9,7 +9,7 @@
 use crate::app::App;
 use crate::i18n::tr;
 use egui::{PointerButton, Response};
-use tracedraw_core::{
+use graphdraw_core::{
     document::Shape,
     envelope::{Frame, Mapping, Mode},
     geometry::{Affine, Point, Rect, Shape as _, Vec2},
@@ -671,8 +671,8 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::geometry::ParamCurve;
-    use tracedraw_core::ShapeKind;
+    use graphdraw_core::geometry::ParamCurve;
+    use graphdraw_core::ShapeKind;
 
     fn rect(app: &mut App, x0: f64, y0: f64, x1: f64, y1: f64) -> ShapeId {
         app.new_shape(ShapeKind::Rect {
@@ -685,7 +685,7 @@ mod tests {
 
     fn bounds(app: &App, id: ShapeId) -> Rect {
         let s = app.doc().shape_on_page(id).expect("shape");
-        tracedraw_core::live::evaluate(&s).main.bounds()
+        graphdraw_core::live::evaluate(&s).main.bounds()
     }
 
     /// A drag moves a node the chosen way from where the drag began, the
@@ -771,7 +771,7 @@ mod tests {
         app.select(Vec::new());
         app.view.zoom = 1.0;
         // Above the rectangle, inside the arch (rectangles are filled).
-        let fill = tracedraw_core::Fill::Solid(tracedraw_core::Color::BLACK);
+        let fill = graphdraw_core::Fill::Solid(graphdraw_core::Color::BLACK);
         app.run(Command::SetFill {
             shapes: vec![id],
             fill,
@@ -785,7 +785,7 @@ mod tests {
         // rectangle alone does not.
         use crate::select_region::{takes, Region};
         let s = app.doc().shape_on_page(id).expect("shape");
-        let all = |_: &tracedraw_core::Shape| true;
+        let all = |_: &graphdraw_core::Shape| true;
         assert!(takes(
             Region::Rect(Rect::new(-1.0, -1.0, 41.0, 27.0)),
             &s,

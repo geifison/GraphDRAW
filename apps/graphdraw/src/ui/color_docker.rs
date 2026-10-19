@@ -10,7 +10,7 @@ use crate::app::App;
 use crate::i18n::{tr, trf};
 use crate::theme::Tokens;
 use egui::{Color32, Mesh, Painter, Pos2, Rect, Response, Sense, Shape, Stroke, Ui, Vec2};
-use tracedraw_core::{Color, Command, Fill, ShapeId};
+use graphdraw_core::{Color, Command, Fill, ShapeId};
 
 /// The models the sliders offer, by their names in `Color::convert_to`.
 pub const MODELS: [&str; 7] = ["RGB", "CMYK", "HSB", "HSL", "Lab", "Grayscale", "YIQ"];
@@ -165,7 +165,7 @@ fn hsb_square(p: &Painter, r: Rect, hue: f32, n: usize) {
             let s = i as f32 / n as f32;
             let v = 1.0 - j as f32 / n as f32;
             let pos = r.min + Vec2::new(r.width() * s, r.height() * (1.0 - v));
-            mesh.colored_vertex(pos, to32(tracedraw_core::color::hsb_to_rgb(hue, s, v)));
+            mesh.colored_vertex(pos, to32(graphdraw_core::color::hsb_to_rgb(hue, s, v)));
         }
     }
     let w = (n + 1) as u32;
@@ -185,7 +185,7 @@ fn hue_strip(p: &Painter, r: Rect) {
     let n = 36u32;
     for k in 0..=n {
         let t = k as f32 / n as f32;
-        let c = to32(tracedraw_core::color::hsb_to_rgb(t * 360.0, 1.0, 1.0));
+        let c = to32(graphdraw_core::color::hsb_to_rgb(t * 360.0, 1.0, 1.0));
         let y = r.top() + r.height() * t;
         mesh.colored_vertex(Pos2::new(r.left(), y), c);
         mesh.colored_vertex(Pos2::new(r.right(), y), c);
@@ -580,7 +580,7 @@ pub fn add_ink(app: &mut App, name: String, c: Color) -> u32 {
         _ => [0.0, 0.0, 0.0, 1.0],
     };
     let mut inks = app.doc().inks.clone();
-    inks.push(tracedraw_core::document::Ink { id, name, cmyk });
+    inks.push(graphdraw_core::document::Ink { id, name, cmyk });
     app.run(Command::SetInks { inks });
     id
 }
@@ -632,14 +632,14 @@ fn palette_view(app: &mut App, ui: &mut Ui) -> Option<Color> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::ShapeKind;
+    use graphdraw_core::ShapeKind;
 
     #[test]
     fn spot_inks_are_added_applied_and_removed() {
         let mut app = App::headless();
         let id = app
             .new_shape(ShapeKind::Rect {
-                rect: tracedraw_core::Rect::new(0.0, 0.0, 10.0, 10.0),
+                rect: graphdraw_core::Rect::new(0.0, 0.0, 10.0, 10.0),
                 radius: 0.0,
                 corners: None,
             })
@@ -674,7 +674,7 @@ mod tests {
         let mut app = App::headless();
         let id = app
             .new_shape(ShapeKind::Rect {
-                rect: tracedraw_core::Rect::new(0.0, 0.0, 10.0, 10.0),
+                rect: graphdraw_core::Rect::new(0.0, 0.0, 10.0, 10.0),
                 radius: 0.0,
                 corners: None,
             })

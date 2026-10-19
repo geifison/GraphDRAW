@@ -1,12 +1,12 @@
-# Benvenuti nella Guida di TraceDraw
+# Benvenuti nella Guida di GraphDraw
 
-TraceDraw è un programma di disegno vettoriale libero e open source. Serve a
+GraphDraw è un programma di disegno vettoriale libero e open source. Serve a
 disegnare illustrazioni, loghi, diagrammi, impaginati e lavori di stampa fatti
 di forme, linee e testo che restano nitidi a qualsiasi dimensione, e a
 combinarli con immagini bitmap. Lo stesso programma funziona su Windows, macOS
 e Linux e in un browser web.
 
-Questa Guida spiega come fare le cose in TraceDraw, passo per passo, e cosa fa
+Questa Guida spiega come fare le cose in GraphDraw, passo per passo, e cosa fa
 ogni finestra di dialogo, pannello e strumento.
 
 ## Come è organizzata questa Guida {#organization}
@@ -21,7 +21,7 @@ Il sommario a sinistra segue il modo in cui si lavora:
 - **Effetti speciali**, **Testo**, **Modelli e stili**, **Pagine e layout** e
   **Bitmap** coprono il resto del lavoro di disegno.
 - **Stampa**, **Grafica per il web** e **Formati di file** spiegano come far
-  uscire il lavoro da TraceDraw.
+  uscire il lavoro da GraphDraw.
 - **Personalizzare e automatizzare** tratta opzioni, aree di lavoro, script e
   funzioni di IA, e **Riferimento** elenca ogni comando di menu, strumento,
   pannello e scorciatoia da tastiera.
@@ -30,7 +30,7 @@ Usate la scheda **Cerca** per trovare una pagina con qualsiasi parola che
 contiene, e l'elenco delle lingue in alto per leggere la stessa pagina in
 un'altra lingua.
 
-## Aiuto dentro TraceDraw {#in-the-app}
+## Aiuto dentro GraphDraw {#in-the-app}
 
 - Premete <kbd>F1</kbd> per aprire la pagina di ciò che avete davanti: la
   finestra di dialogo aperta, altrimenti il pannello visibile, altrimenti lo
@@ -42,10 +42,10 @@ un'altra lingua.
   il suo collegamento [[hint.learn_more]] apre qui la pagina dello strumento.
   Vedere [Suggerimenti](get-started/hints.md).
 
-Le pagine si aprono nel browser web, nella lingua impostata in TraceDraw.
+Le pagine si aprono nel browser web, nella lingua impostata in GraphDraw.
 
 ## Da dove cominciare {#begin}
 
-Se TraceDraw è nuovo per voi, leggete [L'area di lavoro](get-started/workspace.md),
+Se GraphDraw è nuovo per voi, leggete [L'area di lavoro](get-started/workspace.md),
 poi [Creare un disegno](get-started/new-document.md) e
 [Disegnare linee e curve](lines-shapes/lines.md).

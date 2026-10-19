@@ -82,7 +82,7 @@ pub const MASK_SLOTS: usize = 10;
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MaskSlot {
     pub on: bool,
-    pub color: tracedraw_core::Color,
+    pub color: graphdraw_core::Color,
     pub tolerance: u8,
 }
 
@@ -90,7 +90,7 @@ impl Default for MaskSlot {
     fn default() -> Self {
         MaskSlot {
             on: false,
-            color: tracedraw_core::Color::BLACK,
+            color: graphdraw_core::Color::BLACK,
             tolerance: 0,
         }
     }
@@ -106,7 +106,7 @@ pub struct MaskSettings {
     /// The eyedropper fills the picked slot with the colour it samples.
     pub picking: bool,
     /// The sampled colour already taken, so one sample fills one slot.
-    pub seen: Option<tracedraw_core::Color>,
+    pub seen: Option<graphdraw_core::Color>,
 }
 
 impl Default for MaskSettings {
@@ -146,7 +146,7 @@ impl MaskSettings {
             else {
                 continue;
             };
-            let (Some(color), Ok(tol)) = (tracedraw_core::Color::from_hex(hex), tol.parse::<u8>())
+            let (Some(color), Ok(tol)) = (graphdraw_core::Color::from_hex(hex), tol.parse::<u8>())
             else {
                 continue;
             };
@@ -256,7 +256,7 @@ mod tests {
         });
         let red = MaskSlot {
             on: true,
-            color: tracedraw_core::Color::rgb8(255, 0, 0),
+            color: graphdraw_core::Color::rgb8(255, 0, 0),
             tolerance: 10,
         };
         // 10 % is 26 levels: both reds match, blue and white do not.

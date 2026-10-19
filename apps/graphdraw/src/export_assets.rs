@@ -5,7 +5,7 @@
 use crate::app::App;
 use crate::ui::dialogs::{ExportState, EXPORT_FORMATS};
 use std::path::{Path, PathBuf};
-use tracedraw_core::{PageId, ShapeId};
+use graphdraw_core::{PageId, ShapeId};
 
 /// What an asset exports.
 #[derive(Debug, Clone, PartialEq)]
@@ -287,16 +287,16 @@ mod tests {
         app.add_page();
         let layer = app.active_layer().expect("a layer");
         let id = app.engine.new_shape_id();
-        let mut shape = tracedraw_core::Shape::new(
+        let mut shape = graphdraw_core::Shape::new(
             id,
-            tracedraw_core::ShapeKind::Rect {
-                rect: tracedraw_core::Rect::new(10.0, 10.0, 40.0, 30.0),
+            graphdraw_core::ShapeKind::Rect {
+                rect: graphdraw_core::Rect::new(10.0, 10.0, 40.0, 30.0),
                 radius: 0.0,
                 corners: None,
             },
         );
         shape.name = Some("Badge".into());
-        app.run(tracedraw_core::Command::AddShape { layer, shape });
+        app.run(graphdraw_core::Command::AddShape { layer, shape });
         app.select(vec![id]);
         app.export_assets = ExportAssets::new();
         app.add_page_assets();
@@ -325,7 +325,7 @@ mod tests {
         // The current page and selection are as they were.
         assert_eq!((app.page, app.selection.clone()), (page, sel));
         // A deleted object drops its asset.
-        app.run(tracedraw_core::Command::DeleteShapes { shapes: vec![id] });
+        app.run(graphdraw_core::Command::DeleteShapes { shapes: vec![id] });
         app.prune_export_assets();
         assert_eq!(app.export_assets.assets.len(), 2);
         let _ = std::fs::remove_dir_all(&dir);

@@ -1,7 +1,7 @@
 # Kreslení a generování s AI
 
-TraceDraw umí kreslit podle slovního popisu a vytvářet obrázky pomocí služby
-AI, kterou si sami zvolíte a nastavíte vlastním klíčem. TraceDraw nemá
+GraphDraw umí kreslit podle slovního popisu a vytvářet obrázky pomocí služby
+AI, kterou si sami zvolíte a nastavíte vlastním klíčem. GraphDraw nemá
 vlastní AI ani účet: nic se neodešle, dokud nespustíte příkaz AI, a i potom
 se do nastavené služby odešle jen to, co daný příkaz potřebuje. Každý
 požadavek vyúčtuje vaše služba; místní servery modelů ve vašem počítači nic
@@ -47,7 +47,7 @@ Napište požadavek, například „červené jízdní kolo s modrými koly“ n
 slovy** panelu [[docker.ai_generate]]
 ([[menu.object > menu.object.ai_generate > menu.object.ai_draw_words]]) a
 stiskněte **Nakreslit** nebo <kbd>Enter</kbd>. Služba napíše pro kresbu
-skript, který TraceDraw spustí jako jeden krok zpět. Konverzace se uchovává,
+skript, který GraphDraw spustí jako jeden krok zpět. Konverzace se uchovává,
 takže můžete žádat o změny; **Nová konverzace** začne znovu. **Otevřít ve
 Skriptech** zobrazí skript.
 

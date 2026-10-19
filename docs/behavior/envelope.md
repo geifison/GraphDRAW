@@ -114,12 +114,12 @@ rectangle selects it, and the selection box reaches the top of the arch.
 
 ## Checks
 
-- `tracedraw_core::envelope::tests::a_fresh_frame_changes_nothing`
-- `tracedraw_core::envelope::tests::older_envelopes_are_single_arcs`
-- `tracedraw_core::envelope::tests::the_modes_shape_the_sides_a_node_moves`
-- `tracedraw_core::envelope::tests::nodes_are_added_and_removed`
-- `tracedraw_core::envelope::tests::the_mappings_fill_the_frame_differently`
-- `tracedraw_core::live::tests::visual_bounds_follow_the_live_effects`
+- `graphdraw_core::envelope::tests::a_fresh_frame_changes_nothing`
+- `graphdraw_core::envelope::tests::older_envelopes_are_single_arcs`
+- `graphdraw_core::envelope::tests::the_modes_shape_the_sides_a_node_moves`
+- `graphdraw_core::envelope::tests::nodes_are_added_and_removed`
+- `graphdraw_core::envelope::tests::the_mappings_fill_the_frame_differently`
+- `graphdraw_core::live::tests::visual_bounds_follow_the_live_effects`
 - `envelope_edit::tests::dragging_a_node_is_one_step_in_the_chosen_mode`
 - `envelope_edit::tests::handles_and_nodes_in_the_unconstrained_mode`
 - `envelope_edit::tests::enveloped_objects_are_hit_and_boxed_as_drawn`

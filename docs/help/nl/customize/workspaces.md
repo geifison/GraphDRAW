@@ -22,7 +22,7 @@ van [[menu.tools > menu.tools.options > menu.tools.options_workspaces]].
 
 ## Wat bewaard blijft {#kept}
 
-Alles wat u wijzigt, blijft bewaard als TraceDraw wordt afgesloten en komt de
+Alles wat u wijzigt, blijft bewaard als GraphDraw wordt afgesloten en komt de
 volgende keer terug: de opties, waar elke balk staat en welke balken zichtbaar
 zijn, het gereedschap dat elke groep van de gereedschapskist toont, de panelen
 die geopend zijn, eenheden, kleven, de instellingen die nieuwe objecten

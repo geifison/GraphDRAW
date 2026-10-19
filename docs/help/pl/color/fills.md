@@ -1,6 +1,6 @@
 # Wypełnienia
 
-Wypełnienie maluje wnętrze obiektu zamkniętego. TraceDraw ma sześć rodzajów
+Wypełnienie maluje wnętrze obiektu zamkniętego. GraphDraw ma sześć rodzajów
 wypełnienia: [[docker.fill_none]], [[docker.fill_uniform]] (jeden płaski kolor),
 [[docker.fill_fountain]] (kolory płynnie przechodzące jeden w drugi),
 [[docker.fill_pattern]], [[docker.fill_texture]] i [[docker.fill_mesh]]

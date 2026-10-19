@@ -8,8 +8,8 @@
 //! RIFF previews frame every object of the first page (on the page or
 //! off it); ZIP previews frame the page.
 
-use tracedraw_core::geometry::Rect;
-use tracedraw_render::{render_page, RenderOptions, ViewTransform};
+use graphdraw_core::geometry::Rect;
+use graphdraw_render::{render_page, RenderOptions, ViewTransform};
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -28,25 +28,25 @@ fn main() {
         eprintln!("{input}: no preview");
         std::process::exit(1);
     };
-    let (doc, _) = match tracedraw_cdr::open_bytes(&bytes, "check") {
+    let (doc, _) = match graphdraw_cdr::open_bytes(&bytes, "check") {
         Ok(d) => d,
         Err(e) => {
             eprintln!("{input}: {e}");
             std::process::exit(1);
         }
     };
-    tracedraw_text::install();
+    graphdraw_text::install();
     if !doc.fonts.is_empty() {
-        tracedraw_text::fonts().add_document_fonts(&doc.fonts);
+        graphdraw_text::fonts().add_document_fonts(&doc.fonts);
     }
     // CMYK colours through the profile the drawing carries, as on screen.
     if let Some(p) = &doc.cmyk_profile {
-        if let Ok(profile) = tracedraw_core::icc::Profile::parse(&p.data) {
-            if profile.color_space() == tracedraw_core::icc::ColorSpace::Cmyk {
-                tracedraw_core::color::engine::install(tracedraw_core::color::IccEngine::new(
+        if let Ok(profile) = graphdraw_core::icc::Profile::parse(&p.data) {
+            if profile.color_space() == graphdraw_core::icc::ColorSpace::Cmyk {
+                graphdraw_core::color::engine::install(graphdraw_core::color::IccEngine::new(
                     None,
                     Some(profile),
-                    tracedraw_core::icc::Intent::default(),
+                    graphdraw_core::icc::Intent::default(),
                     false,
                 ));
             }
@@ -124,8 +124,8 @@ fn main() {
 /// The part of `bounds` where something is drawn: objects without fill
 /// or outline count in the content's bounds but not in a preview.
 fn visible_area(
-    doc: &tracedraw_core::Document,
-    page: tracedraw_core::PageId,
+    doc: &graphdraw_core::Document,
+    page: graphdraw_core::PageId,
     bounds: Rect,
 ) -> Option<Rect> {
     const SIDE: f64 = 1024.0;

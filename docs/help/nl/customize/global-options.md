@@ -69,6 +69,6 @@ aan om haar weer te zien.
 ![De pagina Bestandslocaties van de algemene opties](../../img/customize-global-options-file-locations.png)
 
 Toont waar de voorkeuren en de automatische back-ups worden bewaard. De
-voorkeuren staan in een map `tracedraw-settings` naast het programma als die
+voorkeuren staan in een map `graphdraw-settings` naast het programma als die
 bestaat (een draagbare kopie), anders op de plaats die uw systeem voor
 programma-instellingen gebruikt; de browserversie bewaart ze in de browser.

@@ -1,4 +1,4 @@
-//! HTTP for the services TraceDraw talks to (AI Drawing, GitHub): one
+//! HTTP for the services GraphDraw talks to (AI Drawing, GitHub): one
 //! request at a time, on a thread on the desktop and as a `fetch` in a
 //! browser, its answer delivered on a channel.
 

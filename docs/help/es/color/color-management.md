@@ -74,5 +74,5 @@ derecho de la barra de estado, muestra el dibujo como se imprimiría: los
 colores que las tintas CMYK no pueden imprimir se ven más apagados. El panel
 [[docker.color]] también avisa de esos colores.
 
-Sin perfiles cargados, TraceDraw convierte los colores con su propio modelo de
+Sin perfiles cargados, GraphDraw convierte los colores con su propio modelo de
 tintas de cuatricromía sobre papel estucado.

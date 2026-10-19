@@ -15,7 +15,7 @@ use crate::ui::propbar::{
     dash_label, label_pic, outline_text, sep, Pic, DASHES, OUTLINE_WIDTHS_MM,
 };
 use egui::{Color32, Painter, Stroke, Ui};
-use tracedraw_core::Arrowhead;
+use graphdraw_core::Arrowhead;
 
 fn dim(ui: &mut Ui, text: String) {
     ui.label(
@@ -49,7 +49,7 @@ pub fn callout_bar(app: &mut App, ui: &mut Ui) {
         .width(88.0)
         .height(400.0)
         .show_ui(ui, |ui| {
-            let hair = tracedraw_core::Stroke::HAIRLINE;
+            let hair = graphdraw_core::Stroke::HAIRLINE;
             if ui
                 .selectable_label((style.width - hair).abs() < 1e-9, tr("toolbar.hairline"))
                 .clicked()
@@ -169,7 +169,7 @@ pub fn draw_preview(app: &App, painter: &Painter) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::geometry::Point;
+    use graphdraw_core::geometry::Point;
 
     #[test]
     fn the_bar_and_the_preview_draw() {

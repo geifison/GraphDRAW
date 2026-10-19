@@ -9,7 +9,7 @@
 
 use crate::app::App;
 use crate::i18n::tr;
-use tracedraw_core::{
+use graphdraw_core::{
     document::{ShapeKind, TextSpan},
     live::Effect,
     Color, Command, Fill,
@@ -177,7 +177,7 @@ fn solid_of(fill: &Fill) -> Color {
         Fill::Solid(c) => *c,
         Fill::None => Color::BLACK,
         Fill::Fountain(f) => f.stops.first().map(|s| s.color).unwrap_or(Color::BLACK),
-        Fill::Pattern(tracedraw_core::Pattern::TwoColor { front, .. }) => *front,
+        Fill::Pattern(graphdraw_core::Pattern::TwoColor { front, .. }) => *front,
         Fill::Pattern(_) => Color::BLACK,
         Fill::Texture(t) => t.color_a,
         Fill::Mesh(m) => m.nodes.first().map(|n| n.color).unwrap_or(Color::BLACK),

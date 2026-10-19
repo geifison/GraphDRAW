@@ -1,6 +1,6 @@
 # Effects
 
-Effects in TraceDraw stay **live**: the object keeps its own shape, and
+Effects in GraphDraw stay **live**: the object keeps its own shape, and
 the effect is drawn from it. Change the object and the effect follows;
 change the effect's settings at any time from its tool's property bar or
 its panel; remove it and the object is as it was.

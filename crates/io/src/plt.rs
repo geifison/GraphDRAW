@@ -14,9 +14,9 @@ use std::collections::HashMap;
 use std::fmt::Write as _;
 use std::io::{self, Write};
 
-use tracedraw_core::geometry::{Affine, BezPath, PathEl, Point, Rect, Shape as _, Size};
-use tracedraw_core::id::IdSource;
-use tracedraw_core::{Color, Document, Fill, Shape, ShapeKind, Stroke};
+use graphdraw_core::geometry::{Affine, BezPath, PathEl, Point, Rect, Shape as _, Size};
+use graphdraw_core::id::IdSource;
+use graphdraw_core::{Color, Document, Fill, Shape, ShapeKind, Stroke};
 
 /// Plotter units per millimetre.
 pub const PLU_PER_MM: f64 = 40.0;
@@ -527,7 +527,7 @@ pub fn to_document(imp: Imported, title: &str) -> Document {
 
 struct Writer<'a> {
     out: String,
-    symbols: &'a [tracedraw_core::Symbol],
+    symbols: &'a [graphdraw_core::Symbol],
     /// Pen per outline colour, in order of first use.
     pens: Vec<(Color, f64)>,
     /// Strokes per pen: polylines in plotter units.
@@ -552,7 +552,7 @@ impl Writer<'_> {
         let mut out: Vec<Vec<Point>> = Vec::new();
         let mut cur: Vec<Point> = Vec::new();
         let mut start = Point::ZERO;
-        tracedraw_core::geometry::flatten(path, 0.02, &mut |el| match el {
+        graphdraw_core::geometry::flatten(path, 0.02, &mut |el| match el {
             PathEl::MoveTo(p) => {
                 if cur.len() >= 2 {
                     out.push(std::mem::take(&mut cur));
@@ -577,7 +577,7 @@ impl Writer<'_> {
             return;
         }
         if !shape.effects.is_empty() {
-            let ev = tracedraw_core::live::evaluate(shape);
+            let ev = graphdraw_core::live::evaluate(shape);
             for s in ev
                 .below
                 .iter()

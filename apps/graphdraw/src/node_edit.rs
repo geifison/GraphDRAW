@@ -11,7 +11,7 @@
 use crate::app::{App, Handle};
 use egui::Modifiers;
 use std::collections::BTreeMap;
-use tracedraw_core::{
+use graphdraw_core::{
     document::ShapeKind,
     geometry::{Affine, BezPath, Point, Rect, Shape as _, Vec2},
     nodes, Command, Shape, ShapeId,
@@ -605,12 +605,12 @@ impl App {
             let all_closed = np
                 .elements()
                 .iter()
-                .filter(|e| matches!(e, tracedraw_core::geometry::PathEl::MoveTo(_)))
+                .filter(|e| matches!(e, graphdraw_core::geometry::PathEl::MoveTo(_)))
                 .count()
                 == np
                     .elements()
                     .iter()
-                    .filter(|e| matches!(e, tracedraw_core::geometry::PathEl::ClosePath))
+                    .filter(|e| matches!(e, graphdraw_core::geometry::PathEl::ClosePath))
                     .count();
             self.run(Command::SetShapeKind {
                 shape: id,

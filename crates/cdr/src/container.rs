@@ -2,7 +2,7 @@
 
 use crate::{Error, Result};
 use std::io::Read;
-use tracedraw_core::Color;
+use graphdraw_core::Color;
 
 /// CDR major version, as encoded in the RIFF form type (`CDR9`,
 /// `CDRA` = 10, ... `CDRE` = 14, `CDRH` = 17, `CDRJ` = 18,
@@ -243,7 +243,7 @@ pub fn page_preview(bytes: &[u8], container: &Container) -> Option<crate::spot::
 pub fn cmyk_profile(
     bytes: &[u8],
     container: &Container,
-) -> Option<tracedraw_core::DocumentProfile> {
+) -> Option<graphdraw_core::DocumentProfile> {
     if container.kind == ContainerKind::Riff {
         return None;
     }
@@ -269,10 +269,10 @@ pub fn cmyk_profile(
         if f.take(MAX_PROFILE).read_to_end(&mut data).is_err() {
             continue;
         }
-        let Ok(profile) = tracedraw_core::icc::Profile::parse(&data) else {
+        let Ok(profile) = graphdraw_core::icc::Profile::parse(&data) else {
             continue;
         };
-        if profile.color_space() != tracedraw_core::icc::ColorSpace::Cmyk {
+        if profile.color_space() != graphdraw_core::icc::ColorSpace::Cmyk {
             continue;
         }
         let file = name.rsplit('/').next().unwrap_or(&name);
@@ -280,7 +280,7 @@ pub fn cmyk_profile(
             .description()
             .map(String::from)
             .unwrap_or_else(|| file.to_string());
-        return Some(tracedraw_core::DocumentProfile::new(label, data));
+        return Some(graphdraw_core::DocumentProfile::new(label, data));
     }
     None
 }
@@ -295,8 +295,8 @@ const MAX_PROFILE: u64 = 16 << 20;
 pub fn embedded_fonts(
     bytes: &[u8],
     container: &Container,
-) -> (Vec<tracedraw_core::DocumentFont>, Vec<String>) {
-    let mut fonts: Vec<tracedraw_core::DocumentFont> = Vec::new();
+) -> (Vec<graphdraw_core::DocumentFont>, Vec<String>) {
+    let mut fonts: Vec<graphdraw_core::DocumentFont> = Vec::new();
     let mut notes = Vec::new();
     if container.kind == ContainerKind::Riff {
         return (fonts, notes);
@@ -342,7 +342,7 @@ pub fn embedded_fonts(
         match member.get(at..).map(crate::eot::read) {
             Some(Ok(font)) => {
                 if !fonts.iter().any(|f| f.data.as_slice() == font.data) {
-                    fonts.push(tracedraw_core::DocumentFont::new(font.family, font.data));
+                    fonts.push(graphdraw_core::DocumentFont::new(font.family, font.data));
                 }
             }
             Some(Err(e)) => notes.push(format!("embedded font in {name}: {e}")),
@@ -595,13 +595,13 @@ mod tests {
     }
 
     /// The bundled interface font (SIL Open Font License).
-    const FONT: &[u8] = include_bytes!("../../../apps/tracedraw/assets/fonts/Selawik-Regular.ttf");
+    const FONT: &[u8] = include_bytes!("../../../apps/graphdraw/assets/fonts/Selawik-Regular.ttf");
 
     /// A ZIP file around a written RIFF stream, with extra members.
     fn zip_file(members: &[(&str, Vec<u8>)]) -> Vec<u8> {
         use std::io::Write;
         // A bare RIFF stream, as versions before 14 write it.
-        let riff = crate::write::document_to_cdr_version(&tracedraw_core::Document::default(), 12);
+        let riff = crate::write::document_to_cdr_version(&graphdraw_core::Document::default(), 12);
         let mut buf = std::io::Cursor::new(Vec::new());
         {
             let mut w = zip::ZipWriter::new(&mut buf);
@@ -628,7 +628,7 @@ mod tests {
 
     #[test]
     fn the_cmyk_profile_comes_with_the_document() {
-        use tracedraw_core::icc::test_profiles as tp;
+        use graphdraw_core::icc::test_profiles as tp;
         let cmyk = tp::lut16_cmyk_profile();
         let rgb = tp::matrix_trc_profile(tp::para_srgb(), tp::para_srgb(), tp::para_srgb());
         // An RGB profile in the CMYK folder and a damaged one are passed
@@ -650,7 +650,7 @@ mod tests {
         let (doc, _) = crate::open_bytes(&zip_file(&[]), "plain").expect("opens");
         assert!(doc.cmyk_profile.is_none());
         // A bare RIFF stream, as versions before 14 write it.
-        let riff = crate::write::document_to_cdr_version(&tracedraw_core::Document::default(), 12);
+        let riff = crate::write::document_to_cdr_version(&graphdraw_core::Document::default(), 12);
         assert!(crate::open_bytes(&riff, "riff")
             .expect("opens")
             .0
@@ -697,7 +697,7 @@ mod tests {
         assert!(report.warnings.iter().any(|w| w.contains("compressed")));
         // A RIFF file has no embedded members; the document still opens.
         // A bare RIFF stream, as versions before 14 write it.
-        let riff = crate::write::document_to_cdr_version(&tracedraw_core::Document::default(), 12);
+        let riff = crate::write::document_to_cdr_version(&graphdraw_core::Document::default(), 12);
         let (doc, _) = crate::open_bytes(&riff, "riff").expect("opens");
         assert!(doc.fonts.is_empty());
     }

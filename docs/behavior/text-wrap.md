@@ -91,9 +91,9 @@ band's height:
 
 ## Checks
 
-- `tracedraw_core::text_flow::tests` (segments, sides, contour, which
+- `graphdraw_core::text_flow::tests` (segments, sides, contour, which
   objects reach a frame, the page grid origin).
-- `tracedraw_text::tests::paragraph_text_flows_around_a_wrap_object`,
+- `graphdraw_text::tests::paragraph_text_flows_around_a_wrap_object`,
   `wrap_sides_keep_the_text_left_right_or_above_and_below`,
   `the_page_baseline_grid_lines_up_frames_at_different_heights`.
 - `text_wrap_tests::paragraph_text_wraps_around_an_object_above_it_and_undo_takes_it_back`,

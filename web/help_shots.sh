@@ -6,7 +6,7 @@
 set -e
 out="${1:-docs/help/img}"
 mkdir -p "$out"
-HELP_SHOTS="$(cd "$out" && pwd)" cargo test -p tracedraw --bin tracedraw help_shots -- --ignored --nocapture
+HELP_SHOTS="$(cd "$out" && pwd)" cargo test -p graphdraw --bin graphdraw help_shots -- --ignored --nocapture
 rm -f "$out/shots.txt"
 # Smaller files when a PNG optimizer is installed.
 if command -v oxipng >/dev/null 2>&1; then

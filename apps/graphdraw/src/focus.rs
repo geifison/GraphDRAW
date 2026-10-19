@@ -1,12 +1,12 @@
 //! Focus mode: one group or object of a complex drawing edited on its
-//! own. Everything else fades (Options > TraceDraw > Edit > Visibility of
+//! own. Everything else fades (Options > GraphDraw > Edit > Visibility of
 //! inactive objects), clicks pick only inside the object in focus, and a
 //! bar at the top of the drawing window shows the way in: the drawing,
 //! then each group, each a step back out. See docs/behavior/focus-mode.md.
 
 use crate::app::App;
-use tracedraw_core::document::{Shape, ShapeKind};
-use tracedraw_core::ShapeId;
+use graphdraw_core::document::{Shape, ShapeKind};
+use graphdraw_core::ShapeId;
 
 impl App {
     /// The object in focus, when focus mode is on and it still exists.
@@ -102,7 +102,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::{Point, Rect};
+    use graphdraw_core::{Point, Rect};
 
     fn rect_at(app: &mut App, x: f64) -> ShapeId {
         app.new_shape(ShapeKind::Rect {
@@ -153,16 +153,16 @@ mod tests {
         let b = rect_at(&mut app, 30.0);
         for id in [a, b] {
             app.select(vec![id]);
-            app.apply_fill(tracedraw_core::Fill::Solid(tracedraw_core::Color::rgb8(
+            app.apply_fill(graphdraw_core::Fill::Solid(graphdraw_core::Color::rgb8(
                 0, 0, 0,
             )));
         }
         let doc = app.doc().clone();
         let page = doc.pages[0].id;
-        let opts = |focus| tracedraw_render::RenderOptions {
+        let opts = |focus| graphdraw_render::RenderOptions {
             width: 60,
             height: 40,
-            view: tracedraw_render::ViewTransform {
+            view: graphdraw_render::ViewTransform {
                 zoom: 1.0,
                 origin_x: 0.0,
                 origin_y: 40.0,
@@ -170,7 +170,7 @@ mod tests {
             focus,
             ..Default::default()
         };
-        let img = tracedraw_render::render_page(&doc, page, &opts(Some((a, 0.2)))).expect("render");
+        let img = graphdraw_render::render_page(&doc, page, &opts(Some((a, 0.2)))).expect("render");
         // The object in focus is drawn as it is; the other one faded.
         assert_eq!(img.pixel(15, 25).expect("px").alpha(), 255);
         let faded = img.pixel(35, 25).expect("px").alpha();

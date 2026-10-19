@@ -1,8 +1,8 @@
 # Tekenen en genereren met AI
 
-TraceDraw kan tekenen op basis van een beschrijving in woorden en afbeeldingen
+GraphDraw kan tekenen op basis van een beschrijving in woorden en afbeeldingen
 maken met een AI-dienst die u zelf kiest en met uw eigen sleutel instelt.
-TraceDraw heeft geen eigen AI en geen account: er wordt niets verzonden totdat
+GraphDraw heeft geen eigen AI en geen account: er wordt niets verzonden totdat
 u een AI-opdracht uitvoert, en dan gaat alleen wat die opdracht nodig heeft
 naar de dienst die u hebt ingesteld. Elk verzoek wordt door uw dienst in
 rekening gebracht; lokale modelservers op uw computer kosten niets.
@@ -49,7 +49,7 @@ groter en zet de titel eronder", in de promptbalk of in de modus **Tekenen met
 woorden** van het paneel [[docker.ai_generate]]
 ([[menu.object > menu.object.ai_generate > menu.object.ai_draw_words]]), en
 druk op **Tekenen** of <kbd>Enter</kbd>. De dienst schrijft een script voor de
-tekening, dat TraceDraw als één ongedaan-makenstap uitvoert. Het gesprek wordt
+tekening, dat GraphDraw als één ongedaan-makenstap uitvoert. Het gesprek wordt
 bewaard, zodat u om wijzigingen kunt vragen; **Nieuw gesprek** begint opnieuw.
 **Openen in Scripts** toont het script.
 

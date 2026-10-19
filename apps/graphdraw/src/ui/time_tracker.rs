@@ -678,7 +678,7 @@ fn export(app: &mut App, kind: Export) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::{geometry::Size, Document};
+    use graphdraw_core::{geometry::Size, Document};
 
     fn app_with_tasks() -> App {
         let mut app = App::headless();

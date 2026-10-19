@@ -4,8 +4,8 @@
 //! docs/behavior/colour-management.md.
 
 use crate::app::App;
-use tracedraw_core::icc::{ColorSpace, Intent, Profile, Transform};
-use tracedraw_core::{Color, Command, Fill, Shape, ShapeKind};
+use graphdraw_core::icc::{ColorSpace, Intent, Profile, Transform};
+use graphdraw_core::{Color, Command, Fill, Shape, ShapeKind};
 
 /// The colour spaces the dialog lists profiles for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -292,7 +292,7 @@ impl App {
         cmds.push(Command::SetCmykProfile {
             profile: new_data
                 .filter(|_| new_profile.is_some())
-                .map(|data| tracedraw_core::DocumentProfile::new(cmyk.name(), data)),
+                .map(|data| graphdraw_core::DocumentProfile::new(cmyk.name(), data)),
         });
         if let Err(e) = self.engine.run_batch("Color Management", &cmds) {
             self.status = e.to_string();
@@ -354,7 +354,7 @@ impl App {
     pub fn apply_import_policy(
         &self,
         shapes: &mut [Shape],
-        profile: Option<&tracedraw_core::DocumentProfile>,
+        profile: Option<&graphdraw_core::DocumentProfile>,
     ) {
         let c = &self.settings.color;
         if c.import_cmyk != 0 {
@@ -406,15 +406,15 @@ impl FoundOrName {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::icc::test_profiles as tp;
+    use graphdraw_core::icc::test_profiles as tp;
 
     #[test]
     fn fills_and_outlines_of_nested_shapes_are_recoloured() {
-        let mut ids = tracedraw_core::id::IdSource::default();
+        let mut ids = graphdraw_core::id::IdSource::default();
         let mut inner = Shape::new(
             ids.shape(),
             ShapeKind::Rect {
-                rect: tracedraw_core::geometry::Rect::new(0.0, 0.0, 1.0, 1.0),
+                rect: graphdraw_core::geometry::Rect::new(0.0, 0.0, 1.0, 1.0),
                 radius: 0.0,
                 corners: None,
             },

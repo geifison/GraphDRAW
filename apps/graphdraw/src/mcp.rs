@@ -1,4 +1,4 @@
-//! `tracedraw --mcp`: a Model Context Protocol server on stdin/stdout.
+//! `graphdraw --mcp`: a Model Context Protocol server on stdin/stdout.
 //!
 //! The editor runs headless and answers JSON-RPC 2.0 messages (one per
 //! line) with the MCP methods `initialize`, `ping`, `tools/list` and
@@ -57,7 +57,7 @@ pub fn handle_line(app: &mut App, line: &str) -> Option<String> {
         "initialize" => Ok(json!({
             "protocolVersion": PROTOCOL_VERSION,
             "capabilities": {"tools": {}},
-            "serverInfo": {"name": "tracedraw", "version": env!("CARGO_PKG_VERSION")},
+            "serverInfo": {"name": "graphdraw", "version": env!("CARGO_PKG_VERSION")},
         })),
         "ping" => Ok(json!({})),
         "tools/list" => Ok(json!({"tools": tool_list()})),
@@ -94,7 +94,7 @@ pub fn tool_list() -> Vec<Value> {
     vec![
         tool(
             "open",
-            "Open a file as the current document: .cdr, .tdraw, .svg, .svgz, .pdf, .ai, .eps, .ps, .dxf, .psd, .psb, .emf, .wmf, .plt, .txt, .rtf, .docx, or an image.",
+            "Open a file as the current document: .cdr, .gdr, .svg, .svgz, .pdf, .ai, .eps, .ps, .dxf, .psd, .psb, .emf, .wmf, .plt, .txt, .rtf, .docx, or an image.",
             json!({"path": {"type": "string"}}),
             &["path"],
         ),
@@ -106,7 +106,7 @@ pub fn tool_list() -> Vec<Value> {
         ),
         tool(
             "save",
-            "Save the document to a path: .tdraw (native) or .cdr. For .cdr, version picks the file version (7 to 27; default: the version of the .cdr file the document came from, else the one set in the options).",
+            "Save the document to a path: .gdr (native) or .cdr. For .cdr, version picks the file version (7 to 27; default: the version of the .cdr file the document came from, else the one set in the options).",
             json!({"path": {"type": "string"}, "version": {"type": "integer"}}),
             &["path"],
         ),
@@ -169,7 +169,7 @@ pub fn call_tool(app: &mut App, name: &str, args: &Value) -> Result<String, Stri
                 .and_then(|v| v.as_str())
                 .map(String::from)
                 .unwrap_or_else(|| app.next_untitled_name());
-            let doc = App::localized_document(title, tracedraw_core::geometry::Size::new(w, h));
+            let doc = App::localized_document(title, graphdraw_core::geometry::Size::new(w, h));
             app.open_document(doc, None);
             Ok(describe(app).to_string())
         }
@@ -181,19 +181,19 @@ pub fn call_tool(app: &mut App, name: &str, args: &Value) -> Result<String, Stri
                 Some(v) => v
                     .as_u64()
                     .and_then(|v| u16::try_from(v).ok())
-                    .filter(|v| tracedraw_cdr::write::checked_versions().contains(v))
+                    .filter(|v| graphdraw_cdr::write::checked_versions().contains(v))
                     .ok_or_else(|| {
                         format!(
                             "version must be {} to {}",
-                            tracedraw_cdr::write::CHECKED_SINCE,
-                            tracedraw_cdr::write::CHECKED_UNTIL
+                            graphdraw_cdr::write::CHECKED_SINCE,
+                            graphdraw_cdr::write::CHECKED_UNTIL
                         )
                     })?,
             };
             let r = if is_cdr {
                 std::fs::write(
                     &path,
-                    tracedraw_cdr::write::document_to_cdr_version_with(
+                    graphdraw_cdr::write::document_to_cdr_version_with(
                         app.engine.document(),
                         version,
                         &crate::app::cdr_previews(app.engine.document()),
@@ -201,8 +201,8 @@ pub fn call_tool(app: &mut App, name: &str, args: &Value) -> Result<String, Stri
                 )
                 .map_err(|e| e.to_string())
             } else {
-                tracedraw_io::save_native(
-                    &tracedraw_text::fonts().with_carried_fonts(app.engine.document()),
+                graphdraw_io::save_native(
+                    &graphdraw_text::fonts().with_carried_fonts(app.engine.document()),
                     &path,
                 )
                 .map_err(|e| e.to_string())
@@ -256,30 +256,30 @@ fn export_to(app: &App, path: &std::path::Path, page_index: usize, dpi: f64) -> 
         .and_then(|e| e.to_str())
         .map(|e| e.to_ascii_lowercase())
         .unwrap_or_default();
-    let e = |r: tracedraw_io::Result<()>| r.map_err(|e| e.to_string());
+    let e = |r: graphdraw_io::Result<()>| r.map_err(|e| e.to_string());
     match ext.as_str() {
-        "svg" => e(tracedraw_io::save_svg(doc, page_index, path)),
-        "pdf" => e(tracedraw_io::save_pdf(doc, path)),
-        "eps" => std::fs::write(path, tracedraw_io::eps::page_to_eps(doc, page_index))
+        "svg" => e(graphdraw_io::save_svg(doc, page_index, path)),
+        "pdf" => e(graphdraw_io::save_pdf(doc, path)),
+        "eps" => std::fs::write(path, graphdraw_io::eps::page_to_eps(doc, page_index))
             .map_err(|e| e.to_string()),
         "ps" | "prn" => {
-            std::fs::write(path, tracedraw_io::eps::document_to_ps(doc)).map_err(|e| e.to_string())
+            std::fs::write(path, graphdraw_io::eps::document_to_ps(doc)).map_err(|e| e.to_string())
         }
-        "dxf" => e(tracedraw_io::save_dxf(doc, page_index, path)),
-        "emf" => e(tracedraw_io::save_emf(doc, page_index, path)),
-        "wmf" => e(tracedraw_io::save_wmf(doc, page_index, path)),
-        "plt" => e(tracedraw_io::save_plt(doc, page_index, path)),
-        "psd" => e(tracedraw_io::save_psd(
+        "dxf" => e(graphdraw_io::save_dxf(doc, page_index, path)),
+        "emf" => e(graphdraw_io::save_emf(doc, page_index, path)),
+        "wmf" => e(graphdraw_io::save_wmf(doc, page_index, path)),
+        "plt" => e(graphdraw_io::save_plt(doc, page_index, path)),
+        "psd" => e(graphdraw_io::save_psd(
             doc,
             page_index,
             dpi.clamp(1.0, 2400.0),
             path,
         )),
-        "html" => std::fs::write(path, tracedraw_io::html::document_to_html(doc))
+        "html" => std::fs::write(path, graphdraw_io::html::document_to_html(doc))
             .map_err(|e| e.to_string()),
         "png" => {
             let page = doc.pages[page_index].id;
-            let pm = tracedraw_render::render_page_image(doc, page, dpi.clamp(1.0, 2400.0))
+            let pm = graphdraw_render::render_page_image(doc, page, dpi.clamp(1.0, 2400.0))
                 .ok_or("render failed")?;
             pm.save_png(path).map_err(|e| e.to_string())
         }
@@ -303,7 +303,7 @@ mod tests {
         let mut app = App::headless();
         let init = call(&mut app, 1, "initialize", json!({}));
         assert_eq!(init["result"]["protocolVersion"], PROTOCOL_VERSION);
-        assert_eq!(init["result"]["serverInfo"]["name"], "tracedraw");
+        assert_eq!(init["result"]["serverInfo"]["name"], "graphdraw");
         // A notification gets no reply.
         assert!(handle_line(
             &mut app,
@@ -378,7 +378,7 @@ mod tests {
     #[test]
     fn export_and_save_write_files() {
         let mut app = App::headless();
-        let dir = std::env::temp_dir().join(format!("tracedraw-mcp-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("graphdraw-mcp-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         call(
             &mut app,
@@ -386,9 +386,9 @@ mod tests {
             "tools/call",
             json!({"name": "run_script", "arguments": {"source": "ActiveLayer.CreateEllipse(10, 10, 60, 40);"}}),
         );
-        for ext in ["svg", "pdf", "png", "emf", "cdr", "tdraw"] {
+        for ext in ["svg", "pdf", "png", "emf", "cdr", "gdr"] {
             let path = dir.join(format!("out.{ext}"));
-            let tool = if ext == "cdr" || ext == "tdraw" {
+            let tool = if ext == "cdr" || ext == "gdr" {
                 "save"
             } else {
                 "export"
@@ -428,7 +428,7 @@ mod tests {
         );
         assert_eq!(r["result"]["isError"], false, "{r}");
         let bytes = std::fs::read(&v21).unwrap_or_default();
-        let (_, report) = tracedraw_cdr::open_bytes(&bytes, "v21").expect("opens");
+        let (_, report) = graphdraw_cdr::open_bytes(&bytes, "v21").expect("opens");
         assert_eq!(report.version.map(|v| v.0), Some(21));
         assert_eq!(app.cdr_save_version(), 21);
         for bad in [json!(3), json!(9), json!(28), json!("x"), json!(-1)] {

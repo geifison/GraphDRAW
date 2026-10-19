@@ -10,7 +10,7 @@ use crate::settings::{AutoCenter, NodeShape, NodeSize, Startup};
 use crate::theme::Tokens;
 use crate::ui::chrome;
 use egui::{Context, Ui};
-use tracedraw_core::{geometry::Size, Color, Command, Fill};
+use graphdraw_core::{geometry::Size, Color, Command, Fill};
 
 /// Which dialog a page belongs to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,7 +26,7 @@ pub enum OptionsSet {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum OptionsPage {
-    // Tools > Options > TraceDraw.
+    // Tools > Options > GraphDraw.
     #[default]
     General,
     Display,
@@ -123,7 +123,7 @@ impl OptionsSet {
 
     fn title(self) -> String {
         match self {
-            OptionsSet::App => trf("options.title_app", &[("app", "TraceDraw")]),
+            OptionsSet::App => trf("options.title_app", &[("app", "GraphDraw")]),
             OptionsSet::Customization => tr("options.title_customization"),
             OptionsSet::Tools => tr("options.title_tools"),
             OptionsSet::Global => tr("options.title_global"),
@@ -204,7 +204,7 @@ pub struct OptionsSnapshot {
     language: String,
     units: Units,
     nudge_mm: f64,
-    duplicate_offset: tracedraw_core::geometry::Vec2,
+    duplicate_offset: graphdraw_core::geometry::Vec2,
     show_rulers: bool,
     show_grid: bool,
     show_guides: bool,
@@ -225,9 +225,9 @@ pub struct OptionsSnapshot {
     snap: crate::snap::SnapSettings,
     polygon_points: u32,
     star_sharpness: f64,
-    rect_corners: tracedraw_core::Corners,
+    rect_corners: graphdraw_core::Corners,
     corners_together: bool,
-    ellipse_arc: Option<tracedraw_core::EllipseArc>,
+    ellipse_arc: Option<graphdraw_core::EllipseArc>,
     spiral_revolutions: u32,
     spiral_logarithmic: bool,
     graph_rows: u32,
@@ -594,13 +594,13 @@ fn rgb_button(ui: &mut Ui, rgb: &mut [u8; 3]) -> bool {
     resp.changed()
 }
 
-// ----- TraceDraw options -------------------------------------------------
+// ----- GraphDraw options -------------------------------------------------
 
 fn general_page(app: &mut App, ui: &mut Ui) {
     chrome::section(ui, &tr("options.getting_started"));
     ui.indent("gs", |ui| {
         grid("startup").show(ui, |ui| {
-            row_label(ui, &trf("options.on_startup", &[("app", "TraceDraw")]));
+            row_label(ui, &trf("options.on_startup", &[("app", "GraphDraw")]));
             let mut s = app.settings.startup;
             if combo(ui, "startup", &mut s, &Startup::ALL, |v| tr(v.key()), 240.0) {
                 app.settings.startup = s;
@@ -1948,7 +1948,7 @@ fn zoom_pan_page(app: &mut App, ui: &mut Ui) {
 }
 
 fn rectangle_page(app: &mut App, ui: &mut Ui) {
-    use tracedraw_core::{CornerKind, Corners};
+    use graphdraw_core::{CornerKind, Corners};
     let mut c = app.rect_corners;
     let u = app.units;
     let together = app.corners_together;
@@ -2026,7 +2026,7 @@ fn ellipse_page(app: &mut App, ui: &mut Ui) {
     ui.radio_value(&mut kind, 0, tr("options.ellipse"));
     ui.radio_value(&mut kind, 1, tr("options.pie"));
     ui.radio_value(&mut kind, 2, tr("options.arc"));
-    let mut arc = app.ellipse_arc.unwrap_or(tracedraw_core::EllipseArc {
+    let mut arc = app.ellipse_arc.unwrap_or(graphdraw_core::EllipseArc {
         start_deg: 0.0,
         end_deg: 270.0,
         pie: true,
@@ -2346,7 +2346,7 @@ fn document_general_page(app: &mut App, ui: &mut Ui) {
             );
             if a.changed() || b.changed() {
                 app.duplicate_offset =
-                    tracedraw_core::geometry::Vec2::new(u.world_to_mm(dx), u.world_to_mm(dy));
+                    graphdraw_core::geometry::Vec2::new(u.world_to_mm(dx), u.world_to_mm(dy));
             }
         });
         ui.end_row();
@@ -2368,7 +2368,7 @@ fn layout_page(app: &mut App, ui: &mut Ui) {
     }
     ui.separator();
     ui.strong(tr("options.master_layers"));
-    let masters: Vec<(tracedraw_core::LayerId, String, tracedraw_core::MasterScope)> = app
+    let masters: Vec<(graphdraw_core::LayerId, String, graphdraw_core::MasterScope)> = app
         .doc()
         .master
         .iter()
@@ -2378,9 +2378,9 @@ fn layout_page(app: &mut App, ui: &mut Ui) {
         ui.horizontal(|ui| {
             ui.label(&name);
             for (s, k) in [
-                (tracedraw_core::MasterScope::All, "options.scope_all"),
-                (tracedraw_core::MasterScope::Odd, "options.scope_odd"),
-                (tracedraw_core::MasterScope::Even, "options.scope_even"),
+                (graphdraw_core::MasterScope::All, "options.scope_all"),
+                (graphdraw_core::MasterScope::Odd, "options.scope_odd"),
+                (graphdraw_core::MasterScope::Even, "options.scope_even"),
             ] {
                 if ui.selectable_label(scope == s, tr(k)).clicked() {
                     app.run(Command::SetLayerScope {
@@ -2393,9 +2393,9 @@ fn layout_page(app: &mut App, ui: &mut Ui) {
     }
     ui.horizontal(|ui| {
         for (s, k) in [
-            (tracedraw_core::MasterScope::All, "options.new_master_all"),
-            (tracedraw_core::MasterScope::Odd, "options.new_master_odd"),
-            (tracedraw_core::MasterScope::Even, "options.new_master_even"),
+            (graphdraw_core::MasterScope::All, "options.new_master_all"),
+            (graphdraw_core::MasterScope::Odd, "options.new_master_odd"),
+            (graphdraw_core::MasterScope::Even, "options.new_master_even"),
         ] {
             if ui.button(tr(k)).clicked() {
                 crate::ui::objects_docker::new_master_layer(app, s);

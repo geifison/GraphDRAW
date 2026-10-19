@@ -1,6 +1,6 @@
 //! Lens docker state.
 
-use tracedraw_core::{live::Lens, Color};
+use graphdraw_core::{live::Lens, Color};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LensSettings {
@@ -12,7 +12,7 @@ pub struct LensSettings {
     pub frozen: bool,
     pub remove_face: bool,
     /// Bitmap Effects lens: the effects, in order.
-    pub effects: Vec<tracedraw_core::BitmapEffect>,
+    pub effects: Vec<graphdraw_core::BitmapEffect>,
 }
 
 impl Default for LensSettings {
@@ -50,7 +50,7 @@ impl crate::app::App {
     /// Add bitmap effect `id` (default settings) to the selection's
     /// Bitmap Effects lens, making one when there is none.
     pub fn add_lens_effect(&mut self, id: &str) {
-        use tracedraw_core::live::Effect;
+        use graphdraw_core::live::Effect;
         let current = self.selected_shapes().first().and_then(|s| {
             s.effects.iter().find_map(|e| match e {
                 Effect::Lens(Lens::Effects { effects }) => Some(effects.clone()),
@@ -166,7 +166,7 @@ impl LensSettings {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::live::Effect;
+    use graphdraw_core::live::Effect;
 
     #[test]
     fn effects_lens_settings_round_trip_and_effects_are_added_to_the_lens() {
@@ -180,15 +180,15 @@ mod tests {
         let mut app = crate::app::App::headless();
         let layer = app.active_layer().expect("a layer");
         let id = app.engine.new_shape_id();
-        let shape = tracedraw_core::Shape::new(
+        let shape = graphdraw_core::Shape::new(
             id,
-            tracedraw_core::ShapeKind::Rect {
-                rect: tracedraw_core::Rect::new(0.0, 0.0, 20.0, 20.0),
+            graphdraw_core::ShapeKind::Rect {
+                rect: graphdraw_core::Rect::new(0.0, 0.0, 20.0, 20.0),
                 radius: 0.0,
                 corners: None,
             },
         );
-        app.run(tracedraw_core::Command::AddShape { layer, shape });
+        app.run(graphdraw_core::Command::AddShape { layer, shape });
         app.select(vec![id]);
         app.add_lens_effect("gaussian_blur");
         app.add_lens_effect("invert_colors");

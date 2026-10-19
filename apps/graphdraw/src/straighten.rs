@@ -172,7 +172,7 @@ impl crate::app::App {
     /// Straighten every selected bitmap, in one undo step. Each keeps its
     /// centre and resolution, so a cropped result is smaller on the page.
     pub fn straighten_image(&mut self, st: &Straighten) {
-        use tracedraw_core::document::ShapeKind;
+        use graphdraw_core::document::ShapeKind;
         let mut cmds = Vec::new();
         for (id, rect, w, h, png) in self.bitmap_shapes() {
             let Some(img) = crate::bitmap_fx::decode(&png) else {
@@ -192,10 +192,10 @@ impl crate::app::App {
             }
             let c = rect.center();
             let (nw, nh) = (out.width() as f64 * mx, out.height() as f64 * my);
-            cmds.push(tracedraw_core::Command::SetShapeKind {
+            cmds.push(graphdraw_core::Command::SetShapeKind {
                 shape: id,
                 kind: ShapeKind::Bitmap {
-                    rect: tracedraw_core::Rect::new(
+                    rect: graphdraw_core::Rect::new(
                         c.x - nw / 2.0,
                         c.y - nh / 2.0,
                         c.x + nw / 2.0,
@@ -336,12 +336,12 @@ mod tests {
 
     #[test]
     fn straightening_keeps_centre_and_resolution_in_one_step() {
-        use tracedraw_core::document::ShapeKind;
+        use graphdraw_core::document::ShapeKind;
         let mut app = crate::app::App::headless();
         let png = crate::bitmap_fx::encode(&checker(60, 40)).expect("png");
         let id = app
             .new_shape(ShapeKind::Bitmap {
-                rect: tracedraw_core::Rect::new(10.0, 10.0, 70.0, 50.0),
+                rect: graphdraw_core::Rect::new(10.0, 10.0, 70.0, 50.0),
                 width_px: 60,
                 height_px: 40,
                 png,

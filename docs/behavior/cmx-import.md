@@ -1,7 +1,7 @@
 # CMX import
 
 File > Open and File > Import read `.cmx` exchange files; so does
-`tracedraw-cli` (`info`, `convert`). The file's layout is described in
+`graphdraw-cli` (`info`, `convert`). The file's layout is described in
 `docs/cmx-format.md`.
 
 ## What comes in

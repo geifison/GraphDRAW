@@ -116,4 +116,4 @@ Os nós selecionados vão para uma linha horizontal ou vertical comum, ou para u
 
 A aparência dos nós e das alças é definida na página
 [[options.nodes_and_handles]] das opções; veja
-[Opções do TraceDraw](../customize/options-app.md#nodes-and-handles).
+[Opções do GraphDraw](../customize/options-app.md#nodes-and-handles).

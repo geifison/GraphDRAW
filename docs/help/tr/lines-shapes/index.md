@@ -1,6 +1,6 @@
 # Çizgiler, şekiller ve anahatlar
 
-TraceDraw'da çizdiğiniz her şey çizgilerden ve şekillerden oluşur. Bu sayfalar
+GraphDraw'da çizdiğiniz her şey çizgilerden ve şekillerden oluşur. Bu sayfalar
 onları çizen araçları, düğüm düğüm yeniden biçimlendirmeyi, birleştirip
 kesmeyi ve kenarlarını çizen anahattı ayarlamayı açıklar.
 

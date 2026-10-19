@@ -2,7 +2,7 @@
 //! palette files (.tdpal JSON, Adobe .ase, GIMP .gpl, Adobe .aco) and the
 //! document palette.
 
-use tracedraw_core::Color;
+use graphdraw_core::Color;
 
 #[derive(Debug, Clone)]
 pub struct Palette {
@@ -451,7 +451,7 @@ pub fn parse_aco(d: &[u8]) -> Vec<(String, Color)> {
                 b: w(2) / 65535.0,
             },
             1 => {
-                let [r, g, b] = tracedraw_core::color::hsb_to_rgb(
+                let [r, g, b] = graphdraw_core::color::hsb_to_rgb(
                     w(0) / 65535.0 * 360.0,
                     w(1) / 65535.0,
                     w(2) / 65535.0,
@@ -628,7 +628,7 @@ mod tests {
 
     #[test]
     fn a_colour_book_spot_colour_brings_its_ink_along() {
-        use tracedraw_core::{Fill, ShapeKind};
+        use graphdraw_core::{Fill, ShapeKind};
         let mut app = crate::app::App::headless();
         let gold = spot_color("Gold 871", Color::cmyk_pct(0.0, 20.0, 80.0, 10.0));
         app.palettes.push(Palette {
@@ -640,7 +640,7 @@ mod tests {
         });
         let id = app
             .new_shape(ShapeKind::Rect {
-                rect: tracedraw_core::Rect::new(0.0, 0.0, 10.0, 10.0),
+                rect: graphdraw_core::Rect::new(0.0, 0.0, 10.0, 10.0),
                 radius: 0.0,
                 corners: None,
             })

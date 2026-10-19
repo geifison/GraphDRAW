@@ -12,7 +12,7 @@ use crate::tools::Tool;
 use crate::ui::dockers::kind_name;
 use egui::{Color32, Pos2, Rect, Sense, Stroke, Ui, Vec2};
 use serde::{Deserialize, Serialize};
-use tracedraw_core::document::ShapeKind;
+use graphdraw_core::document::ShapeKind;
 
 /// Height of the bar: a 1 px line, then 41 px.
 pub const BAR_H: f32 = 42.0;
@@ -82,7 +82,7 @@ pub fn object_info(app: &App) -> String {
                 if let ShapeKind::Path { path, .. } = &s.kind {
                     // The nodes the Shape tool shows (a closed curve's start
                     // and the end lying on it count once).
-                    let n = tracedraw_core::nodes::nodes(path).len();
+                    let n = graphdraw_core::nodes::nodes(path).len();
                     return trf("status.curve_nodes", &[("n", &n.to_string())]);
                 }
                 // A rectangle, ellipse or polygon is still that object,
@@ -252,11 +252,11 @@ fn document_color(app: &App) -> String {
 
 /// The outline as the status bar describes it: colour and width in the
 /// drawing units (or "Hairline").
-fn outline_text(app: &App, stroke: &Option<tracedraw_core::Stroke>) -> String {
+fn outline_text(app: &App, stroke: &Option<graphdraw_core::Stroke>) -> String {
     match stroke {
         None => tr("status.none"),
         Some(s) => {
-            let width = if s.width <= tracedraw_core::Stroke::HAIRLINE + 1e-9 {
+            let width = if s.width <= graphdraw_core::Stroke::HAIRLINE + 1e-9 {
                 tr("status.hairline")
             } else {
                 let u = app.units;
@@ -633,7 +633,7 @@ fn proof_icon(painter: &egui::Painter, r: Rect) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::geometry::Rect as PRect;
+    use graphdraw_core::geometry::Rect as PRect;
 
     #[test]
     fn every_tool_has_its_own_hint() {
@@ -658,7 +658,7 @@ mod tests {
             .expect("layer");
         app.select(vec![a]);
         assert_eq!(object_info(&app), "Rectangle on Layer 1");
-        let mut path = tracedraw_core::geometry::BezPath::new();
+        let mut path = graphdraw_core::geometry::BezPath::new();
         path.move_to((0.0, 0.0));
         path.line_to((5.0, 5.0));
         path.line_to((9.0, 1.0));
@@ -682,7 +682,7 @@ mod tests {
     fn outline_width_is_shown_in_the_drawing_units() {
         crate::i18n::set_language("en");
         let mut app = App::headless();
-        let s = Some(tracedraw_core::Stroke {
+        let s = Some(graphdraw_core::Stroke {
             width: 0.2,
             ..Default::default()
         });

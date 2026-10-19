@@ -1,7 +1,7 @@
 # Réinitialiser les paramètres
 
 Si votre configuration s'emmêle, vous pouvez remettre toutes les
-préférences telles que TraceDraw les fournit. Vos dessins ne sont jamais
+préférences telles que GraphDraw les fournit. Vos dessins ne sont jamais
 touchés.
 
 ## Pour réinitialiser tous les paramètres {#reset}
@@ -9,9 +9,9 @@ touchés.
 - Choisissez [[options.reset_all]] dans la page [[options.general]] de
   [[menu.tools > menu.tools.options > menu.tools.options_global]].
 - Ou appuyez sur <kbd>F8</kbd> pendant que l'écran de démarrage s'affiche au
-  lancement de TraceDraw.
+  lancement de GraphDraw.
 
-TraceDraw demande d'abord confirmation. **Réinitialiser** remet toutes les
+GraphDraw demande d'abord confirmation. **Réinitialiser** remet toutes les
 préférences, mais conserve la liste des dessins récents, le dernier dossier
 et la taille de la fenêtre. [[dialog.cancel]] ne change rien.
 

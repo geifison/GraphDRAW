@@ -4,7 +4,7 @@ Desktop only (the browser build is always the latest; there Help >
 Updates opens the releases page).
 
 - Help > Updates asks GitHub for the project's latest release
-  (`api.github.com/repos/igtoth/tracedraw/releases/latest`) and says
+  (`api.github.com/repos/geifison/GraphDRAW/releases/latest`) and says
   whether it is newer than this version (numbers compared as major,
   minor, patch; drafts, pre-releases and the nightly build never count).
 - A newer release offers Download (the file for this system: the
@@ -12,7 +12,7 @@ Updates opens the releases page).
   Mac's processor; the Linux AppImage, else the tar.gz; the release page
   when none fits), Release notes, Skip this version and Close. Download
   opens the link; the system's installer does the installing.
-- Install in place (Linux AppImage only): when TraceDraw runs as an
+- Install in place (Linux AppImage only): when GraphDraw runs as an
   AppImage (the AppImage runtime names its file in `APPIMAGE`) and the
   release's AppImage has a SHA-256 digest (GitHub gives one for every
   uploaded file), the dialog offers Install first. It downloads the

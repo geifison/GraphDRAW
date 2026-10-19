@@ -1,16 +1,16 @@
 # Ayarları sıfırlama
 
-Kurulumunuz karışırsa her tercihi TraceDraw'un ilk geldiği hâline geri
+Kurulumunuz karışırsa her tercihi GraphDraw'un ilk geldiği hâline geri
 döndürebilirsiniz. Çizimlerinize asla dokunulmaz.
 
 ## Her ayarı sıfırlamak için {#reset}
 
 - [[menu.tools > menu.tools.options > menu.tools.options_global]] altındaki
   [[options.general]] sayfasında [[options.reset_all]] seçeneğini seçin.
-- Ya da TraceDraw başlarken açılış ekranı görünürken <kbd>F8</kbd> tuşuna
+- Ya da GraphDraw başlarken açılış ekranı görünürken <kbd>F8</kbd> tuşuna
   basın.
 
-TraceDraw önce sorar. **Sıfırla** her tercihi geri döndürür, ancak son
+GraphDraw önce sorar. **Sıfırla** her tercihi geri döndürür, ancak son
 çizimler listesini, son klasörü ve pencerenin boyutunu korur.
 [[dialog.cancel]] hiçbir şeyi değiştirmez.
 

@@ -1,6 +1,6 @@
-# MCP server (`tracedraw --mcp`)
+# MCP server (`graphdraw --mcp`)
 
-`tracedraw --mcp` runs the editor without a window and speaks the Model
+`graphdraw --mcp` runs the editor without a window and speaks the Model
 Context Protocol over stdin and stdout: JSON-RPC 2.0, one message per
 line, protocol version 2024-11-05, the `tools` capability. An AI agent
 (or any MCP client) connected to it opens, edits, inspects, exports and
@@ -9,21 +9,21 @@ saves documents with the same commands and undo history a user has.
 Client configuration, for example:
 
 ```json
-{ "mcpServers": { "tracedraw": { "command": "tracedraw", "args": ["--mcp"] } } }
+{ "mcpServers": { "graphdraw": { "command": "graphdraw", "args": ["--mcp"] } } }
 ```
 
-## The open window (`tracedraw --mcp-window`)
+## The open window (`graphdraw --mcp-window`)
 
-The same tools can work on the drawings of a TraceDraw window the user
+The same tools can work on the drawings of a GraphDraw window the user
 has open. Options > Global > General > "Let AI agents on this computer
 edit the open drawing (MCP)" (off by default, desktop only) makes the
 window listen on a free port of `127.0.0.1` and write the port, a random
 128-bit token and its process id to `mcp-window.json` in the preferences
-folder (removed when the option is turned off or TraceDraw closes). The
+folder (removed when the option is turned off or GraphDraw closes). The
 client is configured with the bridge as its command:
 
 ```json
-{ "mcpServers": { "tracedraw-window": { "command": "tracedraw", "args": ["--mcp-window"] } } }
+{ "mcpServers": { "graphdraw-window": { "command": "graphdraw", "args": ["--mcp-window"] } } }
 ```
 
 The bridge reads the file and forwards each line of standard input as an
@@ -57,9 +57,9 @@ request with a JSON-RPC error (-32000) saying how to turn the option on.
 
 | Tool | Arguments | Effect |
 | --- | --- | --- |
-| `open` | `path` | Opens any supported file (`.cdr`, `.tdraw`, SVG, PDF, AI, EPS, DXF, PSD, EMF, WMF, images) and returns the document description |
+| `open` | `path` | Opens any supported file (`.cdr`, `.gdr`, SVG, PDF, AI, EPS, DXF, PSD, EMF, WMF, images) and returns the document description |
 | `new_document` | `width_mm`, `height_mm`, `title` (all optional; A4 default) | A fresh document |
-| `save` | `path`, `version` (optional, `.cdr` only: 14 to 27, the versions checked in other programs) | Native `.tdraw`, or `.cdr` through the writer in `version` (default: the version of the `.cdr` the document came from or was last saved in, else the one in Options > Global > File Formats); marks the document saved |
+| `save` | `path`, `version` (optional, `.cdr` only: 14 to 27, the versions checked in other programs) | Native `.gdr`, or `.cdr` through the writer in `version` (default: the version of the `.cdr` the document came from or was last saved in, else the one in Options > Global > File Formats); marks the document saved |
 | `export` | `path`, `page_index` (0), `dpi` (96) | SVG, PDF, EPS, DXF, EMF, WMF, PLT, PSD, HTML or PNG by extension |
 | `run_script` | `source` | Runs the JavaScript object model (`Application`, `ActiveDocument`, `ActivePage`, `ActiveLayer`, `ActiveSelection`, `Shapes`, `CreateRectangle`, `CreateEllipse`, `CreateArtisticText`, `CreateCurve`, `Fill`, `Outline`, `Move`, `Rotate`, `Stretch`, `Duplicate`, `Delete`, ...) and returns what it printed; the whole script is one undo step |
 | `document_info` | | Title, file, modified flag, pages with size, layers with visibility and lock, every object with id, type, name, bounds in mm, fill, outline, opacity, text and font, group children, effect count; the selection |
@@ -78,7 +78,7 @@ The same rule applies to drawing in the window.
 - `new_document` 100 x 50, then a script creating a red rectangle and
   printing `ActivePage.Shapes.Count`, prints `1`; `document_info` lists
   one rectangle with fill `R:255 G:0 B:0`; `undo` leaves none.
-- `export` to svg, pdf, png and emf and `save` to cdr and tdraw each
+- `export` to svg, pdf, png and emf and `save` to cdr and gdr each
   write a non-empty file; the saved `.cdr` opens again with its ellipse.
 - `save` with `version` 21 writes a file that reads back as version 21;
   versions 3, 23, -1 and a string are refused and write nothing.
@@ -94,5 +94,5 @@ The same rule applies to drawing in the window.
   an error naming the option (`mcp_link::tests::without_a_window_the_bridge_says_so`);
   the option starts and stops listening
   (`mcp_link::tests::the_option_starts_and_stops_listening`).
-- Checked on screen: `tracedraw --mcp-window` drew a star and a line of
+- Checked on screen: `graphdraw --mcp-window` drew a star and a line of
   text in the open window.

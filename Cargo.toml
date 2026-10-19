@@ -8,27 +8,27 @@ members = [
     "crates/render",
     "crates/vba",
     "crates/vba-project",
-    "apps/tracedraw",
-    "apps/tracedraw-cli",
+    "apps/graphdraw",
+    "apps/graphdraw-cli",
 ]
 
 [workspace.package]
 version = "0.9.4"
 edition = "2021"
-authors = ["Ighor Toth"]
+authors = ["Ighor Toth", "GraphDraw contributors"]
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/igtoth/tracedraw"
-homepage = "https://github.com/igtoth/tracedraw"
+repository = "https://github.com/geifison/GraphDRAW"
+homepage = "https://github.com/geifison/GraphDRAW"
 rust-version = "1.80"
 
 [workspace.dependencies]
-tracedraw-core = { path = "crates/core" }
-tracedraw-cdr = { path = "crates/cdr" }
-tracedraw-io = { path = "crates/io" }
-tracedraw-text = { path = "crates/text" }
-tracedraw-render = { path = "crates/render" }
-tracedraw-vba = { path = "crates/vba" }
-tracedraw-vba-project = { path = "crates/vba-project" }
+graphdraw-core = { path = "crates/core" }
+graphdraw-cdr = { path = "crates/cdr" }
+graphdraw-io = { path = "crates/io" }
+graphdraw-text = { path = "crates/text" }
+graphdraw-render = { path = "crates/render" }
+graphdraw-vba = { path = "crates/vba" }
+graphdraw-vba-project = { path = "crates/vba-project" }
 
 kurbo = { version = "0.13", features = ["serde"] }
 tiny-skia = "0.12"

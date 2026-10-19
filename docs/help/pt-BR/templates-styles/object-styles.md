@@ -25,7 +25,7 @@ selecionado) e [[docker.reset]] (volta aos padrões de um desenho novo).
 
 Quando nada está selecionado e você escolhe um preenchimento ou contorno
 (clica em uma cor da paleta, usa uma ferramenta de preenchimento, muda a cor ou
-a largura do contorno), a mudança vale para os novos objetos. O TraceDraw
+a largura do contorno), a mudança vale para os novos objetos. O GraphDraw
 pergunta a quais tipos de novos objetos ela se aplica:
 
 1. Marque [[defaults.graphic]], [[defaults.artistic_text]] e

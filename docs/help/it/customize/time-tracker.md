@@ -1,7 +1,7 @@
 # Cronometro attività
 
 Il cronometro attività registra il tempo che dedichi a un disegno, attività
-per attività, e conserva le registrazioni nel disegno (nei file `.tdraw`). Il
+per attività, e conserva le registrazioni nel disegno (nei file `.gdr`). Il
 tempo viene contato solo mentre lavori: dopo alcuni minuti di inattività
 l'orologio si mette in attesa e la tua azione successiva lo fa ripartire.
 

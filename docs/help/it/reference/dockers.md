@@ -56,6 +56,6 @@ pagina elenca ogni pannello e la pagina che lo spiega.
   sulla scheda in primo piano per ripiegare i pannelli.
 - Il pulsante di chiusura nella barra del titolo di un pannello lo toglie dalle
   schede; il pulsante di compressione ripiega l'area dei pannelli.
-- I pannelli lasciati aperti tornano al prossimo avvio di TraceDraw.
+- I pannelli lasciati aperti tornano al prossimo avvio di GraphDraw.
 - Le scorciatoie dei pannelli si alternano: premerne una quando il suo pannello
   è in primo piano nasconde i pannelli.

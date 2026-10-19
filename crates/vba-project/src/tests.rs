@@ -289,7 +289,7 @@ fn module_files_export_and_read_back() {
 
 #[test]
 fn folders_of_module_files() {
-    let dir = std::env::temp_dir().join(format!("tracedraw-vba-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("graphdraw-vba-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let p = read_gms(&host_project(1252, false)).unwrap();

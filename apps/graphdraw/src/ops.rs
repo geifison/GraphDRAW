@@ -2,7 +2,7 @@
 //! transformations, lock, combine, bitmap import.
 
 use crate::app::App;
-use tracedraw_core::{
+use graphdraw_core::{
     document::{Shape, ShapeKind},
     geometry::{Affine, Point, Rect, Vec2},
     Command,
@@ -344,7 +344,7 @@ impl App {
     /// selected.
     pub fn break_apart(&mut self) {
         let ids = self.selection.clone();
-        let before: std::collections::HashSet<tracedraw_core::ShapeId> = self
+        let before: std::collections::HashSet<graphdraw_core::ShapeId> = self
             .doc()
             .pages
             .iter()
@@ -365,7 +365,7 @@ impl App {
         if let Err(e) = self.engine.run_batch("Break Apart", &cmds) {
             self.status = e.to_string();
         }
-        let mut pieces: Vec<tracedraw_core::ShapeId> = self
+        let mut pieces: Vec<graphdraw_core::ShapeId> = self
             .doc()
             .pages
             .iter()
@@ -385,7 +385,7 @@ impl App {
     /// the stacking order and properties); the others go right above it.
     pub(crate) fn text_break_commands(
         &mut self,
-        id: tracedraw_core::ShapeId,
+        id: graphdraw_core::ShapeId,
     ) -> Option<Vec<Command>> {
         let doc = self.doc();
         let (layer, index) = doc.locate(id).ok()?;
@@ -401,24 +401,24 @@ impl App {
         else {
             return None;
         };
-        let pieces = text_pieces(&tracedraw_core::document::spans_text(spans));
+        let pieces = text_pieces(&graphdraw_core::document::spans_text(spans));
         if pieces.len() < 2 {
             return None;
         }
         let (layout, _) = crate::text_editing::layout_of_text_shape(
             &shape,
-            tracedraw_core::geometry::Affine::IDENTITY,
+            graphdraw_core::geometry::Affine::IDENTITY,
         )?;
         let mut cmds = Vec::new();
         for (k, (a, b)) in pieces.iter().enumerate() {
-            let (head, _) = tracedraw_core::document::split_spans_at(spans, *b);
-            let (_, piece) = tracedraw_core::document::split_spans_at(&head, *a);
+            let (head, _) = graphdraw_core::document::split_spans_at(spans, *b);
+            let (_, piece) = graphdraw_core::document::split_spans_at(&head, *a);
             let (x, baseline, _, _) = layout.caret(*a)?;
             let kind = ShapeKind::Text {
                 spans: piece,
-                origin: tracedraw_core::geometry::Point::new(origin.x + x, origin.y + baseline),
+                origin: graphdraw_core::geometry::Point::new(origin.x + x, origin.y + baseline),
                 frame: None,
-                align: tracedraw_core::document::TextAlign::Left,
+                align: graphdraw_core::document::TextAlign::Left,
                 para: para.clone(),
                 on_path: None,
             };
@@ -468,8 +468,8 @@ impl App {
     /// the page (a page frame), selected.
     pub fn add_page_frame(&mut self) {
         let size = self.page_size();
-        if let Some(id) = self.new_shape(tracedraw_core::ShapeKind::Rect {
-            rect: tracedraw_core::geometry::Rect::new(0.0, 0.0, size.width, size.height),
+        if let Some(id) = self.new_shape(graphdraw_core::ShapeKind::Rect {
+            rect: graphdraw_core::geometry::Rect::new(0.0, 0.0, size.width, size.height),
             radius: 0.0,
             corners: None,
         }) {
@@ -487,7 +487,7 @@ impl App {
             self.add_page_frame();
             return;
         };
-        if let Some(id) = self.new_shape(tracedraw_core::ShapeKind::Rect {
+        if let Some(id) = self.new_shape(graphdraw_core::ShapeKind::Rect {
             rect: b,
             radius: 0.0,
             corners: None,
@@ -500,7 +500,7 @@ impl App {
     /// background, scaled to cover the page.
     pub fn set_page_background_image(
         &mut self,
-        page: tracedraw_core::PageId,
+        page: graphdraw_core::PageId,
         path: &std::path::Path,
     ) {
         let img = match crate::files::open_image(path) {
@@ -519,8 +519,8 @@ impl App {
         let size = self.page_size();
         self.run(Command::SetPageBackground {
             page,
-            background: Some(tracedraw_core::Fill::Pattern(
-                tracedraw_core::Pattern::Bitmap {
+            background: Some(graphdraw_core::Fill::Pattern(
+                graphdraw_core::Pattern::Bitmap {
                     png,
                     width_px: img.width(),
                     height_px: img.height(),
@@ -535,7 +535,7 @@ impl App {
         &mut self,
         img: image::RgbaImage,
         name: Option<String>,
-    ) -> Option<tracedraw_core::ShapeId> {
+    ) -> Option<graphdraw_core::ShapeId> {
         let (w, h) = img.dimensions();
         let mut png = Vec::new();
         if let Err(e) = image::DynamicImage::ImageRgba8(img)
@@ -658,7 +658,7 @@ impl App {
     /// target stays (Weld, Trim and Intersect; Boundary keeps them all,
     /// the others replace them).
     pub fn shaping_with(&mut self, op: Shaping, leave_source: bool, leave_target: bool) {
-        use tracedraw_core::shaping::{overlay, simplify, Op};
+        use graphdraw_core::shaping::{overlay, simplify, Op};
         let shapes = self.selected_shapes();
         if shapes.is_empty()
             || (shapes.len() < 2 && !matches!(op, Shaping::Simplify | Shaping::Boundary))
@@ -670,7 +670,7 @@ impl App {
         let mut ordered = shapes.clone();
         ordered.sort_by_key(|s| doc.locate(s.id).map(|(_, i)| i).unwrap_or(0));
         let target = shapes.last().cloned().unwrap_or_else(|| ordered[0].clone());
-        let paths: Vec<tracedraw_core::BezPath> = ordered.iter().map(Shape::page_path).collect();
+        let paths: Vec<graphdraw_core::BezPath> = ordered.iter().map(Shape::page_path).collect();
         let result = match op {
             Shaping::Weld | Shaping::Boundary => paths
                 .iter()
@@ -783,7 +783,7 @@ impl App {
 }
 
 impl App {
-    pub fn set_shadow(&mut self, shadow: Option<tracedraw_core::Shadow>, collapse: bool) {
+    pub fn set_shadow(&mut self, shadow: Option<graphdraw_core::Shadow>, collapse: bool) {
         if self.selection.is_empty() {
             return;
         }
@@ -798,7 +798,7 @@ impl App {
 impl App {
     /// Tab / Shift+Tab: select the next or previous object in z-order.
     pub fn cycle_selection(&mut self, forward: bool) {
-        let ids: Vec<tracedraw_core::ShapeId> = self
+        let ids: Vec<graphdraw_core::ShapeId> = self
             .page_layers()
             .into_iter()
             .filter(|l| !l.locked)
@@ -837,7 +837,7 @@ impl App {
 mod smoke_tests {
     use crate::app::App;
     use crate::tools::Tool;
-    use tracedraw_core::{
+    use graphdraw_core::{
         document::{ParagraphStyle, ShapeKind, TextSpan},
         geometry::{Point, Rect},
         TextAlign,
@@ -863,7 +863,7 @@ mod smoke_tests {
             path,
             closed: false,
         });
-        let mut line = tracedraw_core::geometry::BezPath::new();
+        let mut line = graphdraw_core::geometry::BezPath::new();
         line.move_to((10.0, 100.0));
         line.line_to((60.0, 80.0));
         app.new_shape(ShapeKind::Path {
@@ -881,7 +881,7 @@ mod smoke_tests {
         app.select_all();
         assert_eq!(app.selection.len(), 7);
         let render = |app: &App, step: &str| {
-            let pm = tracedraw_render::render_page_image(app.doc(), app.page, 25.4);
+            let pm = graphdraw_render::render_page_image(app.doc(), app.page, 25.4);
             assert!(pm.is_some(), "render after {step}");
             eprintln!(
                 "{step}: {} selected, {} objects",
@@ -928,8 +928,8 @@ mod smoke_tests {
         assert_eq!(app.selected_bitmap_png(), None);
         let png = vec![0x89, b'P', b'N', b'G', 1, 2, 3];
         let id = app
-            .new_shape(tracedraw_core::ShapeKind::Bitmap {
-                rect: tracedraw_core::geometry::Rect::new(0.0, 0.0, 10.0, 10.0),
+            .new_shape(graphdraw_core::ShapeKind::Bitmap {
+                rect: graphdraw_core::geometry::Rect::new(0.0, 0.0, 10.0, 10.0),
                 width_px: 1,
                 height_px: 1,
                 png: png.clone(),
@@ -939,8 +939,8 @@ mod smoke_tests {
         app.select(vec![id]);
         assert_eq!(app.selected_bitmap_png(), Some(png));
         let other = app
-            .new_shape(tracedraw_core::ShapeKind::Ellipse {
-                rect: tracedraw_core::geometry::Rect::new(0.0, 0.0, 5.0, 5.0),
+            .new_shape(graphdraw_core::ShapeKind::Ellipse {
+                rect: graphdraw_core::geometry::Rect::new(0.0, 0.0, 5.0, 5.0),
                 arc: None,
             })
             .expect("ellipse");
@@ -952,8 +952,8 @@ mod smoke_tests {
     fn shift_double_click_frames_the_selection() {
         let mut app = App::headless();
         let id = app
-            .new_shape(tracedraw_core::ShapeKind::Ellipse {
-                rect: tracedraw_core::geometry::Rect::new(10.0, 20.0, 50.0, 40.0),
+            .new_shape(graphdraw_core::ShapeKind::Ellipse {
+                rect: graphdraw_core::geometry::Rect::new(10.0, 20.0, 50.0, 40.0),
                 arc: None,
             })
             .expect("ellipse");
@@ -964,7 +964,7 @@ mod smoke_tests {
         assert_eq!(shapes.len(), 1);
         assert!(matches!(
             shapes[0].kind,
-            tracedraw_core::ShapeKind::Rect { .. }
+            graphdraw_core::ShapeKind::Rect { .. }
         ));
         let b = shapes[0].bounds();
         assert!((b.x0 - want.x0).abs() < 1e-6 && (b.x1 - want.x1).abs() < 1e-6);

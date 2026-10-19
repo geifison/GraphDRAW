@@ -104,7 +104,7 @@ Bounding box `b` of the object in page space, centre `c`.
 
 ## Files and exports
 
-The options are saved in `.tdraw` files (`repeat`, `repeats`,
+The options are saved in `.gdr` files (`repeat`, `repeats`,
 `bilinear`, `invert`, kind `shaped`); they are left out when off, so
 files without them read as before and the format version stays.
 
@@ -122,7 +122,7 @@ is written exactly as before
 ## Importing a gradient
 
 The fountain fill editor's Import Gradient button reads a `.ggr` file
-(`tracedraw_io::ggr`) and replaces the stops with it. Plain linear
+(`graphdraw_io::ggr`) and replaces the stops with it. Plain linear
 segments with their middle halfway give their two ends; segments with
 another blending (curved, sine, sphere, step), a middle elsewhere or an
 HSV colouring are sampled into 17 stops. End colours given as the

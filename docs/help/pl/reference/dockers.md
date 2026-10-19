@@ -56,6 +56,6 @@ która go objaśnia.
   wierzchu, aby zwinąć panele.
 - Przycisk zamykania na pasku tytułu panelu usuwa go z kart; przycisk zwijania
   zwija obszar paneli.
-- Panele pozostawione otwarte wracają przy następnym uruchomieniu TraceDraw.
+- Panele pozostawione otwarte wracają przy następnym uruchomieniu GraphDraw.
 - Skróty paneli przełączają: naciśnięcie skrótu, gdy jego panel jest na
   wierzchu, ukrywa panele.

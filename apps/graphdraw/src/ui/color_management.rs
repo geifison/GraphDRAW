@@ -78,7 +78,7 @@ impl ColorManagementState {
             &self.found,
         ));
         self.doc_primary_rgb =
-            md.primary_color_mode == tracedraw_core::document::PrimaryColorMode::Rgb;
+            md.primary_color_mode == graphdraw_core::document::PrimaryColorMode::Rgb;
         self.doc_intent = name_or(&md.rendering_intent, &c.intent);
         self.defaults = c.clone();
         self.loaded = true;
@@ -707,14 +707,14 @@ fn apply(app: &mut App, st: &ColorManagementState) {
     }
     let mut md = app.doc().metadata.clone();
     let mode = if st.doc_primary_rgb {
-        tracedraw_core::document::PrimaryColorMode::Rgb
+        graphdraw_core::document::PrimaryColorMode::Rgb
     } else {
-        tracedraw_core::document::PrimaryColorMode::Cmyk
+        graphdraw_core::document::PrimaryColorMode::Cmyk
     };
     if md.primary_color_mode != mode || md.rendering_intent != st.doc_intent {
         md.primary_color_mode = mode;
         md.rendering_intent = st.doc_intent.clone();
-        app.run(tracedraw_core::Command::SetMetadata { metadata: md });
+        app.run(graphdraw_core::Command::SetMetadata { metadata: md });
     }
 }
 
@@ -762,7 +762,7 @@ mod tests {
         assert_eq!(md.rendering_intent, "Perceptual");
         assert_eq!(
             md.primary_color_mode,
-            tracedraw_core::document::PrimaryColorMode::Rgb
+            graphdraw_core::document::PrimaryColorMode::Rgb
         );
         // Both tabs draw, and Enter is OK.
         for tab in [0, 1] {

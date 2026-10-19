@@ -8,7 +8,7 @@
 //! Text and Align to Baseline put shifted characters back.
 
 use crate::app::App;
-use tracedraw_core::{
+use graphdraw_core::{
     document::{spans_apply, spans_char_count, spans_text, ShapeKind, TextSpan},
     geometry::{Affine, Point, Vec2},
     Command, Shape, ShapeId,
@@ -149,7 +149,7 @@ fn spacing_measures(s: &Shape) -> Option<(usize, usize, f64, f64)> {
     let (layout, _) = crate::text_editing::layout_of_text_shape(s, Affine::IDENTITY)?;
     let chars: Vec<char> = spans_text(spans).chars().collect();
     let widest = layout.lines.iter().max_by(|a, b| {
-        let w = |l: &tracedraw_text::LineBox| {
+        let w = |l: &graphdraw_text::LineBox| {
             l.edges.last().copied().unwrap_or(0.0) - l.edges.first().copied().unwrap_or(0.0)
         };
         w(a).total_cmp(&w(b))
@@ -168,7 +168,7 @@ fn spacing_measures(s: &Shape) -> Option<(usize, usize, f64, f64)> {
         0.0
     };
     let first = spans.first()?;
-    let space = tracedraw_text::fonts()
+    let space = graphdraw_text::fonts()
         .measure(first, " ")
         .max(first.size_pt * PT_MM * 0.25);
     Some((n, spaces, pitch, space))
@@ -193,7 +193,7 @@ pub fn spacing_after_drag(s: &Shape, horizontal: bool, word: bool, d: Vec2) -> O
                 return None;
             }
             let delta = d.x / spaces as f64 / space * 100.0;
-            tracedraw_core::paragraphs::edit_paragraph_formats(&mut kind, None, |f| {
+            graphdraw_core::paragraphs::edit_paragraph_formats(&mut kind, None, |f| {
                 f.word_spacing_pct = (f.word_spacing_pct + delta).clamp(0.0, 2000.0)
             });
         } else {
@@ -201,7 +201,7 @@ pub fn spacing_after_drag(s: &Shape, horizontal: bool, word: bool, d: Vec2) -> O
                 return None;
             }
             let delta = d.x / n as f64 / space * 100.0;
-            tracedraw_core::paragraphs::edit_paragraph_formats(&mut kind, None, |f| {
+            graphdraw_core::paragraphs::edit_paragraph_formats(&mut kind, None, |f| {
                 f.char_spacing_pct = (f.char_spacing_pct + delta).clamp(-100.0, 2000.0)
             });
         }
@@ -215,7 +215,7 @@ pub fn spacing_after_drag(s: &Shape, horizontal: bool, word: bool, d: Vec2) -> O
         }
         let new_pitch = (pitch - d.y / (lines - 1) as f64).max(0.0);
         let factor = new_pitch / pitch;
-        tracedraw_core::paragraphs::edit_paragraph_formats(&mut kind, None, |f| {
+        graphdraw_core::paragraphs::edit_paragraph_formats(&mut kind, None, |f| {
             f.leading_pct = (f.leading_pct * factor).clamp(0.0, 2000.0)
         });
     }
@@ -462,11 +462,11 @@ impl App {
 
 /// The box of a text's character nodes.
 #[cfg(test)]
-pub fn nodes_box(s: &Shape) -> Option<tracedraw_core::geometry::Rect> {
+pub fn nodes_box(s: &Shape) -> Option<graphdraw_core::geometry::Rect> {
     let pts = char_nodes(s);
     let first = pts.first()?.1;
     Some(pts.iter().fold(
-        tracedraw_core::geometry::Rect::from_points(first, first),
+        graphdraw_core::geometry::Rect::from_points(first, first),
         |r, (_, p)| r.union_pt(*p),
     ))
 }
@@ -474,7 +474,7 @@ pub fn nodes_box(s: &Shape) -> Option<tracedraw_core::geometry::Rect> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::document::{ParagraphStyle, TextAlign};
+    use graphdraw_core::document::{ParagraphStyle, TextAlign};
 
     fn text_app(text: &str) -> (App, ShapeId) {
         let mut app = App::headless();
@@ -494,7 +494,7 @@ mod tests {
     }
 
     fn has_fonts() -> bool {
-        !tracedraw_text::fonts().families().is_empty()
+        !graphdraw_text::fonts().families().is_empty()
     }
 
     #[test]
@@ -603,8 +603,8 @@ mod tests {
 
     #[test]
     fn spacing_arrows_reach_paragraphs_with_spacing_of_their_own() {
-        let mut s = tracedraw_core::Shape::new(
-            tracedraw_core::ShapeId(1),
+        let mut s = graphdraw_core::Shape::new(
+            graphdraw_core::ShapeId(1),
             ShapeKind::Text {
                 spans: vec![TextSpan::new("ab cd\nef gh\nij kl", "DejaVu Sans", 24.0)],
                 origin: Point::new(10.0, 10.0),
@@ -615,14 +615,14 @@ mod tests {
             },
         );
         // The second paragraph: 150 % line spacing, 10 % character spacing.
-        tracedraw_core::paragraphs::edit_paragraph_formats(&mut s.kind, Some((7, 7)), |f| {
+        graphdraw_core::paragraphs::edit_paragraph_formats(&mut s.kind, Some((7, 7)), |f| {
             f.leading_pct = 150.0;
             f.char_spacing_pct = 10.0;
         });
         let styles = |k: &ShapeKind| match k {
             ShapeKind::Text {
                 spans, align, para, ..
-            } => tracedraw_core::paragraphs::paragraph_styles(spans, *align, para),
+            } => graphdraw_core::paragraphs::paragraph_styles(spans, *align, para),
             _ => Vec::new(),
         };
         let Some(wider) = spacing_after_drag(&s, true, false, Vec2::new(10.0, 0.0)) else {

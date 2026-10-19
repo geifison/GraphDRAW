@@ -25,7 +25,7 @@ use crate::app::{App, Drag, PageNumberSettings};
 use crate::view::View;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
-use tracedraw_core::{Document, Engine, PageId, ShapeId};
+use graphdraw_core::{Document, Engine, PageId, ShapeId};
 
 /// Source of the ids that tell open drawings apart.
 static NEXT_DRAWING: AtomicU64 = AtomicU64::new(1);
@@ -48,7 +48,7 @@ pub struct DocSlot {
     pub remote: Option<crate::github::Remote>,
     pub cdr_version: Option<u16>,
     pub cdr_unsaved_version: Option<u16>,
-    pub tdraw_version: Option<u32>,
+    pub gdr_version: Option<u32>,
     pub fit_pending: bool,
     pub page_numbers: PageNumberSettings,
     pub missing_fonts: Vec<String>,
@@ -57,7 +57,7 @@ pub struct DocSlot {
     /// Centres of rotation moved in this drawing.
     pub pivots: crate::app::Pivots,
     /// The layer made active in the Objects docker.
-    pub picked_layer: Option<tracedraw_core::LayerId>,
+    pub picked_layer: Option<graphdraw_core::LayerId>,
     /// The drawing's rendered page, kept while another drawing is active
     /// (its window shows it when windows are tiled or cascaded).
     pub raster: crate::raster::Raster,
@@ -81,7 +81,7 @@ impl Default for DocSlot {
             remote: None,
             cdr_version: None,
             cdr_unsaved_version: None,
-            tdraw_version: None,
+            gdr_version: None,
             fit_pending: false,
             page_numbers: PageNumberSettings::default(),
             missing_fonts: Vec::new(),
@@ -128,7 +128,7 @@ impl App {
         std::mem::swap(&mut self.remote, &mut slot.remote);
         std::mem::swap(&mut self.cdr_version, &mut slot.cdr_version);
         std::mem::swap(&mut self.cdr_unsaved_version, &mut slot.cdr_unsaved_version);
-        std::mem::swap(&mut self.tdraw_version, &mut slot.tdraw_version);
+        std::mem::swap(&mut self.gdr_version, &mut slot.gdr_version);
         std::mem::swap(&mut self.page_numbers, &mut slot.page_numbers);
         std::mem::swap(&mut self.missing_fonts, &mut slot.missing_fonts);
         std::mem::swap(&mut self.units, &mut slot.units);
@@ -281,7 +281,7 @@ impl App {
         self.remote = None;
         self.cdr_version = None;
         self.cdr_unsaved_version = None;
-        self.tdraw_version = None;
+        self.gdr_version = None;
         self.view = View::default();
         self.fit_pending = true;
         self.page_numbers = PageNumberSettings::default();
@@ -298,8 +298,8 @@ impl App {
 
     /// Fonts a drawing carries serve its text (and the font lists) for the
     /// rest of the session.
-    pub fn add_carried_fonts(&mut self, fonts: &[tracedraw_core::DocumentFont]) {
-        if !fonts.is_empty() && !tracedraw_text::fonts().add_document_fonts(fonts).is_empty() {
+    pub fn add_carried_fonts(&mut self, fonts: &[graphdraw_core::DocumentFont]) {
+        if !fonts.is_empty() && !graphdraw_text::fonts().add_document_fonts(fonts).is_empty() {
             self.sync_fonts();
         }
     }
@@ -310,7 +310,7 @@ impl App {
     /// page and the text measurements again, since text drawn with a
     /// stand-in may now have its own font.
     pub fn sync_fonts(&mut self) {
-        let fonts = tracedraw_text::fonts();
+        let fonts = graphdraw_text::fonts();
         let generation = fonts.generation();
         if generation == self.font_generation {
             return;
@@ -419,7 +419,7 @@ impl App {
         self.file = None;
         self.cdr_version = None;
         self.cdr_unsaved_version = None;
-        self.tdraw_version = None;
+        self.gdr_version = None;
         self.view = View::default();
         self.fit_pending = true;
         self.page_numbers = PageNumberSettings::default();
@@ -543,8 +543,8 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::document::ShapeKind;
-    use tracedraw_core::geometry::{Rect, Size};
+    use graphdraw_core::document::ShapeKind;
+    use graphdraw_core::geometry::{Rect, Size};
 
     fn add_rect(app: &mut App) -> ShapeId {
         app.new_shape(ShapeKind::Rect {
@@ -805,9 +805,9 @@ mod tests {
 
     #[test]
     fn saving_from_either_window_saves_the_one_drawing() {
-        let dir = std::env::temp_dir().join(format!("tracedraw-new-window-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("graphdraw-new-window-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&dir);
-        let path = dir.join("shared.tdraw");
+        let path = dir.join("shared.gdr");
         let mut app = App::headless();
         add_rect(&mut app);
         app.new_window();
@@ -870,11 +870,11 @@ mod tests {
     /// A drawing whose only text, inside a group, is set in `family`.
     fn drawing_with_text_in(family: &str) -> Document {
         let mut doc = Document::new(family, Size::new(100.0, 50.0));
-        let text = tracedraw_core::Shape::new(
+        let text = graphdraw_core::Shape::new(
             ShapeId(1),
             ShapeKind::Text {
-                spans: vec![tracedraw_core::TextSpan::new("Hi", family, 12.0)],
-                origin: tracedraw_core::geometry::Point::new(10.0, 10.0),
+                spans: vec![graphdraw_core::TextSpan::new("Hi", family, 12.0)],
+                origin: graphdraw_core::geometry::Point::new(10.0, 10.0),
                 frame: None,
                 align: Default::default(),
                 para: Default::default(),
@@ -883,7 +883,7 @@ mod tests {
         );
         doc.pages[0].layers[0]
             .shapes
-            .push(tracedraw_core::Shape::new(
+            .push(graphdraw_core::Shape::new(
                 ShapeId(2),
                 ShapeKind::Group {
                     children: vec![text],
@@ -896,7 +896,7 @@ mod tests {
     fn a_drawing_brings_its_fonts_along() {
         let mut app = App::headless();
         let mut doc = drawing_with_text_in("Selawik");
-        doc.fonts.push(tracedraw_core::DocumentFont::new(
+        doc.fonts.push(graphdraw_core::DocumentFont::new(
             "Selawik",
             include_bytes!("../assets/fonts/Selawik-Regular.ttf").to_vec(),
         ));
@@ -919,9 +919,9 @@ mod tests {
         assert_eq!(app.missing_fonts.len(), 2);
         // A font arrives, as the browser build's font folder delivers them.
         let quicksand = include_bytes!("../../../crates/text/testdata/Quicksand-VF.ttf");
-        let _ = tracedraw_text::fonts().add_fonts(vec![quicksand.to_vec()]);
+        let _ = graphdraw_text::fonts().add_fonts(vec![quicksand.to_vec()]);
         app.sync_fonts();
-        assert_eq!(app.font_generation, tracedraw_text::fonts().generation());
+        assert_eq!(app.font_generation, graphdraw_text::fonts().generation());
         assert!(app.font_families.iter().any(|f| f == "Quicksand"));
         assert_eq!(app.missing_fonts, vec!["Nowhere Grotesk".to_string()]);
     }

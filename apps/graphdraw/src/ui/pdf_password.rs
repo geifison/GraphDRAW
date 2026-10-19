@@ -113,7 +113,7 @@ mod tests {
 
     #[test]
     fn protected_pdfs_ask_for_their_password() {
-        let dir = std::env::temp_dir().join(format!("tracedraw-pdfpw-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("graphdraw-pdfpw-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&dir);
         let path = protected_pdf(&dir);
         let mut app = App::headless();

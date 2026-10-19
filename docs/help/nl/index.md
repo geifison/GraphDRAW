@@ -1,12 +1,12 @@
-# Welkom bij de Help van TraceDraw
+# Welkom bij de Help van GraphDraw
 
-TraceDraw is een vrij, opensource vectortekenprogramma. U tekent er
+GraphDraw is een vrij, opensource vectortekenprogramma. U tekent er
 illustraties, logo's, diagrammen, lay-outs en drukwerk mee, opgebouwd uit
 vormen, lijnen en tekst die op elk formaat scherp blijven, en combineert die
 met bitmaps. Hetzelfde programma werkt op Windows, macOS en Linux en in een
 webbrowser.
 
-Deze Help legt stap voor stap uit hoe u dingen doet in TraceDraw, en wat elk
+Deze Help legt stap voor stap uit hoe u dingen doet in GraphDraw, en wat elk
 dialoogvenster, elk paneel en elk gereedschap doet.
 
 ## Hoe deze Help is ingedeeld {#organization}
@@ -30,7 +30,7 @@ Gebruik het tabblad **Zoeken** om een pagina te vinden op elk woord dat erin
 staat, en de taallijst bovenaan om dezelfde pagina in een andere taal te
 lezen.
 
-## Hulp binnen TraceDraw {#in-the-app}
+## Hulp binnen GraphDraw {#in-the-app}
 
 - Druk op <kbd>F1</kbd> om de pagina te openen over wat voor u ligt: het
   geopende dialoogvenster, anders het getoonde paneel, anders het actieve
@@ -42,10 +42,10 @@ lezen.
   werkt; de koppeling [[hint.learn_more]] opent hier de pagina van het
   gereedschap. Zie [Tips](get-started/hints.md).
 
-De pagina's openen in uw webbrowser, in de taal waarop TraceDraw is ingesteld.
+De pagina's openen in uw webbrowser, in de taal waarop GraphDraw is ingesteld.
 
 ## Waar u begint {#begin}
 
-Is TraceDraw nieuw voor u, lees dan [De werkruimte](get-started/workspace.md),
+Is GraphDraw nieuw voor u, lees dan [De werkruimte](get-started/workspace.md),
 daarna [Een tekening maken](get-started/new-document.md) en
 [Lijnen en curven tekenen](lines-shapes/lines.md).

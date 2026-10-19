@@ -1,6 +1,6 @@
 # Bitmapy
 
-Bitmapy to obrazy złożone z pikseli, takie jak zdjęcia i skany. TraceDraw
+Bitmapy to obrazy złożone z pikseli, takie jak zdjęcia i skany. GraphDraw
 umieszcza je w rysunkach, zmienia ich tryb kolorów i rozmiar, prostuje je,
 maskuje kolory, nakłada efekty i wektoryzuje je w kształty. Zamienia też
 obiekty wektorowe w bitmapy.

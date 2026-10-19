@@ -14,7 +14,7 @@ use crate::i18n::tr;
 use crate::theme::Tokens;
 use crate::ui::rulers::Pixels;
 use egui::{pos2, vec2, Align2, Color32, FontId, Pos2, Rect, Sense, Stroke, Ui};
-use tracedraw_core::{Color, Command, Fill};
+use graphdraw_core::{Color, Command, Fill};
 
 /// Height of a palette row: a separator line, the swatches in their frame
 /// and a pixel of space on each side.
@@ -1073,7 +1073,7 @@ mod tests {
 
     #[test]
     fn applying_a_colour_adds_it_to_the_document_palette_in_the_same_step() {
-        use tracedraw_core::{geometry::Rect as R, ShapeKind};
+        use graphdraw_core::{geometry::Rect as R, ShapeKind};
         let mut app = App::headless();
         let id = app
             .new_shape(ShapeKind::Rect {

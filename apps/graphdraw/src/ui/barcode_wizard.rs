@@ -11,7 +11,7 @@ use crate::i18n::{tr, trf};
 use crate::theme::Tokens;
 use crate::ui::dialogs::{enter_pressed, window};
 use egui::{Color32, Context, Pos2, Rect as UiRect, Stroke, Ui, Vec2};
-use tracedraw_core::{
+use graphdraw_core::{
     document::{Shape, ShapeKind},
     geometry::{BezPath, Point, Rect},
     Color, Command, Fill, TextAlign, TextSpan,
@@ -275,7 +275,7 @@ fn step_text(ui: &mut Ui, st: &mut BarcodeState) {
                     .width(170.0)
                     .selected_text(spec.font.clone())
                     .show_ui(ui, |ui| {
-                        for f in tracedraw_text::fonts().families() {
+                        for f in graphdraw_text::fonts().families() {
                             let on = spec.font == f;
                             if ui.selectable_label(on, &f).clicked() {
                                 spec.font = f;
@@ -531,7 +531,7 @@ pub fn insert(app: &mut App, spec: &BarcodeSpec) -> Result<(), &'static str> {
     let oy = c.y - spec.bar_height_mm / 2.0;
     let mut path = BezPath::new();
     for b in &built.bars {
-        path.extend(tracedraw_core::geometry::rect_path(
+        path.extend(graphdraw_core::geometry::rect_path(
             Rect::new(b.x0 + ox, b.y0 + oy, b.x1 + ox, b.y1 + oy),
             0.0,
         ));

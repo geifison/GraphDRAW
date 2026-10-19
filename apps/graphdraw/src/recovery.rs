@@ -185,7 +185,7 @@ mod tests {
     use super::*;
 
     fn temp(name: &str) -> PathBuf {
-        let d = std::env::temp_dir().join(format!("tracedraw-recovery-{name}-{}", new_id()));
+        let d = std::env::temp_dir().join(format!("graphdraw-recovery-{name}-{}", new_id()));
         let _ = std::fs::remove_dir_all(&d);
         d
     }
@@ -196,19 +196,19 @@ mod tests {
         let mut s = Session::new(dir.clone(), "a".into());
         assert!(s.heartbeat(1000));
         assert!(!s.heartbeat(1030));
-        std::fs::write(dir.join("AutoBackup_of_x.tdraw"), b"{}").expect("write");
-        s.wrote("AutoBackup_of_x.tdraw", 1040);
-        s.wrote("AutoBackup_of_gone.tdraw", 1041);
+        std::fs::write(dir.join("AutoBackup_of_x.gdr"), b"{}").expect("write");
+        s.wrote("AutoBackup_of_x.gdr", 1040);
+        s.wrote("AutoBackup_of_gone.gdr", 1041);
         // Still alive: nothing to recover.
         assert!(find(&dir, 1100, None).is_empty());
         // Our own session is never offered.
         assert!(find(&dir, 5000, Some("a")).is_empty());
         let found = find(&dir, 5000, Some("b"));
         assert_eq!(found.len(), 1);
-        assert_eq!(found[0].backups, vec![dir.join("AutoBackup_of_x.tdraw")]);
+        assert_eq!(found[0].backups, vec![dir.join("AutoBackup_of_x.gdr")]);
         dismiss(&found, false);
         assert!(find(&dir, 5000, Some("b")).is_empty());
-        assert!(dir.join("AutoBackup_of_x.tdraw").is_file());
+        assert!(dir.join("AutoBackup_of_x.gdr").is_file());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -217,12 +217,12 @@ mod tests {
         let dir = temp("clean");
         let mut s = Session::new(dir.clone(), "a".into());
         std::fs::create_dir_all(&dir).expect("dir");
-        std::fs::write(dir.join("AutoBackup_of_y.tdraw"), b"{}").expect("write");
-        std::fs::write(dir.join("AutoBackup_of_other.tdraw"), b"{}").expect("write");
-        s.wrote("AutoBackup_of_y.tdraw", 10);
+        std::fs::write(dir.join("AutoBackup_of_y.gdr"), b"{}").expect("write");
+        std::fs::write(dir.join("AutoBackup_of_other.gdr"), b"{}").expect("write");
+        s.wrote("AutoBackup_of_y.gdr", 10);
         s.end();
-        assert!(!dir.join("AutoBackup_of_y.tdraw").exists());
-        assert!(dir.join("AutoBackup_of_other.tdraw").exists());
+        assert!(!dir.join("AutoBackup_of_y.gdr").exists());
+        assert!(dir.join("AutoBackup_of_other.gdr").exists());
         assert!(find(&dir, 10_000, None).is_empty());
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -234,7 +234,7 @@ mod tests {
         std::fs::write(dir.join("session-x.json"), b"not json").expect("write");
         std::fs::write(
             dir.join("session-y.json"),
-            br#"{"heartbeat":0,"backups":["../outside.tdraw","/etc/passwd"]}"#,
+            br#"{"heartbeat":0,"backups":["../outside.gdr","/etc/passwd"]}"#,
         )
         .expect("write");
         let found = find(&dir, 10_000, None);

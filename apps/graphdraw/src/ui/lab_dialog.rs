@@ -13,7 +13,7 @@ use crate::ui::effect_dialog::{param_widget, EffectState};
 use egui::{epaint, Color32, Context, Painter, Pos2, Rect, Sense, Stroke, Ui, Vec2};
 use image::RgbaImage;
 use std::collections::BTreeMap;
-use tracedraw_core::BitmapEffect;
+use graphdraw_core::BitmapEffect;
 
 /// The preview copy's largest side, pixels.
 const SIDE: u32 = 720;

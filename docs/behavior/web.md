@@ -1,10 +1,10 @@
 # Browser version
 
 The same editor compiled to WebAssembly (`wasm32-unknown-unknown`) and
-drawn with WebGL 2 by eframe, so TraceDraw runs in a browser with nothing
+drawn with WebGL 2 by eframe, so GraphDraw runs in a browser with nothing
 to install. CI publishes it to GitHub Pages; it is not one of the
 release downloads. Each run keeps the folder as the `web-site` artifact
-(`tracedraw-<version>-web.zip`, a static folder: serve it from any web
+(`graphdraw-<version>-web.zip`, a static folder: serve it from any web
 server; opening `index.html` from disk does not work because browsers
 refuse to load modules from `file://`).
 
@@ -18,7 +18,7 @@ refuse to load modules from `file://`).
 | Print | PDF opened in the system viewer | PDF downloaded; print it from the browser's viewer |
 | Send To | PDF written to Desktop, Documents or a mail folder | PDF downloaded |
 | Edit Bitmap (external editor) | system image editor | not available (a browser cannot hand files to programs) |
-| Settings | `settings.json` in the configuration folder, saved as they change | browser local storage (key `tracedraw.settings`), saved as they change: they stay in that browser on that computer, until its site data is cleared |
+| Settings | `settings.json` in the configuration folder, saved as they change | browser local storage (key `graphdraw.settings`), saved as they change: they stay in that browser on that computer, until its site data is cleared |
 | Recent documents | listed on the Welcome screen | not recorded (uploads have no path to reopen) |
 | Fonts | installed system fonts | bundled at build time: Liberation Sans, Serif and Mono, DejaVu Sans, Noto Sans Devanagari and Bengali; the published page's font folder adds about a hundred free families (stand-ins of the same widths for common office faces, popular families, Chinese, Japanese, Korean, Arabic, Hebrew and Thai) and its font catalog every other family of the google/fonts collection (about 2,000), each fetched the first time a drawing's text needs it or a font list's pointer rests on it (see `web/FONTS.md`); Chinese and Japanese UI text needs a font the build machine had |
 | System clipboard | text and images (arboard) | text through the browser; pasting images from other programs is not available |
@@ -29,18 +29,18 @@ refuse to load modules from `file://`).
 While the module downloads, the page shows the desktop app's splash
 screen on the grey of the drawing window: the same artwork (`splash.rs`,
 `ui/brand.rs`), name, tagline, copyright and version, with the status
-"Loading TraceDraw: 3.5 of 5.7 MB (61%)" and the progress bar under it
+"Loading GraphDraw: 3.5 of 5.7 MB (61%)" and the progress bar under it
 (the build writes the module's size into the page as `data-wasm-size`
 and the version for `@VERSION@`; without the size the page counts the
 megabytes and the bar creeps towards 90 %). The download fills the bar
 to 90 %, "Preparing the workspace..." the rest while the browser
 compiles the module; the splash goes when the editor is up. Under the
-splash, small: "TraceDraw (alpha): open-source vector editor that opens
+splash, small: "GraphDraw (alpha): open-source vector editor that opens
 .cdr files. Written in Rust, free under the MIT or Apache-2.0 license.",
 which screens it suits (a desktop browser with a mouse and keyboard; on
 a tablet the Touch workspace; a phone screen is too small for editing)
 and links to the desktop downloads
-(`https://github.com/igtoth/tracedraw/releases/latest`), the source
+(`https://github.com/geifison/GraphDRAW/releases/latest`), the source
 code and the issues. When the editor cannot start, the splash says so,
 its bar turns red and the reason shows under it, with the links.
 
@@ -73,14 +73,14 @@ them; use the File menu for New and Close.
 ```sh
 rustup target add wasm32-unknown-unknown
 cargo install wasm-bindgen-cli --version 0.2.129   # must match Cargo.lock
-cargo build --target wasm32-unknown-unknown --profile web -p tracedraw
+cargo build --target wasm32-unknown-unknown --profile web -p graphdraw
 wasm-bindgen --target web --no-typescript --out-dir site \
-    target/wasm32-unknown-unknown/web/tracedraw.wasm
+    target/wasm32-unknown-unknown/web/graphdraw.wasm
 cp web/FONTS.md site/
-size=$(wc -c < site/tracedraw_bg.wasm | tr -d ' ')
+size=$(wc -c < site/graphdraw_bg.wasm | tr -d ' ')
 sed -e "s/data-wasm-size=\"0\"/data-wasm-size=\"$size\"/" -e "s/@VERSION@/0.4.0/" \
     web/index.html > site/index.html
-cp assets/icon/tracedraw-256.png site/icon-256.png
+cp assets/icon/graphdraw-256.png site/icon-256.png
 python3 -m http.server -d site 8080   # then open http://localhost:8080
 ```
 
@@ -92,7 +92,7 @@ both builds fill in the module's size and the version
 Checked in a browser with a stand-in module: the progress, the start, an
 error with the links kept, on a desktop and a phone-sized window.
 
-`TRACEDRAW_WEB_FONTS` (folders separated by `:`) points the build at the
+`GRAPHDRAW_WEB_FONTS` (folders separated by `:`) points the build at the
 fonts to bundle; without it the usual Linux font folders are searched.
 
 The font folder is optional: `python3 web/font_folder.py web/fonts.txt

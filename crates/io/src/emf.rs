@@ -5,13 +5,13 @@
 //! maps logical coordinates through the map mode, window/viewport and
 //! (EMF) world transform to device pixels, and from there to millimetres
 //! using the header frame. Paths, polygons, rectangles, ellipses, arcs,
-//! text and DIB bitmaps become TraceDraw objects; clip paths and rects
+//! text and DIB bitmaps become GraphDraw objects; clip paths and rects
 //! become clip frames around what is drawn inside them. Layouts follow the
 //! public Windows metafile specifications. Nothing in the input can panic
 //! the reader: every read is bounds-checked and record counts are capped.
 
 use std::collections::HashMap;
-use tracedraw_core::{
+use graphdraw_core::{
     document::{ParagraphStyle, Shape, ShapeKind, TextSpan},
     geometry::{Affine, BezPath, PathEl, Point, Rect, Shape as _, Size, Vec2},
     id::IdSource,
@@ -60,8 +60,8 @@ pub fn parse(bytes: &[u8], ids: &mut IdSource) -> Result<Imported, String> {
 }
 
 /// Build a document with every imported object on one layer.
-pub fn to_document(imp: Imported, title: &str) -> tracedraw_core::Document {
-    let mut doc = tracedraw_core::Document::new(title, imp.size);
+pub fn to_document(imp: Imported, title: &str) -> graphdraw_core::Document {
+    let mut doc = graphdraw_core::Document::new(title, imp.size);
     if let Some(layer) = doc.pages[0].layers.first_mut() {
         layer.shapes = imp.shapes;
     }
@@ -572,7 +572,7 @@ impl<'a> Player<'a> {
         let a = self.to_page(l, t);
         let c = self.to_page(r, b);
         let rect = Rect::from_points(a, c);
-        tracedraw_core::geometry::rect_path(rect, radius)
+        graphdraw_core::geometry::rect_path(rect, radius)
     }
 
     fn rectangle(&mut self, l: f64, t: f64, r: f64, b: f64, radius: f64) {
@@ -603,7 +603,7 @@ impl<'a> Player<'a> {
         let rect = Rect::from_points(a, c);
         if let Some(p) = &mut self.path {
             p.extend(
-                tracedraw_core::geometry::Ellipse::from_rect(rect)
+                graphdraw_core::geometry::Ellipse::from_rect(rect)
                     .to_path(0.01)
                     .elements()
                     .iter()
@@ -802,10 +802,10 @@ impl<'a> Player<'a> {
     fn intersect_clip(&mut self, path: BezPath) {
         self.dc.clip = Some(match self.dc.clip.take() {
             Some(c) => {
-                let r = tracedraw_core::shaping::overlay(
+                let r = graphdraw_core::shaping::overlay(
                     &c,
                     &path,
-                    tracedraw_core::shaping::Op::Intersect,
+                    graphdraw_core::shaping::Op::Intersect,
                 );
                 if r.elements().is_empty() {
                     path
@@ -2201,7 +2201,7 @@ mod tests {
 /// geometric pens and solid brushes, fountain fills as clipped bands,
 /// text as EXTTEXTOUTW with a LOGFONT, bitmaps as 32-bit DIBs, and
 /// clip frames as clip paths. Live effects are expanded first.
-pub fn page_to_emf(doc: &tracedraw_core::Document, page_index: usize) -> Vec<u8> {
+pub fn page_to_emf(doc: &graphdraw_core::Document, page_index: usize) -> Vec<u8> {
     let doc = &*crate::resolve_open_fills(doc);
     let Some(page) = doc.pages.get(page_index) else {
         return Vec::new();
@@ -2275,7 +2275,7 @@ struct EmfWriter<'a> {
     next_handle: u32,
     max_handle: u32,
     page_h: f64,
-    symbols: &'a [tracedraw_core::document::Symbol],
+    symbols: &'a [graphdraw_core::document::Symbol],
 }
 
 impl EmfWriter<'_> {
@@ -2470,7 +2470,7 @@ impl EmfWriter<'_> {
 
     /// Linear and radial fountains as 64 clipped bands; the others as
     /// their average colour.
-    fn fountain(&mut self, path: &BezPath, f: &tracedraw_core::Fountain) {
+    fn fountain(&mut self, path: &BezPath, f: &graphdraw_core::Fountain) {
         // A shaped gradient as the closest square one (from the centre out).
         let f = &f.to_plain(256);
         let b = path.bounding_box();
@@ -2482,7 +2482,7 @@ impl EmfWriter<'_> {
         self.record(67, &[5]); // SELECTCLIPPATH RGN_COPY
         let n = 64;
         match f.kind {
-            tracedraw_core::style::FountainKind::Linear => {
+            graphdraw_core::style::FountainKind::Linear => {
                 let a = f.angle.to_radians();
                 let (ca, sa) = (a.cos(), a.sin());
                 let c = b.center();
@@ -2707,7 +2707,7 @@ impl EmfWriter<'_> {
             return;
         }
         if !shape.effects.is_empty() {
-            let ev = tracedraw_core::live::evaluate(shape);
+            let ev = graphdraw_core::live::evaluate(shape);
             for s in ev
                 .below
                 .iter()
@@ -2770,7 +2770,7 @@ impl EmfWriter<'_> {
                     || !matches!(shape.kind, ShapeKind::Text { .. });
                 self.fill_and_stroke(&path, &shape.fill, shape.stroke.as_ref(), scale, even_odd);
                 if let Some(st) = &shape.stroke {
-                    for head in tracedraw_core::style::arrowhead_paths(&shape.page_path(), st) {
+                    for head in graphdraw_core::style::arrowhead_paths(&shape.page_path(), st) {
                         self.fill_and_stroke(
                             &(parent * head),
                             &Fill::Solid(st.color),
@@ -2788,7 +2788,7 @@ impl EmfWriter<'_> {
 #[cfg(test)]
 mod export_tests {
     use super::*;
-    use tracedraw_core::{geometry::Rect, Document};
+    use graphdraw_core::{geometry::Rect, Document};
 
     #[test]
     fn bitmaps_round_trip_with_their_placement() {
@@ -2881,8 +2881,8 @@ mod export_tests {
                 arc: None,
             },
         );
-        e.fill = Fill::Fountain(tracedraw_core::Fountain::two(
-            tracedraw_core::style::FountainKind::Linear,
+        e.fill = Fill::Fountain(graphdraw_core::Fountain::two(
+            graphdraw_core::style::FountainKind::Linear,
             Color::BLACK,
             Color::WHITE,
             0.0,
@@ -2949,7 +2949,7 @@ mod export_tests {
 /// and POLYLINE records with pens and brushes; text is EXTTEXTOUT with a
 /// LOGFONT; bitmaps are 32-bit DIBs through STRETCHDIB. Live effects are
 /// expanded, clip frames are drawn unclipped (contents then frame).
-pub fn page_to_wmf(doc: &tracedraw_core::Document, page_index: usize) -> Vec<u8> {
+pub fn page_to_wmf(doc: &graphdraw_core::Document, page_index: usize) -> Vec<u8> {
     let doc = &*crate::resolve_open_fills(doc);
     let Some(page) = doc.pages.get(page_index) else {
         return Vec::new();
@@ -3012,7 +3012,7 @@ struct WmfWriter<'a> {
     objects: usize,
     max_record: usize,
     page_h: f64,
-    symbols: &'a [tracedraw_core::document::Symbol],
+    symbols: &'a [graphdraw_core::document::Symbol],
 }
 
 impl WmfWriter<'_> {
@@ -3129,7 +3129,7 @@ impl WmfWriter<'_> {
         let mut out: Vec<(Vec<Point>, bool)> = Vec::new();
         let mut cur: Vec<Point> = Vec::new();
         let mut closed = false;
-        tracedraw_core::geometry::flatten(path, 0.05, &mut |el| match el {
+        graphdraw_core::geometry::flatten(path, 0.05, &mut |el| match el {
             PathEl::MoveTo(p) => {
                 if cur.len() >= 2 {
                     out.push((std::mem::take(&mut cur), closed));
@@ -3337,7 +3337,7 @@ impl WmfWriter<'_> {
             return;
         }
         if !shape.effects.is_empty() {
-            let ev = tracedraw_core::live::evaluate(shape);
+            let ev = graphdraw_core::live::evaluate(shape);
             for s in ev
                 .below
                 .iter()
@@ -3397,7 +3397,7 @@ impl WmfWriter<'_> {
                 };
                 self.fill_and_stroke(&path, fill, shape.stroke.as_ref(), scale, even_odd);
                 if let Some(st) = &shape.stroke {
-                    for head in tracedraw_core::style::arrowhead_paths(&shape.page_path(), st) {
+                    for head in graphdraw_core::style::arrowhead_paths(&shape.page_path(), st) {
                         self.fill_and_stroke(&(parent * head), Some(st.color), None, 1.0, false);
                     }
                 }
@@ -3409,7 +3409,7 @@ impl WmfWriter<'_> {
 #[cfg(test)]
 mod wmf_export_tests {
     use super::*;
-    use tracedraw_core::{geometry::Rect, Document};
+    use graphdraw_core::{geometry::Rect, Document};
 
     #[test]
     fn wmf_export_round_trips_through_the_reader() {

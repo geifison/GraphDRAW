@@ -1,8 +1,8 @@
 # About box and start-up
 
-## About TraceDraw
+## About GraphDraw
 
-Help > About TraceDraw opens the About box from the Welcome Screen as well
+Help > About GraphDraw opens the About box from the Welcome Screen as well
 as from a drawing. It is a chrome dialog (white title bar with the close
 button) 480 points wide:
 
@@ -10,7 +10,7 @@ button) 480 points wide:
   through `#1A3158` (top right) to `#0E192D` (bottom), faint light blue
   (`#5CAEFF`) curves on the right with one selected node (a square node,
   two handles along the tangent, round handle ends), the 76 px
-  application icon, the name in the bold face at 29 px ("Trace" white,
+  application icon, the name in the bold face at 29 px ("Graph" white,
   "Draw" `#7FC3FF`), the tagline and the version in a rounded chip.
 - The description at 13.5 px with 20 px lines, a light separator, then
   the facts as two columns with dim labels: Author, License, Source code
@@ -19,7 +19,7 @@ button) 480 points wide:
 
 ## Splash screen
 
-While TraceDraw starts, a borderless 640 x 380 point window centred on
+While GraphDraw starts, a borderless 640 x 380 point window centred on
 the screen shows the same artwork as the About banner at a larger size
 (two selected nodes on the main curve), the 96 px icon, the name at
 46 px with the tagline, and a darker strip along the bottom with the
@@ -50,17 +50,17 @@ the version on the right).
   (`splash::tests::small_screens_get_a_window_that_fits_and_starts_maximized`,
   `splash::tests::the_main_window_offers_the_maximize_button`).
 - Options > General > Show the splash screen at start-up turns it off.
-  `--no-splash` or `TRACEDRAW_NO_SPLASH=1` skip it for one run and open a
+  `--no-splash` or `GRAPHDRAW_NO_SPLASH=1` skip it for one run and open a
   plain 1600 x 950 window (automation and the visual checks use this).
 - The browser build has no splash: the page shows its own loader.
 
 ## Back to the defaults
 
 Pressing F8 while the splash screen shows asks, once the editor is up,
-whether to reset every preference to how TraceDraw comes (Options >
+whether to reset every preference to how GraphDraw comes (Options >
 Global > Reset all settings... asks the same). Reset keeps the recent
 drawings, the last folder and the window's size; Cancel changes
-nothing. `tracedraw --reset-settings` resets without asking (scripts,
+nothing. `graphdraw --reset-settings` resets without asking (scripts,
 support). Drawings are never touched.
 
 - `splash::tests::f8_while_starting_asks_to_reset_the_settings`

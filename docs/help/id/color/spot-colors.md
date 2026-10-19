@@ -27,7 +27,7 @@ yang memakainya tetap mempertahankan warna penggantinya.
 
 Berkas palet dapat berupa buku tinta spot (misalnya palet `.ase` dengan entri
 spot). Entri spotnya terbuka sebagai warna spot, dinamai seperti di buku;
-menerapkan salah satunya menambahkan tinta ke gambar. TraceDraw tidak
+menerapkan salah satunya menambahkan tinta ke gambar. GraphDraw tidak
 menyertakan buku warna berlisensi, tetapi buku yang Anda miliki dapat dibuka
 seperti palet lainnya.
 

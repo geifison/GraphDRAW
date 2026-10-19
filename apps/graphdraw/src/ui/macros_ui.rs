@@ -11,7 +11,7 @@ use crate::scripting::vba_run::Input;
 use crate::theme::Tokens;
 use egui::{Color32, Context, Pos2, Rect, RichText, Sense, Stroke, Ui, Vec2};
 use serde_json::{json, Value};
-use tracedraw_vba_project::ControlKind;
+use graphdraw_vba_project::ControlKind;
 
 /// Points to screen pixels (forms are designed at 96 dots per inch).
 const PX: f32 = 4.0 / 3.0;
@@ -185,7 +185,7 @@ fn prompt(app: &mut App, ctx: &Context) {
             let labels: Vec<String> = list.iter().map(|(k, _)| tr(k)).collect();
             let default = msgbox_default(style);
             let title = if title.is_empty() {
-                "TraceDraw".to_string()
+                "GraphDraw".to_string()
             } else {
                 title.clone()
             };
@@ -227,7 +227,7 @@ fn prompt(app: &mut App, ctx: &Context) {
             text,
         } => {
             let title = if title.is_empty() {
-                "TraceDraw".to_string()
+                "GraphDraw".to_string()
             } else {
                 title.clone()
             };
@@ -1480,10 +1480,10 @@ pub fn manager(app: &mut App, ui: &mut Ui) {
                 .body(|ui| {
                     for m in &p.project.modules {
                         let kind = match m.kind {
-                            tracedraw_vba_project::ModuleKind::Standard => tr("macros.kind_module"),
-                            tracedraw_vba_project::ModuleKind::Class => tr("macros.kind_class"),
-                            tracedraw_vba_project::ModuleKind::Form => tr("macros.kind_form"),
-                            tracedraw_vba_project::ModuleKind::Document => {
+                            graphdraw_vba_project::ModuleKind::Standard => tr("macros.kind_module"),
+                            graphdraw_vba_project::ModuleKind::Class => tr("macros.kind_class"),
+                            graphdraw_vba_project::ModuleKind::Form => tr("macros.kind_form"),
+                            graphdraw_vba_project::ModuleKind::Document => {
                                 tr("macros.kind_document")
                             }
                         };

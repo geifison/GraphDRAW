@@ -14,7 +14,7 @@ use crate::i18n::tr;
 use crate::theme::Tokens;
 use crate::ui::field::NumField;
 use egui::{epaint, vec2, Color32, Rect, Sense, Stroke, Ui};
-use tracedraw_core::Color;
+use graphdraw_core::Color;
 
 fn dim(ui: &mut Ui, text: String) {
     ui.label(
@@ -256,16 +256,16 @@ mod tests {
     /// outline, its own colour and outline, or neither.
     #[test]
     fn smart_fill_takes_the_bars_fill_and_outline() {
-        use tracedraw_core::{Fill, ShapeKind};
+        use graphdraw_core::{Fill, ShapeKind};
         let mut app = App::headless();
         app.new_shape(ShapeKind::Rect {
-            rect: tracedraw_core::Rect::new(20.0, 20.0, 60.0, 60.0),
+            rect: graphdraw_core::Rect::new(20.0, 20.0, 60.0, 60.0),
             radius: 0.0,
             corners: None,
         })
         .expect("shape");
         let made = |app: &mut App| {
-            app.area_fill_at(tracedraw_core::Point::new(40.0, 40.0));
+            app.area_fill_at(graphdraw_core::Point::new(40.0, 40.0));
             let id = app.selection[0];
             let s = app.doc().find_shape(id).cloned().expect("filled area");
             app.undo();
@@ -298,8 +298,8 @@ mod tests {
         let ctx = crate::theme::ui_context();
         let mut app = App::headless();
         let id = app
-            .new_shape(tracedraw_core::ShapeKind::Rect {
-                rect: tracedraw_core::Rect::new(0.0, 0.0, 40.0, 40.0),
+            .new_shape(graphdraw_core::ShapeKind::Rect {
+                rect: graphdraw_core::Rect::new(0.0, 0.0, 40.0, 40.0),
                 radius: 0.0,
                 corners: None,
             })

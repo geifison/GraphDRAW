@@ -9,7 +9,7 @@ menu.tools.scripts_docker]]).
 
 ## Writing and running scripts {#run}
 
-A script works with the objects of TraceDraw: `Application`,
+A script works with the objects of GraphDraw: `Application`,
 `ActiveDocument`, `ActivePage`, `ActiveLayer` and the shapes, fills,
 outlines, colors, curves and effects. For example:
 
@@ -36,7 +36,7 @@ script is paused.
 
 ## Script filters {#filters}
 
-A script that defines `TraceDrawFilter`, with a name, extensions and an
+A script that defines `GraphDrawFilter`, with a name, extensions and an
 `Import` or `Export` function, adds a file format to
 [[menu.file.import]] and [[menu.file.export]]. Click
 [[docker.install_filter]] to keep it; [[docker.script_filters]] lists the
@@ -44,22 +44,22 @@ installed filters with [[docker.edit]] and [[docker.remove]].
 
 ## AI assistants (MCP) {#mcp}
 
-TraceDraw speaks the Model Context Protocol, so AI assistants on your
+GraphDraw speaks the Model Context Protocol, so AI assistants on your
 computer can open, edit, inspect, export and save drawings:
 
-- `tracedraw --mcp` runs TraceDraw without a window for an assistant.
+- `graphdraw --mcp` runs GraphDraw without a window for an assistant.
 - To let an assistant edit the drawing open in your window, turn on
   [[options.mcp_window]] on the [[options.general]] page of
   [[menu.tools > menu.tools.options > menu.tools.options_global]], and give
-  the assistant `tracedraw --mcp-window` as its command. Each change is one
+  the assistant `graphdraw --mcp-window` as its command. Each change is one
   undo step you can take back. Only programs on your computer with the
-  secret token TraceDraw writes can connect.
+  secret token GraphDraw writes can connect.
 
 ## The command-line tool {#cli}
 
-Every download also has `tracedraw-cli`, which converts drawings between
+Every download also has `graphdraw-cli`, which converts drawings between
 formats without opening the program, for batch work.
 
 ## Macros {#macros}
 
-TraceDraw runs VBA macro projects written for drawing programs (desktop version). [[menu.tools > menu.tools.macros > menu.tools.macros_load]] adds a project (`.gms`) or module files (`.bas`, `.cls`, `.frm`); projects are kept and load at start-up. The [[docker.macros]] lists their macros: double-click one or use [[menu.tools > menu.tools.macros > menu.tools.macros_run]] (<kbd>Alt+Shift+F8</kbd>) to run it. A macro's forms, message boxes and input boxes appear on screen, <kbd>Esc</kbd> or [[menu.tools > menu.tools.macros > menu.tools.macros_stop]] stops it, and everything one run changes is one undo step. [[menu.tools > menu.tools.macros > menu.tools.macro_editor]] (<kbd>Alt+F11</kbd>) shows and edits the code. Macros that call Windows functions or the editor's own object model do not run.
+GraphDraw runs VBA macro projects written for drawing programs (desktop version). [[menu.tools > menu.tools.macros > menu.tools.macros_load]] adds a project (`.gms`) or module files (`.bas`, `.cls`, `.frm`); projects are kept and load at start-up. The [[docker.macros]] lists their macros: double-click one or use [[menu.tools > menu.tools.macros > menu.tools.macros_run]] (<kbd>Alt+Shift+F8</kbd>) to run it. A macro's forms, message boxes and input boxes appear on screen, <kbd>Esc</kbd> or [[menu.tools > menu.tools.macros > menu.tools.macros_stop]] stops it, and everything one run changes is one undo step. [[menu.tools > menu.tools.macros > menu.tools.macro_editor]] (<kbd>Alt+F11</kbd>) shows and edits the code. Macros that call Windows functions or the editor's own object model do not run.

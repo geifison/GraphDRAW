@@ -1,7 +1,7 @@
 # A Prateleira
 
 O painel [[docker.shelf]] guarda objetos e cores fora de qualquer desenho, para
-você colocá-los neste desenho ou em outro, hoje ou depois que o TraceDraw
+você colocá-los neste desenho ou em outro, hoje ou depois que o GraphDraw
 reiniciar: logotipos, carimbos, molduras, um conjunto de cores. Abra-o em
 [[menu.window > menu.window.dockers]], ou clique com o botão direito em uma
 seleção e escolha [[menu.object.add_to_shelf]].
@@ -37,7 +37,7 @@ ao desenho.
 ### Remover um item {#remove}
 
 Escolha um item e clique em [[shelf.remove]]. A remoção não pode ser desfeita,
-então o TraceDraw pergunta antes: clique em [[shelf.remove]] para confirmar ou
+então o GraphDraw pergunta antes: clique em [[shelf.remove]] para confirmar ou
 em [[dialog.cancel]] para mantê-lo. Marque [[shelf.dont_ask]] para remover
 itens sem perguntar; para voltar a ser perguntado, ative
 [[options.warn_shelf_remove]] na página [[options.warnings]] das opções

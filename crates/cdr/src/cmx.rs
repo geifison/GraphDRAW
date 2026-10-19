@@ -18,7 +18,7 @@
 use crate::parse::{build_path, color_from_model, encode_png, ParseReport};
 use crate::{Error, Result};
 use std::collections::BTreeSet;
-use tracedraw_core::{
+use graphdraw_core::{
     document::{Layer, Page, ParagraphStyle, Shape, ShapeKind, TextAlign, TextSpan},
     geometry::{Affine, BezPath, Point, Rect, Size},
     style::{Arrowhead, Fountain, FountainKind, Stop},
@@ -468,7 +468,7 @@ const HEAD_UNITS_PER_WIDTH: f64 = 127_000.0;
 /// `width` sweeps along it; closed subpaths are kept, turned to one
 /// orientation.
 fn stroke_open_subpaths(path: &BezPath, width: f64) -> BezPath {
-    use tracedraw_core::geometry::PathEl;
+    use graphdraw_core::geometry::PathEl;
     let mut out = BezPath::new();
     let mut sub: Vec<PathEl> = Vec::new();
     let flush = |sub: &mut Vec<PathEl>, closed: bool, out: &mut BezPath| {
@@ -480,7 +480,7 @@ fn stroke_open_subpaths(path: &BezPath, width: f64) -> BezPath {
             // Every closed subpath is filled on its own (a smaller one
             // inside a larger one is not a hole): give them all the
             // orientation of the swept bands so they add up.
-            use tracedraw_core::geometry::Shape as _;
+            use graphdraw_core::geometry::Shape as _;
             let part = if part.area() < 0.0 {
                 part.reverse_subpaths()
             } else {
@@ -492,7 +492,7 @@ fn stroke_open_subpaths(path: &BezPath, width: f64) -> BezPath {
             }
         } else {
             let mut line = Vec::new();
-            tracedraw_core::geometry::flatten(&part, width / 20.0, &mut |el| match el {
+            graphdraw_core::geometry::flatten(&part, width / 20.0, &mut |el| match el {
                 PathEl::MoveTo(p) | PathEl::LineTo(p) => line.push(p),
                 _ => {}
             });
@@ -500,7 +500,7 @@ fn stroke_open_subpaths(path: &BezPath, width: f64) -> BezPath {
             if line.len() < 2 {
                 return;
             }
-            let band = tracedraw_core::shaping::stroke_band(&line, width, false);
+            let band = graphdraw_core::shaping::stroke_band(&line, width, false);
             out.extend(band.elements().iter().copied());
         }
     };
@@ -1221,7 +1221,7 @@ fn image_shape(p: Placement, (w, h, png): (u32, u32, Vec<u8>), doc: &mut Documen
 }
 
 /// A group of `children`, or the only child, or nothing.
-fn group_of(mut children: Vec<Shape>, id: tracedraw_core::ShapeId) -> Option<Shape> {
+fn group_of(mut children: Vec<Shape>, id: graphdraw_core::ShapeId) -> Option<Shape> {
     match children.len() {
         0 => None,
         1 => children.pop(),
@@ -1664,14 +1664,14 @@ pub(crate) mod tests {
         assert_eq!(o.end_arrow.name(), "Arrowhead 1");
         // The head keeps the file's size: three outline widths tall, as
         // long as it is tall, whatever the width.
-        let mut line = tracedraw_core::BezPath::new();
+        let mut line = graphdraw_core::BezPath::new();
         line.move_to((0.0, 0.0));
         line.line_to((50.0, 0.0));
         for width in [1.0, 2.5] {
             let stroke = Stroke { width, ..o.clone() };
-            let heads = tracedraw_core::arrowhead_paths(&line, &stroke);
+            let heads = graphdraw_core::arrowhead_paths(&line, &stroke);
             assert_eq!(heads.len(), 1);
-            let b = tracedraw_core::geometry::Shape::bounding_box(&heads[0]);
+            let b = graphdraw_core::geometry::Shape::bounding_box(&heads[0]);
             assert!((b.height() - 3.0 * width).abs() < 1e-9, "{b:?}");
             assert!((b.width() - 3.0 * width).abs() < 1e-9, "{b:?}");
             assert!((b.x1 - 50.0).abs() < 1e-9, "{b:?}");
@@ -1680,7 +1680,7 @@ pub(crate) mod tests {
 
     #[test]
     fn arrowheads_keep_size_and_placement() {
-        use tracedraw_core::geometry::Shape as _;
+        use graphdraw_core::geometry::Shape as _;
         let head = |pts: &[i32], types: &[u8]| {
             let mut f1 = u16::try_from(types.len()).unwrap().to_le_bytes().to_vec();
             f1.extend_from_slice(&le(pts));

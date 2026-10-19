@@ -2,7 +2,7 @@
 
 mod common;
 use common::{run, run_err, run_modules};
-use tracedraw_vba::{compile, list_macros, Module, ModuleKind};
+use graphdraw_vba::{compile, list_macros, Module, ModuleKind};
 
 #[test]
 fn hello_and_arithmetic() {

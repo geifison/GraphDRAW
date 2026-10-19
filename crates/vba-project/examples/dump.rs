@@ -4,7 +4,7 @@
 fn main() {
     let path = std::env::args().nth(1).expect("a .gms file");
     let bytes = std::fs::read(&path).expect("read");
-    match tracedraw_vba_project::read_gms(&bytes) {
+    match graphdraw_vba_project::read_gms(&bytes) {
         Err(e) => println!("error: {e}"),
         Ok(p) => {
             println!(
@@ -22,7 +22,7 @@ fn main() {
             }
             for f in &p.forms {
                 println!("form {:?}", f.name);
-                fn walk(c: &[tracedraw_vba_project::Control], depth: usize) {
+                fn walk(c: &[graphdraw_vba_project::Control], depth: usize) {
                     for c in c {
                         println!(
                             "{}{:?} {} {:?} at ({:.1},{:.1}) {:.1}x{:.1}",

@@ -1,6 +1,6 @@
 # Bitmaps
 
-Bitmaps sind Bilder aus Pixeln, etwa Fotos und Scans. TraceDraw platziert sie
+Bitmaps sind Bilder aus Pixeln, etwa Fotos und Scans. GraphDraw platziert sie
 in Zeichnungen, ändert ihren Farbmodus und ihre Größe, richtet sie gerade,
 maskiert Farben, wendet Effekte an und vektorisiert sie zu Formen. Es wandelt
 auch Vektorobjekte in Bitmaps um.

@@ -22,7 +22,7 @@ Wybierz go w menu [[menu.window > menu.window.workspace]] lub na stronie
 
 ## Co jest zachowywane {#kept}
 
-Wszystko, co zmienisz, jest zachowywane po zamknięciu TraceDraw i wraca przy
+Wszystko, co zmienisz, jest zachowywane po zamknięciu GraphDraw i wraca przy
 następnym uruchomieniu: opcje, położenie każdego paska i to, które paski są
 widoczne, narzędzie widoczne w każdej grupie przybornika, otwarte panele,
 jednostki, przyciąganie, ustawienia przyjmowane przez nowe obiekty i to, co

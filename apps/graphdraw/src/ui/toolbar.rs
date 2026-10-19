@@ -6,7 +6,7 @@ use crate::theme::Tokens;
 use crate::tools::Tool;
 use crate::ui::icons;
 use egui::{Ui, Vec2};
-use tracedraw_core::{document::ShapeKind, geometry::Rect, Command, Fill};
+use graphdraw_core::{document::ShapeKind, geometry::Rect, Command, Fill};
 
 fn vsep(ui: &mut Ui) {
     ui.add(egui::Separator::default().vertical().spacing(6.0));
@@ -733,9 +733,9 @@ pub fn transform_toolbar(app: &mut App, ui: &mut Ui) {
         changed |= unit_value(ui, app, "w", &mut nw, 0.5);
         changed |= unit_value(ui, app, "h", &mut nh, 0.5);
         if changed && has && w > 1e-9 && h > 1e-9 {
-            let t = tracedraw_core::Affine::translate((b.x0, b.y0))
-                * tracedraw_core::Affine::scale_non_uniform(nw / w, nh / h)
-                * tracedraw_core::Affine::translate((-x0, -y0));
+            let t = graphdraw_core::Affine::translate((b.x0, b.y0))
+                * graphdraw_core::Affine::scale_non_uniform(nw / w, nh / h)
+                * graphdraw_core::Affine::translate((-x0, -y0));
             app.transform_selection(t);
         }
         vsep(ui);
@@ -756,7 +756,7 @@ pub fn transform_toolbar(app: &mut App, ui: &mut Ui) {
             .clicked()
         {
             let c = app.selection_bounds().unwrap_or_default().center();
-            app.transform_selection(tracedraw_core::Affine::rotate_about(
+            app.transform_selection(graphdraw_core::Affine::rotate_about(
                 std::f64::consts::FRAC_PI_2,
                 c,
             ));
@@ -1068,7 +1068,7 @@ pub fn property_bar(app: &mut App, ui: &mut Ui) {
                 let mut has_fill = !matches!(fill, Fill::None);
                 if ui.checkbox(&mut has_fill, "").changed() {
                     fill = if has_fill {
-                        Fill::Solid(tracedraw_core::Color::WHITE)
+                        Fill::Solid(graphdraw_core::Color::WHITE)
                     } else {
                         Fill::None
                     };
@@ -1077,7 +1077,7 @@ pub fn property_bar(app: &mut App, ui: &mut Ui) {
                 if let Fill::Solid(c) = fill {
                     let mut rgb = c.to_rgb8();
                     if ui.color_edit_button_srgb(&mut rgb).changed() {
-                        fill = Fill::Solid(tracedraw_core::Color::rgb8(rgb[0], rgb[1], rgb[2]));
+                        fill = Fill::Solid(graphdraw_core::Color::rgb8(rgb[0], rgb[1], rgb[2]));
                         changed = true;
                     }
                 }
@@ -1100,7 +1100,7 @@ pub fn property_bar(app: &mut App, ui: &mut Ui) {
                         None
                     } else {
                         let mut b = border.clone().unwrap_or_else(|| {
-                            tracedraw_core::Stroke::hairline(tracedraw_core::Color::BLACK)
+                            graphdraw_core::Stroke::hairline(graphdraw_core::Color::BLACK)
                         });
                         b.width = width;
                         Some(b)
@@ -1110,7 +1110,7 @@ pub fn property_bar(app: &mut App, ui: &mut Ui) {
                 if let Some(b) = &mut border {
                     let mut rgb = b.color.to_rgb8();
                     if ui.color_edit_button_srgb(&mut rgb).changed() {
-                        b.color = tracedraw_core::Color::rgb8(rgb[0], rgb[1], rgb[2]);
+                        b.color = graphdraw_core::Color::rgb8(rgb[0], rgb[1], rgb[2]);
                         changed = true;
                     }
                 }
@@ -1283,11 +1283,11 @@ pub fn property_bar(app: &mut App, ui: &mut Ui) {
                             .suffix(" mm"),
                     )
                     .changed();
-                sh.offset = tracedraw_core::geometry::Vec2::new(dx, dy);
+                sh.offset = graphdraw_core::geometry::Vec2::new(dx, dy);
                 let [r, g, b] = sh.color.to_rgb8();
                 let mut rgb = [r, g, b];
                 if ui.color_edit_button_srgb(&mut rgb).changed() {
-                    sh.color = tracedraw_core::Color::rgb8(rgb[0], rgb[1], rgb[2]);
+                    sh.color = graphdraw_core::Color::rgb8(rgb[0], rgb[1], rgb[2]);
                     changed = true;
                 }
                 if changed {
@@ -1448,7 +1448,7 @@ pub fn property_bar(app: &mut App, ui: &mut Ui) {
                 );
             }
             Tool::BlockShadow => {
-                use tracedraw_core::{geometry::Vec2 as CVec2, live::Effect};
+                use graphdraw_core::{geometry::Vec2 as CVec2, live::Effect};
                 // The selected object's block shadow, else the defaults.
                 let current = shapes.first().and_then(|s| {
                     s.effects.iter().find_map(|e| match e {
@@ -1498,7 +1498,7 @@ pub fn property_bar(app: &mut App, ui: &mut Ui) {
                 }
                 let mut rgb = color.to_rgb8();
                 if ui.color_edit_button_srgb(&mut rgb).changed() {
-                    color = tracedraw_core::Color::rgb8(rgb[0], rgb[1], rgb[2]);
+                    color = graphdraw_core::Color::rgb8(rgb[0], rgb[1], rgb[2]);
                     changed = true;
                 }
                 ui.label(
@@ -1587,7 +1587,7 @@ fn curve_tool_properties(app: &mut App, ui: &mut Ui) {
             ShapeKind::Path { path, .. } => !path
                 .elements()
                 .iter()
-                .any(|e| matches!(e, tracedraw_core::geometry::PathEl::ClosePath)),
+                .any(|e| matches!(e, graphdraw_core::geometry::PathEl::ClosePath)),
             _ => false,
         });
         if pic_button(ui, Pic::CloseCurve, &tr("toolbar.close_tip"), open, false).clicked() {
@@ -1708,24 +1708,24 @@ pub const TEXT_SIZES: [f64; 22] = [
 ];
 
 /// The alignments of the alignment list, with their pictures and names.
-const TEXT_ALIGNS: [(tracedraw_core::TextAlign, crate::ui::propbar::Pic, &str); 4] = [
+const TEXT_ALIGNS: [(graphdraw_core::TextAlign, crate::ui::propbar::Pic, &str); 4] = [
     (
-        tracedraw_core::TextAlign::Left,
+        graphdraw_core::TextAlign::Left,
         crate::ui::propbar::Pic::TextLeft,
         "toolbar.align_left",
     ),
     (
-        tracedraw_core::TextAlign::Center,
+        graphdraw_core::TextAlign::Center,
         crate::ui::propbar::Pic::TextCenter,
         "toolbar.align_center",
     ),
     (
-        tracedraw_core::TextAlign::Right,
+        graphdraw_core::TextAlign::Right,
         crate::ui::propbar::Pic::TextRight,
         "toolbar.align_right",
     ),
     (
-        tracedraw_core::TextAlign::Justify,
+        graphdraw_core::TextAlign::Justify,
         crate::ui::propbar::Pic::TextJustify,
         "toolbar.full_justify",
     ),
@@ -1835,7 +1835,7 @@ pub fn transparency_part(app: &mut App, ui: &mut Ui) {
         .map(|s| {
             s.effects
                 .iter()
-                .any(|e| matches!(e, tracedraw_core::live::Effect::Transparency { .. }))
+                .any(|e| matches!(e, graphdraw_core::live::Effect::Transparency { .. }))
         })
         .unwrap_or(false);
     let first_opacity = shapes.first().map(|s| s.opacity).unwrap_or(1.0);
@@ -1892,7 +1892,7 @@ pub fn transparency_part(app: &mut App, ui: &mut Ui) {
                 f.angle = angle;
                 changed = true;
             }
-            let kinds = tracedraw_core::style::FountainKind::ALL
+            let kinds = graphdraw_core::style::FountainKind::ALL
                 .map(|k| (k, crate::ui::dockers::fountain_kind_key(k)));
             let name = kinds
                 .iter()
@@ -1925,7 +1925,7 @@ pub fn transparency_part(app: &mut App, ui: &mut Ui) {
         .selected_text(app.transparency_default.merge.name())
         .width(100.0)
         .show_ui(ui, |ui| {
-            for m in tracedraw_core::live::MergeMode::ALL {
+            for m in graphdraw_core::live::MergeMode::ALL {
                 if ui
                     .selectable_label(app.transparency_default.merge == m, m.name())
                     .clicked()
@@ -2093,7 +2093,7 @@ fn text_align_list(app: &mut App, ui: &mut Ui) -> bool {
 fn shape_tool_bar(app: &mut App, ui: &mut Ui) {
     use crate::node_edit::NodeTransformMode;
     use crate::ui::propbar::{pic_button, sep, Pic};
-    use tracedraw_core::nodes::NodeType;
+    use graphdraw_core::nodes::NodeType;
     // Rectangles, ellipses and polygons: the Shape tool edits them through
     // their own controls (corners, pie and arc, points), as with their tools.
     let shapes = app.selected_shapes();
@@ -2369,8 +2369,8 @@ fn shape_tool_bar(app: &mut App, ui: &mut Ui) {
 /// Interactive Fill property bar: fill type, then the fields of that type
 /// (colour; fountain kind, start and end colours, angle, edge pad). With a
 /// selection the fields edit it; otherwise they set the default fill.
-fn interactive_fill_bar(app: &mut App, ui: &mut Ui, shapes: &[tracedraw_core::document::Shape]) {
-    use tracedraw_core::style::FountainKind;
+fn interactive_fill_bar(app: &mut App, ui: &mut Ui, shapes: &[graphdraw_core::document::Shape]) {
+    use graphdraw_core::style::FountainKind;
     let mut fill = shapes
         .first()
         .map(|s| s.fill.clone())
@@ -2398,25 +2398,25 @@ fn interactive_fill_bar(app: &mut App, ui: &mut Ui, shapes: &[tracedraw_core::do
         if ui.selectable_label(kind == i, tr(key)).clicked() && kind != i {
             let base = fill
                 .preview_color()
-                .unwrap_or(tracedraw_core::Color::cmyk_pct(0.0, 0.0, 0.0, 20.0));
+                .unwrap_or(graphdraw_core::Color::cmyk_pct(0.0, 0.0, 0.0, 20.0));
             fill = match i {
                 0 => Fill::None,
                 1 => Fill::Solid(base),
-                2 => Fill::linear(base, tracedraw_core::Color::WHITE, 0.0),
-                3 => Fill::Pattern(tracedraw_core::Pattern::TwoColor {
-                    tile: tracedraw_core::style::PatternTile::Checker,
+                2 => Fill::linear(base, graphdraw_core::Color::WHITE, 0.0),
+                3 => Fill::Pattern(graphdraw_core::Pattern::TwoColor {
+                    tile: graphdraw_core::style::PatternTile::Checker,
                     front: base,
-                    back: tracedraw_core::Color::WHITE,
+                    back: graphdraw_core::Color::WHITE,
                     size_mm: 10.0,
                 }),
-                4 => Fill::Texture(tracedraw_core::style::Texture {
-                    kind: tracedraw_core::style::TextureKind::Clouds,
+                4 => Fill::Texture(graphdraw_core::style::Texture {
+                    kind: graphdraw_core::style::TextureKind::Clouds,
                     color_a: base,
-                    color_b: tracedraw_core::Color::WHITE,
+                    color_b: graphdraw_core::Color::WHITE,
                     scale: 20.0,
                     seed: 1,
                 }),
-                _ => Fill::Mesh(tracedraw_core::Mesh::new(
+                _ => Fill::Mesh(graphdraw_core::Mesh::new(
                     shapes
                         .first()
                         .map(|s| s.bounds())
@@ -2430,10 +2430,10 @@ fn interactive_fill_bar(app: &mut App, ui: &mut Ui, shapes: &[tracedraw_core::do
         }
     }
     vsep(ui);
-    let color_button = |ui: &mut Ui, c: &mut tracedraw_core::Color| -> bool {
+    let color_button = |ui: &mut Ui, c: &mut graphdraw_core::Color| -> bool {
         let mut rgb = c.to_rgb8();
         if ui.color_edit_button_srgb(&mut rgb).changed() {
-            *c = tracedraw_core::Color::rgb8(rgb[0], rgb[1], rgb[2]);
+            *c = graphdraw_core::Color::rgb8(rgb[0], rgb[1], rgb[2]);
             true
         } else {
             false
@@ -2573,7 +2573,7 @@ fn shape_thumbnail(
     on: bool,
     small: bool,
 ) -> egui::Response {
-    use tracedraw_core::geometry::PathEl;
+    use graphdraw_core::geometry::PathEl;
     let side = if small { 22.0 } else { 34.0 };
     let (rect, resp) = ui.allocate_exact_size(Vec2::splat(side), egui::Sense::click());
     let painter = ui.painter();
@@ -2608,7 +2608,7 @@ fn shape_thumbnail(
         }
         run.clear();
     };
-    tracedraw_core::geometry::flatten(&path, 0.005, &mut |el| match el {
+    graphdraw_core::geometry::flatten(&path, 0.005, &mut |el| match el {
         PathEl::MoveTo(p) => {
             flush(&mut run, false);
             run.push(to_screen(p.x, p.y));

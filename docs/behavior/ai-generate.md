@@ -5,8 +5,8 @@ up with their own API key (Tools > Options > AI > Service), when that
 service can make pictures: OpenAI, Google Gemini, or a custom
 OpenAI-compatible address with an image model (see `ai-options.md`).
 The Messages API and the local chat-only servers make drawings only.
-TraceDraw has no AI of its own and no account, and nothing is sent until
-the user asks. The work is in `apps/tracedraw/src/ai_image.rs`.
+GraphDraw has no AI of its own and no account, and nothing is sent until
+the user asks. The work is in `apps/graphdraw/src/ai_image.rs`.
 
 ## Where
 

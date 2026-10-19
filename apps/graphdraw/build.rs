@@ -2,16 +2,16 @@
 // the fonts bundled into the browser build.
 fn main() {
     web_fonts();
-    println!("cargo:rerun-if-changed=../../assets/icon/tracedraw.ico");
+    println!("cargo:rerun-if-changed=../../assets/icon/graphdraw.ico");
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
         let mut res = winresource::WindowsResource::new();
-        res.set_icon("../../assets/icon/tracedraw.ico");
-        res.set("ProductName", "TraceDraw");
-        res.set("FileDescription", "TraceDraw vector editor");
-        res.set("CompanyName", "Ighor Toth");
+        res.set_icon("../../assets/icon/graphdraw.ico");
+        res.set("ProductName", "GraphDraw");
+        res.set("FileDescription", "GraphDraw vector editor");
+        res.set("CompanyName", "GraphDraw");
         res.set(
             "LegalCopyright",
-            "Copyright \u{a9} 2026 Ighor Toth and the TraceDraw contributors",
+            "Copyright \u{a9} 2026 Ighor Toth and the TraceDraw contributors and GraphDraw contributors",
         );
         if let Err(e) = res.compile() {
             println!("cargo:warning=could not embed Windows resources: {e}");
@@ -20,16 +20,16 @@ fn main() {
 }
 
 /// The browser build has no system fonts: bundle the font files found on
-/// the build machine (directories in TRACEDRAW_WEB_FONTS, separated by
+/// the build machine (directories in GRAPHDRAW_WEB_FONTS, separated by
 /// ':', or the usual Linux font folders). Writes `web_fonts.rs` into
 /// OUT_DIR; the list is empty for native builds.
 fn web_fonts() {
-    println!("cargo:rerun-if-env-changed=TRACEDRAW_WEB_FONTS");
+    println!("cargo:rerun-if-env-changed=GRAPHDRAW_WEB_FONTS");
     let out = std::path::PathBuf::from(std::env::var("OUT_DIR").unwrap_or_default());
     let wasm = std::env::var("CARGO_CFG_TARGET_ARCH").as_deref() == Ok("wasm32");
     let mut entries = Vec::new();
     if wasm {
-        let dirs: Vec<std::path::PathBuf> = match std::env::var("TRACEDRAW_WEB_FONTS") {
+        let dirs: Vec<std::path::PathBuf> = match std::env::var("GRAPHDRAW_WEB_FONTS") {
             Ok(v) if !v.is_empty() => v.split(':').map(std::path::PathBuf::from).collect(),
             _ => [
                 "/usr/share/fonts/truetype/liberation",
@@ -69,7 +69,7 @@ fn web_fonts() {
             }
         }
         if entries.is_empty() {
-            println!("cargo:warning=no fonts found for the browser build; set TRACEDRAW_WEB_FONTS");
+            println!("cargo:warning=no fonts found for the browser build; set GRAPHDRAW_WEB_FONTS");
         }
     }
     let code = format!(

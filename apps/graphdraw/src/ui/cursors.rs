@@ -167,8 +167,8 @@ fn pick_cursor(app: &App, pos: Option<Pos2>) -> Option<ToolCursor> {
 
 /// The arrows for moving a guideline: up and down for a horizontal one,
 /// sideways for a vertical one, the move arrows for a slanted one.
-fn across_guide(line: &tracedraw_core::document::GuideLine) -> ToolCursor {
-    use tracedraw_core::document::GuideLine;
+fn across_guide(line: &graphdraw_core::document::GuideLine) -> ToolCursor {
+    use graphdraw_core::document::GuideLine;
     ToolCursor::System(match line {
         GuideLine::Horizontal { .. } => egui::CursorIcon::ResizeVertical,
         GuideLine::Vertical { .. } => egui::CursorIcon::ResizeHorizontal,
@@ -340,7 +340,7 @@ fn curve_mark(app: &App, pos: Option<Pos2>) -> Option<CurveMark> {
         return Some(CurveMark::EditNode);
     }
     if let Some(c) = &app.curve {
-        let near = |q: &tracedraw_core::geometry::Point| {
+        let near = |q: &graphdraw_core::geometry::Point| {
             app.view.to_screen(*q).distance(pos) as f64 <= app.settings.curves.join_px()
         };
         if c.nodes.len() >= 3 && c.nodes.first().is_some_and(|(f, _)| near(f)) {
@@ -373,7 +373,7 @@ fn over_text(app: &App, pos: Option<Pos2>) -> bool {
     let p = app.view.to_page(pos);
     app.hit_test(p)
         .and_then(|id| app.doc().find_shape(id))
-        .is_some_and(|s| matches!(s.kind, tracedraw_core::ShapeKind::Text { .. }))
+        .is_some_and(|s| matches!(s.kind, graphdraw_core::ShapeKind::Text { .. }))
 }
 
 /// A nib of `mm` on screen at `zoom` (points per mm), kept visible and
@@ -833,14 +833,14 @@ mod tests {
         app.canvas_rect = egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(800.0, 600.0));
         let page = app.page_rect();
         app.view.fit(page, app.canvas_rect);
-        app.start_text(tracedraw_core::geometry::Point::new(50.0, 50.0), None);
+        app.start_text(graphdraw_core::geometry::Point::new(50.0, 50.0), None);
         for c in "Hello".chars() {
             app.text_insert(&c.to_string());
         }
         app.finish_text();
         let on = app
             .view
-            .to_screen(tracedraw_core::geometry::Point::new(52.0, 51.0));
+            .to_screen(graphdraw_core::geometry::Point::new(52.0, 51.0));
         assert_eq!(
             for_tool(&app, false, false, false, Some(on)),
             ToolCursor::System(egui::CursorIcon::Text)
@@ -855,23 +855,23 @@ mod tests {
         app.tool = Tool::Bezier;
         app.select(Vec::new());
         app.add_drawn_line({
-            let mut l = tracedraw_core::geometry::BezPath::new();
+            let mut l = graphdraw_core::geometry::BezPath::new();
             l.move_to((10.0, 10.0));
             l.line_to((60.0, 10.0));
             l
         });
         let end = app
             .view
-            .to_screen(tracedraw_core::geometry::Point::new(60.0, 10.0));
+            .to_screen(graphdraw_core::geometry::Point::new(60.0, 10.0));
         assert_eq!(
             for_tool(&app, false, false, false, Some(end)),
             ToolCursor::CurveBadge(Tool::Bezier, CurveMark::Join)
         );
         app.curve = Some(crate::app::CurveInProgress {
             nodes: vec![
-                (tracedraw_core::geometry::Point::new(100.0, 100.0), None),
-                (tracedraw_core::geometry::Point::new(150.0, 100.0), None),
-                (tracedraw_core::geometry::Point::new(150.0, 150.0), None),
+                (graphdraw_core::geometry::Point::new(100.0, 100.0), None),
+                (graphdraw_core::geometry::Point::new(150.0, 100.0), None),
+                (graphdraw_core::geometry::Point::new(150.0, 150.0), None),
             ],
             smooth: true,
             dragging_handle: false,
@@ -880,7 +880,7 @@ mod tests {
         });
         let first = app
             .view
-            .to_screen(tracedraw_core::geometry::Point::new(100.0, 100.0));
+            .to_screen(graphdraw_core::geometry::Point::new(100.0, 100.0));
         assert_eq!(
             for_tool(&app, false, false, false, Some(first)),
             ToolCursor::CurveBadge(Tool::Bezier, CurveMark::Close)

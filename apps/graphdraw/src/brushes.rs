@@ -9,7 +9,7 @@ use crate::app::{App, Drag};
 use crate::tools::Tool;
 use crate::ui::brush_bars::BrushSettings;
 use egui::{Modifiers, PointerButton, Response};
-use tracedraw_core::{effects, geometry::Point, Command, ShapeKind};
+use graphdraw_core::{effects, geometry::Point, Command, ShapeKind};
 
 /// How far Twirl and Attract and Repel go per second while the button is
 /// held still, as a pointer move (mm).
@@ -132,7 +132,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::{Rect, ShapeId};
+    use graphdraw_core::{Rect, ShapeId};
 
     fn square(app: &mut App) -> ShapeId {
         let id = app
@@ -195,8 +195,8 @@ mod tests {
                     .elements()
                     .iter()
                     .filter_map(|e| match e {
-                        tracedraw_core::geometry::PathEl::MoveTo(q)
-                        | tracedraw_core::geometry::PathEl::LineTo(q) => Some(q.x + q.y),
+                        graphdraw_core::geometry::PathEl::MoveTo(q)
+                        | graphdraw_core::geometry::PathEl::LineTo(q) => Some(q.x + q.y),
                         _ => None,
                     })
                     .fold(f64::MIN, f64::max),

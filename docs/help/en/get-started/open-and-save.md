@@ -1,6 +1,6 @@
 # Opening and saving drawings
 
-TraceDraw saves drawings in its own format, `.tdraw`, which keeps
+GraphDraw saves drawings in its own format, `.gdr`, which keeps
 everything, and can also save `.cdr` files. It opens many other formats; see
 [Supported file formats](../file-formats/supported-formats.md).
 
@@ -38,7 +38,7 @@ turn them on again on the [[options.warnings]] page of
 
 Choose [[menu.file > menu.file.save]] (<kbd>Ctrl+S</kbd>) to write the
 drawing back to its file. A new drawing, or one opened from a format
-TraceDraw only reads, has no file yet, so Save opens the
+GraphDraw only reads, has no file yet, so Save opens the
 [[dialog.save_drawing]] dialog box.
 
 ## Save As {#save-as}
@@ -59,9 +59,9 @@ To save a drawing under a new name:
    Double-click a folder of the list to open it; click a file to take its
    name.
 2. Type the [[dialog.file_name]]. The extension of the chosen type is added.
-3. Choose [[dialog.save_as_type]]: TraceDraw (`*.tdraw`) or
+3. Choose [[dialog.save_as_type]]: GraphDraw (`*.gdr`) or
    [[file.cdr_files]].
-4. Choose the [[dialog.cdr_version]]. For TraceDraw files it is the version
+4. Choose the [[dialog.cdr_version]]. For GraphDraw files it is the version
    of the format, newest first. For `.cdr` files it is the version of the
    file, from 27 down to 14; an older program can only open a version as old
    as itself or older. The version you choose stays with the drawing, so
@@ -75,7 +75,7 @@ To save a drawing under a new name:
    are the drawing's properties, also shown in
    [Document properties](../pages-layout/document-properties.md).
 7. Click [[dialog.save]] or press <kbd>Enter</kbd>. If the file exists,
-   TraceDraw asks whether to [[dialog.replace]] it.
+   GraphDraw asks whether to [[dialog.replace]] it.
 
 The dialog box starts in the drawing's folder, else in the folder you saved
 to last, else in your documents folder.
@@ -99,9 +99,9 @@ version last saved.
 Choose [[menu.file > menu.file.close]] (<kbd>Ctrl+F4</kbd>), click the close
 button on the drawing's tab, or middle-click the tab.
 [[menu.file.close_all]] closes every drawing, and [[menu.file.exit]]
-(<kbd>Alt+F4</kbd>) closes TraceDraw.
+(<kbd>Alt+F4</kbd>) closes GraphDraw.
 
-When a drawing has unsaved changes, TraceDraw asks whether to save them
+When a drawing has unsaved changes, GraphDraw asks whether to save them
 first: [[dialog.yes]] saves (asking for a name if the drawing has no file yet),
 [[dialog.no]] closes without saving, and [[dialog.cancel]] keeps the drawing open.
 When several drawings have changes, it asks about each one; Cancel stops.
@@ -110,14 +110,14 @@ When several drawings have changes, it asks about each one; Cancel stops.
 
 ## Auto-backup and recovery {#recovery}
 
-On the desktop, TraceDraw keeps backups of your open drawings while
+On the desktop, GraphDraw keeps backups of your open drawings while
 auto-backup is on (the [[options.save]] page of
 [[menu.tools > menu.tools.options > menu.tools.options_app]] sets how often
-and where; every 20 minutes at first). Closing TraceDraw normally removes
+and where; every 20 minutes at first). Closing GraphDraw normally removes
 them.
 
-If TraceDraw ended without closing, for example after a power cut, it offers
+If GraphDraw ended without closing, for example after a power cut, it offers
 the backups the next time it starts: [[dialog.recover]] opens each one as an
 unsaved drawing (Save then asks where to save it), and [[dialog.discard]]
-leaves the backups in their folder. Two TraceDraw windows running at once
+leaves the backups in their folder. Two GraphDraw windows running at once
 never offer each other's drawings.

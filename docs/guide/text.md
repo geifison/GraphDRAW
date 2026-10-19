@@ -1,6 +1,6 @@
 # Text
 
-TraceDraw has two kinds of text:
+GraphDraw has two kinds of text:
 
 - **Artistic text**: a line (or a few lines, with **Enter**) placed at a
   point. Good for headlines, labels and logos. New artistic text is
@@ -67,7 +67,7 @@ next text you add.
   the pointer.
 
 `Ctrl+8` and `Ctrl+2` make the selected text larger and smaller by the
-keyboard text increment (1 pt; set in **Tools > Options > TraceDraw >
+keyboard text increment (1 pt; set in **Tools > Options > GraphDraw >
 Text**).
 
 ### Missing fonts
@@ -78,7 +78,7 @@ to match its widths where possible so lines break as before. The status
 bar and the **Font Manager** (on the standard toolbar's **Launch**
 button) name the stand-in beside each missing family. Fonts embedded in
 an opened `.cdr` file are used when their licence allows it, and saving
-as `.tdraw` keeps them with the drawing.
+as `.gdr` keeps them with the drawing.
 
 Detail: [the text notes](../behavior/text.md#missing-fonts).
 

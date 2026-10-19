@@ -7,7 +7,7 @@ use crate::tools::Tool;
 use crate::ui::dialogs::Dialog;
 use crate::ui::menus::{body, check, item, item_label, menu_popup_style, radio, sep, sub};
 use egui::{Response, Ui};
-use tracedraw_core::{document::ShapeKind, Command};
+use graphdraw_core::{document::ShapeKind, Command};
 
 fn ci(ui: &mut Ui, close: &mut bool, key: &str, shortcut: &str, enabled: bool) -> bool {
     let r = item(ui, key, shortcut, enabled);
@@ -377,7 +377,7 @@ pub(crate) fn object_menu(app: &mut App, ui: &mut Ui, close: &mut bool) {
             *close = true;
         }
         sep(ui);
-        for (mode, side) in tracedraw_core::TextWrap::STYLES {
+        for (mode, side) in graphdraw_core::TextWrap::STYLES {
             let here = wrap && current.mode == mode && current.side == side;
             if radio(ui, crate::ui::propbar::wrap_style_key(mode, side), "", here) {
                 app.set_wrap_style(mode, side);
@@ -414,7 +414,7 @@ pub(crate) fn object_menu(app: &mut App, ui: &mut Ui, close: &mut bool) {
 }
 
 fn node_menu(app: &mut App, ui: &mut Ui, close: &mut bool) {
-    use tracedraw_core::nodes::NodeType;
+    use graphdraw_core::nodes::NodeType;
     let has_nodes = !app.node_selection.is_empty();
     if ci(ui, close, "context.node_add", "", has_nodes) {
         app.add_node_midpoints();
@@ -474,7 +474,7 @@ fn node_menu(app: &mut App, ui: &mut Ui, close: &mut bool) {
     }
 }
 
-fn page_menu(app: &mut App, ui: &mut Ui, p: tracedraw_core::Point, close: &mut bool) {
+fn page_menu(app: &mut App, ui: &mut Ui, p: graphdraw_core::Point, close: &mut bool) {
     if ci(
         ui,
         close,
@@ -487,7 +487,7 @@ fn page_menu(app: &mut App, ui: &mut Ui, p: tracedraw_core::Point, close: &mut b
             let shapes = app.selection.clone();
             app.run(Command::TransformShapes {
                 shapes,
-                transform: tracedraw_core::Affine::translate(p - b.center()),
+                transform: graphdraw_core::Affine::translate(p - b.center()),
             });
         }
     }

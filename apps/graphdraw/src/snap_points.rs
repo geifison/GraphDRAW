@@ -4,7 +4,7 @@
 //! page space.
 
 use serde::{Deserialize, Serialize};
-use tracedraw_core::{
+use graphdraw_core::{
     document::{Shape, ShapeKind},
     geometry::{
         Affine, BezPath, Line, ParamCurve, ParamCurveArclen, ParamCurveNearest, PathSeg, Point,
@@ -281,12 +281,12 @@ fn centroid(path: &BezPath) -> Option<Point> {
         }
         pts.clear();
     };
-    tracedraw_core::geometry::flatten(path, 0.05, &mut |el| match el {
-        tracedraw_core::geometry::PathEl::MoveTo(p) => {
+    graphdraw_core::geometry::flatten(path, 0.05, &mut |el| match el {
+        graphdraw_core::geometry::PathEl::MoveTo(p) => {
             close(&mut pts);
             pts.push(p);
         }
-        tracedraw_core::geometry::PathEl::LineTo(p) => pts.push(p),
+        graphdraw_core::geometry::PathEl::LineTo(p) => pts.push(p),
         _ => {}
     });
     close(&mut pts);
@@ -305,7 +305,7 @@ fn segments(path: &BezPath) -> Vec<PathSeg> {
 fn nodes_of(path: &BezPath) -> Vec<Point> {
     let mut out: Vec<Point> = Vec::new();
     for el in path.elements() {
-        use tracedraw_core::geometry::PathEl;
+        use graphdraw_core::geometry::PathEl;
         let p = match el {
             PathEl::MoveTo(p) | PathEl::LineTo(p) => *p,
             PathEl::QuadTo(_, p) | PathEl::CurveTo(_, _, p) => *p,
@@ -544,15 +544,15 @@ fn intersections(a: &PathSeg, b: &PathSeg) -> Vec<Point> {
                 let mut path = BezPath::new();
                 path.move_to(s.eval(0.0));
                 path.push(match s {
-                    PathSeg::Quad(q) => tracedraw_core::geometry::PathEl::QuadTo(q.p1, q.p2),
+                    PathSeg::Quad(q) => graphdraw_core::geometry::PathEl::QuadTo(q.p1, q.p2),
                     PathSeg::Cubic(c) => {
-                        tracedraw_core::geometry::PathEl::CurveTo(c.p1, c.p2, c.p3)
+                        graphdraw_core::geometry::PathEl::CurveTo(c.p1, c.p2, c.p3)
                     }
-                    PathSeg::Line(l) => tracedraw_core::geometry::PathEl::LineTo(l.p1),
+                    PathSeg::Line(l) => graphdraw_core::geometry::PathEl::LineTo(l.p1),
                 });
-                tracedraw_core::geometry::flatten(&path, 1e-4, &mut |el| match el {
-                    tracedraw_core::geometry::PathEl::MoveTo(p)
-                    | tracedraw_core::geometry::PathEl::LineTo(p) => pts.push(p),
+                graphdraw_core::geometry::flatten(&path, 1e-4, &mut |el| match el {
+                    graphdraw_core::geometry::PathEl::MoveTo(p)
+                    | graphdraw_core::geometry::PathEl::LineTo(p) => pts.push(p),
                     _ => {}
                 });
                 pts.windows(2).map(|w| Line::new(w[0], w[1])).collect()
@@ -608,7 +608,7 @@ mod tests {
             assert_eq!(tip, label.to_lowercase(), "{m:?}");
         }
     }
-    use tracedraw_core::{EllipseArc, ShapeId};
+    use graphdraw_core::{EllipseArc, ShapeId};
 
     fn rect(x0: f64, y0: f64, x1: f64, y1: f64) -> Shape {
         Shape::new(
@@ -768,10 +768,10 @@ mod tests {
         let s = Shape::new(
             ShapeId(4),
             ShapeKind::Text {
-                spans: vec![tracedraw_core::TextSpan::new("abc", "Sans", 12.0)],
+                spans: vec![graphdraw_core::TextSpan::new("abc", "Sans", 12.0)],
                 origin: Point::new(0.0, 0.0),
                 frame: None,
-                align: tracedraw_core::TextAlign::Left,
+                align: graphdraw_core::TextAlign::Left,
                 para: Default::default(),
                 on_path: None,
             },

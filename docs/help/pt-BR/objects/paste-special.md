@@ -9,11 +9,11 @@ um SVG copiado de uma página web pode virar formas editáveis ou uma imagem.
 
 ## Para colar em outra forma {#paste-as}
 
-1. Copie algo, no TraceDraw ou em outro programa.
+1. Copie algo, no GraphDraw ou em outro programa.
 2. Escolha [[menu.edit > menu.edit.paste_special]].
 3. Em [[dialog.paste_as]], escolha uma das formas que a área de transferência
    oferece:
-   - [[dialog.paste_objects]]: objetos copiados no TraceDraw, como eram;
+   - [[dialog.paste_objects]]: objetos copiados no GraphDraw, como eram;
    - [[dialog.paste_svg]]: texto SVG, transformado em formas editáveis;
    - [[dialog.paste_bitmap]]: uma imagem, como bitmap;
    - [[dialog.paste_text]]: texto simples, como uma linha de texto.

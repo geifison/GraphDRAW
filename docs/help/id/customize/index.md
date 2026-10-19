@@ -1,6 +1,6 @@
 # Kustomisasi dan otomatisasi
 
-TraceDraw dapat diatur sesuai cara Anda bekerja: opsi program dan setiap alat,
+GraphDraw dapat diatur sesuai cara Anda bekerja: opsi program dan setiap alat,
 tampilan antarmuka, pintasan keyboard, bilah, dan ruang kerja. Anda juga dapat
 mengotomatiskan pekerjaan dengan skrip, menghubungkan layanan AI untuk
 menggambar dari deskripsi, dan mencatat waktu yang dihabiskan untuk sebuah

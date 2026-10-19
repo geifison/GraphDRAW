@@ -16,7 +16,7 @@
 
 use crate::app::App;
 use jiff::tz::TimeZone;
-use tracedraw_core::{Command, TimeTracker, TrackedTask};
+use graphdraw_core::{Command, TimeTracker, TrackedTask};
 
 /// Counted time is written to the drawing once this many seconds gather.
 pub const FLUSH_SECONDS: f64 = 10.0;
@@ -557,7 +557,7 @@ mod tests {
     fn recording_goes_to_the_active_task_without_an_undo_step() {
         let mut app = App::headless();
         app.open_document(
-            tracedraw_core::Document::new("t", tracedraw_core::geometry::Size::new(100.0, 100.0)),
+            graphdraw_core::Document::new("t", graphdraw_core::geometry::Size::new(100.0, 100.0)),
             None,
         );
         assert!(!app.can_track());
@@ -597,15 +597,15 @@ mod tests {
     #[test]
     fn leaving_a_drawing_writes_its_time_first() {
         let mut app = App::headless();
-        let size = tracedraw_core::geometry::Size::new(100.0, 100.0);
-        app.open_document(tracedraw_core::Document::new("a", size), None);
+        let size = graphdraw_core::geometry::Size::new(100.0, 100.0);
+        app.open_document(graphdraw_core::Document::new("a", size), None);
         let a = app.active_doc;
         app.toggle_time_clock();
         app.time_tracker_frame(0.0, true);
         app.time_tracker_frame(4.0, true);
         assert_eq!(app.tracker.pending, 4.0);
         // Opening another drawing writes the 4 s to the first one.
-        app.open_document(tracedraw_core::Document::new("b", size), None);
+        app.open_document(graphdraw_core::Document::new("b", size), None);
         assert_eq!(app.tracker.pending, 0.0);
         // The new drawing has no task: its time goes nowhere.
         app.time_tracker_frame(6.0, true);

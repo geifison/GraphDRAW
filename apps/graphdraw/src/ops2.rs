@@ -5,7 +5,7 @@
 use crate::app::App;
 use crate::corners::JoinKind;
 use crate::i18n::{tr, trf};
-use tracedraw_core::{
+use graphdraw_core::{
     document::{Shape, ShapeKind},
     geometry::{Affine, BezPath, Point, Rect, Shape as _, Size},
     live::Effect,
@@ -92,7 +92,7 @@ impl App {
     /// chosen pages (bottom centre), updated through the symbol-like
     /// name "page-number" so future renumbering can find it.
     pub fn insert_page_number(&mut self, where_: PageNumberWhere) {
-        let pages: Vec<(usize, tracedraw_core::PageId)> = self
+        let pages: Vec<(usize, graphdraw_core::PageId)> = self
             .doc()
             .pages
             .iter()
@@ -133,21 +133,21 @@ impl App {
                         size.height - margin - em
                     };
                     if left_page {
-                        (Point::new(margin, y), tracedraw_core::TextAlign::Left)
+                        (Point::new(margin, y), graphdraw_core::TextAlign::Left)
                     } else {
                         (
                             Point::new(size.width - margin, y),
-                            tracedraw_core::TextAlign::Right,
+                            graphdraw_core::TextAlign::Right,
                         )
                     }
                 }
                 2 => (
                     Point::new(size.width / 2.0, size.height - margin - em),
-                    tracedraw_core::TextAlign::Center,
+                    graphdraw_core::TextAlign::Center,
                 ),
                 _ => (
                     Point::new(size.width / 2.0, margin),
-                    tracedraw_core::TextAlign::Center,
+                    graphdraw_core::TextAlign::Center,
                 ),
             };
             let mut s = Shape::new(
@@ -362,7 +362,7 @@ impl App {
                     },
                     Command::SetFill {
                         shapes: id.clone(),
-                        fill: tracedraw_core::Fill::None,
+                        fill: graphdraw_core::Fill::None,
                     },
                     Command::SetStroke {
                         shapes: id.clone(),
@@ -422,7 +422,7 @@ impl App {
                 continue;
             };
             let layer = layer.id;
-            let parts = tracedraw_core::live::break_apart(&s, || self.engine.new_shape_id());
+            let parts = graphdraw_core::live::break_apart(&s, || self.engine.new_shape_id());
             cmds.push(Command::DeleteShapes { shapes: vec![s.id] });
             for p in parts {
                 new_sel.push(p.id);
@@ -753,7 +753,7 @@ impl App {
             .filter(|s| matches!(s.kind, ShapeKind::ClipFrame { .. }))
             .map(|s| Command::SetOpacityMask {
                 shape: s.id,
-                mask: on.then_some(tracedraw_core::document::OpacityMask { invert }),
+                mask: on.then_some(graphdraw_core::document::OpacityMask { invert }),
             })
             .collect();
         if cmds.is_empty() {
@@ -813,8 +813,8 @@ impl App {
             .name
             .clone()
             .unwrap_or_else(|| trf("docker.custom_arrowhead_n", &[("n", &n.to_string())]));
-        let head = tracedraw_core::Arrowhead::from_shape_path(&path, name);
-        if matches!(head, tracedraw_core::Arrowhead::None) {
+        let head = graphdraw_core::Arrowhead::from_shape_path(&path, name);
+        if matches!(head, graphdraw_core::Arrowhead::None) {
             self.status = tr("status.arrowhead_needs_curve");
             return;
         }
@@ -842,8 +842,8 @@ impl App {
         if shapes.is_empty() {
             return;
         }
-        let fill = Fill::Pattern(tracedraw_core::Pattern::vector_from_shapes(&shapes));
-        self.set_default_properties(tracedraw_core::DefaultKind::Graphic, |p| p.fill = fill);
+        let fill = Fill::Pattern(graphdraw_core::Pattern::vector_from_shapes(&shapes));
+        self.set_default_properties(graphdraw_core::DefaultKind::Graphic, |p| p.fill = fill);
         self.status = tr("status.pattern_created");
     }
 
@@ -1004,12 +1004,12 @@ impl App {
         let paths: Vec<BezPath> = shapes.iter().map(|s| s.page_path()).collect();
         let j = self.join_settings;
         let mode = match j.mode {
-            JoinKind::Extend => tracedraw_core::join::JoinMode::Extend,
-            JoinKind::Chamfer => tracedraw_core::join::JoinMode::Chamfer,
-            JoinKind::Fillet => tracedraw_core::join::JoinMode::Fillet(j.radius),
-            JoinKind::Bezier => tracedraw_core::join::JoinMode::Bezier,
+            JoinKind::Extend => graphdraw_core::join::JoinMode::Extend,
+            JoinKind::Chamfer => graphdraw_core::join::JoinMode::Chamfer,
+            JoinKind::Fillet => graphdraw_core::join::JoinMode::Fillet(j.radius),
+            JoinKind::Bezier => graphdraw_core::join::JoinMode::Bezier,
         };
-        let (joined, n) = tracedraw_core::join::join_curves(&paths, mode, j.gap);
+        let (joined, n) = graphdraw_core::join::join_curves(&paths, mode, j.gap);
         if n == 0 {
             self.status = tr("status.join_gap_too_small");
             return 0;
@@ -1229,7 +1229,7 @@ impl App {
         }
         let bounds = self.selection_bounds()?;
         // Render only the selection: a temporary document with those shapes.
-        let mut tmp = tracedraw_core::Document::new(
+        let mut tmp = graphdraw_core::Document::new(
             "tmp",
             Size::new(bounds.width().max(0.1), bounds.height().max(0.1)),
         );
@@ -1246,15 +1246,15 @@ impl App {
         let zoom = dpi / 25.4;
         let w = (bounds.width() * zoom).ceil().max(1.0) as u32;
         let h = (bounds.height() * zoom).ceil().max(1.0) as u32;
-        let view = tracedraw_render::ViewTransform {
+        let view = graphdraw_render::ViewTransform {
             zoom,
             origin_x: 0.0,
             origin_y: h as f64,
         };
-        let mut pm = tracedraw_render::render_page(
+        let mut pm = graphdraw_render::render_page(
             &tmp,
             page,
-            &tracedraw_render::RenderOptions {
+            &graphdraw_render::RenderOptions {
                 width: w,
                 height: h,
                 view,
@@ -1263,7 +1263,7 @@ impl App {
                 anti_alias,
                 draft: false,
                 focus: None,
-                ..tracedraw_render::RenderOptions::default()
+                ..graphdraw_render::RenderOptions::default()
             },
         )?;
         if !transparent {
@@ -1354,13 +1354,13 @@ impl App {
         else {
             return;
         };
-        let fill = Fill::Pattern(tracedraw_core::style::Pattern::Bitmap {
+        let fill = Fill::Pattern(graphdraw_core::style::Pattern::Bitmap {
             png,
             width_px,
             height_px,
             size_mm: bounds.width().max(0.1),
         });
-        self.set_default_properties(tracedraw_core::DefaultKind::Graphic, |p| p.fill = fill);
+        self.set_default_properties(graphdraw_core::DefaultKind::Graphic, |p| p.fill = fill);
         self.status = tr("status.pattern_created");
     }
 
@@ -1411,7 +1411,7 @@ impl App {
                 } else {
                     s.fill = Fill::None;
                     let mm = stroke_px * rect.width() / w.max(1) as f64;
-                    s.stroke = Some(tracedraw_core::Stroke::new(t.color, mm.max(0.1)));
+                    s.stroke = Some(graphdraw_core::Stroke::new(t.color, mm.max(0.1)));
                 }
                 children.push(s);
             }
@@ -1537,7 +1537,7 @@ impl App {
     pub fn paragraph_style_of(
         &self,
         s: &Shape,
-    ) -> Option<(tracedraw_core::TextAlign, tracedraw_core::ParagraphStyle)> {
+    ) -> Option<(graphdraw_core::TextAlign, graphdraw_core::ParagraphStyle)> {
         let ShapeKind::Text {
             spans, align, para, ..
         } = &s.kind
@@ -1545,9 +1545,9 @@ impl App {
             return None;
         };
         let index = self.paragraph_range(s.id).map_or(0, |(a, _)| {
-            tracedraw_core::paragraphs::paragraph_of(spans, a)
+            graphdraw_core::paragraphs::paragraph_of(spans, a)
         });
-        let f = tracedraw_core::paragraphs::paragraph_format(spans, *align, para, index);
+        let f = graphdraw_core::paragraphs::paragraph_format(spans, *align, para, index);
         let mut p = para.clone();
         let a = f.apply_to(&mut p);
         Some((a, p))
@@ -1558,7 +1558,7 @@ impl App {
     /// fitting, baseline grid, vertical alignment, background) go to the
     /// object, the paragraph settings that changed to the paragraphs of
     /// [`App::paragraph_range`] (each keeps the others). One undo step.
-    pub fn set_paragraph_style(&mut self, id: ShapeId, para: tracedraw_core::ParagraphStyle) {
+    pub fn set_paragraph_style(&mut self, id: ShapeId, para: graphdraw_core::ParagraphStyle) {
         let Some(s) = self.doc().find_shape(id).cloned() else {
             return;
         };
@@ -1574,10 +1574,10 @@ impl App {
             own.vertical_align = para.vertical_align;
             own.frame_fill = para.frame_fill.clone();
         }
-        let before = tracedraw_core::ParagraphFormat::of(align, &old);
-        let after = tracedraw_core::ParagraphFormat::of(align, &para);
+        let before = graphdraw_core::ParagraphFormat::of(align, &old);
+        let after = graphdraw_core::ParagraphFormat::of(align, &para);
         if before != after {
-            tracedraw_core::paragraphs::edit_paragraph_formats(
+            graphdraw_core::paragraphs::edit_paragraph_formats(
                 &mut kind,
                 self.paragraph_range(id),
                 |f| f.take_changes(&before, &after),
@@ -1594,7 +1594,7 @@ impl App {
     pub fn edit_paragraph_style(
         &mut self,
         id: ShapeId,
-        f: impl FnOnce(&mut tracedraw_core::ParagraphStyle),
+        f: impl FnOnce(&mut graphdraw_core::ParagraphStyle),
     ) {
         let Some(s) = self.doc().find_shape(id).cloned() else {
             return;
@@ -1608,7 +1608,7 @@ impl App {
 
     /// Whether any selected object wraps paragraph text, and the wrap
     /// style of the first one.
-    pub fn wrap_state(&self) -> (bool, tracedraw_core::TextWrap) {
+    pub fn wrap_state(&self) -> (bool, graphdraw_core::TextWrap) {
         let shapes = self.selected_shapes();
         (
             shapes.iter().any(|s| s.wrap_text),
@@ -1620,11 +1620,11 @@ impl App {
     /// keeping the offset of the first one.
     pub fn set_wrap_style(
         &mut self,
-        mode: tracedraw_core::WrapMode,
-        side: tracedraw_core::WrapSide,
+        mode: graphdraw_core::WrapMode,
+        side: graphdraw_core::WrapSide,
     ) {
         let (_, current) = self.wrap_state();
-        let style = tracedraw_core::TextWrap {
+        let style = graphdraw_core::TextWrap {
             mode,
             side,
             ..current
@@ -1637,7 +1637,7 @@ impl App {
     /// (mm), keeping the style of the first one.
     pub fn set_wrap_offset(&mut self, offset: f64) {
         let (_, current) = self.wrap_state();
-        let style = tracedraw_core::TextWrap {
+        let style = graphdraw_core::TextWrap {
             offset: offset.max(0.0),
             ..current
         };
@@ -1648,7 +1648,7 @@ impl App {
     /// Align the paragraphs of the selected text: those of the selection
     /// while a text is edited, else every paragraph of every selected
     /// text object. One undo step.
-    pub fn apply_text_align(&mut self, a: tracedraw_core::TextAlign) {
+    pub fn apply_text_align(&mut self, a: graphdraw_core::TextAlign) {
         self.text_align = a;
         let cmds: Vec<Command> = self
             .selected_shapes()
@@ -1656,7 +1656,7 @@ impl App {
             .filter(|s| matches!(s.kind, ShapeKind::Text { .. }))
             .filter_map(|s| {
                 let mut kind = s.kind.clone();
-                tracedraw_core::paragraphs::edit_paragraph_formats(
+                graphdraw_core::paragraphs::edit_paragraph_formats(
                     &mut kind,
                     self.paragraph_range(s.id),
                     |f| f.align = a,
@@ -1720,7 +1720,7 @@ impl App {
             italic: self.text_italic,
             ..TextSpan::new("", self.text_font.clone(), self.text_size_pt)
         };
-        let para = tracedraw_core::ParagraphStyle {
+        let para = graphdraw_core::ParagraphStyle {
             hyphenate: self.text_hyphenation,
             ..Default::default()
         };
@@ -1730,7 +1730,7 @@ impl App {
             frame: None,
             align,
             para,
-            on_path: Some(tracedraw_core::TextOnPath {
+            on_path: Some(graphdraw_core::TextOnPath {
                 path,
                 offset,
                 distance: 0.0,
@@ -1781,7 +1781,7 @@ impl App {
                 frame: None,
                 align,
                 para,
-                on_path: Some(tracedraw_core::TextOnPath {
+                on_path: Some(graphdraw_core::TextOnPath {
                     path,
                     offset,
                     distance: 0.0,
@@ -2201,8 +2201,8 @@ pub fn path_for_text(path: &BezPath) -> (BezPath, bool) {
     let mut closed = false;
     for el in path.elements() {
         match el {
-            tracedraw_core::geometry::PathEl::MoveTo(_) if !first.elements().is_empty() => break,
-            tracedraw_core::geometry::PathEl::ClosePath => {
+            graphdraw_core::geometry::PathEl::MoveTo(_) if !first.elements().is_empty() => break,
+            graphdraw_core::geometry::PathEl::ClosePath => {
                 closed = true;
                 break;
             }
@@ -2220,7 +2220,7 @@ pub fn path_for_text(path: &BezPath) -> (BezPath, bool) {
     }
     if let (Some(a), Some(b)) = (segs.first(), segs.last()) {
         if (a.start() - b.end()).hypot() >= 1e-6 {
-            segs.push(PathSeg::Line(tracedraw_core::geometry::Line::new(
+            segs.push(PathSeg::Line(graphdraw_core::geometry::Line::new(
                 b.end(),
                 a.start(),
             )));
@@ -2231,12 +2231,12 @@ pub fn path_for_text(path: &BezPath) -> (BezPath, bool) {
     let mut area = 0.0;
     let mut prev: Option<Point> = None;
     let mut start: Option<Point> = None;
-    tracedraw_core::geometry::flatten(&first, 0.1, &mut |el| match el {
-        tracedraw_core::geometry::PathEl::MoveTo(p) => {
+    graphdraw_core::geometry::flatten(&first, 0.1, &mut |el| match el {
+        graphdraw_core::geometry::PathEl::MoveTo(p) => {
             start = Some(p);
             prev = Some(p);
         }
-        tracedraw_core::geometry::PathEl::LineTo(p) => {
+        graphdraw_core::geometry::PathEl::LineTo(p) => {
             if let Some(q) = prev {
                 area += q.x * p.y - p.x * q.y;
             }
@@ -2293,12 +2293,12 @@ pub fn path_for_text(path: &BezPath) -> (BezPath, bool) {
 pub fn placement_on(
     path: &BezPath,
     closed: bool,
-    align: tracedraw_core::TextAlign,
-) -> (tracedraw_core::TextAlign, f64) {
+    align: graphdraw_core::TextAlign,
+) -> (graphdraw_core::TextAlign, f64) {
     if !closed {
         return (align, 0.0);
     }
-    let total = tracedraw_core::TextOnPath {
+    let total = graphdraw_core::TextOnPath {
         path: path.clone(),
         offset: 0.0,
         distance: 0.0,
@@ -2309,7 +2309,7 @@ pub fn placement_on(
     .length();
     // Centred text starts (total - width) / 2 along; half the length more
     // brings its middle round to the start.
-    (tracedraw_core::TextAlign::Center, total / 2.0)
+    (graphdraw_core::TextAlign::Center, total / 2.0)
 }
 
 pub fn apply_case(text: &str, mode: CaseMode) -> String {
@@ -2461,7 +2461,7 @@ impl App {
         let ids: Vec<ShapeId> = shapes.iter().map(|s| s.id).collect();
         let cmds = vec![
             Command::AddSymbol {
-                symbol: tracedraw_core::Symbol { name, shape: def },
+                symbol: graphdraw_core::Symbol { name, shape: def },
             },
             Command::DeleteShapes { shapes: ids },
             Command::AddShape { layer, shape: inst },
@@ -2539,7 +2539,7 @@ impl App {
 pub(crate) fn with_stand_ins(missing: &[String]) -> String {
     missing
         .iter()
-        .map(|f| match tracedraw_text::fonts().substitute(f) {
+        .map(|f| match graphdraw_text::fonts().substitute(f) {
             Some(s) if s != *f => format!("{f} ({s})"),
             _ => f.clone(),
         })
@@ -2554,7 +2554,7 @@ mod tests {
     #[test]
     fn fit_text_to_path_waits_for_a_path_and_starts_text_on_it() {
         let mut app = App::headless();
-        let mut line = tracedraw_core::geometry::BezPath::new();
+        let mut line = graphdraw_core::geometry::BezPath::new();
         line.move_to((10.0, 50.0));
         line.line_to((90.0, 50.0));
         let path = app
@@ -2602,7 +2602,7 @@ mod tests {
 
     use kurbo::ParamCurve as _;
 
-    fn fitted(app: &App, id: ShapeId) -> tracedraw_core::TextOnPath {
+    fn fitted(app: &App, id: ShapeId) -> graphdraw_core::TextOnPath {
         app.doc()
             .shape(id)
             .ok()
@@ -2617,7 +2617,7 @@ mod tests {
     fn closed_paths_turn_clockwise_and_start_at_the_top() {
         // A kurbo ellipse runs anticlockwise from its right end.
         let e =
-            tracedraw_core::geometry::Ellipse::new((90.0, 130.0), (50.0, 30.0), 0.0).to_path(0.01);
+            graphdraw_core::geometry::Ellipse::new((90.0, 130.0), (50.0, 30.0), 0.0).to_path(0.01);
         let (path, closed) = path_for_text(&e);
         assert!(closed);
         let seg = path.segments().next().expect("a segment");
@@ -2639,11 +2639,11 @@ mod tests {
 
     #[test]
     fn text_fitted_to_an_ellipse_sits_centred_on_its_top_outside() {
-        tracedraw_text::install();
+        graphdraw_text::install();
         let mut app = App::headless();
         let e = app
             .new_shape(ShapeKind::Ellipse {
-                rect: tracedraw_core::geometry::Rect::new(40.0, 100.0, 140.0, 160.0),
+                rect: graphdraw_core::geometry::Rect::new(40.0, 100.0, 140.0, 160.0),
                 arc: None,
             })
             .expect("ellipse");
@@ -2663,7 +2663,7 @@ mod tests {
         assert_eq!(count, 2);
         let tp = fitted(&app, t);
         assert!(tp.baseline().is_closed());
-        if tracedraw_text::fonts().families().is_empty() {
+        if graphdraw_text::fonts().families().is_empty() {
             return;
         }
         let s = app.doc().shape(t).expect("text").1.clone();
@@ -2676,7 +2676,7 @@ mod tests {
 
     #[test]
     fn text_on_a_straight_line_stands_on_it_from_the_start() {
-        tracedraw_text::install();
+        graphdraw_text::install();
         let mut app = App::headless();
         let mut line = BezPath::new();
         line.move_to((10.0, 50.0));
@@ -2696,7 +2696,7 @@ mod tests {
         let tp = fitted(&app, t);
         assert!(!tp.baseline().is_closed());
         assert_eq!(tp.offset, 0.0);
-        if tracedraw_text::fonts().families().is_empty() {
+        if graphdraw_text::fonts().families().is_empty() {
             return;
         }
         let s = app.doc().shape(t).expect("text").1.clone();
@@ -2711,7 +2711,7 @@ mod tests {
         let mut app = App::headless();
         let e = app
             .new_shape(ShapeKind::Ellipse {
-                rect: tracedraw_core::geometry::Rect::new(40.0, 100.0, 140.0, 160.0),
+                rect: graphdraw_core::geometry::Rect::new(40.0, 100.0, 140.0, 160.0),
                 arc: None,
             })
             .expect("ellipse");

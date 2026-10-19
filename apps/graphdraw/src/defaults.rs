@@ -6,7 +6,7 @@
 use crate::app::App;
 use crate::i18n::{tr, trf};
 use serde::{Deserialize, Serialize};
-use tracedraw_core::{
+use graphdraw_core::{
     style::{Fill, Stroke},
     Color, Command, DefaultKind, DefaultProperties,
 };
@@ -129,7 +129,7 @@ impl App {
     }
 
     /// The tabs, columns, bullets and drop cap new paragraph text gets.
-    pub fn set_default_paragraph(&mut self, para: tracedraw_core::ParagraphStyle) {
+    pub fn set_default_paragraph(&mut self, para: graphdraw_core::ParagraphStyle) {
         let mut defaults = self.doc().defaults.clone();
         defaults.paragraph = para;
         if defaults != self.doc().defaults {
@@ -155,7 +155,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::{geometry::Rect, ShapeKind};
+    use graphdraw_core::{geometry::Rect, ShapeKind};
 
     #[test]
     fn changes_reach_the_kinds_picked_and_new_objects() {
@@ -229,8 +229,8 @@ mod tests {
         para.bullets = true;
         app.set_default_paragraph(para);
         app.start_text(
-            tracedraw_core::geometry::Point::new(10.0, 10.0),
-            Some(tracedraw_core::geometry::Size::new(50.0, 30.0)),
+            graphdraw_core::geometry::Point::new(10.0, 10.0),
+            Some(graphdraw_core::geometry::Size::new(50.0, 30.0)),
         );
         let id = app.selection[0];
         let Ok((_, s)) = app.doc().shape(id) else {

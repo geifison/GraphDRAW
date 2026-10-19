@@ -37,7 +37,7 @@ mod tests {
 
     /// The loading page shows the splash screen of the desktop app (name,
     /// tagline, status, progress bar, copyright and version), says what
-    /// TraceDraw is, links to the downloads and the code, and has the
+    /// GraphDraw is, links to the downloads and the code, and has the
     /// elements the module and its loader use.
     #[test]
     fn the_loading_page_shows_the_splash_and_says_what_it_is() {
@@ -49,9 +49,9 @@ mod tests {
             "#1a3158",
             "#0e192d",
             "#5caeff",
-            "Trace<tspan fill=\"#7fc3ff\">Draw</tspan>",
+            "Graph<tspan fill=\"#7fc3ff\">Draw</tspan>",
             "Vector illustration editor",
-            "Ighor Toth and the TraceDraw contributors",
+            "Ighor Toth and the TraceDraw contributors and GraphDraw contributors",
             "v@VERSION@",
             // What it is, how ready it is, what it is made of and its terms.
             "open-source vector editor that opens .cdr files",
@@ -59,23 +59,23 @@ mod tests {
             "Written in Rust",
             "MIT or Apache-2.0",
             // Where to go when loading stalls.
-            "https://github.com/igtoth/tracedraw/releases/latest",
-            "https://github.com/igtoth/tracedraw\"",
-            "https://github.com/igtoth/tracedraw/issues",
+            "https://github.com/geifison/GraphDRAW/releases/latest",
+            "https://github.com/geifison/GraphDRAW\"",
+            "https://github.com/geifison/GraphDRAW/issues",
             // Which screens it is for.
             "desktop browser",
             "Window &gt; Workspace &gt; Touch",
             "phone",
             // The elements web.rs and the loader use.
-            "id=\"tracedraw\"",
+            "id=\"graphdraw\"",
             "id=\"loading\"",
             "id=\"loading-status\"",
             "id=\"loading-bar\"",
             "id=\"loading-error\"",
             // The module's size for the progress, and the module itself.
             "data-wasm-size=\"0\"",
-            "import init from \"./tracedraw.js\"",
-            "tracedraw_bg.wasm",
+            "import init from \"./graphdraw.js\"",
+            "graphdraw_bg.wasm",
             "init({ module_or_path: bytes })",
         ] {
             assert!(PAGE.contains(needed), "the page lacks {needed:?}");
@@ -90,7 +90,7 @@ mod tests {
     fn the_builds_fill_in_the_modules_size_and_the_version() {
         for (name, text) in [("scripts/web/build.sh", BUILD_SCRIPT), ("build.yml", CI)] {
             assert!(
-                text.contains("data-wasm-size=\\\"0\\\"") && text.contains("tracedraw_bg.wasm"),
+                text.contains("data-wasm-size=\\\"0\\\"") && text.contains("graphdraw_bg.wasm"),
                 "{name} does not fill in the module's size"
             );
             assert!(

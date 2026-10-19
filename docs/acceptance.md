@@ -7,7 +7,7 @@ platforms.
 ## Visual regression
 
 - Reference PNGs live in `tests/visual/expected/`; `tests/visual` renders
-  each `.tdraw` fixture at 96 dpi and compares.
+  each `.gdr` fixture at 96 dpi and compares.
 - Metric: per-pixel RMSE over RGB, normalised to 0..1. Threshold 0.01
   (1%) per image, and no more than 0.5% of pixels differing by more than
   32/255 in any channel.
@@ -17,9 +17,9 @@ platforms.
 
 ## Round trips
 
-- `.tdraw`: save, load, compare the `Document` structurally (serde
+- `.gdr`: save, load, compare the `Document` structurally (serde
   equality). Every command variant has a round-trip fixture.
-- `.cdr`: open a fixture, export `.tdraw`, re-open, compare object count,
+- `.cdr`: open a fixture, export `.gdr`, re-open, compare object count,
   bounding boxes (0.01 mm), fill and outline attributes. Fixtures per
   version in `tests/cdr/`.
 - SVG and PDF: export, rasterise with an independent tool (resvg for
@@ -30,7 +30,7 @@ platforms.
 
 | Scenario | Budget |
 |---|---|
-| Open a `.tdraw` with 500 objects | under 300 ms |
+| Open a `.gdr` with 500 objects | under 300 ms |
 | Open a `.cdr` with 500 objects | under 500 ms |
 | Render a page of 1000 simple objects at 100% zoom, 1600x1000 | under 16 ms |
 | Render a page of 5000 objects | under 100 ms |
@@ -45,7 +45,7 @@ than 20%.
 
 ## Robustness
 
-- Mutation testing of every reader: `tracedraw-cli stress <file> [n]`
+- Mutation testing of every reader: `graphdraw-cli stress <file> [n]`
   feeds `n` damaged copies of a file (truncated, byte flips, cut spans,
   overwritten words) to the reader its extension selects and fails on
   any panic. The `.cdr`, PDF, AI, EPS, DXF, PSD, EMF, WMF and SVG readers pass

@@ -28,7 +28,7 @@ objetos que la usan conservan su color sustituto.
 Un archivo de paleta puede ser un libro de tintas planas (por ejemplo, una
 paleta `.ase` con entradas de color plano). Sus entradas de color plano se
 abren como colores planos, con los nombres del libro; al aplicar una, la tinta
-se añade al dibujo. TraceDraw no incluye libros de colores con licencia, pero
+se añade al dibujo. GraphDraw no incluye libros de colores con licencia, pero
 uno que sea suyo se abre como cualquier paleta.
 
 ## Colores planos en la impresión y en las exportaciones {#output}

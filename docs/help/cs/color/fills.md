@@ -1,6 +1,6 @@
 # Výplně
 
-Výplň barví vnitřek uzavřeného objektu. TraceDraw má šest druhů výplně:
+Výplň barví vnitřek uzavřeného objektu. GraphDraw má šest druhů výplně:
 [[docker.fill_none]], [[docker.fill_uniform]] (jedna plná barva),
 [[docker.fill_fountain]] (barvy, které do sebe plynule přecházejí),
 [[docker.fill_pattern]], [[docker.fill_texture]] a [[docker.fill_mesh]]

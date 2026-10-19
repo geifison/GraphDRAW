@@ -14,9 +14,9 @@ use serde::Deserialize;
 use std::sync::{Arc, Mutex};
 
 /// The project's latest release, as GitHub describes it.
-pub const LATEST_URL: &str = "https://api.github.com/repos/igtoth/tracedraw/releases/latest";
+pub const LATEST_URL: &str = "https://api.github.com/repos/geifison/GraphDRAW/releases/latest";
 /// The release list, for when no download fits this system.
-pub const RELEASES_PAGE: &str = "https://github.com/igtoth/tracedraw/releases";
+pub const RELEASES_PAGE: &str = "https://github.com/geifison/GraphDRAW/releases";
 /// How often the check at start runs, seconds.
 pub const DAILY: u64 = 24 * 60 * 60;
 
@@ -405,7 +405,7 @@ fn download(url: &str) -> Result<Box<dyn std::io::Read + Send>, String> {
             .build()
             .header(
                 "User-Agent",
-                concat!("TraceDraw/", env!("CARGO_PKG_VERSION")),
+                concat!("GraphDraw/", env!("CARGO_PKG_VERSION")),
             )
             .call()
             .map_err(|e| e.to_string())?;
@@ -443,7 +443,7 @@ fn fetch() -> Result<String, String> {
         .get(LATEST_URL)
         .header(
             "User-Agent",
-            concat!("TraceDraw/", env!("CARGO_PKG_VERSION")),
+            concat!("GraphDraw/", env!("CARGO_PKG_VERSION")),
         )
         .header("Accept", "application/vnd.github+json")
         .call()
@@ -461,16 +461,16 @@ mod tests {
 
     const SAMPLE: &str = r#"{
         "tag_name": "v0.5.0",
-        "html_url": "https://github.com/igtoth/tracedraw/releases/tag/v0.5.0",
+        "html_url": "https://github.com/geifison/GraphDRAW/releases/tag/v0.5.0",
         "prerelease": false,
         "draft": false,
         "assets": [
-            {"name": "tracedraw-0.5.0-linux-x86_64.AppImage", "browser_download_url": "https://x/a.AppImage", "size": 5, "digest": "sha256:2CF24DBA5FB0A30E26E83B2AC5B9E29E1B161E5C1FA7425E73043362938B9824"},
-            {"name": "tracedraw-0.5.0-linux-x86_64.tar.gz", "browser_download_url": "https://x/a.tar.gz"},
-            {"name": "tracedraw-0.5.0-macos-arm64.dmg", "browser_download_url": "https://x/arm.dmg"},
-            {"name": "tracedraw-0.5.0-macos-x86_64.dmg", "browser_download_url": "https://x/intel.dmg"},
-            {"name": "tracedraw-0.5.0-windows-x86_64-portable.zip", "browser_download_url": "https://x/p.zip"},
-            {"name": "tracedraw-0.5.0-windows-x86_64-setup.exe", "browser_download_url": "https://x/setup.exe"}
+            {"name": "graphdraw-0.5.0-linux-x86_64.AppImage", "browser_download_url": "https://x/a.AppImage", "size": 5, "digest": "sha256:2CF24DBA5FB0A30E26E83B2AC5B9E29E1B161E5C1FA7425E73043362938B9824"},
+            {"name": "graphdraw-0.5.0-linux-x86_64.tar.gz", "browser_download_url": "https://x/a.tar.gz"},
+            {"name": "graphdraw-0.5.0-macos-arm64.dmg", "browser_download_url": "https://x/arm.dmg"},
+            {"name": "graphdraw-0.5.0-macos-x86_64.dmg", "browser_download_url": "https://x/intel.dmg"},
+            {"name": "graphdraw-0.5.0-windows-x86_64-portable.zip", "browser_download_url": "https://x/p.zip"},
+            {"name": "graphdraw-0.5.0-windows-x86_64-setup.exe", "browser_download_url": "https://x/setup.exe"}
         ]
     }"#;
 
@@ -552,7 +552,7 @@ mod tests {
     fn installing_replaces_the_file_only_when_it_checks_out() {
         let dir = std::env::temp_dir().join(format!("td-install-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&dir);
-        let target = dir.join("TraceDraw.AppImage");
+        let target = dir.join("GraphDraw.AppImage");
         std::fs::write(&target, b"old").expect("write");
         #[cfg(unix)]
         {
@@ -566,7 +566,7 @@ mod tests {
             sha256: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824".into(),
             size: 5,
         };
-        let part = dir.join(".TraceDraw.AppImage.update");
+        let part = dir.join(".GraphDraw.AppImage.update");
         // A wrong digest, a short and a long download leave it alone.
         for (body, pkg) in [
             (&b"hellp"[..], good.clone()),
@@ -608,7 +608,7 @@ mod tests {
         let p = r.appimage.expect("appimage with digest");
         let dir = std::env::temp_dir().join(format!("td-live-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&dir);
-        let target = dir.join("TraceDraw.AppImage");
+        let target = dir.join("GraphDraw.AppImage");
         std::fs::write(&target, b"old").expect("write");
         let installer = Installer::default();
         installer.start(r.version.clone(), p.clone(), target.clone(), None);

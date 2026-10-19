@@ -6,8 +6,8 @@
 use crate::app::App;
 use crate::view::View;
 use egui::{Color32, Painter, Pos2, Rect as ERect};
-use tracedraw_core::geometry::{Rect, Size};
-use tracedraw_core::PageId;
+use graphdraw_core::geometry::{Rect, Size};
+use graphdraw_core::PageId;
 
 /// Space between pages, in millimetres.
 pub const GAP_MM: f64 = 30.0;
@@ -57,7 +57,7 @@ pub fn layout(pages: &[(PageId, Size)], active: PageId) -> Vec<(PageId, Rect)> {
 }
 
 /// The page under a page-space point, if any.
-pub fn page_at(placed: &[(PageId, Rect)], p: tracedraw_core::geometry::Point) -> Option<PageId> {
+pub fn page_at(placed: &[(PageId, Rect)], p: graphdraw_core::geometry::Point) -> Option<PageId> {
     placed
         .iter()
         .find(|(_, r)| p.x >= r.x0 && p.x <= r.x1 && p.y >= r.y0 && p.y <= r.y1)
@@ -103,7 +103,7 @@ impl App {
         };
         self.view.origin = self
             .view
-            .to_screen(tracedraw_core::geometry::Point::new(r.x0, r.y0));
+            .to_screen(graphdraw_core::geometry::Point::new(r.x0, r.y0));
         self.page = page;
         self.selection.clear();
         self.focus.clear();
@@ -228,7 +228,7 @@ pub fn draw_other_pages(app: &App, painter: &Painter, rect: ERect) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::geometry::Point;
+    use graphdraw_core::geometry::Point;
 
     fn pages(n: usize) -> Vec<(PageId, Size)> {
         (0..n)

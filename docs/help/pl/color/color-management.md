@@ -72,5 +72,5 @@ stanu pokazuje rysunek tak, jak zostałby wydrukowany: kolory, których farby
 CMYK nie mogą wydrukować, wyglądają na bardziej matowe. Panel [[docker.color]]
 również ostrzega przed takimi kolorami.
 
-Bez wczytanych profili TraceDraw przekształca kolory według własnego modelu
+Bez wczytanych profili GraphDraw przekształca kolory według własnego modelu
 farb procesowych na papierze powlekanym.

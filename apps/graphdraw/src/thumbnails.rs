@@ -49,7 +49,7 @@ fn first_page_png(app: &App) -> Option<Vec<u8>> {
         return None;
     }
     let dpi = (SIZE * 25.4 / longest).clamp(0.5, 600.0);
-    let pm = tracedraw_render::render_page_image(doc, page.id, dpi)?;
+    let pm = graphdraw_render::render_page_image(doc, page.id, dpi)?;
     // The background is opaque white, so premultiplied data is plain RGBA.
     let img = image::RgbaImage::from_raw(pm.width(), pm.height(), pm.data().to_vec())?;
     crate::bitmap_fx::encode(&img)
@@ -102,27 +102,27 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::{geometry::Rect, ShapeKind};
+    use graphdraw_core::{geometry::Rect, ShapeKind};
 
     #[test]
     fn opened_and_saved_drawings_get_a_thumbnail() {
         let mut app = App::headless();
         assert_eq!(
-            file_name(Path::new("/a/b.tdraw")),
-            file_name(Path::new("/a/b.tdraw"))
+            file_name(Path::new("/a/b.gdr")),
+            file_name(Path::new("/a/b.gdr"))
         );
         assert_ne!(
-            file_name(Path::new("/a/b.tdraw")),
-            file_name(Path::new("/a/c.tdraw"))
+            file_name(Path::new("/a/b.gdr")),
+            file_name(Path::new("/a/c.gdr"))
         );
         app.new_shape(ShapeKind::Rect {
             rect: Rect::new(20.0, 20.0, 150.0, 200.0),
             radius: 0.0,
             corners: None,
         });
-        let dir = std::env::temp_dir().join(format!("tracedraw-thumbs-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("graphdraw-thumbs-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&dir);
-        let drawing = dir.join("poster.tdraw");
+        let drawing = dir.join("poster.gdr");
         app.save_to(drawing.clone());
         let thumb = thumbnail_path(&drawing).expect("a place for it");
         let img = image::open(&thumb).expect("a PNG");

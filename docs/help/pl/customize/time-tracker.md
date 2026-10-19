@@ -1,7 +1,7 @@
 # Licznik czasu
 
 Licznik czasu zapisuje czas spędzony nad rysunkiem, zadanie po zadaniu,
-i przechowuje te zapisy w rysunku (w plikach `.tdraw`). Czas jest liczony tylko
+i przechowuje te zapisy w rysunku (w plikach `.gdr`). Czas jest liczony tylko
 podczas pracy: po kilku minutach bezczynności zegar czeka, a Twoja następna
 czynność uruchamia go ponownie.
 

@@ -78,7 +78,7 @@ pub fn export_docker(app: &mut App, ui: &mut Ui) {
                 .size(11.0),
         );
     }
-    let page_names: Vec<(tracedraw_core::PageId, usize)> = app
+    let page_names: Vec<(graphdraw_core::PageId, usize)> = app
         .doc()
         .pages
         .iter()

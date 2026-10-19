@@ -430,17 +430,17 @@
 
 | الأمر | انظر |
 |---|---|
-| [[menu.help.help_topics]] | [مرحبًا بك في تعليمات TraceDraw](../index.md#in-the-app) |
-| [[menu.help.product_help]] | [مرحبًا بك في تعليمات TraceDraw](../index.md#in-the-app) |
-| [[menu.help.welcome_screen]] | [حول TraceDraw والتحديثات](../welcome/about-and-updates.md) |
-| [[menu.help.video_tutorials]] | [حول TraceDraw والتحديثات](../welcome/about-and-updates.md) |
+| [[menu.help.help_topics]] | [مرحبًا بك في تعليمات GraphDraw](../index.md#in-the-app) |
+| [[menu.help.product_help]] | [مرحبًا بك في تعليمات GraphDraw](../index.md#in-the-app) |
+| [[menu.help.welcome_screen]] | [حول GraphDraw والتحديثات](../welcome/about-and-updates.md) |
+| [[menu.help.video_tutorials]] | [حول GraphDraw والتحديثات](../welcome/about-and-updates.md) |
 | [[menu.help.hints]] | [The Hints panel](../get-started/hints.md) |
-| [[menu.help.quick_start_guide]] | [حول TraceDraw والتحديثات](../welcome/about-and-updates.md) |
-| [[menu.help.user_guide]] | [حول TraceDraw والتحديثات](../welcome/about-and-updates.md) |
+| [[menu.help.quick_start_guide]] | [حول GraphDraw والتحديثات](../welcome/about-and-updates.md) |
+| [[menu.help.user_guide]] | [حول GraphDraw والتحديثات](../welcome/about-and-updates.md) |
 | [[menu.help.whats_new]] | [ما الجديد](../welcome/whats-new.md) |
 | [[menu.help.highlight_whats_new]] | [ما الجديد](../welcome/whats-new.md) |
-| [[menu.help.updates]] | [حول TraceDraw والتحديثات](../welcome/about-and-updates.md) |
-| [[menu.help.message_settings]] | [حول TraceDraw والتحديثات](../welcome/about-and-updates.md) |
-| [[menu.help.community]] | [حول TraceDraw والتحديثات](../welcome/about-and-updates.md) |
-| [[menu.help.support]] | [حول TraceDraw والتحديثات](../welcome/about-and-updates.md) |
-| [[menu.help.about]] | [حول TraceDraw والتحديثات](../welcome/about-and-updates.md) |
+| [[menu.help.updates]] | [حول GraphDraw والتحديثات](../welcome/about-and-updates.md) |
+| [[menu.help.message_settings]] | [حول GraphDraw والتحديثات](../welcome/about-and-updates.md) |
+| [[menu.help.community]] | [حول GraphDraw والتحديثات](../welcome/about-and-updates.md) |
+| [[menu.help.support]] | [حول GraphDraw والتحديثات](../welcome/about-and-updates.md) |
+| [[menu.help.about]] | [حول GraphDraw والتحديثات](../welcome/about-and-updates.md) |

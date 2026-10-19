@@ -1,6 +1,6 @@
 # Lines, shapes and outlines
 
-Everything you draw in TraceDraw is made of lines and shapes. These pages
+Everything you draw in GraphDraw is made of lines and shapes. These pages
 explain the tools that draw them, how to reshape them node by node, how to
 combine and cut them, and how to set the outline that draws their edges.
 

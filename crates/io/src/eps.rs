@@ -4,7 +4,7 @@
 //! (`.ps`, and `.prn` print files, which are the same) hold every page.
 
 use std::fmt::Write as _;
-use tracedraw_core::{
+use graphdraw_core::{
     document::{Shape, ShapeKind},
     geometry::{Affine, PathEl, Shape as _},
     Color, Document, Fill, FountainKind, LineCap, LineJoin,
@@ -60,7 +60,7 @@ pub fn page_to_eps(doc: &Document, page_index: usize) -> String {
     let h = page.size.height * MM_PT;
     let mut out = String::new();
     let _ = writeln!(out, "%!PS-Adobe-3.0 EPSF-3.0");
-    let _ = writeln!(out, "%%Creator: TraceDraw");
+    let _ = writeln!(out, "%%Creator: GraphDraw");
     let _ = writeln!(out, "%%Title: {}", doc.title.replace(['\n', '\r'], " "));
     let _ = writeln!(
         out,
@@ -89,7 +89,7 @@ pub fn document_to_ps(doc: &Document) -> String {
     });
     let mut out = String::new();
     let _ = writeln!(out, "%!PS-Adobe-3.0");
-    let _ = writeln!(out, "%%Creator: TraceDraw");
+    let _ = writeln!(out, "%%Creator: GraphDraw");
     let _ = writeln!(out, "%%Title: {}", doc.title.replace(['\n', '\r'], " "));
     let _ = writeln!(out, "%%Pages: {}", doc.pages.len());
     let _ = writeln!(
@@ -127,14 +127,14 @@ pub fn document_to_ps(doc: &Document) -> String {
 }
 
 /// The marks of one page: its background, then its printable layers.
-fn page_body(out: &mut String, doc: &Document, page: &tracedraw_core::Page) {
+fn page_body(out: &mut String, doc: &Document, page: &graphdraw_core::Page) {
     let mut w_ = Writer {
         out,
         symbols: &doc.symbols,
     };
     if let Some(bg) = &page.background {
         let mut s = Shape::new(
-            tracedraw_core::ShapeId(0),
+            graphdraw_core::ShapeId(0),
             ShapeKind::Rect {
                 rect: page.rect(),
                 radius: 0.0,
@@ -155,11 +155,11 @@ fn page_body(out: &mut String, doc: &Document, page: &tracedraw_core::Page) {
 
 struct Writer<'a> {
     out: &'a mut String,
-    symbols: &'a [tracedraw_core::Symbol],
+    symbols: &'a [graphdraw_core::Symbol],
 }
 
 impl Writer<'_> {
-    fn path_ops(&mut self, path: &tracedraw_core::BezPath) {
+    fn path_ops(&mut self, path: &graphdraw_core::BezPath) {
         for el in path.elements() {
             match el {
                 PathEl::MoveTo(p) => {
@@ -248,7 +248,7 @@ impl Writer<'_> {
             return;
         }
         if !shape.effects.is_empty() {
-            let ev = tracedraw_core::live::evaluate(shape);
+            let ev = graphdraw_core::live::evaluate(shape);
             for b in &ev.below {
                 let mut b = b.clone();
                 b.effects.clear();
@@ -331,14 +331,14 @@ impl Writer<'_> {
                             .unwrap_or(std::cmp::Ordering::Equal)
                     });
                     if s.is_empty() {
-                        s.push(tracedraw_core::Stop {
+                        s.push(graphdraw_core::Stop {
                             pos: 0.0,
                             color: Color::BLACK,
                         });
                     }
                     if s.len() == 1 {
                         let c = s[0].color;
-                        s.push(tracedraw_core::Stop { pos: 1.0, color: c });
+                        s.push(graphdraw_core::Stop { pos: 1.0, color: c });
                     }
                     s
                 };
@@ -416,7 +416,7 @@ impl Writer<'_> {
                 // Patterns, textures and meshes: rasterised by the renderer
                 // over the bounds and clipped by the path, so the file shows
                 // the same pixels as the screen. Average colour if that fails.
-                match tracedraw_render::render_fill_image(other, bounds, 150.0) {
+                match graphdraw_render::render_fill_image(other, bounds, 150.0) {
                     Some(pm) => {
                         let _ = writeln!(self.out, "gsave");
                         self.path_ops(&path);
@@ -450,7 +450,7 @@ impl Writer<'_> {
             }
         }
         if let Some(s) = &shape.stroke {
-            let width = if s.width <= tracedraw_core::Stroke::HAIRLINE + 1e-9 {
+            let width = if s.width <= graphdraw_core::Stroke::HAIRLINE + 1e-9 {
                 0.0
             } else {
                 s.width * MM_PT
@@ -482,7 +482,7 @@ impl Writer<'_> {
             let _ = writeln!(self.out, "stroke");
             // Arrowheads (presets and custom): the page-space path already
             // carries the shape's own transform, so only the parent applies.
-            for head in tracedraw_core::arrowhead_paths(&shape.page_path(), s) {
+            for head in graphdraw_core::arrowhead_paths(&shape.page_path(), s) {
                 let _ = writeln!(self.out, "{}", color_op(s.color));
                 self.path_ops(&(parent * head));
                 let _ = writeln!(self.out, "fill");
@@ -494,7 +494,7 @@ impl Writer<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::geometry::Rect;
+    use graphdraw_core::geometry::Rect;
 
     #[test]
     fn writes_eps_with_bounding_box_and_fill() {
@@ -537,10 +537,10 @@ mod tests {
         // A second, landscape page with two objects.
         let pid = doc.ids_mut().page();
         let lid = doc.ids_mut().layer();
-        let mut second = tracedraw_core::Layer::new(lid, "Layer 1");
+        let mut second = graphdraw_core::Layer::new(lid, "Layer 1");
         for (i, x) in [20.0, 120.0].into_iter().enumerate() {
             let mut t = s.clone();
-            t.id = tracedraw_core::ShapeId(100 + i as u64);
+            t.id = graphdraw_core::ShapeId(100 + i as u64);
             t.kind = ShapeKind::Rect {
                 rect: Rect::new(x, 20.0, x + 30.0, 50.0),
                 radius: 0.0,
@@ -548,10 +548,10 @@ mod tests {
             };
             second.shapes.push(t);
         }
-        doc.pages.push(tracedraw_core::Page {
+        doc.pages.push(graphdraw_core::Page {
             id: pid,
             name: "Page 2".into(),
-            size: tracedraw_core::Size::new(297.0, 210.0),
+            size: graphdraw_core::Size::new(297.0, 210.0),
             layers: vec![second],
             guides: Vec::new(),
             background: None,
@@ -562,7 +562,7 @@ mod tests {
         assert_eq!(ps.matches("showpage").count(), 2);
         assert_eq!(ps.matches("setpagedevice").count(), 2);
         // Read back: two pages with their sizes and objects.
-        let mut ids = tracedraw_core::id::IdSource::default();
+        let mut ids = graphdraw_core::id::IdSource::default();
         let back = crate::eps_import::parse(ps.as_bytes(), &mut ids).expect("reads");
         assert!((back.size.width - 210.0).abs() < 0.01, "{:?}", back.size);
         assert_eq!(back.shapes.len(), 1);
@@ -584,10 +584,10 @@ mod tests {
         let mut doc = Document::default();
         let layer = doc.pages[0].layers[0].id;
         let mut line = Shape::new(
-            tracedraw_core::ShapeId(1),
+            graphdraw_core::ShapeId(1),
             ShapeKind::Path {
                 path: {
-                    let mut p = tracedraw_core::BezPath::new();
+                    let mut p = graphdraw_core::BezPath::new();
                     p.move_to((10.0, 50.0));
                     p.line_to((60.0, 50.0));
                     p
@@ -596,11 +596,11 @@ mod tests {
             },
         );
         line.fill = Fill::None;
-        line.stroke = Some(tracedraw_core::Stroke {
-            end_arrow: tracedraw_core::Arrowhead::Arrow,
-            ..tracedraw_core::Stroke::new(Color::BLACK, 2.0)
+        line.stroke = Some(graphdraw_core::Stroke {
+            end_arrow: graphdraw_core::Arrowhead::Arrow,
+            ..graphdraw_core::Stroke::new(Color::BLACK, 2.0)
         });
-        line.transform = tracedraw_core::Affine::translate((0.0, 100.0));
+        line.transform = graphdraw_core::Affine::translate((0.0, 100.0));
         doc.layer_mut(layer).unwrap().shapes.push(line);
         let eps = page_to_eps(&doc, 0);
         let tip = format!("{} {} m\n", f(60.0 * MM_PT), f(150.0 * MM_PT));
@@ -608,14 +608,14 @@ mod tests {
         let wrong = format!("{} {} m\n", f(60.0 * MM_PT), f(250.0 * MM_PT));
         assert!(!eps.contains(&wrong));
         // A custom head goes through the same code path.
-        let mut tri = tracedraw_core::BezPath::new();
+        let mut tri = graphdraw_core::BezPath::new();
         tri.move_to((0.0, 0.0));
         tri.line_to((20.0, 10.0));
         tri.line_to((0.0, 20.0));
         tri.close_path();
         if let Some(s) = doc.pages[0].layers[0].shapes.first_mut() {
             if let Some(st) = s.stroke.as_mut() {
-                st.end_arrow = tracedraw_core::Arrowhead::from_shape_path(&tri, "Tri");
+                st.end_arrow = graphdraw_core::Arrowhead::from_shape_path(&tri, "Tri");
             }
         }
         let eps = page_to_eps(&doc, 0);
@@ -629,7 +629,7 @@ mod tests {
         let mut doc = Document::default();
         let layer = doc.pages[0].layers[0].id;
         let mut tile_square = Shape::new(
-            tracedraw_core::ShapeId(7),
+            graphdraw_core::ShapeId(7),
             ShapeKind::Rect {
                 rect: Rect::new(0.0, 0.0, 5.0, 5.0),
                 radius: 0.0,
@@ -646,9 +646,9 @@ mod tests {
                 arc: None,
             },
         );
-        s.fill = Fill::Pattern(tracedraw_core::Pattern::Vector {
+        s.fill = Fill::Pattern(graphdraw_core::Pattern::Vector {
             shapes: vec![tile_square],
-            tile: tracedraw_core::geometry::Size::new(10.0, 10.0),
+            tile: graphdraw_core::geometry::Size::new(10.0, 10.0),
         });
         s.stroke = None;
         doc.layer_mut(layer).unwrap().shapes.push(s);

@@ -2,7 +2,7 @@
 """Build the user Help (docs/help) into a static site, one tree per
 interface language.
 
-    python3 web/help_site.py [docs/help] [apps/tracedraw/lang] [site/help]
+    python3 web/help_site.py [docs/help] [apps/graphdraw/lang] [site/help]
 
 Pages are Markdown in docs/help/<lang>/<page>.md, ordered by
 docs/help/contents.txt. A page missing in a language is published from the
@@ -43,7 +43,7 @@ def err(msg):
 
 def languages():
     """(code, native name) in the app's order, from src/i18n.rs."""
-    src = open(os.path.join(ROOT, "apps/tracedraw/src/i18n.rs"), encoding="utf-8").read()
+    src = open(os.path.join(ROOT, "apps/graphdraw/src/i18n.rs"), encoding="utf-8").read()
     block = src[src.index("pub const LANGUAGES"):]
     block = block[: block.index("];")]
     return re.findall(r'\("([^"]+)",\s*"([^"]+)"\)', block)
@@ -518,7 +518,7 @@ def build(help_dir, lang_dir, out_dir):
         f.write(CSS.strip() + "\n")
     with open(os.path.join(out_dir, "help.js"), "w", encoding="utf-8") as f:
         f.write(JS.strip() + "\n")
-    icon = os.path.join(ROOT, "assets/icon/tracedraw-256.png")
+    icon = os.path.join(ROOT, "assets/icon/graphdraw-256.png")
     if os.path.exists(icon):
         shutil.copy(icon, os.path.join(out_dir, "icon.png"))
     img_src = os.path.join(help_dir, "img")
@@ -670,7 +670,7 @@ def page_html(code, langs, ui, tree, pages, order, n, up):
 {notice}{body}
 </article>
 <nav class="pager">{prev_link}{next_link}</nav>
-<footer>TraceDraw</footer>
+<footer>GraphDraw</footer>
 </main>
 </div>
 <script>var HELP={cfg};</script>
@@ -683,7 +683,7 @@ def page_html(code, langs, ui, tree, pages, order, n, up):
 def redirect_html(codes):
     return """<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>TraceDraw Help</title>
+<title>GraphDraw Help</title>
 <script>
 (function(){var codes=%s,pick="en";
 var want=(navigator.languages||[navigator.language||"en"]);
@@ -698,7 +698,7 @@ for(var i=0;i<want.length&&pick==="en";i++){var w=want[i];
 location.replace(pick+"/index.html"+location.hash);})();
 </script>
 <noscript><meta http-equiv="refresh" content="0; url=en/index.html"></noscript>
-</head><body><a href="en/index.html">TraceDraw Help</a></body></html>
+</head><body><a href="en/index.html">GraphDraw Help</a></body></html>
 """ % json.dumps(codes)
 
 
@@ -713,7 +713,7 @@ def main():
         else:
             args.append(a)
     help_dir = args[0] if len(args) > 0 else os.path.join(ROOT, "docs/help")
-    lang_dir = args[1] if len(args) > 1 else os.path.join(ROOT, "apps/tracedraw/lang")
+    lang_dir = args[1] if len(args) > 1 else os.path.join(ROOT, "apps/graphdraw/lang")
     out_dir = args[2] if len(args) > 2 else os.path.join(ROOT, "site/help")
     result = build(help_dir, lang_dir, out_dir)
     if ERRORS:

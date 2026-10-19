@@ -302,7 +302,7 @@
                 "type": "text",
                 "spans": [
                   {
-                    "text": "TraceDraw",
+                    "text": "GraphDraw",
                     "font_family": "Arial",
                     "size_pt": 36.0,
                     "bold": true,

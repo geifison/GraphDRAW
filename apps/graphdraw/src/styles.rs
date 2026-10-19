@@ -6,7 +6,7 @@
 use crate::app::App;
 use crate::i18n::{tr, trf};
 use std::collections::HashMap;
-use tracedraw_core::{document::ShapeKind, Command, Document, ObjectStyle, Shape};
+use graphdraw_core::{document::ShapeKind, Command, Document, ObjectStyle, Shape};
 
 /// `styles` with a free id for each style that has none, as the engine
 /// gives them.
@@ -131,7 +131,7 @@ impl App {
     }
 
     /// The selected objects that are linked to a style.
-    pub fn styled_selection(&self) -> Vec<tracedraw_core::ShapeId> {
+    pub fn styled_selection(&self) -> Vec<graphdraw_core::ShapeId> {
         self.selected_shapes()
             .iter()
             .filter(|s| s.style.is_some())
@@ -154,7 +154,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::{geometry::Rect, Color, Fill};
+    use graphdraw_core::{geometry::Rect, Color, Fill};
 
     #[test]
     fn a_style_from_the_selection_links_it_and_follows_edits() {

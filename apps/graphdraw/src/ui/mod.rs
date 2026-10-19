@@ -98,7 +98,7 @@ use crate::canvas;
 use crate::i18n::tr;
 use crate::theme::Tokens;
 use egui::{Frame, Panel, Sense, Ui};
-use tracedraw_core::geometry::Point;
+use graphdraw_core::geometry::Point;
 
 fn bar() -> Frame {
     Frame::new()
@@ -186,7 +186,7 @@ impl egui::Widget for Rail<'_> {
 
 /// Set the window title (the page title in a browser) when it changes.
 fn set_window_title(ctx: &egui::Context, title: String) {
-    let id = egui::Id::new("tracedraw_window_title");
+    let id = egui::Id::new("graphdraw_window_title");
     if ctx.data(|d| d.get_temp::<String>(id)).as_deref() == Some(title.as_str()) {
         return;
     }
@@ -230,7 +230,7 @@ pub fn root(app: &mut App, ui: &mut Ui) {
     } else {
         tr("welcome.title")
     };
-    set_window_title(&ctx, format!("TraceDraw - {doc_name}"));
+    set_window_title(&ctx, format!("GraphDraw - {doc_name}"));
 
     // Closing the window with unsaved drawings asks about each first.
     #[cfg(not(target_arch = "wasm32"))]
@@ -765,7 +765,7 @@ pub(crate) fn view_navigator(app: &mut App, ui: &mut Ui, corner: egui::Rect, can
     };
     if app.navigator_tex.is_none() {
         let dpi = thumb_w as f64 / page.width() * 25.4;
-        if let Some(pm) = tracedraw_render::render_page_image(app.doc(), app.page, dpi) {
+        if let Some(pm) = graphdraw_render::render_page_image(app.doc(), app.page, dpi) {
             let (w, h) = (pm.width() as usize, pm.height() as usize);
             let mut rgba = Vec::with_capacity(w * h * 4);
             for px in pm.pixels() {
@@ -898,8 +898,8 @@ mod tests {
     use super::*;
     use crate::app::DockerTab;
     use crate::tools::Tool;
-    use tracedraw_core::geometry::{Point, Rect};
-    use tracedraw_core::ShapeKind;
+    use graphdraw_core::geometry::{Point, Rect};
+    use graphdraw_core::ShapeKind;
 
     fn mixed_app() -> App {
         let mut app = App::headless();
@@ -1003,13 +1003,13 @@ mod tests {
         // Where the first rectangle (10..60 x 10..40 mm) is on screen.
         let on_rect = app
             .view
-            .to_screen(tracedraw_core::geometry::Point::new(35.0, 25.0));
+            .to_screen(graphdraw_core::geometry::Point::new(35.0, 25.0));
         let empty = app
             .view
-            .to_screen(tracedraw_core::geometry::Point::new(150.0, 250.0));
+            .to_screen(graphdraw_core::geometry::Point::new(150.0, 250.0));
         let far = app
             .view
-            .to_screen(tracedraw_core::geometry::Point::new(190.0, 200.0));
+            .to_screen(graphdraw_core::geometry::Point::new(190.0, 200.0));
         for tool in Tool::ALL {
             app.set_tool(tool);
             app.select_all();

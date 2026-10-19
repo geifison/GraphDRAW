@@ -5,7 +5,7 @@ use crate::app::App;
 use crate::i18n::{tr, trf};
 use crate::ui::dialogs::{ExportState, PrintState, EXPORT_FORMATS};
 use std::path::Path;
-use tracedraw_core::{
+use graphdraw_core::{
     document::ShapeKind,
     geometry::{Affine, Rect, Size},
     Command, Document, ShapeId, TextSpan,
@@ -44,11 +44,11 @@ pub fn export(app: &mut App, path: &Path, st: &ExportState) -> Result<String, St
     let (doc, _) = export_document(app, st);
     match ext {
         "svg" => {
-            let svg = tracedraw_io::svg::page_to_svg(&doc, 0);
+            let svg = graphdraw_io::svg::page_to_svg(&doc, 0);
             crate::files::write(path, svg).map_err(|e| e.to_string())?;
         }
         "pdf" | "ai" => {
-            use tracedraw_io::pdf::{PdfOptions, PdfStandard};
+            use graphdraw_io::pdf::{PdfOptions, PdfStandard};
             let standard = match (ext, st.pdf_standard) {
                 ("pdf", 1) => PdfStandard::X1a,
                 ("pdf", 2) => PdfStandard::X3,
@@ -69,36 +69,36 @@ pub fn export(app: &mut App, path: &Path, st: &ExportState) -> Result<String, St
                 flatten_dpi: st.dpi.max(72.0),
                 ..Default::default()
             };
-            let pdf = tracedraw_io::pdf::document_to_pdf_with(&doc, &opts);
+            let pdf = graphdraw_io::pdf::document_to_pdf_with(&doc, &opts);
             crate::files::write(path, pdf).map_err(|e| e.to_string())?;
         }
         "eps" => {
-            let eps = tracedraw_io::eps::page_to_eps(&doc, 0);
+            let eps = graphdraw_io::eps::page_to_eps(&doc, 0);
             crate::files::write(path, eps).map_err(|e| e.to_string())?;
         }
         "ps" | "prn" => {
             // Every exported page; a print file is the same PostScript.
-            let ps = tracedraw_io::eps::document_to_ps(&doc);
+            let ps = graphdraw_io::eps::document_to_ps(&doc);
             crate::files::write(path, ps).map_err(|e| e.to_string())?;
         }
         "dxf" => {
-            let dxf = tracedraw_io::dxf::page_to_dxf(&doc, 0);
+            let dxf = graphdraw_io::dxf::page_to_dxf(&doc, 0);
             crate::files::write(path, dxf).map_err(|e| e.to_string())?;
         }
         "emf" => {
-            let emf = tracedraw_io::emf::page_to_emf(&doc, 0);
+            let emf = graphdraw_io::emf::page_to_emf(&doc, 0);
             crate::files::write(path, emf).map_err(|e| e.to_string())?;
         }
         "wmf" => {
-            let wmf = tracedraw_io::emf::page_to_wmf(&doc, 0);
+            let wmf = graphdraw_io::emf::page_to_wmf(&doc, 0);
             crate::files::write(path, wmf).map_err(|e| e.to_string())?;
         }
         "plt" => {
-            let plt = tracedraw_io::plt::page_to_plt(&doc, 0);
+            let plt = graphdraw_io::plt::page_to_plt(&doc, 0);
             crate::files::write(path, plt).map_err(|e| e.to_string())?;
         }
         "psd" => {
-            let psd = tracedraw_io::psd::page_to_psd(
+            let psd = graphdraw_io::psd::page_to_psd(
                 &doc,
                 0,
                 st.dpi.max(crate::ui::dialogs::MIN_EXPORT_DPI),
@@ -107,14 +107,14 @@ pub fn export(app: &mut App, path: &Path, st: &ExportState) -> Result<String, St
             crate::files::write(path, psd).map_err(|e| e.to_string())?;
         }
         "html" => {
-            let html = tracedraw_io::html::document_to_html(&doc);
+            let html = graphdraw_io::html::document_to_html(&doc);
             crate::files::write(path, html).map_err(|e| e.to_string())?;
         }
         _ => {
             // Raster: every page when all_pages, numbered files.
             let pages: Vec<_> = doc.pages.iter().map(|p| p.id).collect();
             for (i, pid) in pages.iter().enumerate() {
-                let mut pm = tracedraw_render::render_page_image(&doc, *pid, st.dpi)
+                let mut pm = graphdraw_render::render_page_image(&doc, *pid, st.dpi)
                     .ok_or("render failed")?;
                 if st.transparent && matches!(ext, "png" | "webp" | "gif") {
                     // Re-render on a transparent background.
@@ -122,20 +122,20 @@ pub fn export(app: &mut App, path: &Path, st: &ExportState) -> Result<String, St
                     let zoom = st.dpi / 25.4;
                     let w = (p.size.width * zoom).ceil() as u32;
                     let h = (p.size.height * zoom).ceil() as u32;
-                    pm = tracedraw_render::render_page(
+                    pm = graphdraw_render::render_page(
                         &doc,
                         *pid,
-                        &tracedraw_render::RenderOptions {
+                        &graphdraw_render::RenderOptions {
                             width: w,
                             height: h,
-                            view: tracedraw_render::ViewTransform {
+                            view: graphdraw_render::ViewTransform {
                                 zoom,
                                 origin_x: 0.0,
                                 origin_y: h as f64,
                             },
                             preview: None,
                             wireframe: false,
-                            ..tracedraw_render::RenderOptions::default()
+                            ..graphdraw_render::RenderOptions::default()
                         },
                     )
                     .ok_or("render failed")?;
@@ -161,8 +161,8 @@ pub fn export(app: &mut App, path: &Path, st: &ExportState) -> Result<String, St
 
 /// The output intent's profile for a PDF/X file: the CMYK profile picked
 /// under Colour Management, when there is one and it can be read.
-pub(crate) fn pdfx_profile(app: &App, standard: tracedraw_io::pdf::PdfStandard) -> Option<Vec<u8>> {
-    if standard == tracedraw_io::pdf::PdfStandard::None {
+pub(crate) fn pdfx_profile(app: &App, standard: graphdraw_io::pdf::PdfStandard) -> Option<Vec<u8>> {
+    if standard == graphdraw_io::pdf::PdfStandard::None {
         return None;
     }
     let p = app.settings.color.cmyk_profile_path.trim().to_string();
@@ -192,20 +192,20 @@ pub fn preview(app: &App, st: &ExportState, max_px: u32) -> Option<tiny_skia::Pi
     let zoom = max_px.max(16) as f64 / longest;
     let w = (page.size.width * zoom).ceil().max(1.0) as u32;
     let h = (page.size.height * zoom).ceil().max(1.0) as u32;
-    let mut pm = tracedraw_render::render_page(
+    let mut pm = graphdraw_render::render_page(
         &doc,
         page.id,
-        &tracedraw_render::RenderOptions {
+        &graphdraw_render::RenderOptions {
             width: w,
             height: h,
-            view: tracedraw_render::ViewTransform {
+            view: graphdraw_render::ViewTransform {
                 zoom,
                 origin_x: 0.0,
                 origin_y: h as f64,
             },
             preview: None,
             wireframe: false,
-            ..tracedraw_render::RenderOptions::default()
+            ..graphdraw_render::RenderOptions::default()
         },
     )?;
     if !(st.transparent && keeps_alpha(ext)) {
@@ -232,10 +232,10 @@ pub fn estimated_size(app: &App, st: &ExportState, preview: &tiny_skia::Pixmap) 
     let (_, ext) = EXPORT_FORMATS[st.format.min(EXPORT_FORMATS.len() - 1)];
     let (doc, bounds) = export_document(app, st);
     match ext {
-        "svg" => Some(tracedraw_io::svg::page_to_svg(&doc, 0).len()),
-        "eps" => Some(tracedraw_io::eps::page_to_eps(&doc, 0).len()),
-        "ps" | "prn" => Some(tracedraw_io::eps::document_to_ps(&doc).len()),
-        "pdf" | "ai" => Some(tracedraw_io::pdf::document_to_pdf(&doc).len()),
+        "svg" => Some(graphdraw_io::svg::page_to_svg(&doc, 0).len()),
+        "eps" => Some(graphdraw_io::eps::page_to_eps(&doc, 0).len()),
+        "ps" | "prn" => Some(graphdraw_io::eps::document_to_ps(&doc).len()),
+        "pdf" | "ai" => Some(graphdraw_io::pdf::document_to_pdf(&doc).len()),
         "png" | "jpg" | "bmp" | "tif" | "webp" | "gif" | "psd" => {
             let enc = if ext == "psd" { "tif" } else { ext };
             let bytes = encode_raster(preview, enc, st.quality).ok()?.len() as f64;
@@ -323,9 +323,9 @@ pub fn print(app: &mut App, st: &PrintState) -> Result<String, String> {
                 ("pdf", "PDF")
             };
             let bytes = if ps {
-                postscript_level(tracedraw_io::eps::document_to_ps(&doc), st.ps_level).into_bytes()
+                postscript_level(graphdraw_io::eps::document_to_ps(&doc), st.ps_level).into_bytes()
             } else {
-                tracedraw_io::pdf::document_to_pdf(&doc)
+                graphdraw_io::pdf::document_to_pdf(&doc)
             };
             crate::files::Dialog::new()
                 .add_filter(filter, &[ext])
@@ -339,7 +339,7 @@ pub fn print(app: &mut App, st: &PrintState) -> Result<String, String> {
             Ok(String::new())
         }
         _ => {
-            let pdf = tracedraw_io::pdf::document_to_pdf(&doc);
+            let pdf = graphdraw_io::pdf::document_to_pdf(&doc);
             let name = format!("{stem}.pdf");
             if crate::files::WEB {
                 // In a browser the PDF is downloaded; its viewer prints it.
@@ -354,7 +354,7 @@ pub fn print(app: &mut App, st: &PrintState) -> Result<String, String> {
 
 #[cfg(not(target_arch = "wasm32"))]
 fn print_through_viewer(name: &str, pdf: Vec<u8>) -> Result<String, String> {
-    let dir = std::env::temp_dir().join("tracedraw-print");
+    let dir = std::env::temp_dir().join("graphdraw-print");
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let path = dir.join(name);
     crate::files::write(&path, pdf).map_err(|e| e.to_string())?;
@@ -375,7 +375,7 @@ fn print_through_viewer(name: &str, _pdf: Vec<u8>) -> Result<String, String> {
 fn repeat_copies(doc: &mut Document, copies: usize, collate: bool) {
     let original = std::mem::take(&mut doc.pages);
     let mut ids = doc.ids().clone();
-    let mut push = |p: &tracedraw_core::document::Page, out: &mut Vec<_>| {
+    let mut push = |p: &graphdraw_core::document::Page, out: &mut Vec<_>| {
         let mut q = p.clone();
         q.id = ids.page();
         out.push(q);
@@ -467,11 +467,11 @@ pub fn print_sheets(app: &App, st: &PrintState) -> Document {
 }
 
 /// A spot ink's colour as its CMYK mix at the tint.
-fn spot_as_cmyk(c: tracedraw_core::Color) -> tracedraw_core::Color {
+fn spot_as_cmyk(c: graphdraw_core::Color) -> graphdraw_core::Color {
     match c {
-        tracedraw_core::Color::Spot {
+        graphdraw_core::Color::Spot {
             tint, c, m, y, k, ..
-        } => tracedraw_core::Color::Cmyk {
+        } => graphdraw_core::Color::Cmyk {
             c: c * tint,
             m: m * tint,
             y: y * tint,
@@ -483,8 +483,8 @@ fn spot_as_cmyk(c: tracedraw_core::Color) -> tracedraw_core::Color {
 
 /// Composite > Print text in black: every text, in groups too, filled and
 /// outlined in black.
-fn text_in_black(s: &mut tracedraw_core::Shape) {
-    use tracedraw_core::{Color, Fill};
+fn text_in_black(s: &mut graphdraw_core::Shape) {
+    use graphdraw_core::{Color, Fill};
     match &mut s.kind {
         ShapeKind::Text { spans, .. } => {
             if !matches!(s.fill, Fill::None) {
@@ -506,9 +506,9 @@ fn text_in_black(s: &mut tracedraw_core::Shape) {
 }
 
 /// Whether `c` is black ink only (100 % black, no other ink).
-fn is_pure_black(c: &tracedraw_core::Color) -> bool {
+fn is_pure_black(c: &graphdraw_core::Color) -> bool {
     match c.convert_to("CMYK") {
-        tracedraw_core::Color::Cmyk { c, m, y, k } => {
+        graphdraw_core::Color::Cmyk { c, m, y, k } => {
             k >= 0.999 && c <= 0.001 && m <= 0.001 && y <= 0.001
         }
         _ => false,
@@ -516,8 +516,8 @@ fn is_pure_black(c: &tracedraw_core::Color) -> bool {
 }
 
 /// Composite > Always overprint black: black fills and outlines overprint.
-fn overprint_black(s: &mut tracedraw_core::Shape) {
-    use tracedraw_core::Fill;
+fn overprint_black(s: &mut graphdraw_core::Shape) {
+    use graphdraw_core::Fill;
     if let Fill::Solid(c) = &s.fill {
         if is_pure_black(c) {
             s.overprint_fill = true;
@@ -540,7 +540,7 @@ fn overprint_black(s: &mut tracedraw_core::Shape) {
 fn sheets_as_bitmaps(doc: &mut Document, dpi: f64) {
     let pages: Vec<_> = doc.pages.iter().map(|p| (p.id, p.size)).collect();
     for (id, size) in pages {
-        let Some(pm) = tracedraw_render::render_page_image(doc, id, dpi) else {
+        let Some(pm) = graphdraw_render::render_page_image(doc, id, dpi) else {
             continue;
         };
         let mut white = match tiny_skia::Pixmap::new(pm.width(), pm.height()) {
@@ -560,17 +560,17 @@ fn sheets_as_bitmaps(doc: &mut Document, dpi: f64) {
             continue;
         };
         let shape_id = doc.ids_mut().shape();
-        let mut shape = tracedraw_core::Shape::new(
+        let mut shape = graphdraw_core::Shape::new(
             shape_id,
             ShapeKind::Bitmap {
-                rect: tracedraw_core::geometry::Rect::new(0.0, 0.0, size.width, size.height),
+                rect: graphdraw_core::geometry::Rect::new(0.0, 0.0, size.width, size.height),
                 width_px: white.width(),
                 height_px: white.height(),
                 png,
                 fx: None,
             },
         );
-        shape.fill = tracedraw_core::Fill::None;
+        shape.fill = graphdraw_core::Fill::None;
         shape.stroke = None;
         if let Ok(page) = doc.page_mut(id) {
             if let Some(first) = page.layers.first_mut() {
@@ -605,10 +605,10 @@ pub fn plates(doc: &Document) -> Vec<(Plate, String)> {
 /// One plate of a page: every colour turned into the grey of the ink's
 /// coverage (black = full ink); registration colour prints on all plates.
 pub fn plate_page(
-    page: &tracedraw_core::document::Page,
+    page: &graphdraw_core::document::Page,
     plate: Plate,
-) -> tracedraw_core::document::Page {
-    use tracedraw_core::{Color, Fill};
+) -> graphdraw_core::document::Page {
+    use graphdraw_core::{Color, Fill};
     let mut p = page.clone();
     let coverage = move |c: Color| -> Color {
         if matches!(c, Color::Registration) {
@@ -685,14 +685,14 @@ pub fn print_layout(app: &App, st: &PrintState, doc: &Document) -> crate::imposi
 /// Map every colour of `s` and what it holds through `f`: fills of every
 /// kind, outlines, character fills, groups and clip frames.
 pub fn map_colors(
-    s: &mut tracedraw_core::Shape,
-    f: &dyn Fn(tracedraw_core::Color) -> tracedraw_core::Color,
+    s: &mut graphdraw_core::Shape,
+    f: &dyn Fn(graphdraw_core::Color) -> graphdraw_core::Color,
 ) {
     fn fill(
-        x: &mut tracedraw_core::Fill,
-        f: &dyn Fn(tracedraw_core::Color) -> tracedraw_core::Color,
+        x: &mut graphdraw_core::Fill,
+        f: &dyn Fn(graphdraw_core::Color) -> graphdraw_core::Color,
     ) {
-        use tracedraw_core::{Fill, Pattern};
+        use graphdraw_core::{Fill, Pattern};
         match x {
             Fill::Solid(c) => *c = f(*c),
             Fill::Fountain(g) => g.stops.iter_mut().for_each(|s| s.color = f(s.color)),
@@ -725,8 +725,8 @@ pub fn map_colors(
     }
 }
 
-fn invert_colors(s: &mut tracedraw_core::Shape) {
-    use tracedraw_core::Color;
+fn invert_colors(s: &mut graphdraw_core::Shape) {
+    use graphdraw_core::Color;
     map_colors(s, &|c: Color| {
         let [r, g, b] = c.to_rgb8();
         Color::rgb8(255 - r, 255 - g, 255 - b)
@@ -815,7 +815,7 @@ impl App {
         if crate::files::WEB {
             // No folders in a browser: every target is a PDF download.
             let name = self.send_to_file_name();
-            let pdf = tracedraw_io::pdf::document_to_pdf(self.engine.document());
+            let pdf = graphdraw_io::pdf::document_to_pdf(self.engine.document());
             let path = std::path::PathBuf::from("/download").join(&name);
             self.status = match crate::files::write(&path, pdf) {
                 Ok(()) => trf("status.sent_to", &[("path", &name)]),
@@ -829,7 +829,7 @@ impl App {
             return;
         };
         let path = dir.join(self.send_to_file_name());
-        match tracedraw_io::save_pdf(self.engine.document(), &path) {
+        match graphdraw_io::save_pdf(self.engine.document(), &path) {
             Ok(()) => {
                 self.status = trf("status.sent_to", &[("path", &path.display().to_string())]);
                 if target == SendTarget::Mail {
@@ -860,7 +860,7 @@ impl SendTarget {
             SendTarget::Desktop => user_dir("XDG_DESKTOP_DIR", "Desktop"),
             SendTarget::Documents => user_dir("XDG_DOCUMENTS_DIR", "Documents"),
             SendTarget::Mail => {
-                let d = std::env::temp_dir().join("tracedraw-send");
+                let d = std::env::temp_dir().join("graphdraw-send");
                 std::fs::create_dir_all(&d).ok()?;
                 Some(d)
             }
@@ -948,7 +948,7 @@ pub fn find_shapes(
     };
     let mut out = Vec::new();
     fn walk(
-        s: &tracedraw_core::Shape,
+        s: &graphdraw_core::Shape,
         needle: &str,
         kind: usize,
         mc: bool,
@@ -1103,8 +1103,8 @@ mod tests {
 
     #[test]
     fn spot_inks_get_plates_of_their_own() {
-        use tracedraw_core::{document::Ink, Fill};
-        let mut doc = Document::new("s", tracedraw_core::Size::new(50.0, 50.0));
+        use graphdraw_core::{document::Ink, Fill};
+        let mut doc = Document::new("s", graphdraw_core::Size::new(50.0, 50.0));
         doc.inks.push(Ink {
             id: 7,
             name: "Gold".into(),
@@ -1112,10 +1112,10 @@ mod tests {
         });
         let layer = doc.pages[0].layers[0].id;
         let id = doc.ids_mut().shape();
-        let mut s = tracedraw_core::Shape::new(
+        let mut s = graphdraw_core::Shape::new(
             id,
             ShapeKind::Rect {
-                rect: tracedraw_core::Rect::new(0.0, 0.0, 10.0, 10.0),
+                rect: graphdraw_core::Rect::new(0.0, 0.0, 10.0, 10.0),
                 radius: 0.0,
                 corners: None,
             },
@@ -1123,7 +1123,7 @@ mod tests {
         s.fill = Fill::Solid(doc.inks[0].color(0.6));
         s.stroke = None;
         doc.layer_mut(layer).expect("layer").shapes.push(s);
-        let pdf = tracedraw_io::pdf::document_to_pdf(&separations_doc(&doc));
+        let pdf = graphdraw_io::pdf::document_to_pdf(&separations_doc(&doc));
         let text = String::from_utf8_lossy(&pdf);
         // C, M, Y, K and the spot plate.
         assert!(
@@ -1169,7 +1169,7 @@ mod tests {
 
     #[test]
     fn colours_are_mapped_inside_groups_frames_and_text() {
-        use tracedraw_core::{document::TextSpan, Color, Fill, Rect, Shape, ShapeId};
+        use graphdraw_core::{document::TextSpan, Color, Fill, Rect, Shape, ShapeId};
         let red = Color::Rgb {
             r: 1.0,
             g: 0.0,
@@ -1190,7 +1190,7 @@ mod tests {
             ShapeId(3),
             ShapeKind::Text {
                 spans: vec![span],
-                origin: tracedraw_core::Point::ZERO,
+                origin: graphdraw_core::Point::ZERO,
                 frame: None,
                 align: Default::default(),
                 para: Default::default(),
@@ -1251,7 +1251,7 @@ mod tests {
 
     #[test]
     fn print_colour_options_change_the_sheets_objects() {
-        use tracedraw_core::{Color, Fill};
+        use graphdraw_core::{Color, Fill};
         let spot = Color::Spot {
             ink: 9,
             tint: 0.5,
@@ -1271,11 +1271,11 @@ mod tests {
         );
         let mut doc = Document::new("t", Size::new(50.0, 50.0));
         let id = doc.ids_mut().shape();
-        let mut text = tracedraw_core::Shape::new(
+        let mut text = graphdraw_core::Shape::new(
             id,
             ShapeKind::Text {
                 spans: vec![TextSpan::new("a", "Arial", 12.0)],
-                origin: tracedraw_core::geometry::Point::ZERO,
+                origin: graphdraw_core::geometry::Point::ZERO,
                 frame: None,
                 align: Default::default(),
                 para: Default::default(),

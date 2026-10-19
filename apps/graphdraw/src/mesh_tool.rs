@@ -8,7 +8,7 @@
 use crate::app::App;
 use crate::i18n::tr;
 use egui::{PointerButton, Response};
-use tracedraw_core::{
+use graphdraw_core::{
     geometry::{Point, Shape as _},
     Color, Command, Fill, Mesh, ShapeId,
 };
@@ -221,7 +221,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::{Rect, ShapeKind};
+    use graphdraw_core::{Rect, ShapeKind};
 
     fn square(app: &mut App) -> ShapeId {
         let id = app

@@ -26,7 +26,7 @@ remove a tinta da lista; os objetos que a usam mantêm a cor substituta.
 Um arquivo de paleta pode ser um catálogo de tintas especiais (por exemplo, uma
 paleta `.ase` com entradas especiais). As entradas especiais abrem como cores
 especiais, com os nomes do catálogo; aplicar uma acrescenta a tinta ao desenho.
-O TraceDraw não traz catálogos licenciados, mas um que você tenha abre como
+O GraphDraw não traz catálogos licenciados, mas um que você tenha abre como
 qualquer paleta.
 
 ## Cores especiais na impressão e nas exportações {#output}

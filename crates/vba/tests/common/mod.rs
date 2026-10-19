@@ -1,7 +1,7 @@
 //! Runs compiled VBA on boa with a small fake object model.
 
 use boa_engine::{Context, Source};
-use tracedraw_vba::{compile, entry_call, Module, ModuleKind, RUNTIME_JS};
+use graphdraw_vba::{compile, entry_call, Module, ModuleKind, RUNTIME_JS};
 
 /// A drawing with shapes, enough for macros that walk the selection.
 pub const FAKE_MODEL: &str = r##"

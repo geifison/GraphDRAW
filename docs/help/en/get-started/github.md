@@ -1,6 +1,6 @@
 # Keeping drawings on GitHub
 
-TraceDraw can open drawings from a GitHub repository and save them back as
+GraphDraw can open drawings from a GitHub repository and save them back as
 commits, on the desktop and in the browser. Each save becomes a version in
 the repository's history, which you can open again later. The commands are
 in [[menu.file > menu.file.github]].
@@ -12,7 +12,7 @@ create a fine-grained personal access token on GitHub with read and write
 access to the contents of the repository, and paste it in the
 [[github.token]] field.
 
-The token is kept while TraceDraw runs. Tick [[github.remember_token]] to
+The token is kept while GraphDraw runs. Tick [[github.remember_token]] to
 keep it for the next time; it is then stored in plain text in your
 preferences (in the browser, in that browser's storage). The dialog boxes
 also remember the last repository, branch and path.
@@ -22,7 +22,7 @@ also remember the last repository, branch and path.
 1. Choose [[menu.file > menu.file.github > menu.file.github_open]].
 2. Type the [[github.repository]] as `owner/name` or its github.com address.
 3. Type the [[github.branch]], or leave it empty for `main`.
-4. Type the path of the [[github.path]], for example `art/logo.tdraw`.
+4. Type the path of the [[github.path]], for example `art/logo.gdr`.
 5. Click [[dialog.ok]].
 
 The drawing opens in a new tab, named after the file. It remembers where it
@@ -41,7 +41,7 @@ saves it back. For any drawing, choose
    "Update" and the file name).
 3. Click [[dialog.ok]].
 
-The drawing is saved as a `.tdraw` file, with its fonts, as a new commit on
+The drawing is saved as a `.gdr` file, with its fonts, as a new commit on
 that branch. [[menu.file.save_as]] still saves a file on your computer.
 
 ![The Save to GitHub dialog box](../../img/get-started-github-save.png)

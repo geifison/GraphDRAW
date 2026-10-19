@@ -23,7 +23,7 @@ de la paleta de colores y el aspecto de la interfaz. Elija uno en
 
 ## Qué se conserva {#kept}
 
-Todo lo que cambia se conserva cuando TraceDraw se cierra y vuelve la próxima
+Todo lo que cambia se conserva cuando GraphDraw se cierra y vuelve la próxima
 vez: las opciones, dónde está cada barra y qué barras se muestran, la
 herramienta que muestra cada grupo de la caja de herramientas, los paneles
 abiertos, las unidades, el ajuste, los ajustes que toman los objetos nuevos y

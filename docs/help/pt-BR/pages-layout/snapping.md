@@ -36,7 +36,7 @@ dicas de tela ativadas, o nome.
 Os pontos têm preferência sobre as linhas-guia, as linhas-guia sobre as grades,
 e as bordas vêm por último. Os modos, o raio e as marcas são definidos na página
 [[options.snapping]] das opções; veja
-[Opções do TraceDraw](../customize/options-app.md#snapping).
+[Opções do GraphDraw](../customize/options-app.md#snapping).
 
 ## Encaixe ao mover {#moving}
 

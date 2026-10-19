@@ -77,7 +77,7 @@ pub fn show(app: &mut App, ctx: &Context) {
                                 )
                                 .changed();
                             if cx || cy {
-                                c = tracedraw_core::geometry::Point::new(
+                                c = graphdraw_core::geometry::Point::new(
                                     u.world_to_mm(x),
                                     u.world_to_mm(y),
                                 );

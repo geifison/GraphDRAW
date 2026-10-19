@@ -1,6 +1,6 @@
 # Keyboard shortcuts
 
-These are the shortcuts TraceDraw comes with. The menus show each command's
+These are the shortcuts GraphDraw comes with. The menus show each command's
 shortcut beside it, and you can add your own; see
 [Customization options](../customize/customization.md#commands). On macOS,
 <kbd>Ctrl</kbd> is the Command key.

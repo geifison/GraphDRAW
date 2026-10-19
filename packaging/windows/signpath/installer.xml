@@ -3,7 +3,7 @@
      by the build as the GitHub artifact "unsigned-installer". -->
 <artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
   <zip-file>
-    <pe-file path="tracedraw-*-windows-x86_64-setup.exe">
+    <pe-file path="graphdraw-*-windows-x86_64-setup.exe">
       <authenticode-sign />
     </pe-file>
   </zip-file>

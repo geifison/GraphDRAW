@@ -1,4 +1,4 @@
-//! The splash screen. While TraceDraw starts, a small borderless window
+//! The splash screen. While GraphDraw starts, a small borderless window
 //! centred on the screen shows the application icon, the name, the
 //! tagline and the version over the brand artwork (see `ui/brand.rs`),
 //! with what is loading and a progress bar. The system font list is read
@@ -6,7 +6,7 @@
 //! for [`MIN_TIME`], the editor is built (opening the file named on the
 //! command line) and the window becomes the main window, maximized or at
 //! the size it was left. Options > General turns the splash off;
-//! `--no-splash` or `TRACEDRAW_NO_SPLASH=1` skip it for one run.
+//! `--no-splash` or `GRAPHDRAW_NO_SPLASH=1` skip it for one run.
 
 use crate::i18n::{tr, trf};
 use crate::settings::Settings;
@@ -59,7 +59,7 @@ impl Splash {
         ctx.set_fonts(crate::theme::bundled_font_definitions());
         ctx.set_visuals(crate::theme::visuals());
         let fonts = std::thread::Builder::new()
-            .name("tracedraw-fonts".into())
+            .name("graphdraw-fonts".into())
             .spawn(crate::theme::font_definitions)
             .map_err(|e| log::warn!("font thread: {e}"))
             .ok();

@@ -10,7 +10,7 @@ use crate::i18n::tr;
 use crate::ui::bitmap_preview::{before_after_pick, settings_key, Source};
 use egui::{Color32, Context, Rect, Sense, Stroke, Ui, Vec2};
 use std::collections::BTreeMap;
-use tracedraw_core::{BitmapEffect, ShapeId};
+use graphdraw_core::{BitmapEffect, ShapeId};
 
 /// The dialog's state: the effect being set up and, when editing, the
 /// bitmap and its place in the list; the Tone Curve's shown channel.

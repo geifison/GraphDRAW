@@ -1,6 +1,6 @@
 # La version pour navigateur
 
-Vous pouvez [utiliser TraceDraw dans un navigateur web](https://igtoth.github.io/tracedraw/)
+Vous pouvez [utiliser GraphDraw dans un navigateur web](https://geifison.github.io/GraphDRAW/)
 sans rien installer. C'est le même programme que la version de bureau,
 compilé pour le navigateur : les menus, les outils et les fichiers sont donc
 les mêmes.
@@ -28,7 +28,7 @@ ouvre la page de téléchargement de la version de bureau.
   la première fois que votre texte en a besoin.
 - **Les paramètres** sont conservés dans ce navigateur, sur cet ordinateur.
 - **Touches.** Tant que le dessin a le focus, les raccourcis du programme
-  vont à TraceDraw et non au navigateur, sauf les touches du presse-papiers,
+  vont à GraphDraw et non au navigateur, sauf les touches du presse-papiers,
   le rechargement et les outils de développement du navigateur.
   <kbd>Ctrl+N</kbd>, <kbd>Ctrl+T</kbd> et <kbd>Ctrl+W</kbd> restent toujours
   au navigateur : utilisez donc le menu [[menu.file]] pour créer et fermer

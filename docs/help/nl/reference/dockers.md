@@ -56,6 +56,6 @@ somt elk paneel op met de pagina die het uitlegt.
   tabblad om de panelen in te klappen.
 - De sluitknop in de titelbalk van een paneel haalt het uit de tabbladen; de
   inklapknop klapt het paneelgebied in.
-- Panelen die u open laat, komen terug als TraceDraw de volgende keer start.
+- Panelen die u open laat, komen terug als GraphDraw de volgende keer start.
 - Paneelsneltoetsen schakelen: drukt u er een terwijl het paneel vooraan staat,
   dan worden de panelen verborgen.

@@ -1,6 +1,6 @@
 # Guardar desenhos no GitHub
 
-O TraceDraw pode abrir desenhos de um repositório do GitHub e salvá-los de
+O GraphDraw pode abrir desenhos de um repositório do GitHub e salvá-los de
 volta como commits, no computador e no navegador. Cada salvamento vira uma
 versão no histórico do repositório, que você pode abrir de novo depois. Os
 comandos ficam em [[menu.file > menu.file.github]].
@@ -11,7 +11,7 @@ Repositórios públicos abrem sem token. Para abrir os privados e para salvar,
 crie no GitHub um token de acesso pessoal refinado com acesso de leitura e
 escrita ao conteúdo do repositório, e cole-o no campo [[github.token]].
 
-O token fica guardado enquanto o TraceDraw está aberto. Marque
+O token fica guardado enquanto o GraphDraw está aberto. Marque
 [[github.remember_token]] para mantê-lo para a próxima vez; ele é então
 guardado em texto simples nas suas preferências (no navegador, no
 armazenamento daquele navegador). As caixas de diálogo também lembram o último
@@ -23,7 +23,7 @@ repositório, branch e caminho.
 2. Digite o [[github.repository]] como `dono/nome` ou o endereço dele no
    github.com.
 3. Digite a [[github.branch]], ou deixe em branco para `main`.
-4. Digite o caminho do [[github.path]], por exemplo `art/logo.tdraw`.
+4. Digite o caminho do [[github.path]], por exemplo `art/logo.gdr`.
 5. Clique em [[dialog.ok]].
 
 O desenho abre em uma nova guia, com o nome do arquivo. Ele lembra de onde veio
@@ -42,7 +42,7 @@ de volta. Para qualquer desenho, escolha
    nome do arquivo).
 3. Clique em [[dialog.ok]].
 
-O desenho é salvo como arquivo `.tdraw`, com as fontes, como um novo commit
+O desenho é salvo como arquivo `.gdr`, com as fontes, como um novo commit
 nessa branch. [[menu.file.save_as]] continua salvando um arquivo no seu
 computador.
 

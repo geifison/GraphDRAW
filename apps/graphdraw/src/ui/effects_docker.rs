@@ -7,8 +7,8 @@ use crate::app::App;
 use crate::i18n::tr;
 use crate::theme::Tokens;
 use egui::Ui;
-use tracedraw_core::live::Effect;
-use tracedraw_core::{Command, Shape};
+use graphdraw_core::live::Effect;
+use graphdraw_core::{Command, Shape};
 
 /// The name an effect goes by in the stack.
 pub fn effect_key(e: &Effect) -> &'static str {
@@ -119,8 +119,8 @@ pub fn effects_docker(app: &mut App, ui: &mut Ui) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::geometry::{Point, Rect, Vec2};
-    use tracedraw_core::{Color, ShapeKind};
+    use graphdraw_core::geometry::{Point, Rect, Vec2};
+    use graphdraw_core::{Color, ShapeKind};
 
     #[test]
     fn the_stack_switches_moves_and_removes_effects() {

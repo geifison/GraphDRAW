@@ -1,6 +1,6 @@
 # Isian
 
-Isian mewarnai bagian dalam objek tertutup. TraceDraw memiliki enam jenis
+Isian mewarnai bagian dalam objek tertutup. GraphDraw memiliki enam jenis
 isian: [[docker.fill_none]], [[docker.fill_uniform]] (satu warna rata),
 [[docker.fill_fountain]] (warna-warna yang berbaur satu sama lain),
 [[docker.fill_pattern]], [[docker.fill_texture]], dan [[docker.fill_mesh]]

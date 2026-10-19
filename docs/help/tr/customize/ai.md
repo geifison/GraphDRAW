@@ -1,8 +1,8 @@
 # YZ ile çizme ve üretme
 
-TraceDraw, kendi anahtarınızla seçip kurduğunuz bir YZ hizmetiyle sözcüklerle
+GraphDraw, kendi anahtarınızla seçip kurduğunuz bir YZ hizmetiyle sözcüklerle
 yapılan bir açıklamadan çizim yapabilir ve resimler oluşturabilir.
-TraceDraw'un kendine ait bir YZ'si ve hesabı yoktur: bir YZ komutu
+GraphDraw'un kendine ait bir YZ'si ve hesabı yoktur: bir YZ komutu
 çalıştırana kadar hiçbir şey gönderilmez ve o zaman da yalnızca o komutun
 gerektirdiği şey kurduğunuz hizmete gider. Her istek hizmetiniz tarafından
 faturalandırılır; bilgisayarınızdaki yerel model sunucuları hiçbir ücrete
@@ -51,7 +51,7 @@ modunda
 ([[menu.object > menu.object.ai_generate > menu.object.ai_draw_words]])
 "mavi tekerlekli kırmızı bir bisiklet" ya da "daireyi büyüt ve başlığı
 altına koy" gibi bir istek yazın ve **Çiz** düğmesine veya <kbd>Enter</kbd>
-tuşuna basın. Hizmet çizim için bir betik yazar; TraceDraw bu betiği tek bir
+tuşuna basın. Hizmet çizim için bir betik yazar; GraphDraw bu betiği tek bir
 geri alma adımı olarak çalıştırır. Konuşma saklanır, böylece değişiklik
 isteyebilirsiniz; **Yeni konuşma** baştan başlar. **Betikler'de Aç** betiği
 gösterir.

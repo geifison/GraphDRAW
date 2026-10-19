@@ -3,7 +3,7 @@
 //! and away from it with the Pick tool (see docs/behavior/text.md).
 
 use crate::app::App;
-use tracedraw_core::{
+use graphdraw_core::{
     document::{ShapeKind, TextAlign, TextOnPath},
     geometry::{Affine, BezPath, Point},
     Command, ShapeId,
@@ -118,14 +118,14 @@ impl App {
         let ShapeKind::Text { spans, para, .. } = &s.kind else {
             return None;
         };
-        let req = tracedraw_core::document::text_outline::TextRequest {
+        let req = graphdraw_core::document::text_outline::TextRequest {
             spans,
             frame: None,
             align: ft.align,
             para,
             on_path: Some(&ft.on_path),
         };
-        let letters = tracedraw_core::document::text_outline::outline(&req).unwrap_or_default();
+        let letters = graphdraw_core::document::text_outline::outline(&req).unwrap_or_default();
         let base = ft.on_path.baseline();
         let total = base.length();
         let steps = ((total / 1.0).ceil() as usize).clamp(2, 4000);
@@ -161,8 +161,8 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::document::{PathTextOrientation, PathTextVertical};
-    use tracedraw_core::geometry::Rect;
+    use graphdraw_core::document::{PathTextOrientation, PathTextVertical};
+    use graphdraw_core::geometry::Rect;
 
     fn fitted_on_line(app: &mut App) -> ShapeId {
         let mut line = BezPath::new();

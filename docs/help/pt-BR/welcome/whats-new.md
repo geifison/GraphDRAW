@@ -1,6 +1,6 @@
 # Novidades
 
-Cada versão do TraceDraw traz recursos e correções. Esta página explica como
+Cada versão do GraphDraw traz recursos e correções. Esta página explica como
 saber o que mudou e lista os destaques das versões mais recentes.
 
 ## Ver as novidades no programa {#in-the-program}
@@ -11,16 +11,16 @@ saber o que mudou e lista os destaques das versões mais recentes.
   que é novo nesta versão: um pequeno ponto aparece no fim de cada comando
   novo, ao lado da seta de um submenu que leva a um deles e sobre o título de
   um menu que contém um. As marcas somem quando você desativa o comando, e ele
-  volta desativado na próxima vez que o TraceDraw é iniciado.
+  volta desativado na próxima vez que o GraphDraw é iniciado.
 - A lista completa de mudanças de cada versão está no
-  [registro de alterações](https://github.com/igtoth/tracedraw/blob/main/CHANGELOG.md)
+  [registro de alterações](https://github.com/geifison/GraphDRAW/blob/main/CHANGELOG.md)
   do projeto.
 
 ## Destaques das versões recentes {#highlights}
 
 - **Ajuda no seu idioma.** Todo botão **?** e a tecla <kbd>F1</kbd> abrem a
   página desta Ajuda sobre a caixa de diálogo, o painel ou a ferramenta à sua
-  frente, no idioma em que o TraceDraw está configurado.
+  frente, no idioma em que o GraphDraw está configurado.
 - **Propriedades do documento.** [[menu.file > menu.file.document_properties]]
   guarda o idioma, título, assunto, autor, direitos autorais, etiquetas, notas
   e classificação de um desenho, sobre um relatório completo do que o desenho

@@ -6,8 +6,8 @@
 
 use crate::app::App;
 use egui::{Color32, Modifiers, Painter, PointerButton, Response, Stroke as EStroke};
-use tracedraw_core::geometry::{Affine, BezPath, Point};
-use tracedraw_core::{Command, ShapeId, Stroke, WidthNode};
+use graphdraw_core::geometry::{Affine, BezPath, Point};
+use graphdraw_core::{Command, ShapeId, Stroke, WidthNode};
 
 /// Screen distance (pixels) within which a press takes a node or the
 /// outline.
@@ -110,7 +110,7 @@ impl App {
             if let Some((path, stroke, scale)) = self.variable_outline_geometry(id) {
                 // A node under the pointer.
                 let hit = stroke.widths.iter().enumerate().find_map(|(i, n)| {
-                    tracedraw_core::shaping::point_on_path(&path, n.at)
+                    graphdraw_core::shaping::point_on_path(&path, n.at)
                         .filter(|(q, _)| (*q - p).hypot() <= grab)
                         .map(|_| i)
                 });
@@ -125,8 +125,8 @@ impl App {
                     return;
                 }
                 // The outline under the pointer.
-                if let Some((t, d, _)) = tracedraw_core::shaping::locate_on_path(&path, p) {
-                    let (l, r) = tracedraw_core::style::width_at(stroke.width, &stroke.widths, t);
+                if let Some((t, d, _)) = graphdraw_core::shaping::locate_on_path(&path, p) {
+                    let (l, r) = graphdraw_core::style::width_at(stroke.width, &stroke.widths, t);
                     if d <= (l.max(r) * scale) + grab {
                         let mut nodes = stroke.widths.clone();
                         nodes.push(WidthNode {
@@ -168,7 +168,7 @@ impl App {
         let Some(node) = stroke.widths.get(drag.index).copied() else {
             return;
         };
-        let Some((q, n)) = tracedraw_core::shaping::point_on_path(&path, node.at) else {
+        let Some((q, n)) = graphdraw_core::shaping::point_on_path(&path, node.at) else {
             return;
         };
         // Distance across the outline, measured along the normal.
@@ -283,7 +283,7 @@ pub fn draw_width_nodes(app: &App, painter: &Painter) {
         }
     }
     for (i, node) in stroke.widths.iter().enumerate() {
-        let Some((q, n)) = tracedraw_core::shaping::point_on_path(&path, node.at) else {
+        let Some((q, n)) = graphdraw_core::shaping::point_on_path(&path, node.at) else {
             continue;
         };
         let at = |d: f64| {
@@ -306,8 +306,8 @@ pub fn draw_width_nodes(app: &App, painter: &Painter) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::geometry::Shape as _;
-    use tracedraw_core::{Shape, ShapeKind};
+    use graphdraw_core::geometry::Shape as _;
+    use graphdraw_core::{Shape, ShapeKind};
 
     fn line_app() -> (App, ShapeId) {
         let mut app = App::headless();
@@ -323,7 +323,7 @@ mod tests {
                 closed: false,
             },
         );
-        s.stroke = Some(Stroke::new(tracedraw_core::Color::BLACK, 2.0));
+        s.stroke = Some(Stroke::new(graphdraw_core::Color::BLACK, 2.0));
         app.run(Command::AddShape { layer, shape: s });
         app.select(vec![id]);
         app.tool = crate::tools::Tool::VariableOutline;
@@ -355,7 +355,7 @@ mod tests {
         let band = shape
             .and_then(|s| {
                 let st = s.stroke.clone()?;
-                tracedraw_core::shaping::outline_band(&s.page_path(), &st, 1.0)
+                graphdraw_core::shaping::outline_band(&s.page_path(), &st, 1.0)
             })
             .map(|b| b.bounding_box())
             .unwrap_or_default();

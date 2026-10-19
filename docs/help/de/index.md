@@ -1,11 +1,11 @@
-# Willkommen in der TraceDraw-Hilfe
+# Willkommen in der GraphDraw-Hilfe
 
-TraceDraw ist ein freies, quelloffenes Vektorzeichenprogramm. Damit zeichnen Sie
+GraphDraw ist ein freies, quelloffenes Vektorzeichenprogramm. Damit zeichnen Sie
 Illustrationen, Logos, Diagramme, Layouts und Druckarbeiten aus Formen, Linien
 und Text, die in jeder Größe scharf bleiben, und kombinieren sie mit Bitmaps.
 Dasselbe Programm läuft unter Windows, macOS und Linux und im Webbrowser.
 
-Diese Hilfe erklärt Schritt für Schritt, wie Sie in TraceDraw arbeiten, und was
+Diese Hilfe erklärt Schritt für Schritt, wie Sie in GraphDraw arbeiten, und was
 jedes Dialogfeld, jedes Andockfenster und jedes Werkzeug tut.
 
 ## Aufbau dieser Hilfe {#organization}
@@ -20,7 +20,7 @@ Das Inhaltsverzeichnis links folgt Ihrer Arbeitsweise:
 - **Spezialeffekte**, **Text**, **Vorlagen und Stile**, **Seiten und Layout**
   und **Bitmaps** decken die übrige Zeichenarbeit ab.
 - **Drucken**, **Webgrafiken** und **Dateiformate** erklären, wie Ihre Arbeit
-  aus TraceDraw herauskommt.
+  aus GraphDraw herauskommt.
 - **Anpassen und automatisieren** behandelt die Optionen, Arbeitsbereiche,
   Skripte und KI-Funktionen, und **Referenz** listet jeden Menübefehl, jedes
   Werkzeug, jedes Andockfenster und jedes Tastenkürzel auf.
@@ -29,7 +29,7 @@ Mit der Registerkarte **Suchen** finden Sie eine Seite über jedes Wort, das sie
 enthält, und mit der Sprachliste oben lesen Sie dieselbe Seite in einer anderen
 Sprache.
 
-## Hilfe in TraceDraw {#in-the-app}
+## Hilfe in GraphDraw {#in-the-app}
 
 - Drücken Sie <kbd>F1</kbd>, um die Seite zu dem zu öffnen, was gerade vor
   Ihnen liegt: das geöffnete Dialogfeld, sonst das angezeigte Andockfenster,
@@ -41,12 +41,12 @@ Sprache.
   Werkzeug; sein Link [[hint.learn_more]] öffnet hier die Seite des
   Werkzeugs. Siehe [Hinweise](get-started/hints.md).
 
-Die Seiten öffnen sich in Ihrem Webbrowser, in der Sprache, auf die TraceDraw
+Die Seiten öffnen sich in Ihrem Webbrowser, in der Sprache, auf die GraphDraw
 eingestellt ist.
 
 ## Wo Sie anfangen {#begin}
 
-Wenn TraceDraw neu für Sie ist, lesen Sie
+Wenn GraphDraw neu für Sie ist, lesen Sie
 [Der Arbeitsbereich](get-started/workspace.md), dann
 [Eine Zeichnung anlegen](get-started/new-document.md) und
 [Linien und Kurven zeichnen](lines-shapes/lines.md).

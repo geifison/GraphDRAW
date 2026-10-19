@@ -27,7 +27,7 @@ title leaves focus mode; a click on a step goes back to that group.
   object itself, so every Pick tool action (move, scale, colour, delete)
   works on its members.
 - Everything else is drawn at the "Visibility of inactive objects"
-  (Tools > Options > TraceDraw > Edit, 0 to 100 %, default 20 %; Reset restores
+  (Tools > Options > GraphDraw > Edit, 0 to 100 %, default 20 %; Reset restores
   it). The focused object is drawn again at full strength on top.
 - Exports and printing are not affected.
 

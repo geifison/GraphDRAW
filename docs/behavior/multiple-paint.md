@@ -1,7 +1,7 @@
 # Several fills and outlines
 
 An object can carry further fills and outlines over its own
-(`Shape::extra_fills`, `Shape::extra_strokes`, saved in `.tdraw`).
+(`Shape::extra_fills`, `Shape::extra_strokes`, saved in `.gdr`).
 
 ## Properties docker
 

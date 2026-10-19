@@ -79,7 +79,7 @@ fn coverage(ui: &Ui, family: &str) -> Arc<Vec<char>> {
     if let Some(c) = ui.data(|d| d.get_temp::<Arc<Vec<char>>>(key)) {
         return c;
     }
-    let c = Arc::new(tracedraw_text::fonts().char_coverage(family));
+    let c = Arc::new(graphdraw_text::fonts().char_coverage(family));
     ui.data_mut(|d| d.insert_temp(key, c.clone()));
     c
 }
@@ -90,7 +90,7 @@ fn variants(ui: &Ui, family: &str, ch: char) -> Arc<Vec<String>> {
     if let Some(v) = ui.data(|d| d.get_temp::<Arc<Vec<String>>>(key)) {
         return v;
     }
-    let v = Arc::new(tracedraw_text::fonts().glyph_variants(family, ch, &ALTERNATE_FEATURES));
+    let v = Arc::new(graphdraw_text::fonts().glyph_variants(family, ch, &ALTERNATE_FEATURES));
     ui.data_mut(|d| d.insert_temp(key, v.clone()));
     v
 }
@@ -99,7 +99,7 @@ fn variants(ui: &Ui, family: &str, ch: char) -> Arc<Vec<String>> {
 /// caret of the text being edited, else as a new artistic text at the page
 /// centre. It goes to the front of the recent glyphs.
 pub fn insert_glyph(app: &mut App, font: &str, ch: char, feature: Option<&str>) {
-    let style = |sp: &mut tracedraw_core::TextSpan, font: &str, feature: Option<&str>| {
+    let style = |sp: &mut graphdraw_core::TextSpan, font: &str, feature: Option<&str>| {
         sp.font_family = font.to_string();
         if let Some(f) = feature {
             if !sp.features.iter().any(|x| x == f) {
@@ -240,7 +240,7 @@ pub fn glyphs(app: &mut App, ui: &mut Ui) {
             }
         });
     ui.add_space(4.0);
-    let families = tracedraw_text::fonts().families();
+    let families = graphdraw_text::fonts().families();
     egui::ComboBox::from_id_salt("glyphs_font")
         .width(ui.available_width() - 8.0)
         .selected_text(app.glyph_font.clone())
@@ -318,7 +318,7 @@ pub fn glyphs(app: &mut App, ui: &mut Ui) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::document::ShapeKind;
+    use graphdraw_core::document::ShapeKind;
 
     #[test]
     fn ranges_pick_their_characters() {

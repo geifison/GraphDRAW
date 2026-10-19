@@ -27,7 +27,7 @@ use crate::parse::{
 };
 use std::collections::HashMap;
 use std::io::Write as _;
-use tracedraw_core::{
+use graphdraw_core::{
     document::{Shape, ShapeKind, Symbol, TextSpan},
     geometry::{Affine, BezPath, PathEl, Point, Rect, Shape as _},
     style::{FountainKind, LineCap, LineJoin},
@@ -52,7 +52,7 @@ pub const DEFAULT_VERSION: u16 = NEWEST_VERSION;
 
 /// The versions the app and the command line save in: those checked to
 /// open in other programs. The older ones the writer can produce stay
-/// for testing (`TRACEDRAW_CDR_EXPERIMENTAL=1` on the command line).
+/// for testing (`GRAPHDRAW_CDR_EXPERIMENTAL=1` on the command line).
 pub fn checked_versions() -> std::ops::RangeInclusive<u16> {
     CHECKED_SINCE..=CHECKED_UNTIL
 }
@@ -797,17 +797,17 @@ fn png_to_bmp(png: &[u8]) -> Option<Vec<u8>> {
 /// layers and the first page's size in coordinate units).
 fn summary_xml(v: Ver, doc: &Document) -> String {
     let mut fonts: Vec<String> = Vec::new();
-    fn walk(shapes: &[tracedraw_core::Shape], fonts: &mut Vec<String>) {
+    fn walk(shapes: &[graphdraw_core::Shape], fonts: &mut Vec<String>) {
         for s in shapes {
             match &s.kind {
-                tracedraw_core::ShapeKind::Text { spans, .. } => {
+                graphdraw_core::ShapeKind::Text { spans, .. } => {
                     for sp in spans {
                         if !fonts.contains(&sp.font_family) {
                             fonts.push(sp.font_family.clone());
                         }
                     }
                 }
-                tracedraw_core::ShapeKind::Group { children } => walk(children, fonts),
+                graphdraw_core::ShapeKind::Group { children } => walk(children, fonts),
                 _ => {}
             }
         }
@@ -980,12 +980,12 @@ fn metadata_xml(v: Ver, doc: &Document) -> String {
 fn textinfo_xml(doc: &Document) -> String {
     let mut objects: Vec<String> = Vec::new();
     let mut layers: Vec<String> = Vec::new();
-    fn names(shapes: &[tracedraw_core::Shape], out: &mut Vec<String>) {
+    fn names(shapes: &[graphdraw_core::Shape], out: &mut Vec<String>) {
         for s in shapes {
             if let Some(n) = s.name.as_deref().filter(|n| !n.is_empty()) {
                 out.push(n.to_string());
             }
-            if let tracedraw_core::ShapeKind::Group { children } = &s.kind {
+            if let graphdraw_core::ShapeKind::Group { children } = &s.kind {
                 names(children, out);
             }
         }
@@ -1231,7 +1231,7 @@ fn fill_colour(fill: &Fill) -> Option<Color> {
 /// mean colour of a bitmap pattern's tile, the middle of a texture's or a
 /// two-colour pattern's colours, else its preview colour.
 fn stand_in_colour(fill: &Fill) -> Option<Color> {
-    use tracedraw_core::style::{lerp_color, Pattern};
+    use graphdraw_core::style::{lerp_color, Pattern};
     match fill {
         Fill::Pattern(Pattern::Bitmap { png, .. }) => {
             let pm = tiny_skia::Pixmap::decode_png(png).ok()?;
@@ -2251,14 +2251,14 @@ fn loda(kind: u32, mut args: Vec<(u32, Vec<u8>)>) -> Vec<u8> {
 
 /// The mean opacity of a transparency effect's mask: the lightness of
 /// its colours, averaged over a fountain's stops.
-fn mask_mean_opacity(e: &tracedraw_core::live::Effect) -> Option<f64> {
-    let tracedraw_core::live::Effect::Transparency { mask, .. } = e else {
+fn mask_mean_opacity(e: &graphdraw_core::live::Effect) -> Option<f64> {
+    let graphdraw_core::live::Effect::Transparency { mask, .. } = e else {
         return None;
     };
-    let level = |c: &tracedraw_core::Color| c.luminance().clamp(0.0, 1.0) as f64;
+    let level = |c: &graphdraw_core::Color| c.luminance().clamp(0.0, 1.0) as f64;
     match mask {
-        tracedraw_core::Fill::Solid(c) => Some(level(c)),
-        tracedraw_core::Fill::Fountain(f) if !f.stops.is_empty() => {
+        graphdraw_core::Fill::Solid(c) => Some(level(c)),
+        graphdraw_core::Fill::Fountain(f) if !f.stops.is_empty() => {
             Some(f.stops.iter().map(|st| level(&st.color)).sum::<f64>() / f.stops.len() as f64)
         }
         _ => None,
@@ -2284,9 +2284,9 @@ fn curve_coords(path: &BezPath) -> Option<Vec<u8>> {
 /// [`curve_coords`] for a curve with node types chosen for it.
 fn curve_coords_typed(
     path: &BezPath,
-    chosen: &std::collections::BTreeMap<usize, tracedraw_core::nodes::NodeType>,
+    chosen: &std::collections::BTreeMap<usize, graphdraw_core::nodes::NodeType>,
 ) -> Option<Vec<u8>> {
-    use tracedraw_core::nodes::{self, NodeType};
+    use graphdraw_core::nodes::{self, NodeType};
     let continuity: std::collections::BTreeMap<usize, u8> = nodes::nodes(path)
         .into_iter()
         .map(|n| {
@@ -2415,13 +2415,13 @@ fn obbx_bytes(r: Rect, outline: f64) -> Vec<u8> {
 /// with its kind, angle, centre offsets (percent) and scale, and the part
 /// it applies to (the layout read in `text::object_transparency_mask`).
 /// `None` when the mask's ends are not plain colours.
-fn graded_transparency_json(g: (&tracedraw_core::Fountain, u8)) -> Option<String> {
-    use tracedraw_core::FountainKind;
+fn graded_transparency_json(g: (&graphdraw_core::Fountain, u8)) -> Option<String> {
+    use graphdraw_core::FountainKind;
     let (f, target) = g;
     let mut f = f.clone();
     crate::mirror_centred_stops(&mut f);
     let (first, last) = (f.stops.first()?, f.stops.last()?);
-    let grey = |c: &tracedraw_core::Color| (c.luminance().clamp(0.0, 1.0) * 255.0).round() as u32;
+    let grey = |c: &graphdraw_core::Color| (c.luminance().clamp(0.0, 1.0) * 255.0).round() as u32;
     let kind = match f.kind {
         FountainKind::Radial => 2,
         FountainKind::Conical => 3,
@@ -2447,7 +2447,7 @@ fn object_style_json(
     fill: &Fill,
     stroke: Option<&Stroke>,
     opacity: f64,
-    graded: Option<(&tracedraw_core::Fountain, u8)>,
+    graded: Option<(&graphdraw_core::Fountain, u8)>,
 ) -> String {
     let fill_part = match fill_colour(fill) {
         Some(c) if !matches!(fill, Fill::None) => {
@@ -2533,12 +2533,12 @@ fn character_json(sp: &TextSpan, fill: Option<&Fill>) -> String {
 /// A paragraph's line spacing as a factor of the character height (the
 /// unit of a style string's `interLineSpacing`), the character height of
 /// `size_pt` text taken as 1.15 times the size as the reader takes it.
-fn line_spacing_factor(f: &tracedraw_core::ParagraphFormat, size_pt: f64) -> f64 {
+fn line_spacing_factor(f: &graphdraw_core::ParagraphFormat, size_pt: f64) -> f64 {
     let size = if size_pt > 0.0 { size_pt } else { 12.0 };
     let v = match f.leading_unit {
-        tracedraw_core::LeadingUnit::PercentCharHeight => f.leading_pct / 100.0,
-        tracedraw_core::LeadingUnit::Points => f.leading_pct / (size * 1.15),
-        tracedraw_core::LeadingUnit::PercentPointSize => f.leading_pct / 100.0 / 1.15,
+        graphdraw_core::LeadingUnit::PercentCharHeight => f.leading_pct / 100.0,
+        graphdraw_core::LeadingUnit::Points => f.leading_pct / (size * 1.15),
+        graphdraw_core::LeadingUnit::PercentPointSize => f.leading_pct / 100.0 / 1.15,
     };
     if v.is_finite() {
         v.clamp(0.1, 10.0)
@@ -2595,10 +2595,10 @@ fn full_text_style(
 
 /// The alignment of each paragraph of a text (its own, or `align`).
 fn paragraph_aligns(spans: &[TextSpan], align: TextAlign) -> Vec<TextAlign> {
-    tracedraw_core::paragraphs::paragraph_formats_of(
+    graphdraw_core::paragraphs::paragraph_formats_of(
         spans,
         align,
-        &tracedraw_core::ParagraphStyle::default(),
+        &graphdraw_core::ParagraphStyle::default(),
     )
     .into_iter()
     .map(|f| f.align)
@@ -2635,7 +2635,7 @@ struct Writer<'a> {
     next_object: u32,
     /// Graded transparencies (mask, target) of the objects being written,
     /// by shape: version 16+ style strings carry them.
-    graded: std::collections::HashMap<tracedraw_core::ShapeId, (tracedraw_core::Fountain, u8)>,
+    graded: std::collections::HashMap<graphdraw_core::ShapeId, (graphdraw_core::Fountain, u8)>,
     next_fill: u32,
     next_outline: u32,
     next_bitmap: u32,
@@ -2774,7 +2774,7 @@ impl<'a> Writer<'a> {
             .pages
             .first()
             .map(|p| p.size)
-            .unwrap_or(tracedraw_core::geometry::Size::new(210.0, 297.0));
+            .unwrap_or(graphdraw_core::geometry::Size::new(210.0, 297.0));
         // Pages first: they fill the tables.
         let mut pages = Vec::new();
         let mut content: Option<Rect> = None;
@@ -2980,7 +2980,7 @@ impl<'a> Writer<'a> {
     /// A page: its flags, the box of its objects, its entries for the
     /// master's guides and desktop layers, its own guides layer (from
     /// version 14), its layers and its entry for the master's grid layer.
-    fn page(&mut self, page: &tracedraw_core::document::Page) -> (Node, Option<Rect>) {
+    fn page(&mut self, page: &graphdraw_core::document::Page) -> (Node, Option<Rect>) {
         let v = self.v;
         let centre = Point::new(page.size.width / 2.0, page.size.height / 2.0);
         let mut layers = vec![
@@ -3293,7 +3293,7 @@ impl<'a> Writer<'a> {
         // Paragraph text goes out as a group of artistic texts, one a line
         // placed where its frame put it (frames are not written yet), so it
         // keeps its look.
-        if let Some(kinds) = tracedraw_core::document::paragraph_lines(&s.kind) {
+        if let Some(kinds) = graphdraw_core::document::paragraph_lines(&s.kind) {
             let children: Vec<Shape> = kinds
                 .into_iter()
                 .map(|kind| Shape { kind, ..s.clone() })
@@ -3311,14 +3311,14 @@ impl<'a> Writer<'a> {
             return self.object(&group, centre, depth);
         }
         if !s.effects.is_empty() {
-            let ev = tracedraw_core::live::evaluate(s);
+            let ev = graphdraw_core::live::evaluate(s);
             let mut all: Vec<Shape> = ev.below.clone();
             let mut main = ev.main.clone();
             // A graded transparency is written as a uniform one: the mean
             // opacity of its mask (as files read before masks were).
             // Version 16+ style strings keep the gradient itself.
             let graded = s.effects.iter().find_map(|e| match e {
-                tracedraw_core::live::Effect::Transparency {
+                graphdraw_core::live::Effect::Transparency {
                     mask: Fill::Fountain(f),
                     target,
                     ..
@@ -3747,7 +3747,7 @@ impl<'a> Writer<'a> {
         &mut self,
         spans: &[TextSpan],
         align: TextAlign,
-        para: &tracedraw_core::ParagraphStyle,
+        para: &graphdraw_core::ParagraphStyle,
         fill: &Fill,
         m: Affine,
     ) -> Vec<u8> {
@@ -3786,7 +3786,7 @@ impl<'a> Writer<'a> {
         t.u32(0).zeros(8);
         let paragraphs = Self::paragraphs(spans);
         t.u32(paragraphs.len() as u32);
-        let formats = tracedraw_core::paragraphs::paragraph_formats_of(spans, align, para);
+        let formats = graphdraw_core::paragraphs::paragraph_formats_of(spans, align, para);
         for (pi, runs) in paragraphs.iter().enumerate() {
             let format = formats.get(pi);
             let align = format.map_or(align, |f| f.align);

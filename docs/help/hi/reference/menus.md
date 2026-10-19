@@ -431,17 +431,17 @@
 
 | कमांड | देखें |
 |---|---|
-| [[menu.help.help_topics]] | [TraceDraw सहायता में आपका स्वागत है](../index.md#in-the-app) |
-| [[menu.help.product_help]] | [TraceDraw सहायता में आपका स्वागत है](../index.md#in-the-app) |
-| [[menu.help.welcome_screen]] | [TraceDraw के बारे में और अपडेट](../welcome/about-and-updates.md) |
-| [[menu.help.video_tutorials]] | [TraceDraw के बारे में और अपडेट](../welcome/about-and-updates.md) |
+| [[menu.help.help_topics]] | [GraphDraw सहायता में आपका स्वागत है](../index.md#in-the-app) |
+| [[menu.help.product_help]] | [GraphDraw सहायता में आपका स्वागत है](../index.md#in-the-app) |
+| [[menu.help.welcome_screen]] | [GraphDraw के बारे में और अपडेट](../welcome/about-and-updates.md) |
+| [[menu.help.video_tutorials]] | [GraphDraw के बारे में और अपडेट](../welcome/about-and-updates.md) |
 | [[menu.help.hints]] | [The Hints panel](../get-started/hints.md) |
-| [[menu.help.quick_start_guide]] | [TraceDraw के बारे में और अपडेट](../welcome/about-and-updates.md) |
-| [[menu.help.user_guide]] | [TraceDraw के बारे में और अपडेट](../welcome/about-and-updates.md) |
+| [[menu.help.quick_start_guide]] | [GraphDraw के बारे में और अपडेट](../welcome/about-and-updates.md) |
+| [[menu.help.user_guide]] | [GraphDraw के बारे में और अपडेट](../welcome/about-and-updates.md) |
 | [[menu.help.whats_new]] | [नया क्या है](../welcome/whats-new.md) |
 | [[menu.help.highlight_whats_new]] | [नया क्या है](../welcome/whats-new.md) |
-| [[menu.help.updates]] | [TraceDraw के बारे में और अपडेट](../welcome/about-and-updates.md) |
-| [[menu.help.message_settings]] | [TraceDraw के बारे में और अपडेट](../welcome/about-and-updates.md) |
-| [[menu.help.community]] | [TraceDraw के बारे में और अपडेट](../welcome/about-and-updates.md) |
-| [[menu.help.support]] | [TraceDraw के बारे में और अपडेट](../welcome/about-and-updates.md) |
-| [[menu.help.about]] | [TraceDraw के बारे में और अपडेट](../welcome/about-and-updates.md) |
+| [[menu.help.updates]] | [GraphDraw के बारे में और अपडेट](../welcome/about-and-updates.md) |
+| [[menu.help.message_settings]] | [GraphDraw के बारे में और अपडेट](../welcome/about-and-updates.md) |
+| [[menu.help.community]] | [GraphDraw के बारे में और अपडेट](../welcome/about-and-updates.md) |
+| [[menu.help.support]] | [GraphDraw के बारे में और अपडेट](../welcome/about-and-updates.md) |
+| [[menu.help.about]] | [GraphDraw के बारे में और अपडेट](../welcome/about-and-updates.md) |

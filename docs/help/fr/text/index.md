@@ -1,6 +1,6 @@
 # Texte
 
-TraceDraw a deux sortes de texte. Le **texte artistique** est une ligne, ou
+GraphDraw a deux sortes de texte. Le **texte artistique** est une ligne, ou
 quelques lignes, placée en un point : titres, étiquettes, logos. Le **texte de
 paragraphe** s'écoule dans un cadre et revient à la ligne à ses bords : texte
 courant, colonnes, listes. Les deux se mettent en forme caractère par

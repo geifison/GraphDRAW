@@ -1,7 +1,7 @@
 # Files
 
 This page covers opening and saving drawings, bringing in work from
-other formats, sending it out again, and how TraceDraw protects unsaved
+other formats, sending it out again, and how GraphDraw protects unsaved
 work.
 
 ## Open a drawing
@@ -13,9 +13,9 @@ drawing on the Welcome Screen.
 Each drawing opens in a tab of its own. You can have several open at
 once; switch between them with the tabs or the **Window** menu.
 
-TraceDraw opens:
+GraphDraw opens:
 
-- `.tdraw`, its own format;
+- `.gdr`, its own format;
 - `.cdr` files, versions 7 to 22 (see [below](#cdr-files));
 - SVG and SVGZ;
 - PDF and AI (PDF-compatible ones and older PostScript-based ones),
@@ -28,7 +28,7 @@ TraceDraw opens:
 - bitmaps: PNG, JPEG, BMP, GIF, TIFF and WebP.
 
 Opening never fails outright: if part of a file cannot be read,
-TraceDraw opens the rest and tells you how many objects were left out.
+GraphDraw opens the rest and tells you how many objects were left out.
 For a `.cdr` file, that message has a **Report** button that starts an
 issue so the reader can be improved. You can turn these messages off in
 **Tools > Options > Global > Warnings**.
@@ -50,7 +50,7 @@ into editable curves.
 - **File > Save** (`Ctrl+S`) writes the drawing back to its file.
 - **File > Save As** (`Ctrl+Shift+S`) always asks.
 
-A new drawing, or one opened from a format TraceDraw does not save in
+A new drawing, or one opened from a format GraphDraw does not save in
 (including `.cdr`, which needs a version), opens the **Save Drawing**
 dialog on the first save:
 
@@ -58,26 +58,26 @@ dialog on the first save:
    shortcuts down the left, or press **New folder**.
 2. Type a **File name**.
 3. Choose **Save as type**:
-   - **TraceDraw** (`*.tdraw`): keeps everything. Use it for your
+   - **GraphDraw** (`*.gdr`): keeps everything. Use it for your
      working files.
    - **CDR files** (`*.cdr`), with a **Version** (see below).
 4. Optionally fill in **Title**, **Subject** and **Rating**. These are
    also in **File > Document Properties**.
-5. Press **Save**. If the file exists, TraceDraw asks before replacing
+5. Press **Save**. If the file exists, GraphDraw asks before replacing
    it.
 
 In the browser, Save downloads the file to your downloads folder; the
 dialog keeps the name, type, version and properties.
 
 To keep a copy of the old file each time you save, leave **Back up
-original file before saving** on in **Tools > Options > TraceDraw >
+original file before saving** on in **Tools > Options > GraphDraw >
 Save**. It writes `backup_of_<name>` next to the file.
 
 See [the saving notes](../behavior/files.md).
 
 ## `.cdr` files
 
-TraceDraw reads and writes `.cdr` files independently:
+GraphDraw reads and writes `.cdr` files independently:
 
 - **Reading**: versions 7 to 22 open with their pages, layers, shapes,
   curves, text, groups, bitmaps, fills, outlines and more. Some content
@@ -94,7 +94,7 @@ TraceDraw reads and writes `.cdr` files independently:
   `.cdr` save updates it.
 
 If a `.cdr` file does not open right and you may share it, please
-[send it in an issue](https://github.com/igtoth/tracedraw/issues/new?template=cdr_file.yml):
+[send it in an issue](https://github.com/geifison/GraphDRAW/issues/new?template=cdr_file.yml):
 sample files are what improves the reader most.
 
 ## Export
@@ -133,8 +133,8 @@ Welcome Screen lists templates too.
 
 ## Auto-backup and recovery
 
-On the desktop, TraceDraw saves a backup of every drawing with unsaved
-changes every 20 minutes. If TraceDraw closes normally, those backups
+On the desktop, GraphDraw saves a backup of every drawing with unsaved
+changes every 20 minutes. If GraphDraw closes normally, those backups
 are removed.
 
 If it did not (a crash, a power cut), the next start offers the backups:
@@ -144,8 +144,8 @@ If it did not (a crash, a power cut), the next start offers the backups:
 - **Discard** leaves the backup files in the auto-backup folder and does
   not ask again.
 
-To change how often it saves, or where (a `TraceDraw` folder in your
-temporary folder to start with): **Tools > Options > TraceDraw > Save**.
+To change how often it saves, or where (a `GraphDraw` folder in your
+temporary folder to start with): **Tools > Options > GraphDraw > Save**.
 Auto-backup is not available in the browser. See
 [the recovery notes](../behavior/recovery.md).
 
@@ -173,7 +173,7 @@ is one, it offers:
 - **Skip this version**;
 - **Close**.
 
-TraceDraw also checks once a day when it starts and shows only a newer
+GraphDraw also checks once a day when it starts and shows only a newer
 release you did not skip. To turn that off: **Tools > Options > Global >
 General**, clear **Check for updates at start**. The browser version is
 always the latest; there, Help > Updates opens the releases page. See

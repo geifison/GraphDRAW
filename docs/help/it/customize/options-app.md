@@ -1,4 +1,4 @@
-# Opzioni di TraceDraw
+# Opzioni di GraphDraw
 
 [[menu.tools > menu.tools.options > menu.tools.options_app]] (<kbd>Ctrl+J</kbd>)
 imposta il funzionamento del programma. Scegli una pagina dall'elenco a
@@ -6,7 +6,7 @@ sinistra.
 
 ## Generale {#general}
 
-![La pagina Generale delle opzioni di TraceDraw](../../img/customize-options-app-general.png)
+![La pagina Generale delle opzioni di GraphDraw](../../img/customize-options-app-general.png)
 
 - [[options.on_startup]]: mostra la schermata di benvenuto, avvia un nuovo
   documento o apri l'ultimo documento modificato.
@@ -17,7 +17,7 @@ sinistra.
 
 ## Visualizzazione {#display}
 
-![La pagina Visualizzazione delle opzioni di TraceDraw](../../img/customize-options-app-display.png)
+![La pagina Visualizzazione delle opzioni di GraphDraw](../../img/customize-options-app-display.png)
 
 - [[menu.view.proof_colors]]: mostra i colori come verranno stampati.
 - [[options.show_tooltips]] (attivo), [[options.hide_bbox_curve_tools]] e
@@ -32,7 +32,7 @@ sinistra.
 
 ## Modifica {#edit}
 
-![La pagina Modifica delle opzioni di TraceDraw](../../img/customize-options-app-edit.png)
+![La pagina Modifica delle opzioni di GraphDraw](../../img/customize-options-app-edit.png)
 
 - [[options.constrain_angle]]: il passo di <kbd>Ctrl</kbd> quando ruoti e
   disegni (15 gradi in partenza).
@@ -44,7 +44,7 @@ sinistra.
 
 ## Nodi e maniglie {#nodes-and-handles}
 
-![La pagina Nodi e maniglie delle opzioni di TraceDraw](../../img/customize-options-app-nodes-and-handles.png)
+![La pagina Nodi e maniglie delle opzioni di GraphDraw](../../img/customize-options-app-nodes-and-handles.png)
 
 - [[options.node_size]]: piccola, media o grande.
 - [[options.node_shape]] per i nodi [[options.node_cusp]],
@@ -56,7 +56,7 @@ sinistra.
 
 ## Cornice di ritaglio {#clip-frame}
 
-![La pagina Cornice di ritaglio delle opzioni di TraceDraw](../../img/customize-options-app-clip-frame.png)
+![La pagina Cornice di ritaglio delle opzioni di GraphDraw](../../img/customize-options-app-clip-frame.png)
 
 - [[options.auto_center]]: [[options.auto_center_outside]] (in partenza),
   [[options.auto_center_always]] o [[options.auto_center_never]].
@@ -66,7 +66,7 @@ Vedi [Inserire oggetti in una cornice](../objects/clip-frames.md).
 
 ## Aggancio {#snapping}
 
-![La pagina Aggancio delle opzioni di TraceDraw](../../img/customize-options-app-snapping.png)
+![La pagina Aggancio delle opzioni di GraphDraw](../../img/customize-options-app-snapping.png)
 
 - [[options.snap_to_objects]], [[options.snap_to_page]],
   [[options.snap_to_guidelines]], [[options.snap_to_grid]], la griglia della
@@ -80,7 +80,7 @@ Vedi [Aggancio](../pages-layout/snapping.md).
 
 ## Salvataggio {#save}
 
-![La pagina Salvataggio delle opzioni di TraceDraw](../../img/customize-options-app-save.png)
+![La pagina Salvataggio delle opzioni di GraphDraw](../../img/customize-options-app-save.png)
 
 - [[options.backup]]: [[options.backup_before_save]] (attivo) conserva il file
   precedente come `backup_of_<name>`, [[options.backup_to]] la
@@ -92,7 +92,7 @@ Vedi [Aggancio](../pages-layout/snapping.md).
 
 ## Testo {#text}
 
-![La pagina Testo delle opzioni di TraceDraw](../../img/customize-options-app-text.png)
+![La pagina Testo delle opzioni di GraphDraw](../../img/customize-options-app-text.png)
 
 - [[options.keyboard_text_increment]]: di quanto <kbd>Ctrl+8</kbd> e
   <kbd>Ctrl+2</kbd> ingrandiscono e riducono il testo selezionato (1 punto).

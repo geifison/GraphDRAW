@@ -43,7 +43,7 @@ polygon, snaps the same way.
 
 ## The pointer
 
-A solid black arrow (drawn by TraceDraw on a white halo, its tip on the
+A solid black arrow (drawn by GraphDraw on a white halo, its tip on the
 hot spot) with a mark at its lower right for what a press would take:
 a small hollow square over a node (of a curve, or of a rectangle,
 ellipse or polygon, or an envelope, perspective or mesh node), a dot
@@ -88,7 +88,7 @@ Properties.
 | Drag a picture's corner | the picture goes into a clip frame of its rectangle (Crop Bitmap) and the corner moves as a node of that frame; a clip frame's frame shows its nodes and edits like any curve, so a cropped picture can be reshaped further |
 | Delete | delete selected nodes |
 | + / - | with nodes chosen: a node in the middle of each segment ending at them / delete them (without chosen nodes they zoom) |
-| C, S, Y (with nodes chosen) | C turns cusp nodes smooth and the others cusp, S symmetrical nodes smooth and the others symmetrical, Y makes them symmetrical; while nodes are chosen these letters do not align objects or pick tools. The type chosen is kept with the curve (saved in `.tdraw`), so a cusp node may keep aligned handles and its handles still move apart; nodes never given a type read as their handles do (aligned: smooth; aligned and of equal length: symmetrical), and a curve that gains or loses nodes goes back to that |
+| C, S, Y (with nodes chosen) | C turns cusp nodes smooth and the others cusp, S symmetrical nodes smooth and the others symmetrical, Y makes them symmetrical; while nodes are chosen these letters do not align objects or pick tools. The type chosen is kept with the curve (saved in `.gdr`), so a cusp node may keep aligned handles and its handles still move apart; nodes never given a type read as their handles do (aligned: smooth; aligned and of equal length: symmetrical), and a curve that gains or loses nodes goes back to that |
 | Home, End (with nodes chosen) | the first or last node of the curve |
 | Arrow keys (with nodes chosen) | move the chosen nodes by the nudge distance (Shift: super nudge, Ctrl: micro nudge), one undo step per press |
 | Break (property bar) | split the subpath at the node |

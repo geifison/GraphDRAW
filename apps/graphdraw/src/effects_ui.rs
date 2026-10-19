@@ -1,7 +1,7 @@
 //! Settings held by the effect dockers (Lens, Bevel, Transparency)
 //! before they are applied as live effects.
 
-use tracedraw_core::{live::MergeMode, Color, Fill};
+use graphdraw_core::{live::MergeMode, Color, Fill};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct BevelSettings {
@@ -39,7 +39,7 @@ pub struct TransparencySettings {
 impl TransparencySettings {
     /// Default mask for a transparency kind, at `angle` degrees for fountains.
     pub fn default_mask(kind: u8, angle: f64) -> Fill {
-        use tracedraw_core::style::{Pattern, PatternTile, Texture, TextureKind};
+        use graphdraw_core::style::{Pattern, PatternTile, Texture, TextureKind};
         match kind {
             2 => Fill::Pattern(Pattern::TwoColor {
                 tile: PatternTile::Checker,

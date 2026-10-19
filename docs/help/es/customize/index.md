@@ -1,6 +1,6 @@
 # Personalizar y automatizar
 
-TraceDraw se puede ajustar a su forma de trabajar: opciones del programa y de
+GraphDraw se puede ajustar a su forma de trabajar: opciones del programa y de
 cada herramienta, el aspecto de la interfaz, atajos de teclado, barras y
 espacios de trabajo. También puede automatizar el trabajo con scripts,
 conectar un servicio de IA para dibujar a partir de una descripción y llevar la

@@ -28,7 +28,7 @@ nesneler yedek rengini korur.
 
 Bir palet dosyası bir spot mürekkep kitabı olabilir (örneğin spot girdileri
 olan bir `.ase` paleti). Spot girdileri, kitaptaki gibi adlandırılmış spot
-renkler olarak açılır; birini uygulamak mürekkebi çizime ekler. TraceDraw
+renkler olarak açılır; birini uygulamak mürekkebi çizime ekler. GraphDraw
 lisanslı renk kitaplarıyla birlikte gelmez, ancak sahip olduğunuz bir kitap
 herhangi bir palet gibi açılır.
 

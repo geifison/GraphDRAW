@@ -3,7 +3,7 @@
 //! Favorites and collections) and filters on the left, and on the right a
 //! sample text, a search field and every face of the chosen library drawn
 //! in itself, grouped by family, with how it is built and whether it is
-//! installed. Fonts of added folders can be installed for TraceDraw and
+//! installed. Fonts of added folders can be installed for GraphDraw and
 //! uninstalled; folders, installed files, Favorites and collections are
 //! kept in the settings. See docs/behavior/font-manager.md.
 
@@ -15,8 +15,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeSet, HashMap};
 use std::path::PathBuf;
 use std::sync::mpsc;
-use tracedraw_text::catalog::{self, Embedding, FaceRecord, Script, FEATURES};
-use tracedraw_text::FontKind;
+use graphdraw_text::catalog::{self, Embedding, FaceRecord, Script, FEATURES};
+use graphdraw_text::FontKind;
 
 /// The sample size's range and default, in pixels to the em.
 pub const SAMPLE_PX: std::ops::RangeInclusive<f32> = 16.0..=120.0;
@@ -41,7 +41,7 @@ const SECTION_BLUE: Color32 = Color32::from_rgb(0x1E, 0x9B, 0xE0);
 pub struct FontManagerPrefs {
     /// Folders added to the libraries.
     pub folders: Vec<PathBuf>,
-    /// Font files installed for TraceDraw (loaded at every start).
+    /// Font files installed for GraphDraw (loaded at every start).
     pub installed: Vec<PathBuf>,
     /// Keys ([`FaceRecord::key`]) of the favourite faces.
     pub favorites: Vec<String>,
@@ -72,12 +72,12 @@ impl FontManagerPrefs {
     }
 }
 
-/// Load the font files installed for TraceDraw (at start).
+/// Load the font files installed for GraphDraw (at start).
 pub fn install_saved(prefs: &FontManagerPrefs) -> Vec<String> {
     if prefs.installed.is_empty() {
         return Vec::new();
     }
-    tracedraw_text::fonts().install_paths(&prefs.installed)
+    graphdraw_text::fonts().install_paths(&prefs.installed)
 }
 
 /// The library the list shows.
@@ -265,11 +265,11 @@ impl Catalog {
     /// Start again when fonts changed; take the results of loads that
     /// finished. True while something is still loading.
     fn refresh(&mut self, folders: &[PathBuf]) -> bool {
-        let g = tracedraw_text::fonts().generation();
+        let g = graphdraw_text::fonts().generation();
         if self.generation != Some(g) {
             self.generation = Some(g);
             self.pictures.clear();
-            self.loading = Some(spawn(|| tracedraw_text::fonts().catalog()));
+            self.loading = Some(spawn(|| graphdraw_text::fonts().catalog()));
         }
         if let Some(rx) = &self.loading {
             if let Ok(faces) = rx.try_recv() {
@@ -380,7 +380,7 @@ impl Catalog {
             return p.clone();
         }
         let outline = if let Some(h) = r.handle {
-            tracedraw_text::fonts()
+            graphdraw_text::fonts()
                 .with_face(h, |d, i| catalog::sample_outline(d, i, text))
                 .flatten()
         } else {
@@ -427,7 +427,7 @@ fn draw_sample(
     let pad = 2.0;
     let w = ((advance * scale).ceil() + 2.0 * pad).clamp(1.0, 4096.0) as u32;
     let h = (((ascent + descent) * scale).ceil() + 2.0 * pad).clamp(1.0, 1024.0) as u32;
-    let sk = tracedraw_render::to_sk_path(path)?;
+    let sk = graphdraw_render::to_sk_path(path)?;
     let mut pixmap = tiny_skia::Pixmap::new(w, h)?;
     let mut paint = tiny_skia::Paint::default();
     paint.set_color_rgba8(0x10, 0x10, 0x10, 0xff);
@@ -636,7 +636,7 @@ impl FontManagerState {
 
 /// Carry out an action.
 fn run(app: &mut App, st: &mut FontManagerState, a: Action) {
-    let fonts = tracedraw_text::fonts();
+    let fonts = graphdraw_text::fonts();
     let prefs = &mut app.settings.font_manager;
     match a {
         Action::AddFolder => {
@@ -654,16 +654,16 @@ fn run(app: &mut App, st: &mut FontManagerState, a: Action) {
                 .pick_file(app, |app, path| {
                     let added = if crate::files::WEB {
                         crate::files::read(&path)
-                            .map(|d| tracedraw_text::fonts().install_data(vec![d]))
+                            .map(|d| graphdraw_text::fonts().install_data(vec![d]))
                             .unwrap_or_default()
                     } else {
                         let p = &mut app.settings.font_manager.installed;
                         if !p.contains(&path) {
                             p.push(path.clone());
                         }
-                        tracedraw_text::fonts().install_paths(&[path])
+                        graphdraw_text::fonts().install_paths(&[path])
                     };
-                    app.font_families = tracedraw_text::fonts().available_families();
+                    app.font_families = graphdraw_text::fonts().available_families();
                     app.status = trf(
                         "font_manager.installed_n",
                         &[("n", &added.len().to_string())],
@@ -687,7 +687,7 @@ fn run(app: &mut App, st: &mut FontManagerState, a: Action) {
                 "font_manager.installed_n",
                 &[("n", &paths.len().to_string())],
             ));
-            log::info!("installed for TraceDraw: {}", added.join(", "));
+            log::info!("installed for GraphDraw: {}", added.join(", "));
             app.font_families = fonts.available_families();
             app.save_settings();
         }
@@ -886,7 +886,7 @@ fn menu_row(
     });
 }
 
-/// A face installed for TraceDraw (not one of the system's).
+/// A face installed for GraphDraw (not one of the system's).
 fn uninstallable(r: &FaceRecord, prefs: &FontManagerPrefs) -> bool {
     r.installed && !r.system && r.path.as_ref().is_some_and(|p| prefs.installed.contains(p))
 }
@@ -2228,7 +2228,7 @@ mod tests {
 
     #[test]
     fn a_folder_lists_its_fonts_installed_or_not() {
-        let dir = std::env::temp_dir().join(format!("tracedraw-fm-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("graphdraw-fm-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("dir");
         std::fs::write(
@@ -2256,7 +2256,7 @@ mod tests {
         let mut app = App::headless();
         app.settings.font_manager.details = true;
         app.font_catalog.installed = Some(vec![face("Alpha", "Regular", 400, false)]);
-        app.font_catalog.generation = Some(tracedraw_text::fonts().generation());
+        app.font_catalog.generation = Some(graphdraw_text::fonts().generation());
         let mut st = FontManagerState::default();
         st.selected.insert("Alpha-Regular".into());
         let ctx = crate::theme::ui_context();

@@ -1,6 +1,6 @@
 # Líneas, formas y contornos
 
-Todo lo que dibuja en TraceDraw está hecho de líneas y formas. Estas páginas
+Todo lo que dibuja en GraphDraw está hecho de líneas y formas. Estas páginas
 explican las herramientas que las dibujan, cómo cambiar su forma nodo a nodo,
 cómo combinarlas y cortarlas, y cómo definir el contorno que dibuja sus
 bordes.

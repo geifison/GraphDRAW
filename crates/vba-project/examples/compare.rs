@@ -12,12 +12,12 @@ fn main() {
     let mut args = std::env::args().skip(1);
     let gms = std::fs::read(args.next().expect("file")).expect("read");
     let folder = args.next().expect("folder");
-    let p = tracedraw_vba_project::read_gms(&gms).expect("project");
+    let p = graphdraw_vba_project::read_gms(&gms).expect("project");
     let mut paths = Vec::new();
     for e in std::fs::read_dir(&folder).expect("folder").flatten() {
         paths.push(e.path());
     }
-    let src = tracedraw_vba_project::read_files(&paths).expect("sources");
+    let src = graphdraw_vba_project::read_files(&paths).expect("sources");
     for m in &p.modules {
         match src
             .modules

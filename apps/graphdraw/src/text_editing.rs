@@ -1,17 +1,17 @@
 //! In-place text editing: caret, selection, typing, deleting and
 //! character formatting of the text object being edited with the Text
 //! tool. Positions are character indices of the concatenated span text
-//! (`tracedraw_core::spans_text`); geometry comes from the text layout's
+//! (`graphdraw_core::spans_text`); geometry comes from the text layout's
 //! line boxes.
 
 use crate::app::App;
-use tracedraw_core::document::text_outline::TextRequest;
-use tracedraw_core::geometry::{Affine, Point, Rect};
-use tracedraw_core::{
+use graphdraw_core::document::text_outline::TextRequest;
+use graphdraw_core::geometry::{Affine, Point, Rect};
+use graphdraw_core::{
     spans_apply, spans_char_count, spans_delete, spans_insert, spans_text, Command, ShapeId,
     ShapeKind, TextSpan,
 };
-use tracedraw_text::TextLayout;
+use graphdraw_text::TextLayout;
 
 /// The text object being edited and where the caret is.
 #[derive(Debug, Clone)]
@@ -516,7 +516,7 @@ impl App {
 /// Layout of a text shape (any `ShapeKind::Text`, placed under `parent`)
 /// and the transform from layout space to the page.
 pub fn layout_of_text_shape(
-    s: &tracedraw_core::Shape,
+    s: &graphdraw_core::Shape,
     parent: Affine,
 ) -> Option<(TextLayout, Affine)> {
     let ShapeKind::Text {
@@ -530,7 +530,7 @@ pub fn layout_of_text_shape(
     else {
         return None;
     };
-    let layout = tracedraw_text::fonts().layout(&TextRequest {
+    let layout = graphdraw_text::fonts().layout(&TextRequest {
         spans,
         frame: *frame,
         align: *align,
@@ -622,7 +622,7 @@ mod tests {
     use super::*;
 
     fn fonts_available() -> bool {
-        !tracedraw_text::fonts().families().is_empty()
+        !graphdraw_text::fonts().families().is_empty()
     }
 
     #[test]

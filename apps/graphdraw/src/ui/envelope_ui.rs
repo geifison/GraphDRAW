@@ -14,8 +14,8 @@ use crate::theme::Tokens;
 use crate::tools::Tool;
 use crate::ui::propbar::{pic_button, sep, Pic};
 use egui::{epaint, Color32, Painter, Pos2, Rect, Stroke, Ui, Vec2};
-use tracedraw_core::envelope::{Mapping, Mode};
-use tracedraw_core::geometry::ParamCurve;
+use graphdraw_core::envelope::{Mapping, Mode};
+use graphdraw_core::geometry::ParamCurve;
 
 /// The name of a mode.
 pub fn mode_key(m: Mode) -> &'static str {
@@ -279,7 +279,7 @@ pub fn envelope_docker(app: &mut App, ui: &mut Ui) {
                                 if preset_cell(ui, i, cell, selected) {
                                     app.apply_envelope_frame(|b| {
                                         crate::envelope_shapes::frame(i, b).unwrap_or_else(|| {
-                                            tracedraw_core::envelope::Frame::around(b)
+                                            graphdraw_core::envelope::Frame::around(b)
                                         })
                                     });
                                 }
@@ -508,8 +508,8 @@ mod tests {
         let ctx = crate::theme::ui_context();
         let mut app = App::headless();
         let id = app
-            .new_shape(tracedraw_core::ShapeKind::Rect {
-                rect: tracedraw_core::Rect::new(0.0, 0.0, 40.0, 20.0),
+            .new_shape(graphdraw_core::ShapeKind::Rect {
+                rect: graphdraw_core::Rect::new(0.0, 0.0, 40.0, 20.0),
                 radius: 0.0,
                 corners: None,
             })

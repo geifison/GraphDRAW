@@ -1,6 +1,6 @@
 # Bitmap
 
-Le bitmap sono immagini fatte di pixel, come foto e scansioni. TraceDraw le
+Le bitmap sono immagini fatte di pixel, come foto e scansioni. GraphDraw le
 colloca nei disegni, ne cambia la modalità colore e le dimensioni, le
 raddrizza, maschera colori, applica effetti e le vettorizza in forme. Converte
 anche oggetti vettoriali in bitmap.

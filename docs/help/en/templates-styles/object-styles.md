@@ -25,7 +25,7 @@ and [[docker.reset]] (back to the defaults of a new drawing).
 
 When nothing is selected and you choose a fill or outline (click a palette
 color, use a fill tool, change the outline color or width), the change goes to
-new objects. TraceDraw asks which kinds of new objects it applies to:
+new objects. GraphDraw asks which kinds of new objects it applies to:
 
 1. Tick [[defaults.graphic]], [[defaults.artistic_text]] and
    [[defaults.paragraph_text]] as needed. The kinds you ticked last time are

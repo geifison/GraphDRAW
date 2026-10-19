@@ -5,7 +5,7 @@
 
 use crate::svg::page_to_svg;
 use std::fmt::Write as _;
-use tracedraw_core::Document;
+use graphdraw_core::Document;
 
 fn escape(s: &str) -> String {
     s.replace('&', "&amp;")
@@ -31,7 +31,7 @@ pub fn document_to_html(doc: &Document) -> String {
         "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
     );
     let _ = writeln!(out, "<title>{}</title>", escape(&title));
-    let _ = writeln!(out, "<meta name=\"generator\" content=\"TraceDraw\">");
+    let _ = writeln!(out, "<meta name=\"generator\" content=\"GraphDraw\">");
     let _ = writeln!(
         out,
         "<style>\n\
@@ -105,7 +105,7 @@ fn fmt(v: f64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::{
+    use graphdraw_core::{
         document::{Page, ShapeKind},
         geometry::{Rect, Size},
         Color, Fill, Shape,
@@ -131,7 +131,7 @@ mod tests {
             id: pid,
             name: "Back".into(),
             size: Size::new(100.0, 50.0),
-            layers: vec![tracedraw_core::document::Layer::new(lid, "Layer 1")],
+            layers: vec![graphdraw_core::document::Layer::new(lid, "Layer 1")],
             guides: Vec::new(),
             background: None,
         });

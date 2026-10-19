@@ -1,6 +1,6 @@
 # Dolgular
 
-Dolgu, kapalı bir nesnenin içini boyar. TraceDraw'da altı tür dolgu vardır:
+Dolgu, kapalı bir nesnenin içini boyar. GraphDraw'da altı tür dolgu vardır:
 [[docker.fill_none]], [[docker.fill_uniform]] (tek bir düz renk),
 [[docker.fill_fountain]] (birbirine karışan renkler),
 [[docker.fill_pattern]], [[docker.fill_texture]] ve [[docker.fill_mesh]]

@@ -174,7 +174,7 @@ properties for new objects (see `object-styles.md`), for new drawings.
 - `guides::tests::second_click_rotates_a_guide_about_the_clicked_point`
 - `ui::layout_options::tests::*` (form origin, presets)
 - `canvas::tests::grid_lines_thin_out_and_follow_the_origin`
-- `tracedraw_core` document tests: old guidelines load, appearance round
+- `graphdraw_core` document tests: old guidelines load, appearance round
   trips, defaults for documents without grid settings.
 - `drawing_scale::tests::presets_have_the_ratio_their_label_says`
 - `drawing_scale::tests::the_settings_find_their_preset_and_label`

@@ -9,7 +9,7 @@
 
 use crate::app::App;
 use serde::{Deserialize, Serialize};
-use tracedraw_core::{
+use graphdraw_core::{
     document::{Shape, ShapeKind},
     geometry::{BezPath, Line, ParamCurve, PathSeg, Point, Rect},
     shaping, Command, ShapeId,
@@ -123,7 +123,7 @@ pub(crate) fn split_open(path: &BezPath, cuts: &[(usize, f64)]) -> Vec<BezPath> 
 
 /// The subpaths of a path, each with whether it is closed.
 fn subpaths(path: &BezPath) -> Vec<(BezPath, bool)> {
-    tracedraw_core::effects::subpaths(path)
+    graphdraw_core::effects::subpaths(path)
 }
 
 /// The pieces `s` (in page space) falls into along `cut` (page space),

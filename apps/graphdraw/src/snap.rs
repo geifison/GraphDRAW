@@ -6,7 +6,7 @@
 use crate::app::App;
 use crate::live_guides;
 use crate::snap_points::{self, Geo, Target};
-use tracedraw_core::{
+use graphdraw_core::{
     document::GuideLine,
     geometry::{Affine, Point, Rect, Vec2},
     Shape, ShapeId,
@@ -52,7 +52,7 @@ const MAX_BOXES: usize = 20_000;
 pub struct AlignKey {
     doc: usize,
     revision: u64,
-    page: tracedraw_core::PageId,
+    page: graphdraw_core::PageId,
     exclude: Vec<ShapeId>,
     view: Option<[f64; 4]>,
     multipage: bool,
@@ -799,7 +799,7 @@ fn text_baselines(s: &Shape, parent: Affine) -> Vec<(Point, Point)> {
 mod tests {
     use super::*;
     use crate::snap_points::SnapMode;
-    use tracedraw_core::{document::Guide, Command, ShapeKind};
+    use graphdraw_core::{document::Guide, Command, ShapeKind};
 
     /// A headless app at 1 px per mm: the 10 px radius is 10 mm.
     fn app() -> App {
@@ -952,7 +952,7 @@ mod tests {
             assert_eq!(app.snap_mark.get().map(|m| m.mode), Some(SnapMode::Edge));
             // The mark knows the edge it lies on, to light it up.
             match app.snap_mark.get().and_then(|m| m.edge) {
-                Some(tracedraw_core::geometry::PathSeg::Line(l)) => {
+                Some(graphdraw_core::geometry::PathSeg::Line(l)) => {
                     assert!((l.p0.x - 100.0).abs() < 1e-9 && (l.p1.x - 100.0).abs() < 1e-9);
                 }
                 other => panic!("not the left edge: {other:?}"),

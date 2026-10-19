@@ -6,8 +6,8 @@
 use crate::app::App;
 use crate::i18n::trf;
 use crate::ui::dialogs::PrintMergeState;
-use tracedraw_core::geometry::{Rect, Shape as _};
-use tracedraw_core::{Color, Command, Fill, LayerId, Shape, ShapeKind, TextSpan};
+use graphdraw_core::geometry::{Rect, Shape as _};
+use graphdraw_core::{Color, Command, Fill, LayerId, Shape, ShapeKind, TextSpan};
 
 /// What a field holds.
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -173,7 +173,7 @@ fn replacement(
             let side = area.width().min(area.height());
             let path = crate::ui::dialogs::qr_path(value, side).ok()?;
             let r = fit(area, 1.0, 1.0);
-            let path = tracedraw_core::geometry::Affine::translate((r.x0, r.y0)) * path;
+            let path = graphdraw_core::geometry::Affine::translate((r.x0, r.y0)) * path;
             Some((
                 ShapeKind::Path { path, closed: true },
                 Fill::Solid(Color::Cmyk {
@@ -191,7 +191,7 @@ fn replacement(
 /// The commands that fill one page's field objects with one record.
 fn fill_page(
     st: &PrintMergeState,
-    page: &tracedraw_core::document::Page,
+    page: &graphdraw_core::document::Page,
     row: &[String],
 ) -> Vec<Command> {
     let mut cmds = Vec::new();
@@ -306,7 +306,7 @@ pub fn perform(app: &mut App, st: &PrintMergeState) {
         .iter()
         .position(|p| p.id == page)
         .unwrap_or(0);
-    let new_pages: Vec<tracedraw_core::PageId> = app
+    let new_pages: Vec<graphdraw_core::PageId> = app
         .doc()
         .pages
         .iter()
@@ -398,8 +398,8 @@ mod tests {
         let mut add = |text: &str, frame: bool| {
             app.new_shape(ShapeKind::Text {
                 spans: vec![TextSpan::new(text, "Arial", 12.0)],
-                origin: tracedraw_core::geometry::Point::new(10.0, 10.0),
-                frame: frame.then(|| tracedraw_core::geometry::Size::new(30.0, 30.0)),
+                origin: graphdraw_core::geometry::Point::new(10.0, 10.0),
+                frame: frame.then(|| graphdraw_core::geometry::Size::new(30.0, 30.0)),
                 align: Default::default(),
                 para: Default::default(),
                 on_path: None,

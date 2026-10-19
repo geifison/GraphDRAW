@@ -33,4 +33,4 @@ afetadas.
   [[menu.tools > menu.tools.options > menu.tools.options_app]].
 - Se um clique duplo entra no modo de foco é definido na mesma página.
 
-Veja [Opções do TraceDraw](../customize/options-app.md#edit).
+Veja [Opções do GraphDraw](../customize/options-app.md#edit).

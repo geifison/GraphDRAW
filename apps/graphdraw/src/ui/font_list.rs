@@ -10,8 +10,8 @@ use crate::i18n::{tr, trf};
 use crate::theme::Tokens;
 use egui::{Color32, Key, Rect, Sense, Ui, Vec2};
 use std::collections::HashMap;
-use tracedraw_core::document::TextSpan;
-use tracedraw_text::{FamilyInfo, FontKind};
+use graphdraw_core::document::TextSpan;
+use graphdraw_text::{FamilyInfo, FontKind};
 
 /// Width of the list.
 const POPUP_W: f32 = 380.0;
@@ -96,7 +96,7 @@ struct PictureKey {
 impl FontPreviews {
     /// Start again when fonts came in since the last frame.
     pub fn refresh(&mut self) {
-        let g = tracedraw_text::fonts().generation();
+        let g = graphdraw_text::fonts().generation();
         if g != self.generation || self.pictures.len() > MAX_PICTURES {
             self.generation = g;
             self.pictures.clear();
@@ -109,7 +109,7 @@ impl FontPreviews {
         if let Some(i) = self.infos.get(family) {
             return i.clone();
         }
-        let info = tracedraw_text::fonts().family_info(family);
+        let info = graphdraw_text::fonts().family_info(family);
         self.infos.insert(family.to_string(), info.clone());
         info
     }
@@ -150,7 +150,7 @@ impl FontPreviews {
     fn request(&mut self, family: &str) {
         if !self.requested.iter().any(|f| f == family) {
             self.requested.push(family.to_string());
-            tracedraw_text::fonts().request_family(family);
+            graphdraw_text::fonts().request_family(family);
         }
     }
 }
@@ -165,7 +165,7 @@ pub fn render_text(
     style: (bool, bool),
     em_px: f32,
 ) -> Option<(egui::ColorImage, f32)> {
-    let fonts = tracedraw_text::fonts();
+    let fonts = graphdraw_text::fonts();
     if !fonts.has_family(family) || text.is_empty() || !em_px.is_finite() || em_px <= 0.0 {
         return None;
     }
@@ -187,7 +187,7 @@ pub fn render_text(
     let pad = 1.0;
     let w = ((advance.max(0.0) * scale).ceil() + 2.0 * pad).clamp(1.0, 2048.0) as u32;
     let h = (((ascent + descent) * scale).ceil() + 2.0 * pad).clamp(1.0, 1024.0) as u32;
-    let path = tracedraw_render::to_sk_path(&layout.path)?;
+    let path = graphdraw_render::to_sk_path(&layout.path)?;
     let mut pixmap = tiny_skia::Pixmap::new(w, h)?;
     let mut paint = tiny_skia::Paint::default();
     paint.set_color_rgba8(0x20, 0x20, 0x20, 0xff);
@@ -358,7 +358,7 @@ pub fn font_list(
     let all: Vec<String> = match st.show {
         Show::All => app.font_families.clone(),
         Show::Installed => {
-            let fonts = tracedraw_text::fonts();
+            let fonts = graphdraw_text::fonts();
             app.font_families
                 .iter()
                 .filter(|f| fonts.has_family(f))
@@ -378,7 +378,7 @@ pub fn font_list(
                 .collect()
         }
         Show::Download => {
-            let fonts = tracedraw_text::fonts();
+            let fonts = graphdraw_text::fonts();
             app.font_families
                 .iter()
                 .filter(|f| !fonts.has_family(f))
@@ -691,7 +691,7 @@ fn list_body(
     // A family to download under the pointer for a moment is fetched.
     let now = ctx.input(|i| i.time);
     match hovered_now.as_ref().map(|(f, _)| f.clone()) {
-        Some(f) if !tracedraw_text::fonts().has_family(&f) => {
+        Some(f) if !graphdraw_text::fonts().has_family(&f) => {
             let since = match &st.rest {
                 Some((g, t)) if *g == f => *t,
                 _ => {
@@ -1029,7 +1029,7 @@ mod tests {
 
     #[test]
     fn names_are_drawn_in_their_own_font() {
-        let fonts = tracedraw_text::fonts();
+        let fonts = graphdraw_text::fonts();
         let Some(family) = fonts
             .families()
             .into_iter()

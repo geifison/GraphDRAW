@@ -1,6 +1,6 @@
 # Tekst
 
-TraceDraw ma dwa rodzaje tekstu. **Tekst ozdobny** to wiersz lub kilka
+GraphDraw ma dwa rodzaje tekstu. **Tekst ozdobny** to wiersz lub kilka
 wierszy umieszczonych w punkcie: tytuły, etykiety, logo. **Tekst akapitowy**
 płynie w ramce i zawija się przy jej krawędziach: tekst główny, kolumny, listy.
 Oba można formatować znak po znaku, dopasowywać do ścieżek i sprawdzać pod

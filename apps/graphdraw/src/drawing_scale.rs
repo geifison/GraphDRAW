@@ -6,7 +6,7 @@
 //! converts through it with `world_from_mm` and `world_to_mm`.
 
 use crate::app::Units;
-use tracedraw_core::document::RulerSettings;
+use graphdraw_core::document::RulerSettings;
 
 /// A typical scale: `page` units of `page_unit` on the page for `world`
 /// units of `world_unit` in the world.

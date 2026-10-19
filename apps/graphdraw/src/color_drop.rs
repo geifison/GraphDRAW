@@ -6,7 +6,7 @@
 
 use crate::app::App;
 use egui::Pos2;
-use tracedraw_core::{Color, Fill, ShapeId};
+use graphdraw_core::{Color, Fill, ShapeId};
 
 /// How near an object's outline a drop counts as on it, screen points.
 const OUTLINE_PX: f64 = 4.0;
@@ -76,8 +76,8 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::geometry::{Point, Rect};
-    use tracedraw_core::ShapeKind;
+    use graphdraw_core::geometry::{Point, Rect};
+    use graphdraw_core::ShapeKind;
 
     fn app_with_rect() -> (App, ShapeId) {
         let mut app = App::headless();

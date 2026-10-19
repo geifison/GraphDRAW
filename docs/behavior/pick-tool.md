@@ -116,7 +116,7 @@ original; it stays drawn after the right click until the left button
 goes up; the move arrows for the centre of rotation; the handle's resize arrows, the turning arrow, the slant
 arrows, the arrows across a guideline being moved or dragged out of a
 ruler, the cross hair while the ruler origin is dragged). Resize and move arrows are the system's own; the moving
-arrow, the turning and slant arrows are drawn by TraceDraw, black on a
+arrow, the turning and slant arrows are drawn by GraphDraw, black on a
 white halo.
 
 ## Dragging with the right mouse button

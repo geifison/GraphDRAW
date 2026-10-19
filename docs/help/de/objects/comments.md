@@ -2,7 +2,7 @@
 
 Das Andockfenster [[docker.comments]] sammelt Prüfnotizen zu einer Zeichnung:
 Pins, Rahmen und Pfeile auf der Seite, jeweils mit einem Text und Antworten.
-Kommentare werden mit der Zeichnung gespeichert (in `.tdraw`-Dateien) und nie
+Kommentare werden mit der Zeichnung gespeichert (in `.gdr`-Dateien) und nie
 gedruckt oder exportiert. Öffnen Sie das Andockfenster über
 [[menu.window > menu.window.dockers]].
 

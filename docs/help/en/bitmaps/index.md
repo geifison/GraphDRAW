@@ -1,6 +1,6 @@
 # Bitmaps
 
-Bitmaps are pictures made of pixels, such as photos and scans. TraceDraw
+Bitmaps are pictures made of pixels, such as photos and scans. GraphDraw
 places them in drawings, changes their color mode and size, straightens them,
 masks colors out of them, applies effects, and traces them into vector
 shapes. It can also turn vector objects into bitmaps.

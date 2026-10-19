@@ -27,7 +27,7 @@ keep its stand-in color.
 
 A palette file can be a book of spot inks (for example an `.ase` palette with
 spot entries). Its spot entries open as spot colors, named as in the book;
-applying one adds the ink to the drawing. TraceDraw does not ship licensed
+applying one adds the ink to the drawing. GraphDraw does not ship licensed
 color books, but one you own opens like any palette.
 
 ## Spot colors in print and exports {#output}

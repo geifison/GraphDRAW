@@ -1,5 +1,5 @@
 //! The Distort tool: Push and Pull, Zipper and Twister as a live effect
-//! (`Effect::Distort`, formulas in `tracedraw_core::distort`).
+//! (`Effect::Distort`, formulas in `graphdraw_core::distort`).
 //!
 //! A drag on an object distorts it about the point the drag started on:
 //! Push and Pull by how far the pointer went right (pushed) or left
@@ -14,7 +14,7 @@
 
 use crate::app::App;
 use serde::{Deserialize, Serialize};
-use tracedraw_core::{
+use graphdraw_core::{
     distort::{Distort, MAX_FREQUENCY},
     geometry::{Point, Shape as _},
     live::Effect,
@@ -344,11 +344,11 @@ impl App {
             let Some(s) = self.doc().find_shape(id) else {
                 continue;
             };
-            let path = tracedraw_core::distort::distort(&s.local_path(), d);
+            let path = graphdraw_core::distort::distort(&s.local_path(), d);
             let closed = path
                 .elements()
                 .iter()
-                .any(|e| matches!(e, tracedraw_core::geometry::PathEl::ClosePath));
+                .any(|e| matches!(e, graphdraw_core::geometry::PathEl::ClosePath));
             cmds.push(Command::SetShapeKind {
                 shape: id,
                 kind: ShapeKind::Path { path, closed },
@@ -523,7 +523,7 @@ impl App {
 mod tests {
     use super::*;
     use crate::tools::Tool;
-    use tracedraw_core::geometry::Rect;
+    use graphdraw_core::geometry::Rect;
 
     fn square(app: &mut App) -> ShapeId {
         app.new_shape(ShapeKind::Rect {
@@ -572,7 +572,7 @@ mod tests {
         let c = Point::new(5.0, 5.0);
         let mut a: f64 = 0.0;
         while a <= std::f64::consts::FRAC_PI_2 * 5.0 + 1e-9 {
-            app.drag_distort(c + tracedraw_core::geometry::Vec2::new(a.cos(), a.sin()) * 8.0);
+            app.drag_distort(c + graphdraw_core::geometry::Vec2::new(a.cos(), a.sin()) * 8.0);
             a += 0.2;
         }
         app.distort_drag = None;
@@ -636,7 +636,7 @@ mod tests {
         assert_eq!(effect(&app, id).and_then(|d| d.center()), None);
         // Convert to Curves bakes it; Clear takes it away.
         let shape = app.doc().find_shape(id).cloned().expect("shape");
-        let baked = tracedraw_core::live::evaluate(&shape).main.local_path();
+        let baked = graphdraw_core::live::evaluate(&shape).main.local_path();
         app.bake_distortion();
         let after = app.doc().find_shape(id).cloned().expect("shape");
         assert!(effect(&app, id).is_none());

@@ -1,6 +1,6 @@
 # 開啟和儲存繪圖
 
-TraceDraw 以自己的格式 `.tdraw` 儲存繪圖，這種格式會保留所有內容；它也可以儲存 `.cdr` 檔案。它還能開啟許多其他格式；請參閱[支援的檔案格式](../file-formats/supported-formats.md)。
+GraphDraw 以自己的格式 `.gdr` 儲存繪圖，這種格式會保留所有內容；它也可以儲存 `.cdr` 檔案。它還能開啟許多其他格式；請參閱[支援的檔案格式](../file-formats/supported-formats.md)。
 
 ## 開啟繪圖 {#open}
 
@@ -20,7 +20,7 @@ TraceDraw 以自己的格式 `.tdraw` 儲存繪圖，這種格式會保留所有
 
 ## 儲存繪圖 {#save}
 
-選擇 [[menu.file > menu.file.save]]（<kbd>Ctrl+S</kbd>）可將繪圖寫回其檔案。新的繪圖，或是從 TraceDraw 只能讀取的格式開啟的繪圖，還沒有檔案，因此「儲存」會開啟 [[dialog.save_drawing]] 對話方塊。
+選擇 [[menu.file > menu.file.save]]（<kbd>Ctrl+S</kbd>）可將繪圖寫回其檔案。新的繪圖，或是從 GraphDraw 只能讀取的格式開啟的繪圖，還沒有檔案，因此「儲存」會開啟 [[dialog.save_drawing]] 對話方塊。
 
 ## 另存新檔 {#save-as}
 
@@ -32,11 +32,11 @@ TraceDraw 以自己的格式 `.tdraw` 儲存繪圖，這種格式會保留所有
 
 1. 選擇資料夾。左側的清單有 [[dialog.place_home]]、[[dialog.place_desktop]]、[[dialog.place_documents]]、[[dialog.place_downloads]] 和 [[dialog.place_pictures]] 以及各磁碟機的捷徑。[[dialog.up_folder]] 會移至上一層資料夾；您也可以在路徑列中輸入資料夾並按 <kbd>Enter</kbd>。[[dialog.new_folder]] 會建立資料夾並開啟它。按兩下清單中的資料夾即可開啟；按一下檔案即可使用其名稱。
 2. 輸入 [[dialog.file_name]]。所選類型的副檔名會自動加上。
-3. 選擇 [[dialog.save_as_type]]：TraceDraw（`*.tdraw`）或 [[file.cdr_files]]。
-4. 選擇 [[dialog.cdr_version]]。對於 TraceDraw 檔案，這是格式的版本，最新的在最前面。對於 `.cdr` 檔案，這是檔案的版本，從 27 到 14；較舊的程式只能開啟與其本身同樣舊或更舊的版本。您選擇的版本會隨繪圖保留，因此「儲存」會直接再次以該版本寫入，不會詢問。
+3. 選擇 [[dialog.save_as_type]]：GraphDraw（`*.gdr`）或 [[file.cdr_files]]。
+4. 選擇 [[dialog.cdr_version]]。對於 GraphDraw 檔案，這是格式的版本，最新的在最前面。對於 `.cdr` 檔案，這是檔案的版本，從 27 到 14；較舊的程式只能開啟與其本身同樣舊或更舊的版本。您選擇的版本會隨繪圖保留，因此「儲存」會直接再次以該版本寫入，不會詢問。
 5. 對於版本 16 以上的 `.cdr` 檔案，[[dialog.embed_color_profile_none]] 會將繪圖的 CMYK 描述檔儲存在檔案中，[[dialog.embed_fonts]] 則會在授權允許時儲存文字使用的字型。這兩個選擇都會保留到下一次。
 6. 視需要填寫 [[dialog.title]]、[[dialog.subject]] 和 [[dialog.rating]]（再按一下亮起的最後一顆星即可取消）。這些是繪圖的屬性，也會顯示在[文件屬性](../pages-layout/document-properties.md)中。
-7. 按一下 [[dialog.save]] 或按 <kbd>Enter</kbd>。如果檔案已存在，TraceDraw 會詢問是否要 [[dialog.replace]]。
+7. 按一下 [[dialog.save]] 或按 <kbd>Enter</kbd>。如果檔案已存在，GraphDraw 會詢問是否要 [[dialog.replace]]。
 
 對話方塊會從繪圖所在的資料夾開始；若沒有，則從您上次儲存的資料夾開始；再沒有則從您的文件資料夾開始。
 
@@ -46,14 +46,14 @@ TraceDraw 以自己的格式 `.tdraw` 儲存繪圖，這種格式會保留所有
 
 ## 關閉繪圖 {#closing}
 
-選擇 [[menu.file > menu.file.close]]（<kbd>Ctrl+F4</kbd>）、按一下繪圖分頁上的關閉按鈕，或以滑鼠中鍵按一下分頁。[[menu.file.close_all]] 會關閉所有繪圖，[[menu.file.exit]]（<kbd>Alt+F4</kbd>）則會關閉 TraceDraw。
+選擇 [[menu.file > menu.file.close]]（<kbd>Ctrl+F4</kbd>）、按一下繪圖分頁上的關閉按鈕，或以滑鼠中鍵按一下分頁。[[menu.file.close_all]] 會關閉所有繪圖，[[menu.file.exit]]（<kbd>Alt+F4</kbd>）則會關閉 GraphDraw。
 
-當繪圖有未儲存的變更時，TraceDraw 會先詢問是否要儲存：[[dialog.yes]] 會儲存（若繪圖還沒有檔案，會要求輸入名稱），[[dialog.no]] 會不儲存就關閉，[[dialog.cancel]] 則會保持繪圖開啟。當多個繪圖有變更時，它會逐一詢問；按「取消」即停止。
+當繪圖有未儲存的變更時，GraphDraw 會先詢問是否要儲存：[[dialog.yes]] 會儲存（若繪圖還沒有檔案，會要求輸入名稱），[[dialog.no]] 會不儲存就關閉，[[dialog.cancel]] 則會保持繪圖開啟。當多個繪圖有變更時，它會逐一詢問；按「取消」即停止。
 
 ![關於未儲存變更的詢問](../../img/get-started-open-and-save-closing.png)
 
 ## 自動備份與復原 {#recovery}
 
-在桌面版中，當自動備份開啟時，TraceDraw 會為您開啟的繪圖保留備份（[[menu.tools > menu.tools.options > menu.tools.options_app]] 的 [[options.save]] 頁面可設定頻率和位置；預設為每 20 分鐘一次）。正常關閉 TraceDraw 時會移除這些備份。
+在桌面版中，當自動備份開啟時，GraphDraw 會為您開啟的繪圖保留備份（[[menu.tools > menu.tools.options > menu.tools.options_app]] 的 [[options.save]] 頁面可設定頻率和位置；預設為每 20 分鐘一次）。正常關閉 GraphDraw 時會移除這些備份。
 
-如果 TraceDraw 未正常關閉就結束了，例如停電後，下次啟動時它會提供這些備份：[[dialog.recover]] 會將每個備份以未儲存的繪圖開啟（之後「儲存」會詢問要存到哪裡），[[dialog.discard]] 則會將備份留在其資料夾中。同時執行的兩個 TraceDraw 視窗永遠不會提供彼此的繪圖。
+如果 GraphDraw 未正常關閉就結束了，例如停電後，下次啟動時它會提供這些備份：[[dialog.recover]] 會將每個備份以未儲存的繪圖開啟（之後「儲存」會詢問要存到哪裡），[[dialog.discard]] 則會將備份留在其資料夾中。同時執行的兩個 GraphDraw 視窗永遠不會提供彼此的繪圖。

@@ -1,6 +1,6 @@
 # L'espace de travail
 
-La fenêtre de TraceDraw contient vos dessins et tout ce qu'il faut pour y
+La fenêtre de GraphDraw contient vos dessins et tout ce qu'il faut pour y
 travailler. Cette page en nomme les parties, pour que le reste de cette Aide
 soit clair.
 

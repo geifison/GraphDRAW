@@ -4,7 +4,7 @@ A script filter is a JavaScript script that reads or writes a file
 format. It defines one global object:
 
 ```js
-const TraceDrawFilter = {
+const GraphDrawFilter = {
   name: 'Boxes',              // shown in the file dialogs
   extensions: ['box'],        // with or without the dot, any case
   Import(text) {              // optional: read a file

@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use std::ops::Range;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, RwLock, RwLockReadGuard};
-use tracedraw_core::{
+use graphdraw_core::{
     document::{
         text_outline::TextRequest, DocumentFont, ParagraphStyle, PathTextOrientation,
         PathTextVertical, TextAlign, TextOnPath, TextSpan, VerticalAlign,
@@ -60,8 +60,8 @@ pub struct FontSystem {
 
 /// Register this engine as the core's text outliner (call once at startup).
 pub fn install() {
-    tracedraw_core::document::text_outline::set(|req| fonts().outline_cached(req).as_ref().clone());
-    tracedraw_core::document::text_outline::set_lines(|req| {
+    graphdraw_core::document::text_outline::set(|req| fonts().outline_cached(req).as_ref().clone());
+    graphdraw_core::document::text_outline::set_lines(|req| {
         let layout = fonts().layout(req);
         // Lines past what fits the frame flow on (to a linked frame);
         // only those inside it are reported.
@@ -69,7 +69,7 @@ pub fn install() {
             .lines
             .iter()
             .filter(|l| l.start_char < layout.fitted_chars || layout.fitted_chars == 0)
-            .map(|l| tracedraw_core::document::text_outline::Line {
+            .map(|l| graphdraw_core::document::text_outline::Line {
                 start_char: l.start_char,
                 end_char: l.end_char,
                 x: l.edges.first().copied().unwrap_or(0.0),
@@ -669,7 +669,7 @@ pub struct TextLayout {
     /// breaks and tabs included) placed inside the frame before it
     /// overflowed. Equals the total character count for artistic text and
     /// for frames that hold all their text, so
-    /// `tracedraw_core::split_spans_at(spans, fitted_chars)` gives the
+    /// `graphdraw_core::split_spans_at(spans, fitted_chars)` gives the
     /// spans that stay in this frame and the spans that flow to the next.
     pub fitted_chars: usize,
     /// One entry per laid-out line: (x of the line start, baseline y), mm,
@@ -1101,8 +1101,8 @@ impl FontSystem {
     /// are not installed.
     pub fn with_carried_fonts<'d>(
         &self,
-        doc: &'d tracedraw_core::Document,
-    ) -> std::borrow::Cow<'d, tracedraw_core::Document> {
+        doc: &'d graphdraw_core::Document,
+    ) -> std::borrow::Cow<'d, graphdraw_core::Document> {
         let carried = self.carried.read().unwrap_or_else(|e| e.into_inner());
         if carried.is_empty() {
             return std::borrow::Cow::Borrowed(doc);
@@ -1459,8 +1459,8 @@ impl FontSystem {
                     let mut h = std::collections::hash_map::DefaultHasher::new();
                     for el in p.path.elements() {
                         for pt in [el.end_point()].into_iter().flatten().chain(match el {
-                            tracedraw_core::geometry::PathEl::QuadTo(a, _) => vec![*a],
-                            tracedraw_core::geometry::PathEl::CurveTo(a, b, _) => vec![*a, *b],
+                            graphdraw_core::geometry::PathEl::QuadTo(a, _) => vec![*a],
+                            graphdraw_core::geometry::PathEl::CurveTo(a, b, _) => vec![*a, *b],
                             _ => Vec::new(),
                         }) {
                             pt.x.to_bits().hash(&mut h);
@@ -1921,7 +1921,7 @@ impl FontSystem {
         }
         let para = req.para;
         // Each paragraph's alignment and style: its own, or the object's.
-        let styles = tracedraw_core::paragraphs::paragraph_styles(spans, req.align, para);
+        let styles = graphdraw_core::paragraphs::paragraph_styles(spans, req.align, para);
         let fallback = (req.align, para.clone());
         let style_of =
             |pi: usize| -> &(TextAlign, ParagraphStyle) { styles.get(pi).unwrap_or(&fallback) };
@@ -2814,7 +2814,7 @@ fn place_on_path(
 
 /// How a letter centred at a point of the path with unit direction `dir`
 /// is turned or sheared there (before the letter's own flip).
-fn letter_frame(o: PathTextOrientation, dir: tracedraw_core::geometry::Vec2) -> Affine {
+fn letter_frame(o: PathTextOrientation, dir: graphdraw_core::geometry::Vec2) -> Affine {
     // The direction's horizontal part, kept away from zero so a nearly
     // vertical stretch of path does not shear a letter to a line.
     let cx = if dir.x.abs() < 0.2 {
@@ -2870,7 +2870,7 @@ impl ttf_parser::OutlineBuilder for OutlineSink {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::geometry::Size;
+    use graphdraw_core::geometry::Size;
 
     fn span(text: &str) -> TextSpan {
         TextSpan {
@@ -3238,14 +3238,14 @@ mod tests {
             l.lines[0].baseline - l.lines[1].baseline
         };
         let pts = gap(ParagraphStyle {
-            leading_unit: tracedraw_core::LeadingUnit::Points,
+            leading_unit: graphdraw_core::LeadingUnit::Points,
             leading_pct: 36.0,
             ..ParagraphStyle::default()
         });
         assert!((pts - 36.0 * PT_MM).abs() < 1e-6, "{pts}");
         let size = s.size_pt * PT_MM;
         let pct = gap(ParagraphStyle {
-            leading_unit: tracedraw_core::LeadingUnit::PercentPointSize,
+            leading_unit: graphdraw_core::LeadingUnit::PercentPointSize,
             leading_pct: 150.0,
             ..ParagraphStyle::default()
         });
@@ -3259,11 +3259,11 @@ mod tests {
         }
         install();
         let mut a = span("ab");
-        a.background = Some(tracedraw_core::Fill::Solid(tracedraw_core::Color::rgb8(
+        a.background = Some(graphdraw_core::Fill::Solid(graphdraw_core::Color::rgb8(
             255, 255, 0,
         )));
         let b = span("cd");
-        let kind = tracedraw_core::ShapeKind::Text {
+        let kind = graphdraw_core::ShapeKind::Text {
             spans: vec![a, b],
             origin: Point::new(10.0, 20.0),
             frame: None,
@@ -3271,16 +3271,16 @@ mod tests {
             para: ParagraphStyle::default(),
             on_path: None,
         };
-        let rects = tracedraw_core::document::text_backgrounds(&kind);
+        let rects = graphdraw_core::document::text_backgrounds(&kind);
         assert_eq!(rects.len(), 1);
         let r = rects[0].0;
         assert!((r.x0 - 10.0).abs() < 1e-6, "{r:?}");
         assert!(r.y0 < 20.0 && r.y1 > 20.0, "{r:?}");
         // The background stops where "cd" starts.
-        let whole = tracedraw_core::document::text_outline::lines(
-            &tracedraw_core::document::text_outline::TextRequest {
+        let whole = graphdraw_core::document::text_outline::lines(
+            &graphdraw_core::document::text_outline::TextRequest {
                 spans: match &kind {
-                    tracedraw_core::ShapeKind::Text { spans, .. } => spans,
+                    graphdraw_core::ShapeKind::Text { spans, .. } => spans,
                     _ => unreachable!(),
                 },
                 frame: None,
@@ -3323,7 +3323,7 @@ mod tests {
             return;
         }
         let f = fonts();
-        let mut kind = tracedraw_core::ShapeKind::Text {
+        let mut kind = graphdraw_core::ShapeKind::Text {
             spans: vec![span("left\nright")],
             origin: Point::ZERO,
             frame: Some(Size::new(100.0, 100.0)),
@@ -3332,17 +3332,17 @@ mod tests {
             on_path: None,
         };
         let plain = match &kind {
-            tracedraw_core::ShapeKind::Text { spans, para, .. } => {
+            graphdraw_core::ShapeKind::Text { spans, para, .. } => {
                 frame_layout(f, spans, para, 100.0)
             }
             _ => unreachable!(),
         };
         // The second paragraph right aligned, with 4 mm before it.
-        tracedraw_core::paragraphs::edit_paragraph_formats(&mut kind, Some((7, 7)), |p| {
+        graphdraw_core::paragraphs::edit_paragraph_formats(&mut kind, Some((7, 7)), |p| {
             p.align = TextAlign::Right;
             p.space_before = 4.0;
         });
-        let tracedraw_core::ShapeKind::Text { spans, para, .. } = &kind else {
+        let graphdraw_core::ShapeKind::Text { spans, para, .. } = &kind else {
             unreachable!()
         };
         let l = frame_layout(f, spans, para, 100.0);
@@ -3362,12 +3362,12 @@ mod tests {
         y0: f64,
         x1: f64,
         y1: f64,
-        side: tracedraw_core::WrapSide,
+        side: graphdraw_core::WrapSide,
     ) -> WrapRegion {
         WrapRegion::from_path(
             &Rect::new(x0, y0, x1, y1).to_path(0.01),
-            tracedraw_core::TextWrap {
-                mode: tracedraw_core::WrapMode::Square,
+            graphdraw_core::TextWrap {
+                mode: graphdraw_core::WrapMode::Square,
                 side,
                 offset: 1.0,
             },
@@ -3391,13 +3391,13 @@ mod tests {
         // A square in the middle of the frame, 20 to 40 mm down: lines
         // beside it come in two parts, none crosses it.
         let mut para = ParagraphStyle::default();
-        para.flow = tracedraw_core::text_flow::FrameFlow::new(
+        para.flow = graphdraw_core::text_flow::FrameFlow::new(
             vec![wrap_square(
                 40.0,
                 -40.0,
                 60.0,
                 -20.0,
-                tracedraw_core::WrapSide::Straddle,
+                graphdraw_core::WrapSide::Straddle,
             )],
             None,
         );
@@ -3442,7 +3442,7 @@ mod tests {
         let s = words(120);
         let band = |side| {
             let mut para = ParagraphStyle::default();
-            para.flow = tracedraw_core::text_flow::FrameFlow::new(
+            para.flow = graphdraw_core::text_flow::FrameFlow::new(
                 vec![wrap_square(40.0, -40.0, 60.0, -20.0, side)],
                 None,
             );
@@ -3455,18 +3455,18 @@ mod tests {
                 .map(|line| (line.edges[0], line.edges.last().copied().unwrap_or(0.0)))
                 .collect::<Vec<_>>()
         };
-        let left = band(tracedraw_core::WrapSide::Left);
+        let left = band(graphdraw_core::WrapSide::Left);
         assert!(
             !left.is_empty() && left.iter().all(|(_, x1)| *x1 <= 39.05),
             "{left:?}"
         );
-        let right = band(tracedraw_core::WrapSide::Right);
+        let right = band(graphdraw_core::WrapSide::Right);
         assert!(
             !right.is_empty() && right.iter().all(|(x0, _)| *x0 >= 60.95),
             "{right:?}"
         );
         // Above and below: no line at the square's height at all.
-        assert!(band(tracedraw_core::WrapSide::AboveBelow).is_empty());
+        assert!(band(graphdraw_core::WrapSide::AboveBelow).is_empty());
     }
 
     #[test]
@@ -3482,7 +3482,7 @@ mod tests {
             baseline_grid_mm: 5.0,
             ..ParagraphStyle::default()
         };
-        para.flow = tracedraw_core::text_flow::FrameFlow::new(Vec::new(), Some((1.3, 5.0)));
+        para.flow = graphdraw_core::text_flow::FrameFlow::new(Vec::new(), Some((1.3, 5.0)));
         let l = frame_layout(f, std::slice::from_ref(&s), &para, 100.0);
         assert_eq!(l.baselines.len(), 3);
         for (_, y) in &l.baselines {
@@ -3567,7 +3567,7 @@ mod tests {
             l.fitted_chars, 4,
             "\"one\\n\" fits, \"two\" starts the overflow"
         );
-        let (head, tail) = tracedraw_core::split_spans_at(std::slice::from_ref(&s), l.fitted_chars);
+        let (head, tail) = graphdraw_core::split_spans_at(std::slice::from_ref(&s), l.fitted_chars);
         assert_eq!(head[0].text, "one\n");
         assert_eq!(tail[0].text, "two\nthree");
         // A frame that holds everything reports the full count.
@@ -3607,7 +3607,7 @@ mod tests {
             l.fitted_chars, 20,
             "two lines of two words: 'aaaa bbbb ' + 'cccc dddd ' = 20 chars"
         );
-        let (head, tail) = tracedraw_core::split_spans_at(&spans, l.fitted_chars);
+        let (head, tail) = graphdraw_core::split_spans_at(&spans, l.fitted_chars);
         assert_eq!(head.len(), 2);
         assert_eq!(head[1].text, "cccc dddd ");
         assert!(head[1].underline);
@@ -3805,7 +3805,7 @@ mod tests {
         }
         let f = fonts();
         let e = |cx: f64| {
-            tracedraw_core::geometry::Ellipse::new((cx, 0.0), (40.0, 20.0), 0.0).to_path(0.01)
+            graphdraw_core::geometry::Ellipse::new((cx, 0.0), (40.0, 20.0), 0.0).to_path(0.01)
         };
         let s = span("same");
         let para = ParagraphStyle::default();
@@ -3862,7 +3862,7 @@ mod tests {
 
     /// The bundled interface font (SIL Open Font License).
     const SELAWIK: &[u8] =
-        include_bytes!("../../../apps/tracedraw/assets/fonts/Selawik-Regular.ttf");
+        include_bytes!("../../../apps/graphdraw/assets/fonts/Selawik-Regular.ttf");
     /// A variable font (weight 300 to 700, 300 by default) with letters
     /// Selawik lacks ("Ĉ") and without one it has (U+0336).
     const QUICKSAND: &[u8] = include_bytes!("../testdata/Quicksand-VF.ttf");
@@ -3878,7 +3878,7 @@ mod tests {
     #[test]
     fn families_tell_how_they_are_built_and_their_styles() {
         const SELAWIK_BOLD: &[u8] =
-            include_bytes!("../../../apps/tracedraw/assets/fonts/Selawik-Bold.ttf");
+            include_bytes!("../../../apps/graphdraw/assets/fonts/Selawik-Bold.ttf");
         let f = system_with(&[SELAWIK, SELAWIK_BOLD, QUICKSAND]);
         let selawik = f.family_info("Selawik").expect("installed");
         assert_eq!(selawik.kind, FontKind::TrueType);
@@ -3925,7 +3925,7 @@ mod tests {
     #[test]
     fn a_drawing_brings_every_face_of_a_family() {
         const SELAWIK_BOLD: &[u8] =
-            include_bytes!("../../../apps/tracedraw/assets/fonts/Selawik-Bold.ttf");
+            include_bytes!("../../../apps/graphdraw/assets/fonts/Selawik-Bold.ttf");
         let f = system_with(&[]);
         let regular = DocumentFont::new("Selawik", SELAWIK.to_vec());
         let bold = DocumentFont::new("Selawik", SELAWIK_BOLD.to_vec());
@@ -4161,12 +4161,12 @@ mod tests {
         assert!(f.outline(&[s]).glyphs > 0);
         // A drawing using the family without carrying the font gets it
         // when saved (unless the machine has it installed).
-        let mut doc = tracedraw_core::Document::default();
+        let mut doc = graphdraw_core::Document::default();
         doc.pages[0].layers[0]
             .shapes
-            .push(tracedraw_core::Shape::new(
-                tracedraw_core::ShapeId(1),
-                tracedraw_core::ShapeKind::Text {
+            .push(graphdraw_core::Shape::new(
+                graphdraw_core::ShapeId(1),
+                graphdraw_core::ShapeKind::Text {
                     spans: vec![TextSpan::new("Hi", "Selawik", 12.0)],
                     origin: Point::ZERO,
                     frame: None,
@@ -4196,7 +4196,7 @@ mod tests {
             return;
         }
         install();
-        let kind = tracedraw_core::ShapeKind::Text {
+        let kind = graphdraw_core::ShapeKind::Text {
             spans: vec![span("one two three four five six seven eight nine ten")],
             origin: Point::ZERO,
             frame: Some(Size::new(20.0, 200.0)),
@@ -4204,12 +4204,12 @@ mod tests {
             para: ParagraphStyle::default(),
             on_path: None,
         };
-        let lines = tracedraw_core::document::paragraph_lines(&kind).expect("lines");
+        let lines = graphdraw_core::document::paragraph_lines(&kind).expect("lines");
         assert!(lines.len() > 1);
         let mut joined = String::new();
         let mut last_y = f64::INFINITY;
         for line in &lines {
-            let tracedraw_core::ShapeKind::Text {
+            let graphdraw_core::ShapeKind::Text {
                 spans,
                 origin,
                 frame,
@@ -4234,7 +4234,7 @@ mod tests {
             "one two three four five six seven eight nine ten"
         );
         // Artistic text has no lines to split.
-        let artistic = tracedraw_core::ShapeKind::Text {
+        let artistic = graphdraw_core::ShapeKind::Text {
             spans: vec![span("x")],
             origin: Point::ZERO,
             frame: None,
@@ -4242,7 +4242,7 @@ mod tests {
             para: ParagraphStyle::default(),
             on_path: None,
         };
-        assert!(tracedraw_core::document::paragraph_lines(&artistic).is_none());
+        assert!(graphdraw_core::document::paragraph_lines(&artistic).is_none());
     }
 
     #[test]

@@ -140,8 +140,8 @@ pub fn file_formats_page(app: &mut App, ui: &mut Ui) {
     );
     chrome::section(ui, &tr("options.cdr_save_section"));
     f.cdr_version = f.cdr_version.clamp(
-        tracedraw_cdr::write::CHECKED_SINCE,
-        tracedraw_cdr::write::NEWEST_VERSION,
+        graphdraw_cdr::write::CHECKED_SINCE,
+        graphdraw_cdr::write::NEWEST_VERSION,
     );
     grid("formats_cdr").show(ui, |ui| {
         row_label(ui, &tr("dialog.cdr_version"));

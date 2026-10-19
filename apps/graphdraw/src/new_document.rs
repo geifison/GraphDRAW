@@ -14,8 +14,8 @@ use crate::i18n::tr;
 use crate::theme::Tokens;
 use egui::{Context, Ui};
 use serde::{Deserialize, Serialize};
-use tracedraw_core::geometry::Size;
-use tracedraw_core::Document;
+use graphdraw_core::geometry::Size;
+use graphdraw_core::Document;
 
 /// Built-in destination presets, in the order of the Preset list.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -54,7 +54,7 @@ impl Destination {
 
     /// The settings a preset stands for.
     pub fn values(self) -> PresetValues {
-        let a4 = tracedraw_core::document::paper::A4;
+        let a4 = graphdraw_core::document::paper::A4;
         match self {
             Destination::Default | Destination::Cmyk => PresetValues {
                 rgb: false,
@@ -166,7 +166,7 @@ impl NewDocSettings {
         let extra = self.pages.clamp(1, 999) - 1;
         for _ in 0..extra {
             let n = doc.pages.len() + 1;
-            let add = tracedraw_core::Command::AddPage {
+            let add = graphdraw_core::Command::AddPage {
                 name: Some(crate::i18n::trf("doc.page_n", &[("n", &n.to_string())])),
                 size,
             };
@@ -184,9 +184,9 @@ impl NewDocSettings {
         m.rgb_profile = self.rgb_profile.clone();
         m.cmyk_profile = self.cmyk_profile.clone();
         m.primary_color_mode = if self.values.rgb {
-            tracedraw_core::document::PrimaryColorMode::Rgb
+            graphdraw_core::document::PrimaryColorMode::Rgb
         } else {
-            tracedraw_core::document::PrimaryColorMode::Cmyk
+            graphdraw_core::document::PrimaryColorMode::Cmyk
         };
         doc
     }
@@ -853,7 +853,7 @@ mod tests {
         assert_eq!(doc.metadata.resolution_dpi, 150.0);
         assert_eq!(
             doc.metadata.primary_color_mode,
-            tracedraw_core::document::PrimaryColorMode::Rgb
+            graphdraw_core::document::PrimaryColorMode::Rgb
         );
     }
 
@@ -877,7 +877,7 @@ mod tests {
         let mut st = NewDocState::from_settings(&NewDocSettings::default(), "U".into());
         let v = &mut st.settings.values;
         std::mem::swap(&mut v.width_mm, &mut v.height_mm);
-        st.set_page_size("A3", tracedraw_core::document::paper::A3);
+        st.set_page_size("A3", graphdraw_core::document::paper::A3);
         assert!((st.settings.values.width_mm - 420.0).abs() < 1e-9);
         st.settings.values.width_mm = 279.4;
         st.settings.values.height_mm = 215.9;

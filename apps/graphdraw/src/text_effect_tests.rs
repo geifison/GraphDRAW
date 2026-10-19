@@ -2,8 +2,8 @@
 //! shape), extrusions of text, and Break Apart of artistic text.
 
 use crate::app::App;
-use tracedraw_core::geometry::Shape as _;
-use tracedraw_core::{
+use graphdraw_core::geometry::Shape as _;
+use graphdraw_core::{
     document::{spans_text, ShapeKind},
     geometry::{Point, Rect},
     live::Effect,
@@ -12,12 +12,12 @@ use tracedraw_core::{
 
 fn text(app: &mut App, at: Point, s: &str) -> ShapeId {
     // Letters' outlines come from the text engine, as in the app.
-    tracedraw_text::install();
+    graphdraw_text::install();
     app.start_text(at, None);
     app.text_insert(s);
     let id = app.text_edit.as_ref().expect("editing").shape;
     app.finish_text();
-    app.run(tracedraw_core::Command::SetFill {
+    app.run(graphdraw_core::Command::SetFill {
         shapes: vec![id],
         fill: Fill::Solid(Color::rgb8(200, 30, 30)),
     });
@@ -56,7 +56,7 @@ fn the_blend_tool_blends_two_texts_and_a_text_with_a_shape() {
         "{:?}",
         blended.effects
     );
-    let ev = tracedraw_core::live::evaluate(&blended);
+    let ev = graphdraw_core::live::evaluate(&blended);
     let steps: Vec<_> = ev.below.iter().chain(&ev.above).collect();
     assert!(!steps.is_empty(), "the blend draws its steps");
     // Each step keeps the letters apart (one outline part or more per
@@ -67,9 +67,9 @@ fn the_blend_tool_blends_two_texts_and_a_text_with_a_shape() {
         let path = s.page_path();
         let r = path.bounding_box();
         assert!(
-            tracedraw_core::effects::subpaths(&path).len() >= 3,
+            graphdraw_core::effects::subpaths(&path).len() >= 3,
             "{} parts",
-            tracedraw_core::effects::subpaths(&path).len()
+            graphdraw_core::effects::subpaths(&path).len()
         );
         assert!(r.width() > wa.min(wb) * 0.7, "{r:?} vs {wa} {wb}");
     }
@@ -84,7 +84,7 @@ fn the_blend_tool_blends_two_texts_and_a_text_with_a_shape() {
     app.selection = vec![b, r];
     app.blend_selection(5, 0.0, 0.0, 0.0);
     let s = app.doc().find_shape(b).expect("b").clone();
-    let ev = tracedraw_core::live::evaluate(&s);
+    let ev = graphdraw_core::live::evaluate(&s);
     assert_eq!(ev.below.len() + ev.above.len(), 5);
 }
 
@@ -105,7 +105,7 @@ fn text_can_be_extruded() {
         "{:?}",
         s.effects
     );
-    let ev = tracedraw_core::live::evaluate(&s);
+    let ev = graphdraw_core::live::evaluate(&s);
     assert!(!ev.below.is_empty(), "the sides are drawn behind the text");
 }
 
@@ -229,7 +229,7 @@ fn an_input_method_composes_then_commits_cjk_text() {
     let id = app.text_edit.as_ref().expect("editing").shape;
     app.finish_text();
     let s = app.doc().find_shape(id).expect("text").clone();
-    if tracedraw_text::fonts()
+    if graphdraw_text::fonts()
         .families()
         .iter()
         .any(|f| f.contains("CJK"))

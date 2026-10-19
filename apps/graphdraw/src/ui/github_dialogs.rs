@@ -29,7 +29,7 @@ fn fields(ui: &mut Ui, f: &mut GithubForm, message: bool) {
             ui.label(tr("github.path"));
             ui.add(
                 egui::TextEdit::singleline(&mut f.path)
-                    .hint_text("drawings/logo.tdraw")
+                    .hint_text("drawings/logo.gdr")
                     .desired_width(280.0),
             );
             ui.end_row();

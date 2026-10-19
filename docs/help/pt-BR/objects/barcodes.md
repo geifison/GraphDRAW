@@ -1,6 +1,6 @@
 # Códigos de barras e QR codes
 
-O TraceDraw faz códigos de barras para produtos, etiquetas e estoque, e QR codes
+O GraphDraw faz códigos de barras para produtos, etiquetas e estoque, e QR codes
 que os celulares leem. Os dois são feitos de formas vetoriais comuns, então
 imprimem nítidos em qualquer tamanho.
 

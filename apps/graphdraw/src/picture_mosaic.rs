@@ -11,9 +11,9 @@ use std::sync::mpsc::{channel, Receiver};
 use std::sync::Arc;
 
 use image::{imageops, Rgba, RgbaImage};
-use tracedraw_core::document::{Shape, ShapeKind};
-use tracedraw_core::geometry::Rect;
-use tracedraw_core::{Command, Fill};
+use graphdraw_core::document::{Shape, ShapeKind};
+use graphdraw_core::geometry::Rect;
+use graphdraw_core::{Command, Fill};
 
 /// The most pixels along either side of a mosaic.
 pub const MAX_SIDE: u32 = 15_000;
@@ -770,7 +770,7 @@ mod tests {
     #[test]
     fn libraries_index_in_name_order_in_the_background() {
         let dir =
-            std::env::temp_dir().join(format!("tracedraw-picture_mosaic-{}", std::process::id()));
+            std::env::temp_dir().join(format!("graphdraw-picture_mosaic-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("dir");
         let save = |name: &str, c: [u8; 3]| {
@@ -854,7 +854,7 @@ mod tests {
             .expect("rect");
         app.run(Command::SetFill {
             shapes: vec![id],
-            fill: Fill::Solid(tracedraw_core::Color::rgb8(240, 30, 30)),
+            fill: Fill::Solid(graphdraw_core::Color::rgb8(240, 30, 30)),
         });
         app.select(vec![id]);
         let mut s = PictureMosaicSettings {

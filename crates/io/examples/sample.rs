@@ -1,7 +1,7 @@
 //! Writes a sample document with every object type, for manual testing:
-//! `cargo run -p tracedraw-io --example sample -- out.tdraw`
+//! `cargo run -p graphdraw-io --example sample -- out.gdr`
 
-use tracedraw_core::{
+use graphdraw_core::{
     document::{Shape, ShapeKind, TextSpan},
     geometry::{self, Affine, Point, Rect},
     Color, Document, Fill, Stroke,
@@ -10,7 +10,7 @@ use tracedraw_core::{
 fn main() {
     let out = std::env::args()
         .nth(1)
-        .unwrap_or_else(|| "sample.tdraw".into());
+        .unwrap_or_else(|| "sample.gdr".into());
     let mut doc = Document::default();
     doc.title = "Sample".into();
     let layer = doc.pages[0].layers[0].id;
@@ -78,13 +78,13 @@ fn main() {
         ShapeKind::Text {
             spans: vec![TextSpan {
                 bold: true,
-                ..TextSpan::new("TraceDraw", "Arial", 36.0)
+                ..TextSpan::new("GraphDraw", "Arial", 36.0)
             }],
             origin: Point::new(20.0, 40.0),
             frame: None,
             para: Default::default(),
             on_path: None,
-            align: tracedraw_core::TextAlign::Left,
+            align: graphdraw_core::TextAlign::Left,
         },
         Fill::Solid(Color::BLACK),
         None,
@@ -126,6 +126,6 @@ fn main() {
         None,
         Affine::rotate_about(-0.2, Point::new(160.0, 42.0)),
     );
-    tracedraw_io::save_native(&doc, &out).expect("write");
+    graphdraw_io::save_native(&doc, &out).expect("write");
     println!("wrote {out}");
 }

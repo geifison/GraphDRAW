@@ -15,7 +15,7 @@
 use crate::app::{App, Units};
 use crate::i18n::tr;
 use serde::{Deserialize, Serialize};
-use tracedraw_core::{
+use graphdraw_core::{
     document::{Shape, ShapeKind, TextAlign, TextSpan},
     geometry::{Affine, BezPath, Point, Rect, Shape as _, Vec2},
     Color, Command, Fill, ShapeId, Stroke,
@@ -570,7 +570,7 @@ impl App {
     /// The nearest segment of an object on the page within 6 pixels of
     /// `p`: its two ends (page space).
     pub fn segment_ends_at(&self, p: Point) -> Option<(Point, Point)> {
-        use tracedraw_core::geometry::{ParamCurve, ParamCurveNearest};
+        use graphdraw_core::geometry::{ParamCurve, ParamCurveNearest};
         let tol = 6.0 / self.view.zoom as f64;
         let mut best: Option<(Point, Point, f64)> = None;
         for layer in self.page_layers() {

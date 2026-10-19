@@ -4,7 +4,7 @@
 //! into geometry; "Apply to curve" does the same to an existing curve.
 
 use crate::app::App;
-use tracedraw_core::{
+use graphdraw_core::{
     document::{Shape, ShapeKind},
     geometry::{BezPath, Point, Vec2},
     Color, Command, Fill,
@@ -96,39 +96,39 @@ pub fn variable_width(points: &[Point], width: f64, w_at: impl Fn(f64) -> f64) -
     }
     right.reverse();
     left.extend(right);
-    let p = tracedraw_core::geometry::smooth_path(&left, true);
-    tracedraw_core::shaping::simplify(&p)
+    let p = graphdraw_core::geometry::smooth_path(&left, true);
+    graphdraw_core::shaping::simplify(&p)
 }
 
 fn spray_object(preset: usize, c: Point, size: f64, k: usize) -> BezPath {
     let r = size / 2.0;
-    let rect = tracedraw_core::geometry::Rect::new(c.x - r, c.y - r, c.x + r, c.y + r);
+    let rect = graphdraw_core::geometry::Rect::new(c.x - r, c.y - r, c.x + r, c.y + r);
     match preset {
-        0 => tracedraw_core::geometry::ellipse_path(rect),
-        1 => tracedraw_core::geometry::polygon_path(rect, 5, 0.5),
-        2 => tracedraw_core::geometry::rect_path(rect, 0.0),
+        0 => graphdraw_core::geometry::ellipse_path(rect),
+        1 => graphdraw_core::geometry::polygon_path(rect, 5, 0.5),
+        2 => graphdraw_core::geometry::rect_path(rect, 0.0),
         3 => {
             // Heart: two circles and a triangle, welded.
-            let top = tracedraw_core::geometry::ellipse_path(tracedraw_core::geometry::Rect::new(
+            let top = graphdraw_core::geometry::ellipse_path(graphdraw_core::geometry::Rect::new(
                 c.x - r,
                 c.y,
                 c.x,
                 c.y + r,
             ));
-            let top2 = tracedraw_core::geometry::ellipse_path(tracedraw_core::geometry::Rect::new(
+            let top2 = graphdraw_core::geometry::ellipse_path(graphdraw_core::geometry::Rect::new(
                 c.x,
                 c.y,
                 c.x + r,
                 c.y + r,
             ));
-            let tri = tracedraw_core::effects::polygon(&[
+            let tri = graphdraw_core::effects::polygon(&[
                 Point::new(c.x - r, c.y + r * 0.5),
                 Point::new(c.x + r, c.y + r * 0.5),
                 Point::new(c.x, c.y - r),
             ]);
             let a =
-                tracedraw_core::shaping::overlay(&top, &top2, tracedraw_core::shaping::Op::Weld);
-            tracedraw_core::shaping::overlay(&a, &tri, tracedraw_core::shaping::Op::Weld)
+                graphdraw_core::shaping::overlay(&top, &top2, graphdraw_core::shaping::Op::Weld);
+            graphdraw_core::shaping::overlay(&a, &tri, graphdraw_core::shaping::Op::Weld)
         }
         _ => {
             // Leaf: a lens shape rotated with the index.
@@ -145,7 +145,7 @@ fn spray_object(preset: usize, c: Point, size: f64, k: usize) -> BezPath {
                 (c.x - r, c.y),
             );
             p.close_path();
-            tracedraw_core::geometry::Affine::rotate_about((k as f64 * 0.7).sin() * 0.8, c) * p
+            graphdraw_core::geometry::Affine::rotate_about((k as f64 * 0.7).sin() * 0.8, c) * p
         }
     }
 }
@@ -155,7 +155,7 @@ impl App {
     /// add (several for the sprayer).
     pub fn media_shapes(&mut self, points: &[Point]) -> Vec<Shape> {
         let pts =
-            tracedraw_core::geometry::simplify(points, 0.1 + self.media_smoothing / 100.0 * 1.5);
+            graphdraw_core::geometry::simplify(points, 0.1 + self.media_smoothing / 100.0 * 1.5);
         if pts.len() < 2 {
             return Vec::new();
         }
@@ -262,7 +262,7 @@ impl App {
         let mut new_sel = Vec::new();
         for c in curves {
             let path = c.page_path();
-            let pts = tracedraw_core::effects::resample(&path, 120);
+            let pts = graphdraw_core::effects::resample(&path, 120);
             for s in self.media_shapes(&pts) {
                 new_sel.push(s.id);
                 cmds.push(Command::AddShape { layer, shape: s });
@@ -279,7 +279,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::geometry::Shape as _;
+    use graphdraw_core::geometry::Shape as _;
 
     #[test]
     fn tapered_stroke_is_thin_at_the_ends() {

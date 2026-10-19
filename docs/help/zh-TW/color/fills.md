@@ -1,6 +1,6 @@
 # 填色
 
-填色會為封閉物件的內部上色。TraceDraw 有六種填色：[[docker.fill_none]]、[[docker.fill_uniform]]（單一平面色彩）、[[docker.fill_fountain]]（彼此融合的色彩）、[[docker.fill_pattern]]、[[docker.fill_texture]] 和 [[docker.fill_mesh]]（在格網節點之間流動的色彩）。
+填色會為封閉物件的內部上色。GraphDraw 有六種填色：[[docker.fill_none]]、[[docker.fill_uniform]]（單一平面色彩）、[[docker.fill_fountain]]（彼此融合的色彩）、[[docker.fill_pattern]]、[[docker.fill_texture]] 和 [[docker.fill_mesh]]（在格網節點之間流動的色彩）。
 
 ## 填滿物件的方式 {#ways}
 

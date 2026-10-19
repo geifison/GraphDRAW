@@ -223,7 +223,7 @@ mod tests {
     use super::*;
 
     /// The bundled interface font (SIL Open Font License).
-    const FONT: &[u8] = include_bytes!("../../../apps/tracedraw/assets/fonts/Selawik-Regular.ttf");
+    const FONT: &[u8] = include_bytes!("../../../apps/graphdraw/assets/fonts/Selawik-Regular.ttf");
 
     #[test]
     fn plain_and_xored_fonts_come_out_as_they_went_in() {

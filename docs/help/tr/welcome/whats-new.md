@@ -1,6 +1,6 @@
 # Yenilikler
 
-TraceDraw'ın her sürümü özellikler ve düzeltmeler ekler. Bu sayfa neyin
+GraphDraw'ın her sürümü özellikler ve düzeltmeler ekler. Bu sayfa neyin
 değiştiğini nasıl öğreneceğinizi açıklar ve son sürümlerin öne çıkanlarını
 listeler.
 
@@ -12,15 +12,15 @@ listeler.
   [[menu.help > menu.help.highlight_whats_new]] komutunu açın: her yeni
   komutun sonunda, ona giden bir alt menünün okunun yanında ve yeni bir komut
   içeren menünün başlığının üstünde küçük bir nokta görünür. Komutu
-  kapattığınızda işaretler kaybolur ve TraceDraw bir sonraki başlatılışında
+  kapattığınızda işaretler kaybolur ve GraphDraw bir sonraki başlatılışında
   komut yine kapalıdır.
 - Her sürümün değişikliklerinin tam listesi projenin
-  [değişiklik günlüğündedir](https://github.com/igtoth/tracedraw/blob/main/CHANGELOG.md).
+  [değişiklik günlüğündedir](https://github.com/geifison/GraphDRAW/blob/main/CHANGELOG.md).
 
 ## Son sürümlerin öne çıkanları {#highlights}
 
 - **Kendi dilinizde Yardım.** Her **?** düğmesi ve <kbd>F1</kbd>, önünüzdeki
-  iletişim kutusu, panel veya araç hakkındaki Yardım sayfasını TraceDraw'ın
+  iletişim kutusu, panel veya araç hakkındaki Yardım sayfasını GraphDraw'ın
   ayarlı olduğu dilde açar.
 - **Belge özellikleri.** [[menu.file > menu.file.document_properties]] bir
   çizimin dilini, başlığını, konusunu, yazarını, telif hakkını, etiketlerini,

@@ -10,7 +10,7 @@ use crate::theme::Tokens;
 use crate::ui::docker_form::{indented, row, section, wide_button};
 use crate::vector_mosaic::{unit_tile, TileShape, TrackMethod};
 use egui::{Color32, Sense, Stroke, Ui, Vec2};
-use tracedraw_core::geometry::{Affine, Shape as _};
+use graphdraw_core::geometry::{Affine, Shape as _};
 
 /// The tile's preview: the shape at the screen angle in a small box.
 fn preview(ui: &mut Ui, app: &App) {
@@ -49,9 +49,9 @@ fn preview(ui: &mut Ui, app: &App) {
                 * Affine::scale_non_uniform(side as f64, -(side as f64))
                 * Affine::rotate(s.angle.to_radians());
             let mut pts = Vec::new();
-            tracedraw_core::geometry::flatten(&(m * unit.clone()), 0.2, &mut |el| match el {
-                tracedraw_core::geometry::PathEl::MoveTo(p)
-                | tracedraw_core::geometry::PathEl::LineTo(p) => {
+            graphdraw_core::geometry::flatten(&(m * unit.clone()), 0.2, &mut |el| match el {
+                graphdraw_core::geometry::PathEl::MoveTo(p)
+                | graphdraw_core::geometry::PathEl::LineTo(p) => {
                     pts.push(egui::pos2(p.x as f32, p.y as f32))
                 }
                 _ => {}

@@ -1,6 +1,6 @@
 # Barcodes and QR codes
 
-TraceDraw makes barcodes for products, labels and inventory, and QR codes
+GraphDraw makes barcodes for products, labels and inventory, and QR codes
 that phones can read. Both are made of ordinary vector shapes, so they print
 sharp at any size.
 

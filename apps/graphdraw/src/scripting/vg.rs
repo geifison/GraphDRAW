@@ -12,7 +12,7 @@
 
 use super::{id_arg, num, HostInner};
 use serde_json::{json, Value};
-use tracedraw_core::{
+use graphdraw_core::{
     document::{Shape, ShapeKind},
     geometry::Affine,
     Color, Command, Fill, LayerId, PageId, ShapeId, Stroke,
@@ -137,7 +137,7 @@ impl HostInner {
         if located.is_empty() {
             return Err("nothing to group".into());
         }
-        let rank = |doc: &tracedraw_core::Document, l: LayerId| {
+        let rank = |doc: &graphdraw_core::Document, l: LayerId| {
             doc.all_layers()
                 .position(|x| x.id == l)
                 .unwrap_or(usize::MAX)
@@ -221,7 +221,7 @@ impl HostInner {
             "effects": effects,
             "uid": s.uid,
             "transparency_mask": s.effects.iter().find_map(|e| match e {
-                tracedraw_core::live::Effect::Transparency { mask, .. } => Some(match mask {
+                graphdraw_core::live::Effect::Transparency { mask, .. } => Some(match mask {
                     Fill::Fountain(_) => "fountain",
                     Fill::Pattern(_) => "pattern",
                     Fill::Texture(_) => "texture",
@@ -232,7 +232,7 @@ impl HostInner {
         }))
     }
 
-    fn bounds_of(&self, list: &[ShapeId]) -> Option<tracedraw_core::geometry::Rect> {
+    fn bounds_of(&self, list: &[ShapeId]) -> Option<graphdraw_core::geometry::Rect> {
         list.iter()
             .filter_map(|id| self.doc.shape_on_page(*id))
             .map(|s| s.bounds())
@@ -455,20 +455,20 @@ impl HostInner {
                     _ => s.local_path(),
                 };
                 // One curve per subpath: the first keeps the object.
-                let mut parts: Vec<tracedraw_core::BezPath> = Vec::new();
+                let mut parts: Vec<graphdraw_core::BezPath> = Vec::new();
                 for el in path.elements() {
-                    if matches!(el, tracedraw_core::geometry::PathEl::MoveTo(_)) || parts.is_empty()
+                    if matches!(el, graphdraw_core::geometry::PathEl::MoveTo(_)) || parts.is_empty()
                     {
-                        parts.push(tracedraw_core::BezPath::new());
+                        parts.push(graphdraw_core::BezPath::new());
                     }
                     if let Some(p) = parts.last_mut() {
                         p.push(*el);
                     }
                 }
-                let closed = |p: &tracedraw_core::BezPath| {
+                let closed = |p: &graphdraw_core::BezPath| {
                     p.elements()
                         .iter()
-                        .any(|e| matches!(e, tracedraw_core::geometry::PathEl::ClosePath))
+                        .any(|e| matches!(e, graphdraw_core::geometry::PathEl::ClosePath))
                 };
                 let mut out = vec![id.raw()];
                 if parts.len() > 1 {
@@ -498,7 +498,7 @@ impl HostInner {
                 json!({"ids": out})
             }
             "vg_boolean" => {
-                use tracedraw_core::shaping::{overlay, Op};
+                use graphdraw_core::shaping::{overlay, Op};
                 let target = ShapeId(id_arg(a, "target")?);
                 let others = ids(a, "others");
                 let op = a.get("op").and_then(|v| v.as_str()).unwrap_or("weld");
@@ -658,7 +658,7 @@ impl HostInner {
                     .doc
                     .page(self.page)
                     .map(|p| p.size)
-                    .unwrap_or(tracedraw_core::document::paper::A4);
+                    .unwrap_or(graphdraw_core::document::paper::A4);
                 let mut out = Vec::new();
                 for k in 0..count {
                     self.run(Command::AddPage { name: None, size })?;
@@ -737,8 +737,8 @@ impl HostInner {
                     .unwrap_or("")
                     .to_ascii_lowercase();
                 let data = match ext.as_str() {
-                    "cdr" => tracedraw_cdr::write::document_to_cdr(&self.doc),
-                    _ => tracedraw_text::fonts()
+                    "cdr" => graphdraw_cdr::write::document_to_cdr(&self.doc),
+                    _ => graphdraw_text::fonts()
                         .with_carried_fonts(&self.doc)
                         .to_json()
                         .map_err(|e| e.to_string())?
@@ -781,7 +781,7 @@ impl HostInner {
                     .unwrap_or(0);
                 let dpi = num(a, "dpi", 0.0);
                 let size_px = (num(a, "w", 0.0), num(a, "h", 0.0));
-                let raster = |doc: &tracedraw_core::Document| -> Result<image::RgbaImage, String> {
+                let raster = |doc: &graphdraw_core::Document| -> Result<image::RgbaImage, String> {
                     let pg = doc.page(page).map_err(|e| e.to_string())?;
                     // A width in pixels wins over the resolution.
                     let dpi = if size_px.0 > 0.0 {
@@ -793,7 +793,7 @@ impl HostInner {
                     } else {
                         96.0
                     };
-                    let pm = tracedraw_render::render_page_image(doc, page, dpi)
+                    let pm = graphdraw_render::render_page_image(doc, page, dpi)
                         .ok_or("render failed")?;
                     let img =
                         image::RgbaImage::from_raw(pm.width(), pm.height(), pm.data().to_vec())
@@ -823,11 +823,11 @@ impl HostInner {
                         Ok(out.into_inner())
                     };
                 let data = match ext.as_str() {
-                    "svg" => tracedraw_io::svg::page_to_svg(&self.doc, idx).into_bytes(),
-                    "pdf" => tracedraw_io::pdf::document_to_pdf(&self.doc),
-                    "eps" | "ps" => tracedraw_io::eps::document_to_ps(&self.doc).into_bytes(),
-                    "cdr" => tracedraw_cdr::write::document_to_cdr(&self.doc),
-                    "tdraw" => tracedraw_text::fonts()
+                    "svg" => graphdraw_io::svg::page_to_svg(&self.doc, idx).into_bytes(),
+                    "pdf" => graphdraw_io::pdf::document_to_pdf(&self.doc),
+                    "eps" | "ps" => graphdraw_io::eps::document_to_ps(&self.doc).into_bytes(),
+                    "cdr" => graphdraw_cdr::write::document_to_cdr(&self.doc),
+                    "gdr" => graphdraw_text::fonts()
                         .with_carried_fonts(&self.doc)
                         .to_json()
                         .map_err(|e| e.to_string())?
@@ -898,7 +898,7 @@ impl HostInner {
                 json!({"indices": list})
             }
             "vg_guides" => {
-                use tracedraw_core::document::GuideLine;
+                use graphdraw_core::document::GuideLine;
                 let page = PageId(id_arg(a, "page")?);
                 let p = self.doc.page(page).map_err(|e| e.to_string())?;
                 let list: Vec<Value> = p
@@ -915,7 +915,7 @@ impl HostInner {
                 json!({"guides": list})
             }
             "vg_add_guide" | "vg_set_guide" => {
-                use tracedraw_core::document::GuideLine;
+                use graphdraw_core::document::GuideLine;
                 let page = PageId(id_arg(a, "page")?);
                 let (x, y) = (num(a, "x", 0.0), num(a, "y", 0.0));
                 let angle = num(a, "angle", 0.0).rem_euclid(180.0);
@@ -948,7 +948,7 @@ impl HostInner {
             }
             "vg_unlock_all" => {
                 let page = id_arg(a, "page")?;
-                let layers: Vec<&tracedraw_core::document::Layer> = if page == 0 {
+                let layers: Vec<&graphdraw_core::document::Layer> = if page == 0 {
                     self.doc.master.iter().collect()
                 } else {
                     self.doc
@@ -977,11 +977,11 @@ impl HostInner {
                 let path = s.page_path();
                 // Each closed subpath's area; holes (opposite winding) count
                 // against the total, as the even-odd fill draws them.
-                let mut parts: Vec<tracedraw_core::BezPath> = Vec::new();
+                let mut parts: Vec<graphdraw_core::BezPath> = Vec::new();
                 for el in path.elements() {
-                    if matches!(el, tracedraw_core::geometry::PathEl::MoveTo(_)) || parts.is_empty()
+                    if matches!(el, graphdraw_core::geometry::PathEl::MoveTo(_)) || parts.is_empty()
                     {
-                        parts.push(tracedraw_core::BezPath::new());
+                        parts.push(graphdraw_core::BezPath::new());
                     }
                     if let Some(p) = parts.last_mut() {
                         p.push(*el);
@@ -1103,9 +1103,9 @@ impl HostInner {
                     .get("anti_alias")
                     .and_then(|v| v.as_bool())
                     .unwrap_or(true);
-                let mut tmp = tracedraw_core::Document::new(
+                let mut tmp = graphdraw_core::Document::new(
                     "tmp",
-                    tracedraw_core::Size::new(bounds.width().max(0.1), bounds.height().max(0.1)),
+                    graphdraw_core::Size::new(bounds.width().max(0.1), bounds.height().max(0.1)),
                 );
                 tmp.symbols = self.doc.symbols.clone();
                 let l = tmp.pages[0].layers[0].id;
@@ -1120,19 +1120,19 @@ impl HostInner {
                 let zoom = dpi / 25.4;
                 let w = (bounds.width() * zoom).ceil().max(1.0) as u32;
                 let h = (bounds.height() * zoom).ceil().max(1.0) as u32;
-                let pm = tracedraw_render::render_page(
+                let pm = graphdraw_render::render_page(
                     &tmp,
                     page,
-                    &tracedraw_render::RenderOptions {
+                    &graphdraw_render::RenderOptions {
                         width: w,
                         height: h,
-                        view: tracedraw_render::ViewTransform {
+                        view: graphdraw_render::ViewTransform {
                             zoom,
                             origin_x: 0.0,
                             origin_y: h as f64,
                         },
                         anti_alias,
-                        ..tracedraw_render::RenderOptions::default()
+                        ..graphdraw_render::RenderOptions::default()
                     },
                 )
                 .ok_or("render failed")?;
@@ -1282,7 +1282,7 @@ impl HostInner {
                 }
                 let next = self.doc.ids().peek_next();
                 let mut k = 0u64;
-                let parts = tracedraw_core::live::break_apart(&s, || {
+                let parts = graphdraw_core::live::break_apart(&s, || {
                     let id = ShapeId(next + k);
                     k += 1;
                     id

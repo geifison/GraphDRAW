@@ -1,6 +1,6 @@
 # Co je nového
 
-Každá verze TraceDraw přináší funkce a opravy. Tato stránka vysvětluje, jak
+Každá verze GraphDraw přináší funkce a opravy. Tato stránka vysvětluje, jak
 zjistit, co se změnilo, a uvádí hlavní novinky posledních verzí.
 
 ## Novinky v programu {#in-the-program}
@@ -11,16 +11,16 @@ zjistit, co se změnilo, a uvádí hlavní novinky posledních verzí.
   označí, co je v této verzi nové: na konci každého nového příkazu se objeví
   malá tečka, také vedle šipky podnabídky, která k němu vede, a nad názvem
   nabídky, která ho obsahuje. Značky zmizí, když příkaz vypnete, a při příštím
-  spuštění TraceDraw je příkaz opět vypnutý.
+  spuštění GraphDraw je příkaz opět vypnutý.
 - Úplný seznam změn každé verze je v
-  [seznamu změn](https://github.com/igtoth/tracedraw/blob/main/CHANGELOG.md)
+  [seznamu změn](https://github.com/geifison/GraphDRAW/blob/main/CHANGELOG.md)
   projektu.
 
 ## Hlavní novinky posledních verzí {#highlights}
 
 - **Nápověda ve vašem jazyce.** Každé tlačítko **?** a <kbd>F1</kbd> otevřou
   stránku této nápovědy o dialogovém okně, panelu nebo nástroji před vámi, v
-  jazyce nastaveném v TraceDraw.
+  jazyce nastaveném v GraphDraw.
 - **Vlastnosti dokumentu.**
   [[menu.file > menu.file.document_properties]] uchovává jazyk, název,
   předmět, autora, autorská práva, štítky, poznámky a hodnocení kresby, nad

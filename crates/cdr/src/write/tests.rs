@@ -1,5 +1,5 @@
 use super::*;
-use tracedraw_core::{
+use graphdraw_core::{
     document::{Layer, Page, ParagraphStyle},
     geometry::Size,
 };
@@ -39,7 +39,7 @@ fn rectangle_ellipse_curve_and_text_round_trip() {
             arc: None,
         },
     );
-    e.fill = Fill::Fountain(tracedraw_core::Fountain::two(
+    e.fill = Fill::Fountain(graphdraw_core::Fountain::two(
         FountainKind::Radial,
         Color::BLACK,
         Color::WHITE,
@@ -408,7 +408,7 @@ fn written_files_survive_mutation() {
 
 #[test]
 fn corners_one_radius_cannot_hold_are_written_as_curves() {
-    use tracedraw_core::{CornerKind, Corners};
+    use graphdraw_core::{CornerKind, Corners};
     let mut doc = doc_with(Vec::new());
     let mut ids = doc.ids().clone();
     let rect = Rect::new(0.0, 0.0, 40.0, 20.0);
@@ -492,7 +492,7 @@ fn complex_star_reads_back(doc: &Document, star: &Shape, v: u16) {
     let moves = path
         .elements()
         .iter()
-        .filter(|e| matches!(e, tracedraw_core::geometry::PathEl::MoveTo(_)))
+        .filter(|e| matches!(e, graphdraw_core::geometry::PathEl::MoveTo(_)))
         .count();
     assert_eq!(moves, 2);
     let (a, b) = (
@@ -503,7 +503,7 @@ fn complex_star_reads_back(doc: &Document, star: &Shape, v: u16) {
 }
 
 fn text_shape(
-    ids: &mut tracedraw_core::id::IdSource,
+    ids: &mut graphdraw_core::id::IdSource,
     spans: Vec<TextSpan>,
     align: TextAlign,
 ) -> Shape {
@@ -514,7 +514,7 @@ fn text_shape(
             origin: Point::new(0.0, 0.0),
             frame: None,
             align,
-            para: tracedraw_core::document::ParagraphStyle::default(),
+            para: graphdraw_core::document::ParagraphStyle::default(),
             on_path: None,
         },
     );
@@ -582,10 +582,10 @@ fn paragraph_alignments_round_trip() {
         vec![TextSpan::new("left\ncentre\nright", "Arial", 12.0)],
         TextAlign::Left,
     );
-    tracedraw_core::paragraphs::edit_paragraph_formats(&mut t.kind, Some((6, 6)), |f| {
+    graphdraw_core::paragraphs::edit_paragraph_formats(&mut t.kind, Some((6, 6)), |f| {
         f.align = TextAlign::Center
     });
-    tracedraw_core::paragraphs::edit_paragraph_formats(&mut t.kind, Some((14, 14)), |f| {
+    graphdraw_core::paragraphs::edit_paragraph_formats(&mut t.kind, Some((14, 14)), |f| {
         f.align = TextAlign::Right
     });
     doc.pages[0].layers[0].shapes = vec![t];
@@ -602,7 +602,7 @@ fn paragraph_alignments_round_trip() {
             panic!("{v}: {:?}", read[0].kind);
         };
         let aligns: Vec<TextAlign> =
-            tracedraw_core::paragraphs::paragraph_styles(spans, *align, para)
+            graphdraw_core::paragraphs::paragraph_styles(spans, *align, para)
                 .into_iter()
                 .map(|(a, _)| a)
                 .collect();
@@ -625,7 +625,7 @@ fn paragraph_line_spacing_round_trips_from_version_16() {
         vec![TextSpan::new("one\ntwo\nthree", "Arial", 12.0)],
         TextAlign::Left,
     );
-    tracedraw_core::paragraphs::edit_paragraph_formats(&mut t.kind, Some((5, 5)), |f| {
+    graphdraw_core::paragraphs::edit_paragraph_formats(&mut t.kind, Some((5, 5)), |f| {
         f.leading_pct = 150.0
     });
     doc.pages[0].layers[0].shapes = vec![t];
@@ -639,7 +639,7 @@ fn paragraph_line_spacing_round_trips_from_version_16() {
         else {
             panic!("{v}");
         };
-        let leading: Vec<f64> = tracedraw_core::paragraphs::paragraph_styles(spans, *align, para)
+        let leading: Vec<f64> = graphdraw_core::paragraphs::paragraph_styles(spans, *align, para)
             .iter()
             .map(|(_, p)| (p.leading_pct * 1000.0).round() / 1000.0)
             .collect();
@@ -661,7 +661,7 @@ fn text_on_a_path_is_written_as_its_outline() {
     arc.move_to((0.0, 0.0));
     arc.curve_to((10.0, 20.0), (30.0, 20.0), (40.0, 0.0));
     if let ShapeKind::Text { on_path, .. } = &mut t.kind {
-        *on_path = Some(tracedraw_core::TextOnPath {
+        *on_path = Some(graphdraw_core::TextOnPath {
             path: arc,
             offset: 0.0,
             distance: 0.0,
@@ -1190,7 +1190,7 @@ fn records_have_the_sizes_of_the_versions_files() {
     }
     // Two-stop gradients: stops of 16 bytes before version 13, 24 in 13
     // and 14, 45 from 15.
-    let f = Fill::Fountain(tracedraw_core::Fountain::two(
+    let f = Fill::Fountain(graphdraw_core::Fountain::two(
         FountainKind::Linear,
         Color::BLACK,
         Color::WHITE,
@@ -1231,7 +1231,7 @@ fn the_version_21_configuration_record_has_its_fields() {
     assert_eq!(mcfg(Ver(22), 210.0, 297.0).len(), 7944);
     assert_eq!(mcfg(Ver(20), 210.0, 297.0).len(), 8323);
     // The page size reads back from it.
-    let doc = Document::new("t", tracedraw_core::geometry::Size::new(297.0, 210.0));
+    let doc = Document::new("t", graphdraw_core::geometry::Size::new(297.0, 210.0));
     let bytes = document_to_cdr_version(&doc, 21);
     let (back, _) = crate::open_bytes(&bytes, "t").expect("opens");
     assert!((back.pages[0].size.width - 297.0).abs() < 0.01);
@@ -1239,7 +1239,7 @@ fn the_version_21_configuration_record_has_its_fields() {
 
 #[test]
 fn chosen_node_types_round_trip_in_the_continuity_bits() {
-    use tracedraw_core::nodes::{self, NodeType};
+    use graphdraw_core::nodes::{self, NodeType};
     // Node 1 has aligned handles of equal length (reads as symmetrical) but is
     // chosen as a cusp; node 2 reads as symmetrical and is chosen smooth.
     let mut p = BezPath::new();
@@ -1366,7 +1366,7 @@ fn version_16_and_later_files_are_a_complete_package() {
 
 #[test]
 fn centred_gradients_are_written_from_their_edge_and_read_back() {
-    use tracedraw_core::{Fountain, FountainKind, Stop};
+    use graphdraw_core::{Fountain, FountainKind, Stop};
     let red = Color::rgb8(255, 0, 0);
     let yellow = Color::rgb8(255, 255, 0);
     for kind in [
@@ -1391,7 +1391,7 @@ fn centred_gradients_are_written_from_their_edge_and_read_back() {
                 },
             ],
             angle: 0.0,
-            offset: tracedraw_core::geometry::Point::ZERO,
+            offset: graphdraw_core::geometry::Point::ZERO,
             edge_pad: 0.0,
             ..Default::default()
         };
@@ -1588,8 +1588,8 @@ fn a_drawings_cmyk_profile_is_stored_and_named() {
     use std::io::Read;
     let mut doc = doc_with(Vec::new());
     let data =
-        tracedraw_core::icc::test_profiles::Builder::new(b"prtr", b"CMYK", b"Lab ", 2).build();
-    doc.cmyk_profile = Some(tracedraw_core::DocumentProfile::new(
+        graphdraw_core::icc::test_profiles::Builder::new(b"prtr", b"CMYK", b"Lab ", 2).build();
+    doc.cmyk_profile = Some(graphdraw_core::DocumentProfile::new(
         "Press & Proof v2",
         data.clone(),
     ));
@@ -1760,7 +1760,7 @@ fn version_21_text_records_are_numbered_and_complete() {
 
 #[test]
 fn gradient_options_are_written_as_the_closest_plain_gradient() {
-    use tracedraw_core::{Fountain, FountainKind, FountainRepeat};
+    use graphdraw_core::{Fountain, FountainKind, FountainRepeat};
     let red = Color::rgb8(255, 0, 0);
     let blue = Color::rgb8(0, 0, 255);
     let mut doc = doc_with(Vec::new());
@@ -1904,9 +1904,9 @@ fn graded_transparency_is_written_as_a_gradient_from_16() {
         },
     );
     r.fill = Fill::Solid(Color::rgb8(255, 0, 0));
-    r.effects.push(tracedraw_core::live::Effect::Transparency {
+    r.effects.push(graphdraw_core::live::Effect::Transparency {
         mask: Fill::linear(Color::WHITE, Color::Gray { v: 0.5 }, 0.0),
-        merge: tracedraw_core::live::MergeMode::Normal,
+        merge: graphdraw_core::live::MergeMode::Normal,
         target: 2,
     });
     doc.pages[0].layers[0].shapes = vec![r];
@@ -1921,7 +1921,7 @@ fn graded_transparency_is_written_as_a_gradient_from_16() {
         let (back, _) = crate::open_bytes(&bytes, "back").expect("reads back");
         let s = &back.pages[0].layers[0].shapes[0];
         let mask = s.effects.iter().find_map(|e| match e {
-            tracedraw_core::live::Effect::Transparency {
+            graphdraw_core::live::Effect::Transparency {
                 mask: Fill::Fountain(f),
                 target,
                 ..
@@ -1947,7 +1947,7 @@ fn graded_transparency_is_written_as_a_gradient_from_16() {
 fn a_clip_frame_keeps_its_fill_under_and_outline_over_the_contents() {
     let mut doc = doc_with(Vec::new());
     let mut ids = doc.ids().clone();
-    let rect = |ids: &mut tracedraw_core::id::IdSource, x: f64| {
+    let rect = |ids: &mut graphdraw_core::id::IdSource, x: f64| {
         Shape::new(
             ids.shape(),
             ShapeKind::Rect {
@@ -2038,7 +2038,7 @@ fn layers_go_out_front_to_back_and_come_back_bottom_to_top() {
 
 #[test]
 fn fills_not_written_yet_go_out_as_their_mean_colour() {
-    use tracedraw_core::style::{Pattern, PatternTile, Texture, TextureKind};
+    use graphdraw_core::style::{Pattern, PatternTile, Texture, TextureKind};
     let tile = {
         let mut pm = tiny_skia::Pixmap::new(2, 1).expect("pixmap");
         pm.pixels_mut()[0] = tiny_skia::ColorU8::from_rgba(200, 0, 0, 255).premultiply();
@@ -2076,7 +2076,7 @@ fn fills_not_written_yet_go_out_as_their_mean_colour() {
         ),
     ];
     for (fill, want) in fills {
-        let mut ids = tracedraw_core::id::IdSource::default();
+        let mut ids = graphdraw_core::id::IdSource::default();
         let mut r = Shape::new(
             ids.shape(),
             ShapeKind::Rect {
@@ -2127,7 +2127,7 @@ fn a_page_background_colour_round_trips_from_version_21() {
 
 #[test]
 fn hidden_objects_are_kept_hidden_from_version_21() {
-    let mut ids = tracedraw_core::id::IdSource::default();
+    let mut ids = graphdraw_core::id::IdSource::default();
     let mut r = Shape::new(
         ids.shape(),
         ShapeKind::Rect {
@@ -2185,7 +2185,7 @@ fn bitmap_objects_carry_their_pixel_size() {
         pm.fill(tiny_skia::Color::from_rgba8(10, 20, 30, 255));
         pm.encode_png().expect("png")
     };
-    let mut ids = tracedraw_core::id::IdSource::default();
+    let mut ids = graphdraw_core::id::IdSource::default();
     let mut bm = Shape::new(
         ids.shape(),
         ShapeKind::Bitmap {
@@ -2229,7 +2229,7 @@ fn bitmap_objects_carry_their_pixel_size() {
 
 #[test]
 fn version_15_objects_carry_the_arguments_its_files_have() {
-    let mut ids = tracedraw_core::id::IdSource::default();
+    let mut ids = graphdraw_core::id::IdSource::default();
     let mut r = Shape::new(
         ids.shape(),
         ShapeKind::Rect {
@@ -2268,7 +2268,7 @@ fn version_15_objects_carry_the_arguments_its_files_have() {
 
 #[test]
 fn artistic_text_records_before_16_open_as_files_have_them() {
-    let mut ids = tracedraw_core::id::IdSource::default();
+    let mut ids = graphdraw_core::id::IdSource::default();
     let t = text_shape(
         &mut ids,
         vec![TextSpan::new("Hi", "Arial", 12.0)],
@@ -2308,7 +2308,7 @@ fn artistic_text_records_before_16_open_as_files_have_them() {
 
 #[test]
 fn text_from_version_12_goes_out_one_byte_a_letter_with_wide_letters_marked() {
-    let mut ids = tracedraw_core::id::IdSource::default();
+    let mut ids = graphdraw_core::id::IdSource::default();
     let t = text_shape(
         &mut ids,
         vec![TextSpan::new("Steć", "Arial", 12.0)],
@@ -2340,7 +2340,7 @@ fn text_from_version_12_goes_out_one_byte_a_letter_with_wide_letters_marked() {
 
 #[test]
 fn before_16_text_frames_take_their_objects_numbers_and_curves_end_padded() {
-    let mut ids = tracedraw_core::id::IdSource::default();
+    let mut ids = graphdraw_core::id::IdSource::default();
     let a = text_shape(
         &mut ids,
         vec![TextSpan::new("A", "Arial", 12.0)],
@@ -2406,7 +2406,7 @@ fn before_16_text_frames_take_their_objects_numbers_and_curves_end_padded() {
 
 #[test]
 fn before_16_text_takes_its_look_from_a_style_of_its_own() {
-    let mut ids = tracedraw_core::id::IdSource::default();
+    let mut ids = graphdraw_core::id::IdSource::default();
     let mut big = TextSpan::new("TRAVEL", "Arial", 40.0);
     big.bold = true;
     let small = TextSpan::new("note", "Times New Roman", 9.0);
@@ -2445,7 +2445,7 @@ fn before_16_text_takes_its_look_from_a_style_of_its_own() {
 
 #[test]
 fn the_font_table_lists_every_face_the_text_styles_use() {
-    let mut ids = tracedraw_core::id::IdSource::default();
+    let mut ids = graphdraw_core::id::IdSource::default();
     let mut bold = TextSpan::new("Heading", "Arial", 20.0);
     bold.bold = true;
     let plain = TextSpan::new("body", "Arial", 10.0);
@@ -2479,7 +2479,7 @@ fn the_font_table_lists_every_face_the_text_styles_use() {
 #[test]
 fn the_package_lists_the_text_faces_and_embeds_those_allowed() {
     const FONT: &[u8] =
-        include_bytes!("../../../../apps/tracedraw/assets/fonts/Selawik-Regular.ttf");
+        include_bytes!("../../../../apps/graphdraw/assets/fonts/Selawik-Regular.ttf");
     let faces = vec![
         FontFace {
             family: "Selawik".into(),

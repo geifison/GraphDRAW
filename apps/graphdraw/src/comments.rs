@@ -1,13 +1,13 @@
 //! Review comments (Comments docker): notes pinned to a point, a box or
 //! an arrow on a page, with replies, resolved or open. They are part of
-//! the drawing (saved in `.tdraw`) but never printed or exported. Every
+//! the drawing (saved in `.gdr`) but never printed or exported. Every
 //! change goes through `Command::SetComments`, so it can be undone.
 
 use crate::app::App;
 use egui::{Color32, Painter, Pos2, Stroke as EStroke};
-use tracedraw_core::document::{Comment, CommentMark, CommentReply};
-use tracedraw_core::geometry::{Point, Rect};
-use tracedraw_core::Command;
+use graphdraw_core::document::{Comment, CommentMark, CommentReply};
+use graphdraw_core::geometry::{Point, Rect};
+use graphdraw_core::Command;
 
 /// The mark the next press on the page places.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

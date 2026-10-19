@@ -33,7 +33,7 @@
 
 ## 略過對話方塊 {#skip}
 
-勾選 [[newdoc.dont_show]] 即可直接以上次使用的值建立新繪圖。若要再次顯示對話方塊，請在 [[menu.tools > menu.tools.options > menu.tools.options_app]] 的 [[options.general]] 頁面上開啟對應的設定。請參閱 [TraceDraw 選項](../customize/options-app.md#general)。
+勾選 [[newdoc.dont_show]] 即可直接以上次使用的值建立新繪圖。若要再次顯示對話方塊，請在 [[menu.tools > menu.tools.options > menu.tools.options_app]] 的 [[options.general]] 頁面上開啟對應的設定。請參閱 [GraphDraw 選項](../customize/options-app.md#general)。
 
 ## 其他開始方式 {#other-ways}
 

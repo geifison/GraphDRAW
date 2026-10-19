@@ -56,9 +56,9 @@ Joins the ends of the selected curves, and the open subpaths inside them.
 
 ## Checks
 
-- `tracedraw_core` `corner_cut::tests` (areas of each cut, skipped
+- `graphdraw_core` `corner_cut::tests` (areas of each cut, skipped
   corners, smooth nodes, chosen nodes, curved sides, bad values)
-- `tracedraw_core` `join::tests` (each mode, gap, closing, several
+- `graphdraw_core` `join::tests` (each mode, gap, closing, several
   pieces into one closed outline)
 - `corners::tests::the_docker_cuts_rectangles_as_curves_in_one_step`
 - `corners::tests::the_shape_tool_limits_the_cut_to_chosen_nodes`

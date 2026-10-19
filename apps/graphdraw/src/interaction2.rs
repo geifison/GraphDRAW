@@ -6,7 +6,7 @@ use crate::app::{App, Drag};
 use crate::i18n::tr;
 use crate::tools::Tool;
 use egui::{Modifiers, PointerButton, Response};
-use tracedraw_core::{
+use graphdraw_core::{
     document::{Shape, ShapeKind},
     geometry::{Affine, BezPath, Point, Rect, Vec2},
     live::Effect,
@@ -257,11 +257,11 @@ impl App {
     /// whose end is near the stroke's start.
     pub fn finish_sketch(&mut self, points: Vec<Point>) {
         let sketch = self.sketch;
-        let pts = tracedraw_core::geometry::simplify(&points, sketch.tolerance());
+        let pts = graphdraw_core::geometry::simplify(&points, sketch.tolerance());
         if pts.len() < 2 {
             return;
         }
-        let path = tracedraw_core::geometry::smooth_path(&pts, false);
+        let path = graphdraw_core::geometry::smooth_path(&pts, false);
         if let Some(sel) = self
             .selected_shapes()
             .into_iter()
@@ -270,8 +270,8 @@ impl App {
         {
             let existing = sel.page_path();
             let end = existing.elements().iter().rev().find_map(|el| match el {
-                tracedraw_core::geometry::PathEl::LineTo(q)
-                | tracedraw_core::geometry::PathEl::CurveTo(_, _, q) => Some(*q),
+                graphdraw_core::geometry::PathEl::LineTo(q)
+                | graphdraw_core::geometry::PathEl::CurveTo(_, _, q) => Some(*q),
                 _ => None,
             });
             if let Some(e) = end {
@@ -364,7 +364,7 @@ impl App {
                 // objects its effects add.
                 let mut on_page = s.clone();
                 on_page.transform = t;
-                let ev = tracedraw_core::live::evaluate(&on_page);
+                let ev = graphdraw_core::live::evaluate(&on_page);
                 for part in std::iter::once(ev.main).chain(ev.below).chain(ev.above) {
                     out.push(part.page_path());
                 }
@@ -459,7 +459,7 @@ impl App {
         let rings = crate::trace::contours(&region, w, h);
         let mut path = BezPath::new();
         for ring in rings {
-            let simplified = tracedraw_core::geometry::simplify(&ring, 1.0);
+            let simplified = graphdraw_core::geometry::simplify(&ring, 1.0);
             if simplified.len() < 3 {
                 continue;
             }
@@ -467,7 +467,7 @@ impl App {
                 .iter()
                 .map(|q| Point::new(q.x / res, page.height() - q.y / res))
                 .collect();
-            path.extend(tracedraw_core::geometry::polyline_path(&pts, true));
+            path.extend(graphdraw_core::geometry::polyline_path(&pts, true));
         }
         if path.elements().is_empty() {
             return;
@@ -715,7 +715,7 @@ pub fn free_transform_step(
 mod free_transform_tests {
     use super::free_transform_step;
     use crate::app::FreeTransformMode as M;
-    use tracedraw_core::geometry::Point;
+    use graphdraw_core::geometry::Point;
 
     fn close(a: Point, b: Point) -> bool {
         (a - b).hypot() < 1e-6

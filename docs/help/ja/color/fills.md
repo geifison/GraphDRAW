@@ -1,6 +1,6 @@
 # 塗りつぶし
 
-塗りつぶしは、閉じたオブジェクトの内側を塗ります。TraceDraw には 6 種類の塗りつぶしがあります: [[docker.fill_none]]、[[docker.fill_uniform]] (一つの平坦な色)、[[docker.fill_fountain]] (互いに混ざり合う色)、[[docker.fill_pattern]]、[[docker.fill_texture]]、[[docker.fill_mesh]] (グリッドのノード間を流れる色) です。
+塗りつぶしは、閉じたオブジェクトの内側を塗ります。GraphDraw には 6 種類の塗りつぶしがあります: [[docker.fill_none]]、[[docker.fill_uniform]] (一つの平坦な色)、[[docker.fill_fountain]] (互いに混ざり合う色)、[[docker.fill_pattern]]、[[docker.fill_texture]]、[[docker.fill_mesh]] (グリッドのノード間を流れる色) です。
 
 ## オブジェクトを塗りつぶす方法 {#ways}
 

@@ -1,6 +1,6 @@
 # Aanpassen en automatiseren
 
-TraceDraw kan worden ingericht zoals u werkt: opties voor het programma en voor
+GraphDraw kan worden ingericht zoals u werkt: opties voor het programma en voor
 elk gereedschap, het uiterlijk van de interface, sneltoetsen, balken en
 werkruimten. U kunt ook werk automatiseren met scripts, een AI-dienst koppelen
 die tekent op basis van een beschrijving, en de tijd bijhouden die u aan een

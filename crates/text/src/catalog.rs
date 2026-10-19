@@ -2,7 +2,7 @@
 //! holds and the faces of font files in folders the user adds, with what
 //! the manager shows and filters by (technology, embedding rights, weight,
 //! width, slant, scripts, OpenType features), plus installing font files
-//! for TraceDraw and drawing a face's sample. See
+//! for GraphDraw and drawing a face's sample. See
 //! docs/behavior/font-manager.md.
 
 use crate::{FontKind, FontSystem};
@@ -117,7 +117,7 @@ pub struct FaceRecord {
     pub path: Option<PathBuf>,
     /// Its index in a collection file.
     pub index: u32,
-    /// In the font database: the system's or one installed for TraceDraw.
+    /// In the font database: the system's or one installed for GraphDraw.
     pub installed: bool,
     /// A font of the operating system's own folders: never uninstalled.
     pub system: bool,
@@ -494,7 +494,7 @@ impl FontSystem {
         out
     }
 
-    /// Install font files for TraceDraw (this session; the application
+    /// Install font files for GraphDraw (this session; the application
     /// installs them again at the next start): files already loaded and
     /// files that do not read as fonts are skipped. Returns the families
     /// added.
@@ -523,7 +523,7 @@ impl FontSystem {
         self.after_loading(&ids)
     }
 
-    /// Install font data loaded from memory for TraceDraw (the browser
+    /// Install font data loaded from memory for GraphDraw (the browser
     /// build's uploads). Returns the families added.
     pub fn install_data(&self, files: Vec<Vec<u8>>) -> Vec<String> {
         let mut ids = Vec::new();
@@ -561,7 +561,7 @@ impl FontSystem {
     }
 
     /// Take the faces of the font file `path` out of the database (fonts
-    /// installed for TraceDraw; the system's own stay). True when some
+    /// installed for GraphDraw; the system's own stay). True when some
     /// were removed.
     pub fn uninstall_path(&self, path: &Path) -> bool {
         if is_system_font(path) {
@@ -622,13 +622,13 @@ mod tests {
     use super::*;
 
     const SELAWIK: &[u8] =
-        include_bytes!("../../../apps/tracedraw/assets/fonts/Selawik-Regular.ttf");
+        include_bytes!("../../../apps/graphdraw/assets/fonts/Selawik-Regular.ttf");
     const SELAWIK_BOLD: &[u8] =
-        include_bytes!("../../../apps/tracedraw/assets/fonts/Selawik-Bold.ttf");
+        include_bytes!("../../../apps/graphdraw/assets/fonts/Selawik-Bold.ttf");
 
     fn temp_dir(name: &str) -> PathBuf {
         let d =
-            std::env::temp_dir().join(format!("tracedraw-catalog-{name}-{}", std::process::id()));
+            std::env::temp_dir().join(format!("graphdraw-catalog-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&d);
         std::fs::create_dir_all(&d).expect("temp dir");
         d

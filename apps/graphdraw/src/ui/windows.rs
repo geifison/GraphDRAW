@@ -321,8 +321,8 @@ mod tests {
     fn tiled_windows_draw_every_drawing_and_switch() {
         let ctx = crate::theme::ui_context();
         let mut app = App::headless();
-        let first = app.new_shape(tracedraw_core::ShapeKind::Rect {
-            rect: tracedraw_core::Rect::new(0.0, 0.0, 10.0, 10.0),
+        let first = app.new_shape(graphdraw_core::ShapeKind::Rect {
+            rect: graphdraw_core::Rect::new(0.0, 0.0, 10.0, 10.0),
             radius: 0.0,
             corners: None,
         });
@@ -372,9 +372,9 @@ mod tests {
     fn the_view_stays_put_in_a_window_that_moves() {
         let mut app = App::headless();
         app.anchor_view(Pos2::new(100.0, 50.0));
-        let before = app.view.to_screen(tracedraw_core::Point::new(10.0, 10.0));
+        let before = app.view.to_screen(graphdraw_core::Point::new(10.0, 10.0));
         app.anchor_view(Pos2::new(400.0, 80.0));
-        let after = app.view.to_screen(tracedraw_core::Point::new(10.0, 10.0));
+        let after = app.view.to_screen(graphdraw_core::Point::new(10.0, 10.0));
         assert_eq!(after - before, Vec2::new(300.0, 30.0));
     }
 }

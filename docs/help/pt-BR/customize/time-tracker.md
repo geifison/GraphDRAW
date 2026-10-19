@@ -1,7 +1,7 @@
 # Controle de tempo
 
 O controle de tempo registra o tempo que você passa em um desenho, tarefa por
-tarefa, e guarda os registros no desenho (em arquivos `.tdraw`). O tempo só
+tarefa, e guarda os registros no desenho (em arquivos `.gdr`). O tempo só
 conta enquanto você trabalha: depois de alguns minutos parado o relógio espera,
 e a sua próxima ação o retoma.
 

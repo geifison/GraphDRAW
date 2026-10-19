@@ -1,5 +1,5 @@
 //! The Extrude tool and the settings its bar and the Extrude panel share
-//! (`Effect::Extrude`, built by `tracedraw_core::extrude`).
+//! (`Effect::Extrude`, built by `graphdraw_core::extrude`).
 //!
 //! A drag on an object extrudes it: a parallel body runs along the drag;
 //! the others run toward the point the drag ends on (their vanishing
@@ -14,7 +14,7 @@
 
 use crate::app::App;
 use serde::{Deserialize, Serialize};
-use tracedraw_core::{
+use graphdraw_core::{
     extrude::ExtrudeKind,
     extrude3d::{Light, Solid, MAX_EXTRA_LIGHTS},
     geometry::{Affine, Point, Vec2},
@@ -563,7 +563,7 @@ impl LinearPart for Affine {
 mod tests {
     use super::*;
     use crate::tools::Tool;
-    use tracedraw_core::{geometry::Rect, Fill};
+    use graphdraw_core::{geometry::Rect, Fill};
 
     fn square(app: &mut App) -> ShapeId {
         let id = app
@@ -644,7 +644,7 @@ mod tests {
         assert!((depth - Vec2::new(8.0, 4.0)).hypot() < 1e-9);
         // The body is drawn: two faces and the far face behind the object.
         let s = app.doc().find_shape(id).cloned().expect("square");
-        let ev = tracedraw_core::live::evaluate(&s);
+        let ev = graphdraw_core::live::evaluate(&s);
         assert_eq!(ev.below.iter().filter(|s| s.fill != Fill::None).count(), 3);
     }
 
@@ -687,7 +687,7 @@ mod tests {
         assert_eq!(light_angle, 45.0);
         // A front body draws over the object.
         let s = app.doc().find_shape(id).cloned().expect("square");
-        let ev = tracedraw_core::live::evaluate(&s);
+        let ev = graphdraw_core::live::evaluate(&s);
         assert!(ev.below.is_empty() && !ev.above.is_empty());
         app.clear_extrusion();
         assert!(extrusion(&app, id).is_none());

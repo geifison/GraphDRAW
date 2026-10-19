@@ -40,7 +40,7 @@ page origin, so they do not slide when the object moves.
   as vector paths.
 - PDF and EPS: rasterised at the export resolution (150 dpi in EPS),
   clipped to the object.
-- Native `.tdraw`: stored as is (`"pattern": "vector"`).
+- Native `.gdr`: stored as is (`"pattern": "vector"`).
 
 ## Checks
 

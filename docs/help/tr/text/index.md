@@ -1,6 +1,6 @@
 # Metin
 
-TraceDraw'da iki tür metin vardır. **Sanatsal metin** bir noktaya yerleştirilen
+GraphDraw'da iki tür metin vardır. **Sanatsal metin** bir noktaya yerleştirilen
 bir veya birkaç satırdır: başlıklar, etiketler, logolar. **Paragraf metni** bir
 çerçevenin içinde akar ve kenarlarında satır kaydırır: gövde metni, sütunlar,
 listeler. İkisi de karakter karakter biçimlendirilebilir, yollara

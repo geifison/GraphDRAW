@@ -1,7 +1,7 @@
 # Tijdregistratie
 
 De tijdregistratie legt de tijd vast die u aan een tekening besteedt, taak voor
-taak, en bewaart de gegevens in de tekening (in `.tdraw`-bestanden). Tijd telt
+taak, en bewaart de gegevens in de tekening (in `.gdr`-bestanden). Tijd telt
 alleen terwijl u werkt: na een paar minuten zonder activiteit wacht de klok, en
 uw volgende handeling start hem weer.
 

@@ -1,11 +1,11 @@
-# Opções do TraceDraw
+# Opções do GraphDraw
 
 [[menu.tools > menu.tools.options > menu.tools.options_app]] (<kbd>Ctrl+J</kbd>)
 define como o programa funciona. Escolha uma página na lista à esquerda.
 
 ## Geral {#general}
 
-![A página Geral das opções do TraceDraw](../../img/customize-options-app-general.png)
+![A página Geral das opções do GraphDraw](../../img/customize-options-app-general.png)
 
 - [[options.on_startup]]: mostrar a Tela de boas-vindas, começar um documento
   novo ou abrir o último documento editado.
@@ -16,7 +16,7 @@ define como o programa funciona. Escolha uma página na lista à esquerda.
 
 ## Exibição {#display}
 
-![A página Exibição das opções do TraceDraw](../../img/customize-options-app-display.png)
+![A página Exibição das opções do GraphDraw](../../img/customize-options-app-display.png)
 
 - [[menu.view.proof_colors]]: mostra as cores como serão impressas.
 - [[options.show_tooltips]] (ligado), [[options.hide_bbox_curve_tools]] e
@@ -31,7 +31,7 @@ define como o programa funciona. Escolha uma página na lista à esquerda.
 
 ## Edição {#edit}
 
-![A página Edição das opções do TraceDraw](../../img/customize-options-app-edit.png)
+![A página Edição das opções do GraphDraw](../../img/customize-options-app-edit.png)
 
 - [[options.constrain_angle]]: o passo do <kbd>Ctrl</kbd> ao girar e desenhar
   (15 graus de início).
@@ -42,7 +42,7 @@ define como o programa funciona. Escolha uma página na lista à esquerda.
 
 ## Nós e alças {#nodes-and-handles}
 
-![A página Nós e alças das opções do TraceDraw](../../img/customize-options-app-nodes-and-handles.png)
+![A página Nós e alças das opções do GraphDraw](../../img/customize-options-app-nodes-and-handles.png)
 
 - [[options.node_size]]: pequeno, médio ou grande.
 - [[options.node_shape]] para nós [[options.node_cusp]],
@@ -54,7 +54,7 @@ define como o programa funciona. Escolha uma página na lista à esquerda.
 
 ## Quadro de recorte {#clip-frame}
 
-![A página Quadro de recorte das opções do TraceDraw](../../img/customize-options-app-clip-frame.png)
+![A página Quadro de recorte das opções do GraphDraw](../../img/customize-options-app-clip-frame.png)
 
 - [[options.auto_center]]: [[options.auto_center_outside]] (de início),
   [[options.auto_center_always]] ou [[options.auto_center_never]].
@@ -64,7 +64,7 @@ Veja [Colocar objetos dentro de um quadro](../objects/clip-frames.md).
 
 ## Encaixe {#snapping}
 
-![A página Encaixe das opções do TraceDraw](../../img/customize-options-app-snapping.png)
+![A página Encaixe das opções do GraphDraw](../../img/customize-options-app-snapping.png)
 
 - [[options.snap_to_objects]], [[options.snap_to_page]],
   [[options.snap_to_guidelines]], [[options.snap_to_grid]], a grade de linha de
@@ -78,7 +78,7 @@ Veja [Encaixe](../pages-layout/snapping.md).
 
 ## Salvar {#save}
 
-![A página Salvar das opções do TraceDraw](../../img/customize-options-app-save.png)
+![A página Salvar das opções do GraphDraw](../../img/customize-options-app-save.png)
 
 - [[options.backup]]: [[options.backup_before_save]] (ligado) guarda o arquivo
   anterior como `backup_of_<name>`, [[options.backup_to]] a
@@ -90,7 +90,7 @@ Veja [Encaixe](../pages-layout/snapping.md).
 
 ## Texto {#text}
 
-![A página Texto das opções do TraceDraw](../../img/customize-options-app-text.png)
+![A página Texto das opções do GraphDraw](../../img/customize-options-app-text.png)
 
 - [[options.keyboard_text_increment]]: quanto <kbd>Ctrl+8</kbd> e
   <kbd>Ctrl+2</kbd> aumentam e diminuem o texto selecionado (1 ponto).

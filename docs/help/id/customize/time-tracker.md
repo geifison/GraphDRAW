@@ -1,7 +1,7 @@
 # Pelacak waktu
 
 Pelacak waktu mencatat waktu yang Anda habiskan untuk sebuah gambar, tugas demi
-tugas, dan menyimpan catatannya di dalam gambar (dalam berkas `.tdraw`). Waktu
+tugas, dan menyimpan catatannya di dalam gambar (dalam berkas `.gdr`). Waktu
 hanya dihitung selama Anda bekerja: setelah beberapa menit tanpa aktivitas,
 jam menunggu, dan tindakan Anda berikutnya menjalankannya lagi.
 

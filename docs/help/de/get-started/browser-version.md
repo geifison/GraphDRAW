@@ -1,6 +1,6 @@
 # Die Browserversion
 
-Sie können [TraceDraw in einem Webbrowser verwenden](https://igtoth.github.io/tracedraw/),
+Sie können [GraphDraw in einem Webbrowser verwenden](https://geifison.github.io/GraphDRAW/),
 ohne etwas zu installieren. Es ist dasselbe Programm wie die Desktopversion,
 für den Browser erstellt, sodass Menüs, Werkzeuge und Dateien dieselben sind.
 
@@ -26,7 +26,7 @@ dasselbe Programm wie die Desktopversion ist und was sich unterscheidet.
   Ihr Text sie zum ersten Mal benötigt.
 - **Einstellungen** werden in diesem Browser auf diesem Computer gespeichert.
 - **Tasten.** Solange die Zeichnung den Fokus hat, gehen die Tastenkürzel des
-  Programms an TraceDraw statt an den Browser, außer den Tasten für die
+  Programms an GraphDraw statt an den Browser, außer den Tasten für die
   Zwischenablage, Neu laden und den Entwicklertools des Browsers.
   <kbd>Ctrl+N</kbd>, <kbd>Ctrl+T</kbd> und <kbd>Ctrl+W</kbd> bleiben immer
   beim Browser; verwenden Sie daher das Menü [[menu.file]], um Zeichnungen zu

@@ -1,5 +1,5 @@
 [package]
-name = "tracedraw-vba-project"
+name = "graphdraw-vba-project"
 description = "Reads VBA macro projects (compound files and exported module files) and their forms"
 version.workspace = true
 edition.workspace = true

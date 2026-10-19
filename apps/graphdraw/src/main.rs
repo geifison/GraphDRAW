@@ -8,7 +8,7 @@
 // No console window in release builds on Windows.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-//! TraceDraw desktop app: a thin egui shell over the engine.
+//! GraphDraw desktop app: a thin egui shell over the engine.
 
 mod ai;
 mod ai_image;
@@ -152,30 +152,30 @@ mod workspace_file;
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> eframe::Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
-    tracedraw_text::install();
+    graphdraw_text::install();
     let args: Vec<String> = std::env::args().skip(1).collect();
-    // `tracedraw --mcp`: no window, a Model Context Protocol server on
+    // `graphdraw --mcp`: no window, a Model Context Protocol server on
     // stdin/stdout (see mcp.rs and docs/behavior/mcp.md).
     if args.iter().any(|a| a == "--mcp") {
         mcp::serve();
         return Ok(());
     }
-    // `tracedraw --mcp-window`: the same tools on the drawings of the open
+    // `graphdraw --mcp-window`: the same tools on the drawings of the open
     // window, which must let AI agents in (see mcp_link.rs).
     if args.iter().any(|a| a == "--mcp-window") {
         mcp_link::bridge();
         return Ok(());
     }
-    // `--no-splash` or TRACEDRAW_NO_SPLASH (automation, the visual
+    // `--no-splash` or GRAPHDRAW_NO_SPLASH (automation, the visual
     // checks): straight into a plain window at the default size.
     let plain = args.iter().any(|a| a == "--no-splash")
-        || std::env::var("TRACEDRAW_NO_SPLASH").is_ok_and(|v| !v.is_empty() && v != "0");
+        || std::env::var("GRAPHDRAW_NO_SPLASH").is_ok_and(|v| !v.is_empty() && v != "0");
     let open_path = args
         .iter()
         .find(|a| !a.starts_with("--"))
         .map(std::path::PathBuf::from);
     let mut settings = settings::Settings::load();
-    // `--reset-settings`: every preference back to how TraceDraw comes
+    // `--reset-settings`: every preference back to how GraphDraw comes
     // (the recent drawings and the window's size are kept).
     if args.iter().any(|a| a == "--reset-settings") {
         settings = settings.reset_keeping_history();
@@ -196,13 +196,13 @@ fn main() -> eframe::Result<()> {
             .with_inner_size(splash::SIZE)
             .with_decorations(false)
             .with_resizable(true)
-            .with_title("TraceDraw")
+            .with_title("GraphDraw")
     } else {
         egui::ViewportBuilder::default()
             .with_inner_size(splash::main_window_size(settings.window_size, None))
             .with_min_inner_size(splash::MIN_SIZE)
             .with_maximized(settings.window_maximized && !plain)
-            .with_title("TraceDraw")
+            .with_title("GraphDraw")
     };
     let options = eframe::NativeOptions {
         viewport,
@@ -210,7 +210,7 @@ fn main() -> eframe::Result<()> {
         ..Default::default()
     };
     eframe::run_native(
-        "TraceDraw",
+        "GraphDraw",
         options,
         Box::new(move |cc| {
             Ok(Box::new(if splash {
@@ -231,7 +231,7 @@ fn main() {
 
 struct Shell {
     app: Option<app::App>,
-    /// The splash screen while TraceDraw starts (see splash.rs).
+    /// The splash screen while GraphDraw starts (see splash.rs).
     #[cfg(not(target_arch = "wasm32"))]
     splash: Option<splash::Splash>,
     /// The file to open once the splash is done.
@@ -274,7 +274,7 @@ impl eframe::App for Shell {
             self.splash = None;
             let mut app = app::App::new(ui.ctx(), self.open.take());
             splash::open_main_window(ui.ctx(), &app.settings);
-            // F8 held while TraceDraw started: ask before resetting.
+            // F8 held while GraphDraw started: ask before resetting.
             if reset {
                 app.dialog = ui::dialogs::Dialog::ConfirmResetSettings;
             }

@@ -18,7 +18,7 @@ pub mod util;
 
 use image::RgbaImage;
 use std::collections::BTreeMap;
-use tracedraw_core::{BitmapEffect, BitmapFxStack};
+use graphdraw_core::{BitmapEffect, BitmapFxStack};
 
 /// What kind of control a setting has.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -329,7 +329,7 @@ pub fn reach(e: &BitmapEffect, w: u32, h: u32) -> u32 {
 pub fn render_stack(
     stack: &BitmapFxStack,
     inflate: bool,
-) -> Option<(RgbaImage, tracedraw_core::Rect)> {
+) -> Option<(RgbaImage, graphdraw_core::Rect)> {
     let mut img = crate::bitmap_fx::decode(&stack.png)?;
     let (w, h) = img.dimensions();
     let pad: u32 = if inflate {
@@ -348,7 +348,7 @@ pub fn render_stack(
         img = crate::bitmap_fx::inflate(&img, pad);
         let mx = stack.rect.width() / w.max(1) as f64 * pad as f64;
         let my = stack.rect.height() / h.max(1) as f64 * pad as f64;
-        rect = tracedraw_core::Rect::new(rect.x0 - mx, rect.y0 - my, rect.x1 + mx, rect.y1 + my);
+        rect = graphdraw_core::Rect::new(rect.x0 - mx, rect.y0 - my, rect.x1 + mx, rect.y1 + my);
     }
     for e in stack.effects.iter().filter(|e| e.visible) {
         img = apply_effect(&img, e);
@@ -367,12 +367,12 @@ const VECTOR_FX_MAX_PIXELS: f64 = 4_000_000.0;
 /// spreads past its edges. The PNG, its size in pixels and its place in
 /// the object's own space.
 pub fn vector_base(
-    shape: &tracedraw_core::Shape,
-    symbols: &[tracedraw_core::Symbol],
+    shape: &graphdraw_core::Shape,
+    symbols: &[graphdraw_core::Symbol],
     dpi: f64,
-) -> Option<(Vec<u8>, u32, u32, tracedraw_core::Rect)> {
-    use tracedraw_core::geometry::{Affine, Rect, Size};
-    let (sx, sy) = tracedraw_core::document::transform_scale(shape.transform);
+) -> Option<(Vec<u8>, u32, u32, graphdraw_core::Rect)> {
+    use graphdraw_core::geometry::{Affine, Rect, Size};
+    let (sx, sy) = graphdraw_core::document::transform_scale(shape.transform);
     if !(sx > 1e-9 && sy > 1e-9 && sx.is_finite() && sy.is_finite()) {
         return None;
     }
@@ -393,26 +393,26 @@ pub fn vector_base(
     }
     let w = (b.width() * zoom).ceil().max(1.0) as u32;
     let h = (b.height() * zoom).ceil().max(1.0) as u32;
-    let mut tmp = tracedraw_core::Document::new("fx", Size::new(b.width(), b.height()));
+    let mut tmp = graphdraw_core::Document::new("fx", Size::new(b.width(), b.height()));
     tmp.symbols = symbols.to_vec();
     c.transform = Affine::translate((-b.x0, -b.y0)) * c.transform;
     let page = tmp.pages[0].id;
     let layer = tmp.pages[0].layers[0].id;
     tmp.layer_mut(layer).ok()?.shapes.push(c);
-    let pm = tracedraw_render::render_page(
+    let pm = graphdraw_render::render_page(
         &tmp,
         page,
-        &tracedraw_render::RenderOptions {
+        &graphdraw_render::RenderOptions {
             width: w,
             height: h,
-            view: tracedraw_render::ViewTransform {
+            view: graphdraw_render::ViewTransform {
                 zoom,
                 origin_x: 0.0,
                 origin_y: h as f64,
             },
             preview: None,
             wireframe: false,
-            ..tracedraw_render::RenderOptions::default()
+            ..graphdraw_render::RenderOptions::default()
         },
     )?;
     let png = pm.encode_png().ok()?;
@@ -423,16 +423,16 @@ pub fn vector_base(
 /// Bitmap effects on a vector object with their picture made, or `None`
 /// when the object cannot be drawn.
 pub fn vector_raster_fx(
-    shape: &tracedraw_core::Shape,
-    symbols: &[tracedraw_core::Symbol],
+    shape: &graphdraw_core::Shape,
+    symbols: &[graphdraw_core::Symbol],
     effects: Vec<BitmapEffect>,
     auto_inflate: bool,
-) -> Option<Box<tracedraw_core::document::RasterFx>> {
-    use tracedraw_core::document::RasterFx;
+) -> Option<Box<graphdraw_core::document::RasterFx>> {
+    use graphdraw_core::document::RasterFx;
     let mut target = shape.clone();
     target.raster_fx = Some(Box::new(RasterFx {
         effects: effects.clone(),
-        rect: tracedraw_core::Rect::ZERO,
+        rect: graphdraw_core::Rect::ZERO,
         width_px: 0,
         height_px: 0,
         png: Vec::new(),
@@ -461,8 +461,8 @@ pub fn vector_raster_fx(
 
 /// Shapes may hold bitmap effects: everything but bitmaps (their own
 /// effects), text being edited aside, and hidden helpers.
-fn takes_vector_fx(kind: &tracedraw_core::document::ShapeKind) -> bool {
-    !matches!(kind, tracedraw_core::document::ShapeKind::Bitmap { .. })
+fn takes_vector_fx(kind: &graphdraw_core::document::ShapeKind) -> bool {
+    !matches!(kind, graphdraw_core::document::ShapeKind::Bitmap { .. })
 }
 
 impl crate::app::App {
@@ -470,10 +470,10 @@ impl crate::app::App {
     /// kept aside), or a vector object's (drawn as their picture).
     pub fn bitmap_fx_command(
         &self,
-        id: tracedraw_core::ShapeId,
+        id: graphdraw_core::ShapeId,
         f: impl FnOnce(&mut Vec<BitmapEffect>),
-    ) -> Option<tracedraw_core::Command> {
-        use tracedraw_core::document::ShapeKind;
+    ) -> Option<graphdraw_core::Command> {
+        use graphdraw_core::document::ShapeKind;
         let s = self.doc().find_shape(id)?;
         if takes_vector_fx(&s.kind) {
             let mut effects = s
@@ -492,7 +492,7 @@ impl crate::app::App {
                     self.doc().metadata.auto_inflate_bitmaps(),
                 )?)
             };
-            return Some(tracedraw_core::Command::SetRasterFx { shape: id, fx });
+            return Some(graphdraw_core::Command::SetRasterFx { shape: id, fx });
         }
         let ShapeKind::Bitmap {
             rect,
@@ -534,7 +534,7 @@ impl crate::app::App {
                 fx: Some(Box::new(stack)),
             }
         };
-        Some(tracedraw_core::Command::SetShapeKind { shape: id, kind })
+        Some(graphdraw_core::Command::SetShapeKind { shape: id, kind })
     }
 
     /// Add an effect to every selected bitmap, in one undo step.
@@ -556,7 +556,7 @@ impl crate::app::App {
     /// Change the effect list of one bitmap, in one undo step.
     pub fn edit_bitmap_effects(
         &mut self,
-        id: tracedraw_core::ShapeId,
+        id: graphdraw_core::ShapeId,
         label: &'static str,
         f: impl FnOnce(&mut Vec<BitmapEffect>),
     ) {
@@ -574,12 +574,12 @@ impl crate::app::App {
         let mut metadata = self.doc().metadata.clone();
         metadata.no_auto_inflate = !on;
         if metadata != self.doc().metadata {
-            self.run(tracedraw_core::Command::SetMetadata { metadata });
+            self.run(graphdraw_core::Command::SetMetadata { metadata });
         }
     }
 
     /// The effects of a bitmap.
-    pub fn bitmap_effects(&self, id: tracedraw_core::ShapeId) -> Vec<BitmapEffect> {
+    pub fn bitmap_effects(&self, id: graphdraw_core::ShapeId) -> Vec<BitmapEffect> {
         self.bitmap_fx_stack(id)
             .map(|s| s.effects)
             .unwrap_or_default()
@@ -588,8 +588,8 @@ impl crate::app::App {
     /// A bitmap's original pixels and effects, when it has effects; for a
     /// vector object with bitmap effects, its picture without them (made
     /// once per state of the object) and the effects.
-    pub fn bitmap_fx_stack(&self, id: tracedraw_core::ShapeId) -> Option<BitmapFxStack> {
-        use tracedraw_core::document::ShapeKind;
+    pub fn bitmap_fx_stack(&self, id: graphdraw_core::ShapeId) -> Option<BitmapFxStack> {
+        use graphdraw_core::document::ShapeKind;
         let s = self.doc().find_shape(id)?;
         match &s.kind {
             ShapeKind::Bitmap { fx: Some(st), .. } => Some((**st).clone()),
@@ -612,8 +612,8 @@ impl crate::app::App {
     /// it changes (the effect dialogs ask every frame).
     pub fn vector_base_cached(
         &self,
-        s: &tracedraw_core::Shape,
-    ) -> Option<(Vec<u8>, u32, u32, tracedraw_core::Rect)> {
+        s: &graphdraw_core::Shape,
+    ) -> Option<(Vec<u8>, u32, u32, graphdraw_core::Rect)> {
         let key = (s.id, s.raster_source());
         if let Some((k, v)) = self.vector_fx_base.borrow().as_ref() {
             if *k == key {
@@ -629,13 +629,13 @@ impl crate::app::App {
     /// were made from an earlier state of it (moved nodes, a new colour,
     /// a scale), as part of the step that changed it.
     pub fn sync_raster_fx(&mut self) {
-        fn walk(s: &tracedraw_core::Shape, out: &mut Vec<tracedraw_core::Shape>) {
+        fn walk(s: &graphdraw_core::Shape, out: &mut Vec<graphdraw_core::Shape>) {
             if let Some(fx) = &s.raster_fx {
                 if fx.source != s.raster_source() {
                     out.push(s.clone());
                 }
             }
-            if let tracedraw_core::document::ShapeKind::Group { children } = &s.kind {
+            if let graphdraw_core::document::ShapeKind::Group { children } = &s.kind {
                 for c in children {
                     walk(c, out);
                 }
@@ -658,7 +658,7 @@ impl crate::app::App {
                 fx.effects.clone(),
                 self.doc().metadata.auto_inflate_bitmaps(),
             );
-            let cmd = tracedraw_core::Command::SetRasterFx {
+            let cmd = graphdraw_core::Command::SetRasterFx {
                 shape: s.id,
                 fx: made.or_else(|| {
                     // Not drawable now: keep the effects, mark as made.
@@ -1005,7 +1005,7 @@ mod tests {
         let mut blur = new_effect("gaussian_blur");
         blur.params.insert("radius".into(), 3.0);
         let stack = BitmapFxStack {
-            rect: tracedraw_core::Rect::new(0.0, 0.0, 24.0, 20.0),
+            rect: graphdraw_core::Rect::new(0.0, 0.0, 24.0, 20.0),
             width_px: 24,
             height_px: 20,
             png,
@@ -1024,13 +1024,13 @@ mod tests {
 
     #[test]
     fn effects_are_added_edited_and_removed_in_single_steps() {
-        use tracedraw_core::document::ShapeKind;
+        use graphdraw_core::document::ShapeKind;
         let mut app = crate::app::App::headless();
         let src = img();
         let png = crate::bitmap_fx::encode(&src).expect("png");
         let id = app
             .new_shape(ShapeKind::Bitmap {
-                rect: tracedraw_core::Rect::new(0.0, 0.0, 24.0, 20.0),
+                rect: graphdraw_core::Rect::new(0.0, 0.0, 24.0, 20.0),
                 width_px: 24,
                 height_px: 20,
                 png: png.clone(),
@@ -1063,12 +1063,12 @@ mod tests {
 
     #[test]
     fn auto_inflate_is_a_document_switch() {
-        use tracedraw_core::document::ShapeKind;
+        use graphdraw_core::document::ShapeKind;
         let mut app = crate::app::App::headless();
         let png = crate::bitmap_fx::encode(&img()).expect("png");
         let id = app
             .new_shape(ShapeKind::Bitmap {
-                rect: tracedraw_core::Rect::new(0.0, 0.0, 24.0, 20.0),
+                rect: graphdraw_core::Rect::new(0.0, 0.0, 24.0, 20.0),
                 width_px: 24,
                 height_px: 20,
                 png,
@@ -1100,8 +1100,8 @@ mod tests {
         assert!(!app.doc().metadata.auto_inflate_bitmaps());
     }
 
-    fn red_rect_app() -> (crate::app::App, tracedraw_core::ShapeId) {
-        use tracedraw_core::{document::ShapeKind, geometry::Rect, Color, Command, Fill};
+    fn red_rect_app() -> (crate::app::App, graphdraw_core::ShapeId) {
+        use graphdraw_core::{document::ShapeKind, geometry::Rect, Color, Command, Fill};
         let mut app = crate::app::App::headless();
         let id = app
             .new_shape(ShapeKind::Rect {
@@ -1121,7 +1121,7 @@ mod tests {
     fn pixel_at(app: &crate::app::App, x_mm: f64, y_mm: f64) -> [u8; 4] {
         let doc = app.doc();
         let pid = doc.pages[0].id;
-        let pm = tracedraw_render::render_page_image(doc, pid, 25.4).expect("render");
+        let pm = graphdraw_render::render_page_image(doc, pid, 25.4).expect("render");
         let h = pm.height() as f64;
         let px = pm
             .pixel(x_mm as u32, (h - y_mm) as u32)
@@ -1139,7 +1139,7 @@ mod tests {
         // Still a rectangle, drawn as its inverted picture.
         assert!(matches!(
             s.kind,
-            tracedraw_core::document::ShapeKind::Rect { .. }
+            graphdraw_core::document::ShapeKind::Rect { .. }
         ));
         let fx = s.raster_fx.clone().expect("effects");
         assert_eq!(fx.effects.len(), 1);
@@ -1165,7 +1165,7 @@ mod tests {
 
     #[test]
     fn the_picture_follows_the_object_and_flattens_to_a_bitmap() {
-        use tracedraw_core::{geometry::Affine, Color, Command, Fill};
+        use graphdraw_core::{geometry::Affine, Color, Command, Fill};
         let (mut app, id) = red_rect_app();
         app.add_bitmap_effect(new_effect("invert_colors"));
         let made = app.doc().find_shape(id).unwrap().raster_fx.clone().unwrap();
@@ -1205,13 +1205,13 @@ mod tests {
         let s = app.doc().find_shape(id).unwrap().clone();
         assert!(matches!(
             s.kind,
-            tracedraw_core::document::ShapeKind::Bitmap { .. }
+            graphdraw_core::document::ShapeKind::Bitmap { .. }
         ));
         assert!(s.raster_fx.is_none());
         let p = pixel_at(&app, 90.0, 80.0);
         assert!(p[0] > 200 && p[1] > 200 && p[2] < 60, "{p:?}");
         // Exports draw the picture too.
-        let svg = tracedraw_io::svg::page_to_svg(app.doc(), 0);
+        let svg = graphdraw_io::svg::page_to_svg(app.doc(), 0);
         assert!(svg.contains("<image"));
     }
 }

@@ -6,7 +6,7 @@ use crate::defaults::{kind_key, DefaultChange};
 use crate::i18n::tr;
 use crate::ui::dialogs::{ok_cancel, window};
 use egui::Context;
-use tracedraw_core::DefaultKind;
+use graphdraw_core::DefaultKind;
 
 /// The dialog's state: the change and the kinds ticked.
 #[derive(Debug, Clone, PartialEq)]
@@ -42,7 +42,7 @@ pub fn dialog(app: &mut App, ctx: &Context, st: &mut State, close: &mut bool) {
 mod tests {
     use super::*;
     use egui::{vec2, Pos2, Rect};
-    use tracedraw_core::style::Fill;
+    use graphdraw_core::style::Fill;
 
     #[test]
     fn the_question_draws_and_keeps_the_choice() {

@@ -29,7 +29,7 @@ che lo usano mantengono il suo colore sostitutivo.
 Un file di tavolozza può essere una cartella di inchiostri spot (ad esempio
 una tavolozza `.ase` con voci spot). Le sue voci spot si aprono come colori
 spot, con i nomi della cartella; applicarne una aggiunge l'inchiostro al
-disegno. TraceDraw non include cartelle colori con licenza, ma una che
+disegno. GraphDraw non include cartelle colori con licenza, ma una che
 possiedi si apre come qualsiasi tavolozza.
 
 ## Colori spot in stampa e nelle esportazioni {#output}

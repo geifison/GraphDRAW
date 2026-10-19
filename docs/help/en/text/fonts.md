@@ -1,6 +1,6 @@
 # Fonts and glyphs
 
-TraceDraw uses the fonts installed on your computer, fonts you add in the
+GraphDraw uses the fonts installed on your computer, fonts you add in the
 Font Manager, and fonts that come with a drawing. This page explains the
 panels and the dialog box for working with fonts and special characters.
 
@@ -22,7 +22,7 @@ The [[docker.fonts]] panel lists the font families.
 
 When a drawing uses fonts that are not installed, a message names them after
 it opens (see [Notes after opening](../get-started/open-and-save.md#open-notes)).
-Install the fonts and the text shows in them again. Drawings saved as `.tdraw`,
+Install the fonts and the text shows in them again. Drawings saved as `.gdr`,
 and `.cdr` files with embedded fonts, can carry their fonts along.
 
 ## The Font Sampler {#font-sampler}
@@ -83,7 +83,7 @@ To use the Font Manager:
 
 - **Add folder** scans a folder for font files (TTF, OTF, TTC, OTC); its fonts
   show as not installed. **Add font** installs one file at once.
-- **Install** makes the picked fonts available in TraceDraw, now and at every
+- **Install** makes the picked fonts available in GraphDraw, now and at every
   start. **Uninstall** removes them; the system's own fonts are protected.
 - **Add to collection** and **Remove from collection** organize fonts; drag
   fonts onto Favorites or a collection to add them.

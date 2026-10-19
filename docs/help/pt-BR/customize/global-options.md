@@ -66,6 +66,6 @@ voltar a vê-la.
 ![A página Locais de arquivos das opções globais](../../img/customize-global-options-file-locations.png)
 
 Mostra onde ficam as preferências e as cópias de segurança automáticas. As
-preferências ficam em uma pasta `tracedraw-settings` ao lado do programa quando
+preferências ficam em uma pasta `graphdraw-settings` ao lado do programa quando
 ela existe (uma cópia portátil), senão no lugar do sistema para configurações de
 programas; a versão para navegador as guarda no navegador.

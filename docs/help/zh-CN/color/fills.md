@@ -1,6 +1,6 @@
 # 填充
 
-填充为闭合对象的内部着色。TraceDraw 有六种填充：[[docker.fill_none]]、[[docker.fill_uniform]]（一种纯色）、[[docker.fill_fountain]]（相互过渡的多种颜色）、[[docker.fill_pattern]]、[[docker.fill_texture]] 和 [[docker.fill_mesh]]（在网格节点之间流动的颜色）。
+填充为闭合对象的内部着色。GraphDraw 有六种填充：[[docker.fill_none]]、[[docker.fill_uniform]]（一种纯色）、[[docker.fill_fountain]]（相互过渡的多种颜色）、[[docker.fill_pattern]]、[[docker.fill_texture]] 和 [[docker.fill_mesh]]（在网格节点之间流动的颜色）。
 
 ## 填充对象的方法 {#ways}
 

@@ -9,7 +9,7 @@
 
 use crate::app::{App, EffectKind};
 use crate::i18n::tr;
-use tracedraw_core::{
+use graphdraw_core::{
     document::{Shape, ShapeKind},
     live::Effect,
     Command, ShapeId,
@@ -192,7 +192,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::geometry::Rect;
+    use graphdraw_core::geometry::Rect;
 
     fn rect(app: &mut App, x: f64) -> ShapeId {
         app.new_shape(ShapeKind::Rect {

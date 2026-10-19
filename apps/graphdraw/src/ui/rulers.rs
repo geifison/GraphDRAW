@@ -11,7 +11,7 @@
 use crate::app::{App, Drag};
 use crate::theme::Tokens;
 use egui::{epaint, Color32, FontId, Painter, Pos2, Rect, Sense, Stroke, Ui};
-use tracedraw_core::geometry::Point;
+use graphdraw_core::geometry::Point;
 
 /// Smallest distance between numbered marks, screen pixels.
 const MIN_MAJOR_PX: f64 = 44.0;

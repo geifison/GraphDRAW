@@ -1,6 +1,6 @@
 # Dostosowywanie i automatyzacja
 
-TraceDraw można ustawić pod swój sposób pracy: opcje programu i każdego
+GraphDraw można ustawić pod swój sposób pracy: opcje programu i każdego
 narzędzia, wygląd interfejsu, skróty klawiszowe, paski i obszary robocze.
 Można też automatyzować pracę skryptami, podłączyć usługę AI, która rysuje na
 podstawie opisu, i śledzić czas poświęcony na rysunek.

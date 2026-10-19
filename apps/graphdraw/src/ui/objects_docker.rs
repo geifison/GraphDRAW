@@ -17,7 +17,7 @@ use crate::i18n::{tr, trf};
 use crate::theme::Tokens;
 use crate::ui::dockers::kind_name;
 use egui::{Color32, Painter, Pos2, Rect, Sense, Stroke, Ui, Vec2};
-use tracedraw_core::{Command, Layer, LayerId, MasterScope, Page, Shape, ShapeId, ShapeKind};
+use graphdraw_core::{Command, Layer, LayerId, MasterScope, Page, Shape, ShapeId, ShapeKind};
 
 /// Height of a row.
 const ROW_H: f32 = 22.0;
@@ -1000,7 +1000,7 @@ mod tests {
 
     fn rect_kind() -> ShapeKind {
         ShapeKind::Rect {
-            rect: tracedraw_core::Rect::new(0.0, 0.0, 10.0, 10.0),
+            rect: graphdraw_core::Rect::new(0.0, 0.0, 10.0, 10.0),
             radius: 0.0,
             corners: None,
         }
@@ -1106,7 +1106,7 @@ mod tests {
         assert_eq!(app.doc().master[0].shapes.len(), 1);
         app.select(Vec::new());
         // On its outline (new rectangles have no fill).
-        let inside = tracedraw_core::Point::new(0.0, 5.0);
+        let inside = graphdraw_core::Point::new(0.0, 5.0);
         assert_eq!(app.hit_test(inside), Some(id));
         app.select_all();
         assert_eq!(app.selection, vec![id]);

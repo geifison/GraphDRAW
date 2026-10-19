@@ -7,7 +7,7 @@ use crate::tools::Tool;
 use crate::view::View;
 use egui::Pos2;
 use std::path::PathBuf;
-use tracedraw_core::{
+use graphdraw_core::{
     document::{paper, Shape, ShapeKind, TextSpan},
     geometry::{Affine, Point, Rect, Size, Vec2},
     Color, Command, Engine, Fill, LayerId, PageId, ShapeId, Stroke,
@@ -398,7 +398,7 @@ pub enum Drag {
         /// The pointer's offset from that point when the handle was
         /// grabbed: handles stand outside the box, so the box follows the
         /// pointer without a jump.
-        grab: tracedraw_core::geometry::Vec2,
+        grab: graphdraw_core::geometry::Vec2,
         mods: HandleMods,
     },
     /// Skewing the selection with a side handle in rotate mode: the
@@ -443,7 +443,7 @@ pub enum Drag {
     Handle {
         shape: ShapeId,
         index: usize,
-        which: tracedraw_core::nodes::Which,
+        which: graphdraw_core::nodes::Which,
     },
     /// Dragging a node of a rectangle, ellipse or polygon (Shape tool):
     /// the object as it was when the drag began; `single` changes one
@@ -451,7 +451,7 @@ pub enum Drag {
     KindNode {
         shape: ShapeId,
         node: crate::kind_nodes::KindNode,
-        start: Box<tracedraw_core::Shape>,
+        start: Box<graphdraw_core::Shape>,
         single: bool,
         begun: bool,
         /// Degrees an ellipse's node has turned through.
@@ -471,7 +471,7 @@ pub enum Drag {
     /// (page); `begun` once the first step is recorded.
     SegmentBend {
         shape: ShapeId,
-        path: tracedraw_core::BezPath,
+        path: graphdraw_core::BezPath,
         closed: bool,
         index: usize,
         t: f64,
@@ -489,7 +489,7 @@ pub enum Drag {
     /// Moving chosen characters of a text (Shape tool): the text as it
     /// was, the characters, where the drag began.
     TextChars {
-        start: Box<tracedraw_core::Shape>,
+        start: Box<graphdraw_core::Shape>,
         chars: Vec<usize>,
         from: Point,
         begun: bool,
@@ -497,7 +497,7 @@ pub enum Drag {
     /// Dragging a text's spacing arrow (Shape tool): horizontal for
     /// character (or, with `word`, word) spacing, else line spacing.
     TextSpacing {
-        start: Box<tracedraw_core::Shape>,
+        start: Box<graphdraw_core::Shape>,
         horizontal: bool,
         word: bool,
         from: Point,
@@ -564,14 +564,14 @@ pub enum Drag {
     MoveGuide {
         index: usize,
         press: Point,
-        start: tracedraw_core::document::Guide,
-        guide: tracedraw_core::document::Guide,
+        start: graphdraw_core::document::Guide,
+        guide: graphdraw_core::document::Guide,
     },
     /// Turning a guideline about its pivot with a rotation handle.
     RotateGuide {
         index: usize,
         pivot: Point,
-        guide: tracedraw_core::document::Guide,
+        guide: graphdraw_core::document::Guide,
     },
     /// Dragging the ruler origin out of the corner between the rulers.
     RulerOrigin {
@@ -648,15 +648,15 @@ impl CurveInProgress {
     }
 
     /// Path through the nodes, optionally extended to a preview point.
-    pub fn path(&self, preview: Option<Point>) -> tracedraw_core::BezPath {
+    pub fn path(&self, preview: Option<Point>) -> graphdraw_core::BezPath {
         self.path_closed(preview, false)
     }
 
     /// [`Self::path`], closed onto the first node when `closed`.
-    pub fn path_closed(&self, preview: Option<Point>, closed: bool) -> tracedraw_core::BezPath {
+    pub fn path_closed(&self, preview: Option<Point>, closed: bool) -> graphdraw_core::BezPath {
         if closed && self.bspline {
             let pts: Vec<Point> = self.nodes.iter().map(|n| n.0).collect();
-            return tracedraw_core::geometry::bspline_path(&pts, true);
+            return graphdraw_core::geometry::bspline_path(&pts, true);
         }
         let mut path = self.open_path(preview);
         if closed {
@@ -676,15 +676,15 @@ impl CurveInProgress {
         path
     }
 
-    fn open_path(&self, preview: Option<Point>) -> tracedraw_core::BezPath {
-        let mut path = tracedraw_core::BezPath::new();
+    fn open_path(&self, preview: Option<Point>) -> graphdraw_core::BezPath {
+        let mut path = graphdraw_core::BezPath::new();
         let mut nodes: Vec<(Point, Option<Point>)> = self.nodes.clone();
         if let Some(p) = preview {
             nodes.push((p, None));
         }
         if self.bspline {
             let pts: Vec<Point> = nodes.iter().map(|n| n.0).collect();
-            return tracedraw_core::geometry::bspline_path(&pts, false);
+            return graphdraw_core::geometry::bspline_path(&pts, false);
         }
         for (i, (p, _)) in nodes.iter().enumerate() {
             if i == 0 {
@@ -714,7 +714,7 @@ pub struct Clipboard {
     pub shapes: Vec<Shape>,
     /// The object styles of the drawing copied from, so that pasted
     /// objects keep their links only to the same styles.
-    pub styles: Vec<tracedraw_core::ObjectStyle>,
+    pub styles: Vec<graphdraw_core::ObjectStyle>,
 }
 
 /// Centres of rotation the user moved. One object's is kept in the
@@ -767,7 +767,7 @@ pub struct App {
     /// id and state (see `App::vector_base_cached`).
     #[allow(clippy::type_complexity)]
     pub vector_fx_base:
-        std::cell::RefCell<Option<((ShapeId, u64), (Vec<u8>, u32, u32, tracedraw_core::Rect))>>,
+        std::cell::RefCell<Option<((ShapeId, u64), (Vec<u8>, u32, u32, graphdraw_core::Rect))>>,
     /// File > GitHub's session: the token, the request out, the history.
     pub github: crate::github::GithubSession,
     /// The `.cdr` version the active drawing is saved in: the version of
@@ -775,13 +775,13 @@ pub struct App {
     /// it. `None`: the version of Options > Global > File Formats.
     pub cdr_version: Option<u16>,
     /// The `.cdr` version the active drawing was opened from, when it is
-    /// one TraceDraw does not save in (older than the checked versions):
+    /// one GraphDraw does not save in (older than the checked versions):
     /// Save asks for a version first.
     pub cdr_unsaved_version: Option<u16>,
-    /// The `.tdraw` format version the active drawing is saved in: the
+    /// The `.gdr` format version the active drawing is saved in: the
     /// version of the file it came from, or the one chosen in Save As.
     /// `None`: the current one.
-    pub tdraw_version: Option<u32>,
+    pub gdr_version: Option<u32>,
     /// Save As's choice: the CMYK profile goes into `.cdr` files.
     pub cdr_embed_profile: bool,
     /// Save As's choice: the fonts the text uses go into `.cdr` files
@@ -810,13 +810,13 @@ pub struct App {
     pub complex_points: u32,
     pub complex_sharpness: u32,
     /// Corners of new rectangles (style, sizes, relative scaling).
-    pub rect_corners: tracedraw_core::Corners,
+    pub rect_corners: graphdraw_core::Corners,
     /// The property bar's lock: one corner size edits them all.
     pub corners_together: bool,
     /// The Shape tool's chosen rectangle corner: dragging it changes that
     /// corner only.
-    pub rect_corner_selected: Option<(tracedraw_core::ShapeId, usize)>,
-    pub ellipse_arc: Option<tracedraw_core::EllipseArc>,
+    pub rect_corner_selected: Option<(graphdraw_core::ShapeId, usize)>,
+    pub ellipse_arc: Option<graphdraw_core::EllipseArc>,
     /// The Contour tool's and panel's values and the tool's drag.
     pub contour: crate::contour_tool::ContourSettings,
     pub contour_drag: Option<crate::contour_tool::ContourDrag>,
@@ -844,7 +844,7 @@ pub struct App {
     pub dimension_points: Vec<Point>,
     pub blend_steps: u32,
     /// The Blend docker's options for the next blend (and the shown one).
-    pub blend_options: tracedraw_core::live::BlendOptions,
+    pub blend_options: graphdraw_core::live::BlendOptions,
     /// The Blend docker's step mode: a fixed distance between steps along
     /// a path instead of a step count.
     pub blend_spacing_mm: f64,
@@ -863,13 +863,13 @@ pub struct App {
     /// Eraser nib: thickness in mm and shape.
     pub eraser_width: f64,
     pub eraser_square: bool,
-    pub shadow_default: tracedraw_core::Shadow,
+    pub shadow_default: graphdraw_core::Shadow,
     pub text_font: String,
     pub text_size_pt: f64,
     pub text_bold: bool,
     pub text_italic: bool,
     pub text_underline: bool,
-    pub text_align: tracedraw_core::TextAlign,
+    pub text_align: graphdraw_core::TextAlign,
     pub eyedropper_color: Option<Color>,
     pub eyedropper_attrs: Option<crate::eyedropper::SampledAttrs>,
     pub eyedropper_groups: crate::eyedropper::AttrGroups,
@@ -916,7 +916,7 @@ pub struct App {
     pub font_catalog: crate::ui::font_manager::Catalog,
     /// The font lists' pictures of family names in their own fonts.
     pub font_previews: crate::ui::font_list::FontPreviews,
-    /// `tracedraw_text::fonts().generation()` when `font_families` was
+    /// `graphdraw_text::fonts().generation()` when `font_families` was
     /// taken (see `App::sync_fonts`).
     pub font_generation: u64,
     /// The carried CMYK profile the colour engine was installed with
@@ -936,7 +936,7 @@ pub struct App {
     /// The Join Curves docker's joint, gap tolerance and radius.
     pub join_settings: crate::corners::JoinSettings,
     /// Outlines a docker previews on the canvas this frame (page space).
-    pub docker_preview: Vec<tracedraw_core::geometry::BezPath>,
+    pub docker_preview: Vec<graphdraw_core::geometry::BezPath>,
     /// A point a docker marks on the drawing (the Coordinates docker's
     /// origin point), page space.
     pub docker_preview_point: Option<Point>,
@@ -1060,7 +1060,7 @@ pub struct App {
     pub tracker: crate::time_tracker::Clock,
     pub drop_menu: Option<crate::drop_menu::DropMenu>,
     /// Objects docker: layers shown closed, groups shown open.
-    pub objects_collapsed: std::collections::HashSet<tracedraw_core::LayerId>,
+    pub objects_collapsed: std::collections::HashSet<graphdraw_core::LayerId>,
     pub objects_open_groups: std::collections::HashSet<ShapeId>,
     /// Objects docker: the page and the Master Page nodes are shown
     /// closed.
@@ -1127,9 +1127,9 @@ pub struct App {
     pub distribute_to: crate::ops::DistributeTo,
     pub lens: crate::lens::LensSettings,
     /// How dragging an envelope node reshapes its sides.
-    pub envelope_mode: tracedraw_core::envelope::Mode,
+    pub envelope_mode: graphdraw_core::envelope::Mode,
     /// The mapping new envelopes take.
-    pub envelope_mapping: tracedraw_core::envelope::Mapping,
+    pub envelope_mapping: graphdraw_core::envelope::Mapping,
     /// An envelope node or handle being dragged.
     pub envelope_drag: Option<crate::envelope_edit::EnvelopeDrag>,
     pub bevel: crate::effects_ui::BevelSettings,
@@ -1630,7 +1630,7 @@ impl App {
         // egui quits on Ctrl+Q by default; here Ctrl+Q is Convert to Curves
         // and the application closes through File > Exit (Alt+F4).
         // The Bitmap Effects lens runs the application's bitmap effects.
-        tracedraw_render::set_pixel_effects(crate::fx::lens_effects);
+        graphdraw_render::set_pixel_effects(crate::fx::lens_effects);
         Self::setup_context(ctx);
         Self::build(open)
     }
@@ -1678,10 +1678,10 @@ impl App {
     /// An app without a window, for tests, scripts and the MCP server.
     #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
     pub fn headless() -> Self {
-        if std::env::var_os("TRACEDRAW_CONFIG_DIR").is_none() {
+        if std::env::var_os("GRAPHDRAW_CONFIG_DIR").is_none() {
             std::env::set_var(
-                "TRACEDRAW_CONFIG_DIR",
-                std::env::temp_dir().join("tracedraw-headless"),
+                "GRAPHDRAW_CONFIG_DIR",
+                std::env::temp_dir().join("graphdraw-headless"),
             );
         }
         let mut app = Self::build(None);
@@ -1718,7 +1718,7 @@ impl App {
             github: Default::default(),
             cdr_version: None,
             cdr_unsaved_version: None,
-            tdraw_version: None,
+            gdr_version: None,
             cdr_embed_profile: true,
             cdr_embed_fonts: false,
             status: String::new(),
@@ -1739,7 +1739,7 @@ impl App {
             star_complex: false,
             complex_points: 9,
             complex_sharpness: 2,
-            rect_corners: tracedraw_core::Corners::default(),
+            rect_corners: graphdraw_core::Corners::default(),
             corners_together: true,
             rect_corner_selected: None,
             ellipse_arc: None,
@@ -1774,13 +1774,13 @@ impl App {
             brush_radius: 10.0,
             eraser_width: 6.35,
             eraser_square: false,
-            shadow_default: tracedraw_core::Shadow::default(),
+            shadow_default: graphdraw_core::Shadow::default(),
             text_font: "Arial".into(),
             text_size_pt: 24.0,
             text_bold: false,
             text_italic: false,
             text_underline: false,
-            text_align: tracedraw_core::TextAlign::Left,
+            text_align: graphdraw_core::TextAlign::Left,
             eyedropper_color: None,
             eyedropper_attrs: None,
             eyedropper_groups: Default::default(),
@@ -1801,10 +1801,10 @@ impl App {
             window_layout_seen: None,
             overflow_cache: Default::default(),
             wireframe: false,
-            font_families: tracedraw_text::fonts().available_families(),
+            font_families: graphdraw_text::fonts().available_families(),
             font_catalog: Default::default(),
             font_previews: Default::default(),
-            font_generation: tracedraw_text::fonts().generation(),
+            font_generation: graphdraw_text::fonts().generation(),
             color_profile_key: None,
             transform: Default::default(),
             node_selection: Vec::new(),
@@ -2056,8 +2056,8 @@ impl App {
     }
 
     /// A new document with localised default page and layer names.
-    pub fn localized_document(title: impl Into<String>, size: Size) -> tracedraw_core::Document {
-        let mut doc = tracedraw_core::Document::new(title, size);
+    pub fn localized_document(title: impl Into<String>, size: Size) -> graphdraw_core::Document {
+        let mut doc = graphdraw_core::Document::new(title, size);
         for (i, p) in doc.pages.iter_mut().enumerate() {
             p.name = crate::i18n::trf("doc.page_n", &[("n", &(i + 1).to_string())]);
             for (k, l) in p.layers.iter_mut().enumerate() {
@@ -2112,14 +2112,14 @@ impl App {
     }
 
     /// Where auto-backups go unless Options > Save names a folder: a
-    /// `TraceDraw` folder in the temporary folder (none in a browser).
+    /// `GraphDraw` folder in the temporary folder (none in a browser).
     pub fn auto_backup_dir_default() -> Option<PathBuf> {
         if crate::files::WEB {
             return None;
         }
         #[cfg(not(target_arch = "wasm32"))]
         {
-            Some(std::env::temp_dir().join("TraceDraw"))
+            Some(std::env::temp_dir().join("GraphDraw"))
         }
         #[cfg(target_arch = "wasm32")]
         {
@@ -2199,9 +2199,9 @@ impl App {
     /// Apply persisted settings (language, workspace, snapping, units).
     pub fn load_settings(&mut self) {
         self.apply_settings(crate::settings::Settings::load());
-        // Fonts installed for TraceDraw in the Font Manager.
+        // Fonts installed for GraphDraw in the Font Manager.
         if !crate::ui::font_manager::install_saved(&self.settings.font_manager).is_empty() {
-            self.font_families = tracedraw_text::fonts().available_families();
+            self.font_families = graphdraw_text::fonts().available_families();
         }
     }
 
@@ -2250,8 +2250,8 @@ impl App {
     /// disk when paths are set, the built-in sRGB and generic CMYK model
     /// otherwise. Errors fall back to the built-in model with a status line.
     pub fn apply_color_settings(&mut self) {
-        use tracedraw_core::color::{engine, IccEngine};
-        use tracedraw_core::icc::{Intent, Profile};
+        use graphdraw_core::color::{engine, IccEngine};
+        use graphdraw_core::icc::{Intent, Profile};
         let c = &self.settings.color;
         let load = |path: &str| -> Option<Profile> {
             if path.is_empty() {
@@ -2274,7 +2274,7 @@ impl App {
         let intent = Intent::from_name(&c.intent).unwrap_or_default();
         let bpc = c.black_point_compensation;
         self.color_profile_key = carried.map(|p| std::sync::Arc::as_ptr(&p.data) as usize);
-        tracedraw_core::color::engine::set_map_gray_to_black(c.map_gray_to_black);
+        graphdraw_core::color::engine::set_map_gray_to_black(c.map_gray_to_black);
         // The built-in formulas, when chosen as the colour engine.
         if c.builtin_engine || (rgb.is_none() && cmyk.is_none()) {
             engine::clear();
@@ -2302,14 +2302,14 @@ impl App {
 
     /// The CMYK profile Colour Management loaded from a file, as a
     /// drawing would carry it (`None` for the built-in model).
-    pub fn settings_cmyk_profile(&self) -> Option<tracedraw_core::DocumentProfile> {
+    pub fn settings_cmyk_profile(&self) -> Option<graphdraw_core::DocumentProfile> {
         let c = &self.settings.color;
         if c.cmyk_profile_path.is_empty() {
             return None;
         }
         let data = crate::files::read(std::path::Path::new(&c.cmyk_profile_path)).ok()?;
-        tracedraw_core::icc::Profile::parse(&data).ok()?;
-        Some(tracedraw_core::DocumentProfile::new(
+        graphdraw_core::icc::Profile::parse(&data).ok()?;
+        Some(graphdraw_core::DocumentProfile::new(
             c.cmyk_profile.clone(),
             data,
         ))
@@ -2323,7 +2323,7 @@ impl App {
                 let path = crate::files::keep(&path);
                 match crate::files::read(&path)
                     .ok()
-                    .and_then(|b| tracedraw_core::icc::Profile::parse(&b).ok())
+                    .and_then(|b| graphdraw_core::icc::Profile::parse(&b).ok())
                 {
                     Some(p) => {
                         let name = p
@@ -2359,7 +2359,7 @@ impl App {
                 return;
             }
         };
-        match tracedraw_core::icc::Profile::parse(&bytes) {
+        match graphdraw_core::icc::Profile::parse(&bytes) {
             Ok(p) => {
                 let name = p
                     .description()
@@ -2382,7 +2382,7 @@ impl App {
         }
     }
 
-    /// Every preference back to how TraceDraw comes (history kept: see
+    /// Every preference back to how GraphDraw comes (history kept: see
     /// `Settings::reset_keeping_history`), applied and saved: shortcuts,
     /// bars, toolbox, palette options, interface size and the rest.
     /// Drawings are not touched.
@@ -2495,7 +2495,7 @@ impl App {
         self.polygon_points = t.polygon_points.clamp(3, 500);
         self.star_sharpness = finite(t.star_sharpness, 0.0, 1.0, 0.5);
         self.star_complex = t.star_complex;
-        use tracedraw_core::geometry::{complex_star_max_sharpness, COMPLEX_STAR_MIN_POINTS};
+        use graphdraw_core::geometry::{complex_star_max_sharpness, COMPLEX_STAR_MIN_POINTS};
         self.complex_points = t.complex_points.clamp(COMPLEX_STAR_MIN_POINTS, 500);
         self.complex_sharpness = t
             .complex_sharpness
@@ -2518,8 +2518,8 @@ impl App {
         }
         self.text_size_pt = finite(t.text_size_pt, 0.5, 3000.0, 24.0);
         self.text_hyphenation = t.text_hyphenation;
-        self.envelope_mode = tracedraw_core::envelope::Mode::from_id(&t.envelope_mode);
-        self.envelope_mapping = tracedraw_core::envelope::Mapping::from_id(&t.envelope_mapping);
+        self.envelope_mode = graphdraw_core::envelope::Mode::from_id(&t.envelope_mode);
+        self.envelope_mapping = graphdraw_core::envelope::Mapping::from_id(&t.envelope_mapping);
         self.envelope_keep_lines = t.envelope_keep_lines;
         self.mesh_rows = t.mesh_rows.clamp(1, 50);
         self.mesh_cols = t.mesh_cols.clamp(1, 50);
@@ -2628,7 +2628,7 @@ impl App {
 
     /// Save the preferences when they changed: looked at every frame, so a
     /// change in Options, the menus, the bars or the dockers lasts even
-    /// when TraceDraw does not close normally (and in the browser, where
+    /// when GraphDraw does not close normally (and in the browser, where
     /// closing the tab saves nothing); written at most once a second (a
     /// window being resized changes them every frame), with a frame asked
     /// for when a write has to wait. Not while Options is open: its Cancel
@@ -2910,7 +2910,7 @@ impl App {
     }
 
     fn save_template_to(&mut self, path: PathBuf) {
-        let written = tracedraw_text::fonts()
+        let written = graphdraw_text::fonts()
             .with_carried_fonts(self.engine.document())
             .to_json()
             .map_err(|e| e.to_string())
@@ -3005,7 +3005,7 @@ impl App {
 
     // ----- document helpers --------------------------------------------------
 
-    pub fn doc(&self) -> &tracedraw_core::Document {
+    pub fn doc(&self) -> &graphdraw_core::Document {
         self.engine.document()
     }
 
@@ -3057,7 +3057,7 @@ impl App {
     /// The layers drawn on the current page, bottom to top: the master
     /// layers showing on it, then its own. Clicks, marquees, snapping and
     /// Select All take objects from these.
-    pub fn page_layers(&self) -> Vec<&tracedraw_core::Layer> {
+    pub fn page_layers(&self) -> Vec<&graphdraw_core::Layer> {
         self.doc().layers_for_page(self.page).unwrap_or_default()
     }
 
@@ -3221,7 +3221,7 @@ impl App {
             },
             // The dragged box is the polygon's own bounding box.
             Tool::Polygon => ShapeKind::Polygon {
-                rect: tracedraw_core::geometry::polygon_rect_for_bounds(
+                rect: graphdraw_core::geometry::polygon_rect_for_bounds(
                     rect,
                     self.polygon_points,
                     0.0,
@@ -3233,7 +3233,7 @@ impl App {
             },
             // A complex star's vertices are those of a polygon.
             Tool::Star if self.star_complex => ShapeKind::Polygon {
-                rect: tracedraw_core::geometry::polygon_rect_for_bounds(
+                rect: graphdraw_core::geometry::polygon_rect_for_bounds(
                     rect,
                     self.complex_points,
                     0.0,
@@ -3244,7 +3244,7 @@ impl App {
                 twist: 0.0,
             },
             Tool::Star => ShapeKind::Polygon {
-                rect: tracedraw_core::geometry::polygon_rect_for_bounds(
+                rect: graphdraw_core::geometry::polygon_rect_for_bounds(
                     rect,
                     self.polygon_points,
                     self.star_sharpness,
@@ -3349,7 +3349,7 @@ impl App {
     /// click. Rectangle and ellipse take the base as one side and `c` as the
     /// height; the curve passes through `c`.
     pub fn finish_three_point(&mut self, a: Point, b: Point, c: Point) {
-        use tracedraw_core::geometry::BezPath;
+        use graphdraw_core::geometry::BezPath;
         let base = b - a;
         let len = base.hypot();
         if len < 0.05 {
@@ -3420,7 +3420,7 @@ impl App {
     /// Start editing an existing text object in place.
     pub fn begin_text_edit(&mut self, id: ShapeId) {
         let len = match self.doc().find_shape(id).map(|s| &s.kind) {
-            Some(ShapeKind::Text { spans, .. }) => tracedraw_core::spans_char_count(spans),
+            Some(ShapeKind::Text { spans, .. }) => graphdraw_core::spans_char_count(spans),
             _ => return,
         };
         self.finish_text();
@@ -3436,7 +3436,7 @@ impl App {
             italic: self.text_italic,
             ..TextSpan::new("", self.text_font.clone(), self.text_size_pt)
         };
-        let mut para = tracedraw_core::ParagraphStyle::default();
+        let mut para = graphdraw_core::ParagraphStyle::default();
         para.hyphenate = self.text_hyphenation;
         if let Some(id) = self.new_shape(ShapeKind::Text {
             spans: vec![span],
@@ -3479,11 +3479,11 @@ impl App {
             }
             // The alignment of the paragraph at the caret.
             let index = self.paragraph_range(id).map_or(0, |(a, _)| {
-                tracedraw_core::paragraphs::paragraph_of(spans, a)
+                graphdraw_core::paragraphs::paragraph_of(spans, a)
             });
             self.text_align = match &kind {
                 Ok(ShapeKind::Text { para, .. }) => {
-                    tracedraw_core::paragraphs::paragraph_format(spans, *align, para, index).align
+                    graphdraw_core::paragraphs::paragraph_format(spans, *align, para, index).align
                 }
                 _ => *align,
             };
@@ -3750,7 +3750,7 @@ impl App {
             .map(|(n, _)| n.clone())
             .unwrap_or_else(|| format!("Spot {ink:08x}"));
         let mut inks = self.doc().inks.clone();
-        inks.push(tracedraw_core::document::Ink {
+        inks.push(graphdraw_core::document::Ink {
             id: ink,
             name,
             cmyk: [cc, m, y, k],
@@ -3933,7 +3933,7 @@ impl App {
             .add_filter(
                 crate::i18n::tr("file.all_supported"),
                 &[
-                    "cdr", "cdt", "cdrt", "cmx", "tdraw", "svg", "svgz", "pdf", "ai", "eps", "ps",
+                    "cdr", "cdt", "cdrt", "cmx", "gdr", "svg", "svgz", "pdf", "ai", "eps", "ps",
                     "prn", "dxf", "psd", "psb", "emf", "wmf", "plt", "hpgl", "hgl", "txt", "rtf",
                     "docx",
                 ],
@@ -3948,7 +3948,7 @@ impl App {
             .add_filter("Photoshop (*.psd, *.psb)", &["psd", "psb"])
             .add_filter(crate::i18n::tr("file.cdr_files"), &["cdr", "cdt", "cdrt"])
             .add_filter("CMX (*.cmx)", &["cmx"])
-            .add_filter("TraceDraw (*.tdraw)", &["tdraw"])
+            .add_filter("GraphDraw (*.gdr)", &["gdr"])
             .pick_file(self, |app, p| app.open_path(p));
     }
 
@@ -3988,14 +3988,14 @@ impl App {
         // The version of an opened `.cdr` file: saving keeps it.
         let mut cdr_version = None;
         let mut opened_version = None;
-        // The format version of an opened `.tdraw` file: saving keeps it.
-        let mut tdraw_version = None;
+        // The format version of an opened `.gdr` file: saving keeps it.
+        let mut gdr_version = None;
         let result = if ext == "svg" || ext == "svgz" {
             Self::read_svg_text(&path)
                 .and_then(|text| {
-                    tracedraw_io::svg_import::parse(
+                    graphdraw_io::svg_import::parse(
                         &text,
-                        &mut tracedraw_core::id::IdSource::default(),
+                        &mut graphdraw_core::id::IdSource::default(),
                     )
                 })
                 .map(|imported| {
@@ -4017,7 +4017,7 @@ impl App {
             crate::files::read(&path)
                 .map_err(|e| e.to_string())
                 .and_then(|bytes| {
-                    tracedraw_io::psd::parse(&bytes, &mut tracedraw_core::id::IdSource::default())
+                    graphdraw_io::psd::parse(&bytes, &mut graphdraw_core::id::IdSource::default())
                 })
                 .map(|imported| {
                     let title = path
@@ -4041,7 +4041,7 @@ impl App {
             crate::files::read(&path)
                 .map_err(|e| e.to_string())
                 .and_then(|bytes| {
-                    tracedraw_io::emf::parse(&bytes, &mut tracedraw_core::id::IdSource::default())
+                    graphdraw_io::emf::parse(&bytes, &mut graphdraw_core::id::IdSource::default())
                 })
                 .map(|imported| {
                     let title = path
@@ -4065,9 +4065,9 @@ impl App {
             crate::files::read(&path)
                 .map_err(|e| e.to_string())
                 .and_then(|bytes| {
-                    tracedraw_io::eps_import::parse(
+                    graphdraw_io::eps_import::parse(
                         &bytes,
-                        &mut tracedraw_core::id::IdSource::default(),
+                        &mut graphdraw_core::id::IdSource::default(),
                     )
                 })
                 .map(|imported| {
@@ -4084,7 +4084,7 @@ impl App {
                     let first = pages
                         .first()
                         .map(|p| p.1)
-                        .unwrap_or(tracedraw_core::document::paper::A4);
+                        .unwrap_or(graphdraw_core::document::paper::A4);
                     let mut doc = App::localized_document(title, first);
                     let layer_name = doc.pages[0].layers[0].name.clone();
                     let mut ids = doc.ids().clone();
@@ -4099,9 +4099,9 @@ impl App {
                             continue;
                         }
                         let mut layer =
-                            tracedraw_core::document::Layer::new(ids.layer(), layer_name.clone());
+                            graphdraw_core::document::Layer::new(ids.layer(), layer_name.clone());
                         layer.shapes = shapes;
-                        doc.pages.push(tracedraw_core::document::Page {
+                        doc.pages.push(graphdraw_core::document::Page {
                             id: ids.page(),
                             name: crate::i18n::trf("doc.page_n", &[("n", &(i + 1).to_string())]),
                             size,
@@ -4130,7 +4130,7 @@ impl App {
             crate::files::read(&path)
                 .map_err(|e| e.to_string())
                 .and_then(|bytes| {
-                    tracedraw_io::plt::parse(&bytes, &mut tracedraw_core::id::IdSource::default())
+                    graphdraw_io::plt::parse(&bytes, &mut graphdraw_core::id::IdSource::default())
                 })
                 .map(|imported| {
                     let title = path
@@ -4160,10 +4160,10 @@ impl App {
                     log::warn!("text: {w}");
                 }
                 let n = imported.text().chars().count();
-                let mut doc = App::localized_document(title, tracedraw_core::document::paper::A4);
+                let mut doc = App::localized_document(title, graphdraw_core::document::paper::A4);
                 let mut ids = doc.ids().clone();
                 let mut shape =
-                    imported.to_shape(tracedraw_io::text_import::Placement::a4(), &mut ids);
+                    imported.to_shape(graphdraw_io::text_import::Placement::a4(), &mut ids);
                 shape.id = ids.shape();
                 shape.fill = Fill::Solid(Color::BLACK);
                 shape.stroke = None;
@@ -4176,7 +4176,7 @@ impl App {
                 .map_err(|e| e.to_string())
                 .and_then(|bytes| {
                     let text = String::from_utf8_lossy(&bytes).into_owned();
-                    tracedraw_io::dxf::parse(&text, &mut tracedraw_core::id::IdSource::default())
+                    graphdraw_io::dxf::parse(&text, &mut graphdraw_core::id::IdSource::default())
                 })
                 .map(|imported| {
                     let title = path
@@ -4187,15 +4187,15 @@ impl App {
                         log::warn!("dxf: {w}");
                     }
                     let n = imported.shapes.len();
-                    let doc = tracedraw_io::dxf::to_document(imported, &title);
+                    let doc = graphdraw_io::dxf::to_document(imported, &title);
                     let mut doc2 = App::localized_document(title, doc.pages[0].size);
-                    let mut ids = tracedraw_core::id::IdSource::default();
+                    let mut ids = graphdraw_core::id::IdSource::default();
                     let pid = ids.page();
                     doc2.pages[0].id = pid;
                     doc2.pages[0].layers.clear();
                     for l in &doc.pages[0].layers {
                         let mut layer =
-                            tracedraw_core::document::Layer::new(ids.layer(), l.name.clone());
+                            graphdraw_core::document::Layer::new(ids.layer(), l.name.clone());
                         for s in &l.shapes {
                             layer.shapes.push(reid_with(s.clone(), &mut ids));
                         }
@@ -4205,13 +4205,13 @@ impl App {
                     (doc2, opened_objects("DXF", n))
                 })
         } else if ext == "pdf" || ext == "ai" {
-            use tracedraw_io::pdf_import::ImportError;
+            use graphdraw_io::pdf_import::ImportError;
             let parsed = crate::files::read(&path)
                 .map_err(|e| ImportError::Failed(e.to_string()))
                 .and_then(|bytes| {
-                    tracedraw_io::pdf_import::parse_with_password(
+                    graphdraw_io::pdf_import::parse_with_password(
                         &bytes,
-                        &mut tracedraw_core::id::IdSource::default(),
+                        &mut graphdraw_core::id::IdSource::default(),
                         password,
                     )
                 });
@@ -4234,19 +4234,19 @@ impl App {
                     .pages
                     .first()
                     .map(|p| p.size)
-                    .unwrap_or(tracedraw_core::document::paper::A4);
+                    .unwrap_or(graphdraw_core::document::paper::A4);
                 let mut doc2 = App::localized_document(title, first);
                 let layer_name = doc2.pages[0].layers[0].name.clone();
                 doc2.pages.clear();
-                let mut ids = tracedraw_core::id::IdSource::default();
+                let mut ids = graphdraw_core::id::IdSource::default();
                 for (i, p) in imported.pages.into_iter().enumerate() {
                     let pid = ids.page();
                     let lid = ids.layer();
-                    let mut layer = tracedraw_core::document::Layer::new(lid, layer_name.clone());
+                    let mut layer = graphdraw_core::document::Layer::new(lid, layer_name.clone());
                     for s in p.shapes {
                         layer.shapes.push(reid_with(s, &mut ids));
                     }
-                    doc2.pages.push(tracedraw_core::document::Page {
+                    doc2.pages.push(graphdraw_core::document::Page {
                         id: pid,
                         name: crate::i18n::trf("doc.page_n", &[("n", &(i + 1).to_string())]),
                         size: p.size,
@@ -4307,7 +4307,7 @@ impl App {
                             ("skipped", &report.skipped_objects.to_string()),
                         ],
                     );
-                    // An older version than TraceDraw saves: say which
+                    // An older version than GraphDraw saves: say which
                     // version Save will write.
                     if let (Some(v), Some(w)) = (report.version, cdr_version) {
                         if v.0 != w {
@@ -4325,11 +4325,11 @@ impl App {
             crate::files::read_to_string(&path)
                 .map_err(|e| e.to_string())
                 .and_then(|json| {
-                    tdraw_version = Some(
-                        tracedraw_core::document::tdraw_text_version(&json)
-                            .min(tracedraw_core::document::TDRAW_FORMAT_VERSION),
+                    gdr_version = Some(
+                        graphdraw_core::document::gdr_text_version(&json)
+                            .min(graphdraw_core::document::GDR_FORMAT_VERSION),
                     );
-                    tracedraw_core::Document::from_json(&json).map_err(|e| e.to_string())
+                    graphdraw_core::Document::from_json(&json).map_err(|e| e.to_string())
                 })
                 .map(|d| (d, crate::i18n::tr("status.opened")))
         };
@@ -4338,8 +4338,8 @@ impl App {
                 self.open_document(doc, None);
                 self.cdr_version = cdr_version;
                 self.cdr_unsaved_version =
-                    opened_version.filter(|v| *v < tracedraw_cdr::write::CHECKED_SINCE);
-                self.tdraw_version = tdraw_version;
+                    opened_version.filter(|v| *v < graphdraw_cdr::write::CHECKED_SINCE);
+                self.gdr_version = gdr_version;
                 if cdr_version.is_some() {
                     self.apply_open_policy();
                 }
@@ -4400,7 +4400,7 @@ impl App {
             self.dialog = crate::ui::dialogs::Dialog::GithubSave(self.github_form(true));
             return;
         }
-        // A drawing opened from a `.cdr` version TraceDraw does not save
+        // A drawing opened from a `.cdr` version GraphDraw does not save
         // in: say so and let the user choose the version first.
         if !save_as {
             if let Some(version) = self.cdr_unsaved_version {
@@ -4419,12 +4419,12 @@ impl App {
         self.save_as_dialog();
     }
 
-    /// Save As for a drawing opened from a `.cdr` version TraceDraw does
+    /// Save As for a drawing opened from a `.cdr` version GraphDraw does
     /// not save in, offering the oldest version it saves.
     pub(crate) fn save_as_from_old_cdr(&mut self) {
         self.save_as_dialog();
         if let crate::ui::dialogs::Dialog::SaveAs(st) = &mut self.dialog {
-            st.version = tracedraw_cdr::write::CHECKED_SINCE;
+            st.version = graphdraw_cdr::write::CHECKED_SINCE;
         }
     }
 
@@ -4473,7 +4473,7 @@ impl App {
             };
             let mut previews = cdr_previews(doc);
             previews.embed_fonts = self.cdr_embed_fonts;
-            Ok(tracedraw_cdr::write::document_to_cdr_version_with(
+            Ok(graphdraw_cdr::write::document_to_cdr_version_with(
                 doc,
                 self.cdr_save_version(),
                 &previews,
@@ -4482,9 +4482,9 @@ impl App {
             // Fonts that came with other drawings go along (text imported
             // or pasted from them).
             let version = self
-                .tdraw_version
-                .unwrap_or(tracedraw_core::document::TDRAW_FORMAT_VERSION);
-            tracedraw_text::fonts()
+                .gdr_version
+                .unwrap_or(graphdraw_core::document::GDR_FORMAT_VERSION);
+            graphdraw_text::fonts()
                 .with_carried_fonts(self.engine.document())
                 .to_json_version(version)
                 .map(String::into_bytes)
@@ -4530,7 +4530,7 @@ impl App {
     }
 
     /// Options > Save > Auto-backup: every few minutes, save each open
-    /// drawing with unsaved changes as `AutoBackup_of_<name>.tdraw` in the
+    /// drawing with unsaved changes as `AutoBackup_of_<name>.gdr` in the
     /// auto-backup folder. Called every frame; returns true when it saved.
     pub fn auto_backup_tick(&mut self, now: web_time::Instant) -> bool {
         let b = self.settings.backup.clone();
@@ -4548,7 +4548,7 @@ impl App {
         };
         let mut saved = false;
         let mut jobs: Vec<(String, String)> = Vec::new();
-        let fonts = tracedraw_text::fonts();
+        let fonts = graphdraw_text::fonts();
         if self.has_document() && self.engine.is_dirty() {
             if let Ok(json) = fonts.with_carried_fonts(self.doc()).to_json() {
                 jobs.push((self.backup_name(None), json));
@@ -4620,7 +4620,7 @@ impl App {
             let doc = crate::files::read_to_string(path)
                 .map_err(|e| e.to_string())
                 .and_then(|json| {
-                    tracedraw_core::Document::from_json(&json).map_err(|e| e.to_string())
+                    graphdraw_core::Document::from_json(&json).map_err(|e| e.to_string())
                 });
             match doc {
                 Ok(mut doc) => {
@@ -4707,7 +4707,7 @@ impl App {
         }
     }
 
-    /// `AutoBackup_of_<drawing name>.tdraw` for the active drawing (`None`)
+    /// `AutoBackup_of_<drawing name>.gdr` for the active drawing (`None`)
     /// or another open one.
     fn backup_name(&self, slot: Option<usize>) -> String {
         let title = match slot {
@@ -4717,7 +4717,7 @@ impl App {
         let stem: String = title
             .trim_end_matches('*')
             .trim()
-            .trim_end_matches(".tdraw")
+            .trim_end_matches(".gdr")
             .trim_end_matches(".cdr")
             .chars()
             .map(|c| {
@@ -4728,7 +4728,7 @@ impl App {
                 }
             })
             .collect();
-        format!("AutoBackup_of_{stem}.tdraw")
+        format!("AutoBackup_of_{stem}.gdr")
     }
 
     /// Ctrl+8 and Ctrl+2: the selected text (or the text being edited)
@@ -5002,14 +5002,14 @@ impl App {
     /// Read a `.cdr` file through the file layer (uploads in a browser).
     fn open_cdr(
         path: &std::path::Path,
-    ) -> std::result::Result<(tracedraw_core::Document, tracedraw_cdr::ParseReport), String> {
+    ) -> std::result::Result<(graphdraw_core::Document, graphdraw_cdr::ParseReport), String> {
         let bytes = crate::files::read(path).map_err(|e| e.to_string())?;
         let title = path
             .file_stem()
             .and_then(|s| s.to_str())
             .unwrap_or("Untitled")
             .to_string();
-        tracedraw_cdr::open_bytes(&bytes, &title).map_err(|e| e.to_string())
+        graphdraw_cdr::open_bytes(&bytes, &title).map_err(|e| e.to_string())
     }
 
     /// Read an SVG file (plain or gzip-compressed) as text.
@@ -5033,7 +5033,7 @@ impl App {
             return;
         };
         let parsed = Self::read_svg_text(path).and_then(|text| {
-            tracedraw_io::svg_import::parse(&text, &mut tracedraw_core::id::IdSource::default())
+            graphdraw_io::svg_import::parse(&text, &mut graphdraw_core::id::IdSource::default())
         });
         match parsed {
             Ok(imported) => {
@@ -5062,16 +5062,16 @@ impl App {
 
     /// [`App::import_pdf`] with the password of a protected file.
     pub fn import_pdf_with_password(&mut self, path: &std::path::Path, password: &str) {
-        use tracedraw_io::pdf_import::ImportError;
+        use graphdraw_io::pdf_import::ImportError;
         let Some(layer) = self.active_layer() else {
             return;
         };
         let parsed = crate::files::read(path)
             .map_err(|e| ImportError::Failed(e.to_string()))
             .and_then(|bytes| {
-                tracedraw_io::pdf_import::parse_with_password(
+                graphdraw_io::pdf_import::parse_with_password(
                     &bytes,
-                    &mut tracedraw_core::id::IdSource::default(),
+                    &mut graphdraw_core::id::IdSource::default(),
                     password,
                 )
             });
@@ -5114,7 +5114,7 @@ impl App {
         let parsed = crate::files::read(path)
             .map_err(|e| e.to_string())
             .and_then(|bytes| {
-                tracedraw_io::psd::parse(&bytes, &mut tracedraw_core::id::IdSource::default())
+                graphdraw_io::psd::parse(&bytes, &mut graphdraw_core::id::IdSource::default())
             });
         match parsed {
             Ok(imported) => {
@@ -5151,7 +5151,7 @@ impl App {
         let parsed = crate::files::read(path)
             .map_err(|e| e.to_string())
             .and_then(|bytes| {
-                tracedraw_io::plt::parse(&bytes, &mut tracedraw_core::id::IdSource::default())
+                graphdraw_io::plt::parse(&bytes, &mut graphdraw_core::id::IdSource::default())
             });
         match parsed {
             Ok(imported) => {
@@ -5179,7 +5179,7 @@ impl App {
     /// Parse a text document (TXT, RTF, DOCX) by extension.
     fn parse_text_file(
         path: &std::path::Path,
-    ) -> Result<tracedraw_io::text_import::ImportedText, String> {
+    ) -> Result<graphdraw_io::text_import::ImportedText, String> {
         let ext = path
             .extension()
             .and_then(|e| e.to_str())
@@ -5187,9 +5187,9 @@ impl App {
             .to_ascii_lowercase();
         let bytes = crate::files::read(path).map_err(|e| e.to_string())?;
         match ext.as_str() {
-            "rtf" => tracedraw_io::text_import::parse_rtf(&bytes),
-            "docx" => tracedraw_io::text_import::parse_docx(&bytes),
-            _ => Ok(tracedraw_io::text_import::parse_txt(&bytes)),
+            "rtf" => graphdraw_io::text_import::parse_rtf(&bytes),
+            "docx" => graphdraw_io::text_import::parse_docx(&bytes),
+            _ => Ok(graphdraw_io::text_import::parse_txt(&bytes)),
         }
     }
 
@@ -5206,11 +5206,11 @@ impl App {
                 }
                 let page = self.page_rect();
                 let margin = 20.0_f64.min(page.width() / 4.0).min(page.height() / 4.0);
-                let place = tracedraw_io::text_import::Placement {
+                let place = graphdraw_io::text_import::Placement {
                     origin_top_left: Point::new(page.x0 + margin, page.y1 - margin),
                     size: Size::new(page.width() - 2.0 * margin, page.height() - 2.0 * margin),
                 };
-                let mut ids = tracedraw_core::id::IdSource::default();
+                let mut ids = graphdraw_core::id::IdSource::default();
                 let shape = imported.to_shape(place, &mut ids);
                 let id = self.engine.new_shape_id();
                 let mut shape = reid(shape, id, &mut self.engine);
@@ -5233,9 +5233,9 @@ impl App {
         let parsed = crate::files::read(path)
             .map_err(|e| e.to_string())
             .and_then(|bytes| {
-                tracedraw_io::eps_import::parse(
+                graphdraw_io::eps_import::parse(
                     &bytes,
-                    &mut tracedraw_core::id::IdSource::default(),
+                    &mut graphdraw_core::id::IdSource::default(),
                 )
             });
         match parsed {
@@ -5269,7 +5269,7 @@ impl App {
         let parsed = crate::files::read(path)
             .map_err(|e| e.to_string())
             .and_then(|bytes| {
-                tracedraw_io::emf::parse(&bytes, &mut tracedraw_core::id::IdSource::default())
+                graphdraw_io::emf::parse(&bytes, &mut graphdraw_core::id::IdSource::default())
             });
         match parsed {
             Ok(imported) => {
@@ -5303,7 +5303,7 @@ impl App {
             .map_err(|e| e.to_string())
             .and_then(|bytes| {
                 let text = String::from_utf8_lossy(&bytes).into_owned();
-                tracedraw_io::dxf::parse(&text, &mut tracedraw_core::id::IdSource::default())
+                graphdraw_io::dxf::parse(&text, &mut graphdraw_core::id::IdSource::default())
             });
         match parsed {
             Ok(imported) => {
@@ -5515,7 +5515,7 @@ fn reid(mut s: Shape, id: ShapeId, engine: &mut Engine) -> Shape {
 }
 
 /// Re-number a shape tree from an id source (documents built outside the engine).
-fn reid_with(mut s: Shape, ids: &mut tracedraw_core::id::IdSource) -> Shape {
+fn reid_with(mut s: Shape, ids: &mut graphdraw_core::id::IdSource) -> Shape {
     s.id = ids.shape();
     match &mut s.kind {
         ShapeKind::Group { children } => {
@@ -5548,17 +5548,17 @@ pub fn fill_description(fill: &Fill) -> String {
         Fill::None => tr("fill.none"),
         Fill::Solid(c) => color_description(*c),
         Fill::Fountain(f) => match f.kind {
-            tracedraw_core::FountainKind::Linear => tr("fill.linear_fountain"),
-            tracedraw_core::FountainKind::Radial => tr("fill.radial_fountain"),
-            tracedraw_core::FountainKind::Conical => tr("fill.conical_fountain"),
-            tracedraw_core::FountainKind::Square => tr("fill.square_fountain"),
-            tracedraw_core::FountainKind::Shaped => tr("fill.shaped_fountain"),
+            graphdraw_core::FountainKind::Linear => tr("fill.linear_fountain"),
+            graphdraw_core::FountainKind::Radial => tr("fill.radial_fountain"),
+            graphdraw_core::FountainKind::Conical => tr("fill.conical_fountain"),
+            graphdraw_core::FountainKind::Square => tr("fill.square_fountain"),
+            graphdraw_core::FountainKind::Shaped => tr("fill.shaped_fountain"),
         },
-        Fill::Pattern(tracedraw_core::Pattern::TwoColor { tile, .. }) => {
+        Fill::Pattern(graphdraw_core::Pattern::TwoColor { tile, .. }) => {
             trf("fill.two_color_pattern", &[("t", tile.name())])
         }
-        Fill::Pattern(tracedraw_core::Pattern::Bitmap { .. }) => tr("fill.bitmap_pattern"),
-        Fill::Pattern(tracedraw_core::Pattern::Vector { .. }) => tr("fill.vector_pattern"),
+        Fill::Pattern(graphdraw_core::Pattern::Bitmap { .. }) => tr("fill.bitmap_pattern"),
+        Fill::Pattern(graphdraw_core::Pattern::Vector { .. }) => tr("fill.vector_pattern"),
         Fill::Texture(_) => tr("fill.texture_fill"),
         Fill::Mesh(m) => trf(
             "fill.mesh_fill_n",
@@ -5618,8 +5618,8 @@ pub(crate) fn is_cdr_path(path: &std::path::Path) -> bool {
 /// of those and newer ones the newest.
 pub(crate) fn writable_cdr_version(version: u16) -> u16 {
     version.clamp(
-        tracedraw_cdr::write::CHECKED_SINCE,
-        tracedraw_cdr::write::CHECKED_UNTIL,
+        graphdraw_cdr::write::CHECKED_SINCE,
+        graphdraw_cdr::write::CHECKED_UNTIL,
     )
 }
 
@@ -5633,25 +5633,25 @@ fn opened_objects(format: &str, n: usize) -> String {
 
 /// The CMYK profile a drawing carries, when it reads as a CMYK profile.
 pub(crate) fn carried_cmyk_profile(
-    doc: &tracedraw_core::Document,
-) -> Option<tracedraw_core::icc::Profile> {
+    doc: &graphdraw_core::Document,
+) -> Option<graphdraw_core::icc::Profile> {
     let p = doc.cmyk_profile.as_ref()?;
-    let profile = tracedraw_core::icc::Profile::parse(&p.data).ok()?;
-    (profile.color_space() == tracedraw_core::icc::ColorSpace::Cmyk).then_some(profile)
+    let profile = graphdraw_core::icc::Profile::parse(&p.data).ok()?;
+    (profile.color_space() == graphdraw_core::icc::ColorSpace::Cmyk).then_some(profile)
 }
 
 /// The pictures a version 16+ `.cdr` file stores with the drawing: a
 /// thumbnail and each page, 256 pixels on the longer side.
-pub(crate) fn cdr_previews(doc: &tracedraw_core::Document) -> tracedraw_cdr::write::Previews {
-    let pages: Vec<tracedraw_cdr::write::Png> = tracedraw_io::page_pictures(doc, 256)
+pub(crate) fn cdr_previews(doc: &graphdraw_core::Document) -> graphdraw_cdr::write::Previews {
+    let pages: Vec<graphdraw_cdr::write::Png> = graphdraw_io::page_pictures(doc, 256)
         .into_iter()
-        .map(|(data, width, height)| tracedraw_cdr::write::Png {
+        .map(|(data, width, height)| graphdraw_cdr::write::Png {
             data,
             width,
             height,
         })
         .collect();
-    tracedraw_cdr::write::Previews {
+    graphdraw_cdr::write::Previews {
         thumbnail: pages.first().cloned(),
         pages,
         fonts: cdr_font_faces(doc),
@@ -5662,12 +5662,12 @@ pub(crate) fn cdr_previews(doc: &tracedraw_core::Document) -> tracedraw_cdr::wri
 /// The faces the drawing's text uses, with their font files where
 /// installed or carried, for the `.cdr` font table and embedding.
 pub(crate) fn cdr_font_faces(
-    doc: &tracedraw_core::Document,
-) -> Vec<tracedraw_cdr::write::FontFace> {
-    let fonts = tracedraw_text::fonts();
+    doc: &graphdraw_core::Document,
+) -> Vec<graphdraw_cdr::write::FontFace> {
+    let fonts = graphdraw_text::fonts();
     doc.font_faces_used()
         .into_iter()
-        .map(|(family, bold, italic)| tracedraw_cdr::write::FontFace {
+        .map(|(family, bold, italic)| graphdraw_cdr::write::FontFace {
             data: fonts.face_file(&family, bold, italic),
             family,
             bold,
@@ -5703,10 +5703,10 @@ mod tests {
 
     #[test]
     fn a_drawing_shows_through_the_cmyk_profile_it_carries() {
-        use tracedraw_core::icc::test_profiles as tp;
-        let mut doc = tracedraw_core::Document::default();
+        use graphdraw_core::icc::test_profiles as tp;
+        let mut doc = graphdraw_core::Document::default();
         assert!(carried_cmyk_profile(&doc).is_none());
-        doc.cmyk_profile = Some(tracedraw_core::DocumentProfile::new(
+        doc.cmyk_profile = Some(graphdraw_core::DocumentProfile::new(
             "Synthetic CMYK",
             tp::lut16_cmyk_profile(),
         ));
@@ -5714,9 +5714,9 @@ mod tests {
         assert_eq!(p.description(), Some("Synthetic CMYK"));
         // Not a CMYK profile, or not a profile: the settings decide.
         let rgb = tp::matrix_trc_profile(tp::para_srgb(), tp::para_srgb(), tp::para_srgb());
-        doc.cmyk_profile = Some(tracedraw_core::DocumentProfile::new("RGB", rgb));
+        doc.cmyk_profile = Some(graphdraw_core::DocumentProfile::new("RGB", rgb));
         assert!(carried_cmyk_profile(&doc).is_none());
-        doc.cmyk_profile = Some(tracedraw_core::DocumentProfile::new("Junk", vec![1, 2, 3]));
+        doc.cmyk_profile = Some(graphdraw_core::DocumentProfile::new("Junk", vec![1, 2, 3]));
         assert!(carried_cmyk_profile(&doc).is_none());
     }
 
@@ -5819,8 +5819,8 @@ mod tests {
         app.color_docker.shown = [false, true, true];
         app.align_to = crate::ops2::AlignTo::PageCenter;
         app.distribute_to = crate::ops::DistributeTo::Page;
-        app.envelope_mode = tracedraw_core::envelope::Mode::DoubleArc;
-        app.envelope_mapping = tracedraw_core::envelope::Mapping::Vertical;
+        app.envelope_mode = graphdraw_core::envelope::Mode::DoubleArc;
+        app.envelope_mapping = graphdraw_core::envelope::Mapping::Vertical;
         app.envelope_keep_lines = true;
         app.mesh_rows = 4;
         app.area_outline_mode = 1;
@@ -5855,11 +5855,11 @@ mod tests {
         assert_eq!(next.settings.bars.dock(Bar::Palette), Dock::Right);
         assert_eq!(
             next.envelope_mode,
-            tracedraw_core::envelope::Mode::DoubleArc
+            graphdraw_core::envelope::Mode::DoubleArc
         );
         assert_eq!(
             next.envelope_mapping,
-            tracedraw_core::envelope::Mapping::Vertical
+            graphdraw_core::envelope::Mapping::Vertical
         );
         assert!(next.envelope_keep_lines);
         assert_eq!(next.mesh_rows, 4);
@@ -5942,7 +5942,7 @@ mod tests {
         let mut app = App::headless();
         app.settings.shortcuts = vec![("menu.file.export".into(), "Ctrl+Shift+X".into())];
         app.settings.ui_size = 1.5;
-        app.settings.recent_files = vec!["/kept.tdraw".into()];
+        app.settings.recent_files = vec!["/kept.gdr".into()];
         app.show_status_bar = false;
         app.show_page_border = false;
         app.set_workspace(Workspace::Lite);
@@ -5953,7 +5953,7 @@ mod tests {
         assert_eq!(app.settings.ui_size, 0.0);
         assert_eq!(
             app.settings.recent_files,
-            vec![PathBuf::from("/kept.tdraw")]
+            vec![PathBuf::from("/kept.gdr")]
         );
         assert_eq!(app.workspace, Workspace::Default);
         assert!(app.show_status_bar && app.show_page_border && app.show_dockers);
@@ -6073,12 +6073,12 @@ mod tests {
         let mask = |app: &App| app.doc().find_shape(clip).and_then(|s| s.opacity_mask);
         assert_eq!(
             mask(&app),
-            Some(tracedraw_core::document::OpacityMask { invert: false })
+            Some(graphdraw_core::document::OpacityMask { invert: false })
         );
         app.set_opacity_masks(true, true);
         assert_eq!(
             mask(&app),
-            Some(tracedraw_core::document::OpacityMask { invert: true })
+            Some(graphdraw_core::document::OpacityMask { invert: true })
         );
         app.set_opacity_masks(false, false);
         assert_eq!(mask(&app), None);
@@ -6089,7 +6089,7 @@ mod tests {
     #[test]
     fn drawings_a_session_left_without_closing_are_recovered() {
         let dir =
-            std::env::temp_dir().join(format!("tracedraw-recover-{}", crate::recovery::new_id()));
+            std::env::temp_dir().join(format!("graphdraw-recover-{}", crate::recovery::new_id()));
         let _ = std::fs::remove_dir_all(&dir);
         let start = crate::recovery::now_secs();
         // The first session backs a drawing up and then is gone.
@@ -6140,20 +6140,20 @@ mod tests {
 
     #[test]
     fn saving_over_a_file_keeps_a_backup_and_auto_backup_saves_dirty_drawings() {
-        let dir = std::env::temp_dir().join(format!("tracedraw-backup-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("graphdraw-backup-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let mut app = App::headless();
-        let path = dir.join("art.tdraw");
+        let path = dir.join("art.gdr");
         app.save_to(path.clone());
         assert!(path.is_file());
         assert!(
-            !dir.join("backup_of_art.tdraw").exists(),
+            !dir.join("backup_of_art.gdr").exists(),
             "nothing to back up yet"
         );
         rect_shape(&mut app, Rect::new(0.0, 0.0, 10.0, 10.0), true);
         app.save_to(path.clone());
-        assert!(dir.join("backup_of_art.tdraw").is_file());
+        assert!(dir.join("backup_of_art.gdr").is_file());
         // Auto-backup: due after the interval, only for unsaved changes.
         app.settings.backup.auto_dir = Some(dir.join("auto"));
         app.settings.backup.minutes = 1;
@@ -6169,7 +6169,7 @@ mod tests {
 
     #[test]
     fn postscript_ai_files_open_as_eps() {
-        let dir = std::env::temp_dir().join(format!("tracedraw-ai-kind-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("graphdraw-ai-kind-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let old = dir.join("old.ai");
@@ -6198,7 +6198,7 @@ mod tests {
 
     #[test]
     fn print_files_open_with_every_page() {
-        let dir = std::env::temp_dir().join(format!("tracedraw-prn-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("graphdraw-prn-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         // Two pages written by the exporter, behind a printer job header.
@@ -6208,7 +6208,7 @@ mod tests {
         rect_shape(&mut app, Rect::new(20.0, 20.0, 40.0, 40.0), true);
         let mut prn =
             b"\x1b%-12345X@PJL JOB NAME=\"art\"\n@PJL ENTER LANGUAGE=POSTSCRIPT\n".to_vec();
-        prn.extend_from_slice(tracedraw_io::eps::document_to_ps(app.doc()).as_bytes());
+        prn.extend_from_slice(graphdraw_io::eps::document_to_ps(app.doc()).as_bytes());
         let path = dir.join("art.prn");
         std::fs::write(&path, prn).unwrap();
         let mut back = App::headless();

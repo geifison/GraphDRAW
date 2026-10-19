@@ -2,7 +2,7 @@
 //! columns, merge and split, distribute, conversions to and from text.
 
 use crate::app::App;
-use tracedraw_core::{
+use graphdraw_core::{
     document::ShapeKind,
     geometry::{Point, Rect},
     Command, ShapeId, Table, TableCell, TextSpan,
@@ -95,7 +95,7 @@ impl App {
             return;
         };
         let rc = (t.cells[ci].row, t.cells[ci].col);
-        let len = tracedraw_core::spans_char_count(&t.cells[ci].text);
+        let len = graphdraw_core::spans_char_count(&t.cells[ci].text);
         match &mut self.table_edit {
             Some(e) if e.shape == id && extend => {
                 if !e.cells.contains(&rc) {
@@ -209,7 +209,7 @@ impl App {
     /// Text of the active cell.
     pub fn cell_text(&self) -> String {
         self.cell_spans()
-            .map(|s| tracedraw_core::spans_text(&s))
+            .map(|s| graphdraw_core::spans_text(&s))
             .unwrap_or_default()
     }
 
@@ -248,7 +248,7 @@ impl App {
             .iter_mut()
             .find(|cell| cell.row == r && cell.col == c)
         {
-            cell.text = if tracedraw_core::spans_text(&spans).is_empty() {
+            cell.text = if graphdraw_core::spans_text(&spans).is_empty() {
                 Vec::new()
             } else {
                 spans
@@ -287,8 +287,8 @@ impl App {
             return;
         };
         let (a, b) = e.selection();
-        tracedraw_core::spans_delete(&mut spans, a, b);
-        tracedraw_core::spans_insert(&mut spans, a, text);
+        graphdraw_core::spans_delete(&mut spans, a, b);
+        graphdraw_core::spans_insert(&mut spans, a, text);
         self.set_cell_spans(spans);
         self.set_cell_caret(a + text.chars().count(), false);
     }
@@ -307,7 +307,7 @@ impl App {
         } else {
             return;
         };
-        tracedraw_core::spans_delete(&mut spans, a, b);
+        graphdraw_core::spans_delete(&mut spans, a, b);
         self.set_cell_spans(spans);
         self.set_cell_caret(a, false);
     }
@@ -319,7 +319,7 @@ impl App {
         let Some(mut spans) = self.cell_spans_for_edit() else {
             return;
         };
-        let len = tracedraw_core::spans_char_count(&spans);
+        let len = graphdraw_core::spans_char_count(&spans);
         let (a, b) = if e.has_selection() {
             e.selection()
         } else if e.caret < len {
@@ -327,7 +327,7 @@ impl App {
         } else {
             return;
         };
-        tracedraw_core::spans_delete(&mut spans, a, b);
+        graphdraw_core::spans_delete(&mut spans, a, b);
         self.set_cell_spans(spans);
         self.set_cell_caret(a, false);
     }
@@ -420,7 +420,7 @@ impl App {
         };
         if e.has_selection() {
             let (a, b) = e.selection();
-            tracedraw_core::spans_apply(&mut spans, a, b, f);
+            graphdraw_core::spans_apply(&mut spans, a, b, f);
         } else {
             for sp in spans.iter_mut() {
                 f(sp);
@@ -440,7 +440,7 @@ impl App {
 
     /// The active cell's text as the shape `Table::expand` draws it, in
     /// table-local space.
-    fn cell_text_shape(&self) -> Option<tracedraw_core::Shape> {
+    fn cell_text_shape(&self) -> Option<graphdraw_core::Shape> {
         let e = self.table_edit.as_ref()?;
         let (_, s) = self.doc().shape(e.shape).ok()?;
         let ShapeKind::Table(t) = &s.kind else {
@@ -454,17 +454,17 @@ impl App {
         } else {
             cell.text.clone()
         };
-        Some(tracedraw_core::Shape::new(
+        Some(graphdraw_core::Shape::new(
             ShapeId(0),
             ShapeKind::Text {
                 spans,
                 origin: Point::new(inner.x0, inner.y0),
-                frame: Some(tracedraw_core::geometry::Size::new(
+                frame: Some(graphdraw_core::geometry::Size::new(
                     inner.width().max(0.1),
                     inner.height().max(0.1),
                 )),
                 align: cell.align,
-                para: tracedraw_core::ParagraphStyle::default(),
+                para: graphdraw_core::ParagraphStyle::default(),
                 on_path: None,
             },
         ))
@@ -475,7 +475,7 @@ impl App {
         let tx = self.cell_text_shape()?;
         let (layout, to_local) = crate::text_editing::layout_of_text_shape(
             &tx,
-            tracedraw_core::geometry::Affine::IDENTITY,
+            graphdraw_core::geometry::Affine::IDENTITY,
         )?;
         layout.hit_char(to_local.inverse() * local)
     }
@@ -806,8 +806,8 @@ impl App {
             rect,
             nrows,
             ncols,
-            Some(tracedraw_core::Stroke::hairline(
-                tracedraw_core::Color::BLACK,
+            Some(graphdraw_core::Stroke::hairline(
+                graphdraw_core::Color::BLACK,
             )),
         );
         for (r, row) in rows.iter().enumerate() {
@@ -859,11 +859,11 @@ impl App {
             kind: ShapeKind::Text {
                 spans: vec![span],
                 origin: Point::new(t.rect.x0, t.rect.y0),
-                frame: Some(tracedraw_core::geometry::Size::new(
+                frame: Some(graphdraw_core::geometry::Size::new(
                     t.rect.width(),
                     t.rect.height(),
                 )),
-                align: tracedraw_core::TextAlign::Left,
+                align: graphdraw_core::TextAlign::Left,
                 para: Default::default(),
                 on_path: None,
             },
@@ -879,7 +879,7 @@ fn blank(row: u32, col: u32) -> TableCell {
         col_span: 1,
         text: Vec::new(),
         fill: None,
-        align: tracedraw_core::TextAlign::Left,
+        align: graphdraw_core::TextAlign::Left,
     }
 }
 
@@ -894,11 +894,11 @@ fn grow_row_to_fit(t: &mut Table, r: u32, c: u32) {
         return;
     }
     let inner = t.cell_rect(cell).inset(-t.padding);
-    let para = tracedraw_core::ParagraphStyle::default();
+    let para = graphdraw_core::ParagraphStyle::default();
     let layout =
-        tracedraw_text::fonts().layout(&tracedraw_core::document::text_outline::TextRequest {
+        graphdraw_text::fonts().layout(&graphdraw_core::document::text_outline::TextRequest {
             spans: &cell.text,
-            frame: Some(tracedraw_core::geometry::Size::new(
+            frame: Some(graphdraw_core::geometry::Size::new(
                 inner.width().max(0.1),
                 1.0e6,
             )),
@@ -928,7 +928,7 @@ fn cell_text(t: &Table, r: u32, c: u32) -> String {
 mod tests {
     #[test]
     fn new_tables_take_the_bar_defaults() {
-        use tracedraw_core::{Color, Fill, Stroke};
+        use graphdraw_core::{Color, Fill, Stroke};
         let mut app = App::headless();
         app.table_rows = 2;
         app.table_cols = 5;
@@ -945,7 +945,7 @@ mod tests {
     }
 
     use super::*;
-    use tracedraw_core::geometry::Rect;
+    use graphdraw_core::geometry::Rect;
 
     #[test]
     fn click_edits_cell_and_tab_moves_on() {
@@ -1001,7 +1001,7 @@ mod tests {
         let h0 = before.row_heights[1];
         app.cell_insert("a\nb\nc\nd\ne\nf");
         let (_, after) = app.selected_table().unwrap();
-        if !tracedraw_text::fonts().families().is_empty() {
+        if !graphdraw_text::fonts().families().is_empty() {
             assert!(after.row_heights[1] > h0, "{h0} -> {:?}", after.row_heights);
             assert!(
                 (after.rect.y1 - before.rect.y1).abs() < 1e-9,

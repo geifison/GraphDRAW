@@ -33,7 +33,7 @@
 
 ## ダイアログボックスを省略する {#skip}
 
-[[newdoc.dont_show]] にチェックを付けると、前回使った値で新しい図面がすぐに作成されます。ダイアログボックスを再び表示するには、[[menu.tools > menu.tools.options > menu.tools.options_app]] の [[options.general]] ページで対応する設定をオンにします。[TraceDraw のオプション](../customize/options-app.md#general) を参照してください。
+[[newdoc.dont_show]] にチェックを付けると、前回使った値で新しい図面がすぐに作成されます。ダイアログボックスを再び表示するには、[[menu.tools > menu.tools.options > menu.tools.options_app]] の [[options.general]] ページで対応する設定をオンにします。[GraphDraw のオプション](../customize/options-app.md#general) を参照してください。
 
 ## そのほかの始め方 {#other-ways}
 

@@ -22,7 +22,7 @@ eine neue, unbenannte Zeichnung; die Vorlage selbst ändert sich nie.
    drücken Sie <kbd>Enter</kbd>.
 
 Der Regler [[tpl.thumbnail_size]] unten macht die Miniaturen größer oder
-kleiner, und [[welcome.open_template]] öffnet jede `.tdt`- oder `.tdraw`-Datei
+kleiner, und [[welcome.open_template]] öffnet jede `.tdt`- oder `.gdr`-Datei
 als Vorlage.
 
 ![Das Dialogfeld Neu aus Vorlage](../../img/templates-styles-templates-new-from-template.png)

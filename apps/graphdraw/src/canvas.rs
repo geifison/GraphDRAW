@@ -6,7 +6,7 @@ use crate::theme::Tokens;
 use crate::tools::Tool;
 use crate::view::View;
 use egui::{epaint, Color32, Painter, Pos2, Rect as ERect, Stroke as EStroke};
-use tracedraw_core::{
+use graphdraw_core::{
     document::ShapeKind,
     geometry::{Affine, BezPath, PathEl, Point, Rect},
     Color, Document,
@@ -551,8 +551,8 @@ fn three_point_preview(
     a: Point,
     b: Point,
     c: Point,
-) -> tracedraw_core::geometry::BezPath {
-    use tracedraw_core::geometry::{BezPath, Vec2};
+) -> graphdraw_core::geometry::BezPath {
+    use graphdraw_core::geometry::{BezPath, Vec2};
     let base = b - a;
     let len = base.hypot().max(1e-6);
     let dir = base / len;
@@ -574,9 +574,9 @@ fn three_point_preview(
             let local = Rect::new(0.0, height.min(0.0), len, height.max(0.0));
             let t = Affine::translate(a.to_vec2()) * Affine::rotate(base.atan2());
             let p = if tool == Tool::ThreePointEllipse {
-                tracedraw_core::geometry::ellipse_path(local)
+                graphdraw_core::geometry::ellipse_path(local)
             } else {
-                tracedraw_core::geometry::rect_path(local, 0.0)
+                graphdraw_core::geometry::rect_path(local, 0.0)
             };
             t * p
         }
@@ -603,7 +603,7 @@ fn draw_symmetry_lines(app: &App, painter: &Painter, rect: ERect) {
     let view = &app.view;
     for s in app.selected_shapes() {
         for e in &s.effects {
-            let tracedraw_core::live::Effect::Symmetry {
+            let graphdraw_core::live::Effect::Symmetry {
                 center,
                 angle,
                 lines,
@@ -615,7 +615,7 @@ fn draw_symmetry_lines(app: &App, painter: &Painter, rect: ERect) {
             let far = 100_000.0 / view.zoom.max(0.01) as f64;
             for k in 0..n {
                 let a = (angle + 180.0 * k as f64 / n as f64).to_radians();
-                let d = tracedraw_core::geometry::Vec2::new(a.cos(), a.sin());
+                let d = graphdraw_core::geometry::Vec2::new(a.cos(), a.sin());
                 let s0 = view.to_screen(*center - d * far);
                 let s1 = view.to_screen(*center + d * far);
                 if let Some((c0, c1)) = clip_segment(s0, s1, rect) {
@@ -700,7 +700,7 @@ fn draw_fountain_handles(app: &App, painter: &Painter) {
 
 fn draw_anchors(app: &App, painter: &Painter) {
     let view = &app.view;
-    let mut shown: Vec<(tracedraw_core::ShapeId, bool)> = Vec::new();
+    let mut shown: Vec<(graphdraw_core::ShapeId, bool)> = Vec::new();
     match (&app.tool, &app.drag) {
         (Tool::AnchorEditing, _) => {
             if let Some(id) = app.selection.first() {
@@ -782,7 +782,7 @@ fn draw_table_cells(app: &App, painter: &Painter) {
     let Ok((_, s)) = app.doc().shape(e.shape) else {
         return;
     };
-    let tracedraw_core::document::ShapeKind::Table(t) = &s.kind else {
+    let graphdraw_core::document::ShapeKind::Table(t) = &s.kind else {
         return;
     };
     let view = &app.view;
@@ -1161,7 +1161,7 @@ fn draw_grid(app: &App, painter: &Painter, rect: ERect) {
     let meta = &app.doc().metadata;
     let (grid, rulers) = (meta.grid, meta.rulers.clone());
     let zoom = view.zoom as f64;
-    let dots = grid.display == tracedraw_core::document::GridDisplay::Dots;
+    let dots = grid.display == graphdraw_core::document::GridDisplay::Dots;
     let min_px = if dots { 8.0 } else { 6.0 };
     let sx = grid.spacing_x.max(1e-6) * grid_thinning(grid.spacing_x * zoom, min_px);
     let sy = grid.spacing_y.max(1e-6) * grid_thinning(grid.spacing_y * zoom, min_px);
@@ -1383,7 +1383,7 @@ fn draw_spacing_arrow(painter: &Painter, c: Pos2, horizontal: bool, color: Color
 /// curve larger, handles of the selected nodes, and an arrow in the
 /// secondary colour showing the curve's direction.
 fn draw_nodes(app: &App, painter: &Painter) {
-    use tracedraw_core::nodes;
+    use graphdraw_core::nodes;
     let view = &app.view;
     let prefs = app.settings.nodes;
     let [r, g, b] = prefs.main_rgb;
@@ -1668,11 +1668,11 @@ fn draw_guide_line(
     app: &App,
     painter: &Painter,
     rect: ERect,
-    line: tracedraw_core::document::GuideLine,
+    line: graphdraw_core::document::GuideLine,
     color: Color32,
     pattern: &[f32],
 ) {
-    use tracedraw_core::document::GuideLine;
+    use graphdraw_core::document::GuideLine;
     let view = &app.view;
     match line {
         GuideLine::Horizontal { y } => {
@@ -1739,7 +1739,7 @@ pub fn draw_guides(app: &App, painter: &Painter, rect: ERect) {
         draw_guide_line(app, painter, rect, g.line, color, g.style.pattern());
     }
     if let Drag::NewGuide { horizontal, pos } = &app.drag {
-        use tracedraw_core::document::GuideLine;
+        use graphdraw_core::document::GuideLine;
         let line = if *horizontal {
             GuideLine::Horizontal { y: pos.y }
         } else {
@@ -1752,7 +1752,7 @@ pub fn draw_guides(app: &App, painter: &Painter, rect: ERect) {
             rect,
             line,
             color,
-            tracedraw_core::document::GuideStyle::default().pattern(),
+            graphdraw_core::document::GuideStyle::default().pattern(),
         );
     }
     if let Some((_, pivot, handles)) = app.guide_rotate_handles() {
@@ -1932,7 +1932,7 @@ pub fn draw_snap_mark(app: &App, painter: &Painter) {
         let pts: Vec<Pos2> = (0..=24)
             .map(|i| {
                 app.view
-                    .to_screen(tracedraw_core::geometry::ParamCurve::eval(
+                    .to_screen(graphdraw_core::geometry::ParamCurve::eval(
                         &seg,
                         i as f64 / 24.0,
                     ))
@@ -2151,7 +2151,7 @@ pub fn draw_effect_nodes(app: &App, painter: &Painter) {
             painter.add(egui::Shape::line(pts, egui::Stroke::new(1.0, blue)));
         }
         // Mesh grid lines.
-        if let tracedraw_core::Fill::Mesh(m) = &s.fill {
+        if let graphdraw_core::Fill::Mesh(m) = &s.fill {
             let cols = m.cols as usize + 1;
             for r in 0..=m.rows as usize {
                 let pts: Vec<egui::Pos2> = (0..cols)
@@ -2217,7 +2217,7 @@ mod tests {
         assert!(*ys.last().unwrap() >= page.y0);
         let mut m = app.doc().metadata.clone();
         m.grid.baseline_start = 0.0;
-        app.run(tracedraw_core::Command::SetMetadata { metadata: m });
+        app.run(graphdraw_core::Command::SetMetadata { metadata: m });
         assert!((app.baseline_ys()[0] - page.y1).abs() < 1e-9);
     }
 }

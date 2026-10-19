@@ -1,5 +1,5 @@
-//! tracedraw-io: export the document model to interchange formats and read the
-//! native `.tdraw` file.
+//! graphdraw-io: export the document model to interchange formats and read the
+//! native `.gdr` file.
 
 #![allow(clippy::field_reassign_with_default)]
 pub mod dxf;
@@ -18,14 +18,14 @@ pub mod svg_import;
 pub mod text_import;
 
 use std::path::Path;
-use tracedraw_core::Document;
+use graphdraw_core::Document;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
     #[error("{0}")]
-    Core(#[from] tracedraw_core::Error),
+    Core(#[from] graphdraw_core::Error),
     #[error("{0}")]
     Format(String),
 }
@@ -37,8 +37,8 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// only (the curve becomes a group of the filled closed part and the
 /// outlined whole), or dropped when it has none, as the screen shows it.
 pub fn resolve_open_fills(doc: &Document) -> std::borrow::Cow<'_, Document> {
-    use tracedraw_core::document::{Shape, ShapeKind};
-    use tracedraw_core::Fill;
+    use graphdraw_core::document::{Shape, ShapeKind};
+    use graphdraw_core::Fill;
     fn needs(s: &Shape) -> bool {
         match &s.kind {
             ShapeKind::Path { closed: false, .. } => !matches!(s.fill, Fill::None),
@@ -53,7 +53,7 @@ pub fn resolve_open_fills(doc: &Document) -> std::borrow::Cow<'_, Document> {
                 path,
                 closed: false,
             } if !matches!(s.fill, Fill::None) => {
-                let closed = tracedraw_render::closed_subpaths(path);
+                let closed = graphdraw_render::closed_subpaths(path);
                 if closed.elements().is_empty() {
                     s.fill = Fill::None;
                     return;
@@ -65,11 +65,11 @@ pub fn resolve_open_fills(doc: &Document) -> std::borrow::Cow<'_, Document> {
                 };
                 filled.stroke = None;
                 filled.effects.clear();
-                filled.transform = tracedraw_core::geometry::Affine::IDENTITY;
+                filled.transform = graphdraw_core::geometry::Affine::IDENTITY;
                 let mut outlined = s.clone();
                 outlined.fill = Fill::None;
                 outlined.effects.clear();
-                outlined.transform = tracedraw_core::geometry::Affine::IDENTITY;
+                outlined.transform = graphdraw_core::geometry::Affine::IDENTITY;
                 s.kind = ShapeKind::Group {
                     children: vec![filled, outlined],
                 };
@@ -99,7 +99,7 @@ pub fn resolve_open_fills(doc: &Document) -> std::borrow::Cow<'_, Document> {
     std::borrow::Cow::Owned(out)
 }
 
-/// Native format: pretty JSON with a `.tdraw` extension.
+/// Native format: pretty JSON with a `.gdr` extension.
 pub fn save_native(doc: &Document, path: impl AsRef<Path>) -> Result<()> {
     std::fs::write(path, doc.to_json()?)?;
     Ok(())
@@ -167,7 +167,7 @@ pub fn page_pictures(doc: &Document, max_side: u32) -> Vec<(Vec<u8>, u32, u32)> 
         }
         // Pixels per inch that make the longer side `max_side` pixels.
         let dpi = f64::from(max_side.max(1)) / (longest / 25.4);
-        let Some(pm) = tracedraw_render::render_page_image(doc, page.id, dpi) else {
+        let Some(pm) = graphdraw_render::render_page_image(doc, page.id, dpi) else {
             break;
         };
         let (w, h) = (pm.width(), pm.height());
@@ -188,7 +188,7 @@ pub fn page_pictures(doc: &Document, max_side: u32) -> Vec<(Vec<u8>, u32, u32)> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::{
+    use graphdraw_core::{
         document::{Shape, ShapeKind},
         geometry::{Rect, Size},
         Color, Fill, Pattern, Stroke,
@@ -196,7 +196,7 @@ mod tests {
 
     #[test]
     fn open_curves_lose_their_fill_in_vector_exports() {
-        use tracedraw_core::geometry::{BezPath, Point};
+        use graphdraw_core::geometry::{BezPath, Point};
         let mut doc = Document::default();
         let layer = doc.pages[0].layers[0].id;
         let mut path = BezPath::new();
@@ -204,7 +204,7 @@ mod tests {
         path.line_to(Point::new(50.0, 10.0));
         path.line_to(Point::new(50.0, 50.0));
         let mut open = Shape::new(
-            tracedraw_core::ShapeId(5),
+            graphdraw_core::ShapeId(5),
             ShapeKind::Path {
                 path,
                 closed: false,
@@ -234,7 +234,7 @@ mod tests {
         // A tile with a filled square and an outlined group, built from
         // page-space shapes so the helper has to move them to the origin.
         let mut square = Shape::new(
-            tracedraw_core::ShapeId(7),
+            graphdraw_core::ShapeId(7),
             ShapeKind::Rect {
                 rect: Rect::new(40.0, 40.0, 45.0, 45.0),
                 radius: 0.0,
@@ -244,7 +244,7 @@ mod tests {
         square.fill = Fill::Solid(Color::rgb8(255, 0, 0));
         square.stroke = None;
         let mut circle = Shape::new(
-            tracedraw_core::ShapeId(8),
+            graphdraw_core::ShapeId(8),
             ShapeKind::Ellipse {
                 rect: Rect::new(45.0, 45.0, 50.0, 50.0),
                 arc: None,
@@ -253,7 +253,7 @@ mod tests {
         circle.fill = Fill::linear(Color::rgb8(0, 0, 255), Color::WHITE, 45.0);
         circle.stroke = Some(Stroke::new(Color::BLACK, 0.5));
         let group = Shape::new(
-            tracedraw_core::ShapeId(9),
+            graphdraw_core::ShapeId(9),
             ShapeKind::Group {
                 children: vec![circle],
             },
@@ -273,7 +273,7 @@ mod tests {
         doc.layer_mut(layer).unwrap().shapes.push(s);
 
         let path = std::env::temp_dir().join(format!(
-            "tracedraw-vector-pattern-{}-{:?}.tdraw",
+            "graphdraw-vector-pattern-{}-{:?}.gdr",
             std::process::id(),
             std::thread::current().id()
         ));
@@ -292,7 +292,7 @@ mod tests {
     fn custom_arrowhead_round_trips_through_the_native_format() {
         let mut doc = Document::default();
         let layer = doc.pages[0].layers[0].id;
-        let mut tri = tracedraw_core::BezPath::new();
+        let mut tri = graphdraw_core::BezPath::new();
         tri.move_to((0.0, 0.0));
         tri.line_to((20.0, 10.0));
         tri.line_to((0.0, 20.0));
@@ -302,7 +302,7 @@ mod tests {
             id,
             ShapeKind::Path {
                 path: {
-                    let mut p = tracedraw_core::BezPath::new();
+                    let mut p = graphdraw_core::BezPath::new();
                     p.move_to((10.0, 50.0));
                     p.line_to((60.0, 50.0));
                     p
@@ -311,8 +311,8 @@ mod tests {
             },
         );
         line.stroke = Some(Stroke {
-            start_arrow: tracedraw_core::Arrowhead::Circle,
-            end_arrow: tracedraw_core::Arrowhead::from_shape_path(&tri, "My head"),
+            start_arrow: graphdraw_core::Arrowhead::Circle,
+            end_arrow: graphdraw_core::Arrowhead::from_shape_path(&tri, "My head"),
             ..Stroke::new(Color::BLACK, 1.0)
         });
         doc.layer_mut(layer).unwrap().shapes.push(line);
@@ -325,6 +325,6 @@ mod tests {
         let st = s.stroke.as_ref().unwrap();
         assert!(st.end_arrow.is_custom());
         assert_eq!(st.end_arrow.name(), "My head");
-        assert_eq!(st.start_arrow, tracedraw_core::Arrowhead::Circle);
+        assert_eq!(st.start_arrow, graphdraw_core::Arrowhead::Circle);
     }
 }

@@ -1,6 +1,6 @@
 # The workspace
 
-The TraceDraw window holds your drawings and everything you need to work on
+The GraphDraw window holds your drawings and everything you need to work on
 them. This page names its parts, so the other pages of this Help make sense.
 
 ## The parts of the window {#parts}

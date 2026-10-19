@@ -6,7 +6,7 @@
 //! straight two-point lines.
 
 use crate::i18n::tr;
-use tracedraw_core::geometry::{BezPath, Point, Rect};
+use graphdraw_core::geometry::{BezPath, Point, Rect};
 
 /// The sets of shapes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -315,7 +315,7 @@ impl Pen {
     /// the outer outlines (which run counter-clockwise), so it stays open
     /// under either fill rule.
     fn hole(&mut self, build: impl FnOnce(&mut Pen)) {
-        use tracedraw_core::geometry::Shape as _;
+        use graphdraw_core::geometry::Shape as _;
         let mut part = Pen::new(self.r);
         build(&mut part);
         let mut path = part.finish();
@@ -805,7 +805,7 @@ impl CommonShape {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::geometry::Shape as _;
+    use graphdraw_core::geometry::Shape as _;
 
     #[test]
     fn every_shape_fills_its_box() {

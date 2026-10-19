@@ -2,7 +2,7 @@
 //! paragraph, through the application's commands.
 
 use crate::app::{App, TextEdit};
-use tracedraw_core::{
+use graphdraw_core::{
     geometry::{Rect, Shape as _},
     paragraphs::paragraph_styles,
     Command, Document, ParagraphStyle, Point, ShapeId, ShapeKind, Size, TextAlign, TextSpan,
@@ -10,8 +10,8 @@ use tracedraw_core::{
 };
 
 fn fonts_available() -> bool {
-    tracedraw_text::install();
-    !tracedraw_text::fonts().families().is_empty()
+    graphdraw_text::install();
+    !graphdraw_text::fonts().families().is_empty()
 }
 
 fn frame(app: &mut App, text: &str) -> ShapeId {

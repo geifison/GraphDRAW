@@ -3,7 +3,7 @@
 //! type and angle). Original colour sets, see
 //! docs/behavior/gradient-fill.md.
 
-use tracedraw_core::{Color, Stop};
+use graphdraw_core::{Color, Stop};
 
 /// The i18n key of each gradient's name and its stops (position 0 to 1,
 /// RGB).

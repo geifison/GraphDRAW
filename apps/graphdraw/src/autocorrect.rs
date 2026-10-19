@@ -332,7 +332,7 @@ pub fn on_typed(text: &str, prefs: &AutocorrectPrefs, style: QuoteStyle) -> Opti
 /// Apply every enabled rule to the selected text objects (span by span,
 /// so styling is kept). Returns the number of objects changed.
 pub fn apply_to_selection(app: &mut crate::app::App) -> usize {
-    use tracedraw_core::{document::ShapeKind, Command, TextSpan};
+    use graphdraw_core::{document::ShapeKind, Command, TextSpan};
     let prefs = app.settings.autocorrect.clone();
     let style = QuoteStyle::for_language(&crate::i18n::language());
     let mut changed = 0;

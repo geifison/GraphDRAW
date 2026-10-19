@@ -8,8 +8,8 @@ use crate::app::App;
 use crate::i18n::{tr, trf};
 use crate::scripting::vba_run::{Changes, FormEvent, Input, MacroRun, Request, RunError, Snapshot};
 use std::path::{Path, PathBuf};
-use tracedraw_vba as vba;
-use tracedraw_vba_project as vp;
+use graphdraw_vba as vba;
+use graphdraw_vba_project as vp;
 
 /// A loaded macro project.
 #[derive(Debug, Clone)]
@@ -1007,7 +1007,7 @@ mod tests {
 
     fn temp(name: &str) -> PathBuf {
         let d =
-            std::env::temp_dir().join(format!("tracedraw-macros-{name}-{}", std::process::id()));
+            std::env::temp_dir().join(format!("graphdraw-macros-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&d);
         d
     }
@@ -1261,17 +1261,17 @@ mod tests {
     }
 
     /// Local check of projects on disk (not run by default): every
-    /// `.gms` in `TRACEDRAW_MACRO_FILES` (separated by ':') is compiled
-    /// and listed; the macros named in `TRACEDRAW_MACRO_RUN`
+    /// `.gms` in `GRAPHDRAW_MACRO_FILES` (separated by ':') is compiled
+    /// and listed; the macros named in `GRAPHDRAW_MACRO_RUN`
     /// ("Module.Macro,...") run on a sample drawing, answering each box
     /// with its first button or default text and closing each form.
     #[test]
     #[ignore]
     fn projects_from_the_environment() {
-        let Ok(files) = std::env::var("TRACEDRAW_MACRO_FILES") else {
+        let Ok(files) = std::env::var("GRAPHDRAW_MACRO_FILES") else {
             return;
         };
-        let wanted: Vec<String> = std::env::var("TRACEDRAW_MACRO_RUN")
+        let wanted: Vec<String> = std::env::var("GRAPHDRAW_MACRO_RUN")
             .unwrap_or_default()
             .split(',')
             .filter(|s| !s.is_empty())

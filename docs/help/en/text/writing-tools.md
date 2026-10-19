@@ -1,6 +1,6 @@
 # Writing tools
 
-TraceDraw checks spelling and grammar, finds synonyms, corrects as you type,
+GraphDraw checks spelling and grammar, finds synonyms, corrects as you type,
 and fixes text that came in with the wrong characters. The commands are in
 [[menu.text > menu.text.writing_tools]] and the [[menu.text]] menu.
 
@@ -26,7 +26,7 @@ selected texts ([[writing.scope_selection]]).
 4. [[writing.undo]] takes back the last replacement.
 
 [[writing.options]] has [[writing.ignore_digits]] and
-[[writing.ignore_capitals]]. TraceDraw uses the dictionaries installed on your
+[[writing.ignore_capitals]]. GraphDraw uses the dictionaries installed on your
 system; without one, only a built-in word list is used.
 
 ### Grammar {#grammar}

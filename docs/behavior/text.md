@@ -171,7 +171,7 @@ any other object; the steps and sides follow the letters' outlines
   the paragraphs: changing the left indent of a whole text keeps each
   paragraph's alignment and spacing. Each change is one undo step.
 - A paragraph set back to the object's formatting stops carrying its
-  own. `.tdraw` files write `paragraph` only on characters whose
+  own. `.gdr` files write `paragraph` only on characters whose
   paragraph has its own formatting; files without it give every
   paragraph the object's formatting.
 - `.cdr`: artistic text is written with each paragraph's alignment
@@ -313,7 +313,7 @@ edited is finished first. One undo step.
 
 A drawing can carry font files: the fonts embedded in a `.cdr` file it
 was opened from (see `docs/cdr-format.md`, Embedded fonts), saved with it
-in `.tdraw` files. When such a drawing opens (or a `.cdr` file is
+in `.gdr` files. When such a drawing opens (or a `.cdr` file is
 imported), each carried font whose family is not installed serves the
 text for the rest of the session and joins the font lists; an installed
 font of the same family wins, since an embedded copy may hold only the
@@ -321,7 +321,7 @@ letters the drawing used. A font is used only when its licence allows
 use in documents (the OS/2 embedding bits: not "restricted", outlines
 allowed); others are skipped with a log line and their text falls back
 like any missing font. The Fonts docker marks carried families
-"embedded" under "Fonts in document". Saving a drawing as `.tdraw` adds
+"embedded" under "Fonts in document". Saving a drawing as `.gdr` adds
 the carried fonts its text uses (text imported or pasted from another
 drawing), so the file keeps its letters on machines without them.
 

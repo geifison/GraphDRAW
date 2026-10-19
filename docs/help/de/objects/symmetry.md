@@ -12,7 +12,7 @@ unter [[menu.object > menu.object.symmetry]].
    (<kbd>Alt+S</kbd>).
 
 Eine senkrechte Spiegelachse wird an den rechten Rand des Objekts gelegt,
-sodass die Kopie daneben erscheint, und TraceDraw wechselt direkt in die
+sodass die Kopie daneben erscheint, und GraphDraw wechselt direkt in die
 Bearbeitung der Symmetrie.
 
 ## Eine Symmetrie bearbeiten {#edit}

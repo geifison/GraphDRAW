@@ -1,11 +1,11 @@
-# TraceDraw-opties
+# GraphDraw-opties
 
 [[menu.tools > menu.tools.options > menu.tools.options_app]] (<kbd>Ctrl+J</kbd>)
 stelt in hoe het programma werkt. Kies een pagina in de lijst links.
 
 ## Algemeen {#general}
 
-![De pagina Algemeen van de TraceDraw-opties](../../img/customize-options-app-general.png)
+![De pagina Algemeen van de GraphDraw-opties](../../img/customize-options-app-general.png)
 
 - [[options.on_startup]]: het welkomstscherm tonen, een nieuw document
   beginnen, of het laatst bewerkte document openen.
@@ -17,7 +17,7 @@ stelt in hoe het programma werkt. Kies een pagina in de lijst links.
 
 ## Weergave {#display}
 
-![De pagina Weergave van de TraceDraw-opties](../../img/customize-options-app-display.png)
+![De pagina Weergave van de GraphDraw-opties](../../img/customize-options-app-display.png)
 
 - [[menu.view.proof_colors]]: kleuren tonen zoals ze worden afgedrukt.
 - [[options.show_tooltips]] (aan), [[options.hide_bbox_curve_tools]] en
@@ -32,7 +32,7 @@ stelt in hoe het programma werkt. Kies een pagina in de lijst links.
 
 ## Bewerken {#edit}
 
-![De pagina Bewerken van de TraceDraw-opties](../../img/customize-options-app-edit.png)
+![De pagina Bewerken van de GraphDraw-opties](../../img/customize-options-app-edit.png)
 
 - [[options.constrain_angle]]: de stap van <kbd>Ctrl</kbd> bij draaien en
   tekenen (in het begin 15 graden).
@@ -43,7 +43,7 @@ stelt in hoe het programma werkt. Kies een pagina in de lijst links.
 
 ## Knooppunten en grepen {#nodes-and-handles}
 
-![De pagina Knooppunten en grepen van de TraceDraw-opties](../../img/customize-options-app-nodes-and-handles.png)
+![De pagina Knooppunten en grepen van de GraphDraw-opties](../../img/customize-options-app-nodes-and-handles.png)
 
 - [[options.node_size]]: klein, middel of groot.
 - [[options.node_shape]] voor knooppunten van het type [[options.node_cusp]],
@@ -55,7 +55,7 @@ stelt in hoe het programma werkt. Kies een pagina in de lijst links.
 
 ## Uitsnijkader {#clip-frame}
 
-![De pagina Uitsnijkader van de TraceDraw-opties](../../img/customize-options-app-clip-frame.png)
+![De pagina Uitsnijkader van de GraphDraw-opties](../../img/customize-options-app-clip-frame.png)
 
 - [[options.auto_center]]: [[options.auto_center_outside]] (in het begin),
   [[options.auto_center_always]] of [[options.auto_center_never]].
@@ -65,7 +65,7 @@ Zie [Objecten in een uitsnijkader plaatsen](../objects/clip-frames.md).
 
 ## Kleven {#snapping}
 
-![De pagina Kleven van de TraceDraw-opties](../../img/customize-options-app-snapping.png)
+![De pagina Kleven van de GraphDraw-opties](../../img/customize-options-app-snapping.png)
 
 - [[options.snap_to_objects]], [[options.snap_to_page]],
   [[options.snap_to_guidelines]], [[options.snap_to_grid]], het
@@ -79,7 +79,7 @@ Zie [Kleven](../pages-layout/snapping.md).
 
 ## Opslaan {#save}
 
-![De pagina Opslaan van de TraceDraw-opties](../../img/customize-options-app-save.png)
+![De pagina Opslaan van de GraphDraw-opties](../../img/customize-options-app-save.png)
 
 - [[options.backup]]: [[options.backup_before_save]] (aan) bewaart het vorige
   bestand als `backup_of_<name>`, [[options.backup_to]] de
@@ -91,7 +91,7 @@ Zie [Kleven](../pages-layout/snapping.md).
 
 ## Tekst {#text}
 
-![De pagina Tekst van de TraceDraw-opties](../../img/customize-options-app-text.png)
+![De pagina Tekst van de GraphDraw-opties](../../img/customize-options-app-text.png)
 
 - [[options.keyboard_text_increment]]: hoeveel <kbd>Ctrl+8</kbd> en
   <kbd>Ctrl+2</kbd> de geselecteerde tekst groter en kleiner maken (1 punt).

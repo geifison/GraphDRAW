@@ -1,7 +1,7 @@
 //! File > Save As (and Save of a drawing without a file): the Save
 //! Drawing dialog. One window chooses the folder (path bar, Up, New folder,
 //! shortcuts and the folder's contents), the file name, the type
-//! (TraceDraw or `.cdr`), the version of either (the newest first), whether
+//! (GraphDraw or `.cdr`), the version of either (the newest first), whether
 //! the CMYK profile goes along, and the document's title,
 //! subject and rating, and asks before replacing a file. In a browser,
 //! where every save is a download, it keeps the name, type, version and
@@ -15,8 +15,8 @@ use crate::ui::dialogs::{enter_pressed, window};
 use crate::ui::options::{combo, grid, row_label};
 use egui::{Context, RichText, Ui};
 use std::path::{Path, PathBuf};
-use tracedraw_core::document::{TDRAW_FORMAT_VERSION, TDRAW_RELEASES};
-use tracedraw_core::Command;
+use graphdraw_core::document::{GDR_FORMAT_VERSION, GDR_RELEASES};
+use graphdraw_core::Command;
 
 const ERROR: egui::Color32 = egui::Color32::from_rgb(0xC4, 0x2B, 0x1C);
 /// The dialog's width and the height of the folder list.
@@ -25,7 +25,7 @@ const LIST_H: f32 = 250.0;
 const PLACES_W: f32 = 150.0;
 
 /// The file types the drawing can be saved as.
-pub const TDRAW: &str = "tdraw";
+pub const GDR: &str = "gdr";
 pub const CDR: &str = "cdr";
 
 /// The dialog's state.
@@ -37,11 +37,11 @@ pub struct SaveAsState {
     pub dir_text: String,
     /// The file name, with or without its extension.
     pub name: String,
-    /// `.cdr` rather than TraceDraw.
+    /// `.cdr` rather than GraphDraw.
     pub cdr: bool,
     pub version: u16,
-    /// The `.tdraw` format version.
-    pub tdraw_version: u32,
+    /// The `.gdr` format version.
+    pub gdr_version: u32,
     /// The drawing's CMYK profile (name, size in bytes), when it has one.
     pub profile: Option<(String, usize)>,
     /// The profile goes into the file (`.cdr` from version 16).
@@ -100,8 +100,8 @@ impl SaveAsState {
             dir: dir.clone(),
             name: String::new(),
             cdr,
-            version: tracedraw_cdr::write::NEWEST_VERSION,
-            tdraw_version: TDRAW_FORMAT_VERSION,
+            version: graphdraw_cdr::write::NEWEST_VERSION,
+            gdr_version: GDR_FORMAT_VERSION,
             // The drawing's CMYK profile, else the one Colour Management
             // loaded (it goes into the file when the drawing has none).
             profile: doc
@@ -110,7 +110,7 @@ impl SaveAsState {
                 .map(|p| (p.name.clone(), p.data.len()))
                 .or_else(|| app.settings_cmyk_profile().map(|p| (p.name, p.data.len()))),
             embed_profile: app.cdr_embed_profile,
-            fonts_size: tracedraw_cdr::write::embedded_size(&crate::app::cdr_font_faces(doc)),
+            fonts_size: graphdraw_cdr::write::embedded_size(&crate::app::cdr_font_faces(doc)),
             embed_fonts: app.cdr_embed_fonts,
             title: doc.title.clone(),
             subject: doc.metadata.subject.clone(),
@@ -129,7 +129,7 @@ impl SaveAsState {
         if self.cdr {
             CDR
         } else {
-            TDRAW
+            GDR
         }
     }
 
@@ -138,7 +138,7 @@ impl SaveAsState {
     pub fn file_name(&self) -> String {
         let name = self.name.trim();
         let lower = name.to_ascii_lowercase();
-        let stem = [TDRAW, CDR]
+        let stem = [GDR, CDR]
             .iter()
             .find_map(|ext| {
                 lower
@@ -189,7 +189,7 @@ impl SaveAsState {
 /// that writes it; versions whose files are not yet known to open in other
 /// programs say they are experimental.
 pub fn version_label(version: u16) -> String {
-    let checked = tracedraw_cdr::write::CHECKED_SINCE..=tracedraw_cdr::write::CHECKED_UNTIL;
+    let checked = graphdraw_cdr::write::CHECKED_SINCE..=graphdraw_cdr::write::CHECKED_UNTIL;
     let key = if !checked.contains(&version) {
         "dialog.cdr_version_item_experimental"
     } else {
@@ -238,16 +238,16 @@ pub fn release_name(version: u16) -> &'static str {
 }
 
 /// The versions offered, newest first.
-/// The `.tdraw` versions offered, newest first.
-pub fn tdraw_version_choices() -> Vec<u32> {
-    (0..=TDRAW_FORMAT_VERSION).rev().collect()
+/// The `.gdr` versions offered, newest first.
+pub fn gdr_version_choices() -> Vec<u32> {
+    (0..=GDR_FORMAT_VERSION).rev().collect()
 }
 
-/// "v1 (TraceDraw 0.5)": the format version and the release that first
+/// "v1 (GraphDraw 0.5)": the format version and the release that first
 /// wrote it.
-pub fn tdraw_version_label(version: u32) -> String {
-    let release = TDRAW_RELEASES.get(version as usize).copied().unwrap_or("?");
-    format!("v{version} (TraceDraw {release})")
+pub fn gdr_version_label(version: u32) -> String {
+    let release = GDR_RELEASES.get(version as usize).copied().unwrap_or("?");
+    format!("v{version} (GraphDraw {release})")
 }
 
 /// The `.cdr` versions offered, newest first: from the oldest checked to
@@ -255,7 +255,7 @@ pub fn tdraw_version_label(version: u32) -> String {
 /// Older versions are still written by the command line and the MCP
 /// server, and Save keeps the version of a drawing opened from one.
 pub fn version_choices() -> Vec<u16> {
-    (tracedraw_cdr::write::CHECKED_SINCE..=tracedraw_cdr::write::NEWEST_VERSION)
+    (graphdraw_cdr::write::CHECKED_SINCE..=graphdraw_cdr::write::NEWEST_VERSION)
         .rev()
         .collect()
 }
@@ -308,7 +308,7 @@ impl App {
             self.cdr_embed_fonts = st.embed_fonts;
             self.save_cdr_to(path, st.version);
         } else {
-            self.tdraw_version = Some(st.tdraw_version);
+            self.gdr_version = Some(st.gdr_version);
             self.save_to(path);
         }
         true
@@ -620,7 +620,7 @@ fn fields(ui: &mut Ui, st: &mut SaveAsState) {
                 if cdr {
                     tr("file.cdr_files")
                 } else {
-                    "TraceDraw (*.tdraw)".to_string()
+                    "GraphDraw (*.gdr)".to_string()
                 }
             },
             260.0,
@@ -642,10 +642,10 @@ fn fields(ui: &mut Ui, st: &mut SaveAsState) {
             } else {
                 combo(
                     ui,
-                    "save_as_tdraw_version",
-                    &mut st.tdraw_version,
-                    &tdraw_version_choices(),
-                    tdraw_version_label,
+                    "save_as_gdr_version",
+                    &mut st.gdr_version,
+                    &gdr_version_choices(),
+                    gdr_version_label,
                     260.0,
                 );
             }
@@ -732,10 +732,10 @@ mod tests {
     use super::*;
     use crate::ui::dialogs::Dialog;
     use egui::{vec2, Pos2, Rect};
-    use tracedraw_core::document::ShapeKind;
+    use graphdraw_core::document::ShapeKind;
 
     fn temp_dir(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("tracedraw-{name}-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("graphdraw-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let _ = std::fs::create_dir_all(&dir);
         dir
@@ -762,14 +762,14 @@ mod tests {
 
     fn version_of(path: &Path) -> Option<u16> {
         let bytes = std::fs::read(path).ok()?;
-        let (_, report) = tracedraw_cdr::open_bytes(&bytes, "t").ok()?;
+        let (_, report) = graphdraw_cdr::open_bytes(&bytes, "t").ok()?;
         report.version.map(|v| v.0)
     }
 
     fn drawing() -> App {
         let mut app = App::headless();
         app.new_shape(ShapeKind::Rect {
-            rect: tracedraw_core::geometry::Rect::new(10.0, 10.0, 60.0, 40.0),
+            rect: graphdraw_core::geometry::Rect::new(10.0, 10.0, 60.0, 40.0),
             radius: 0.0,
             corners: None,
         })
@@ -801,7 +801,7 @@ mod tests {
                 .map(|e| e.name.clone())
                 .collect::<Vec<_>>()
         };
-        assert_eq!(names(st), vec!["sub".to_string()], "TraceDraw files only");
+        assert_eq!(names(st), vec!["sub".to_string()], "GraphDraw files only");
         st.set_cdr(true);
         assert_eq!(names(st), vec!["sub".to_string(), "old.cdr".into()]);
         assert!(st.name.ends_with(".cdr"));
@@ -836,7 +836,7 @@ mod tests {
                 dir.as_path(),
                 "poster.cdr",
                 true,
-                tracedraw_cdr::write::NEWEST_VERSION
+                graphdraw_cdr::write::NEWEST_VERSION
             )
         );
         st.version = 15;
@@ -849,28 +849,28 @@ mod tests {
         let mut st = st.clone();
         assert!(app.finish_save_as(&mut st));
         assert_eq!(version_of(&dir.join("old.cdr")), Some(15));
-        // TraceDraw files.
+        // GraphDraw files.
         app.save_as_dialog();
         let st = state(&mut app);
         st.set_cdr(false);
         st.name = "native.cdr".into();
-        assert_eq!(st.file_name(), "native.tdraw");
-        assert_eq!(st.tdraw_version, TDRAW_FORMAT_VERSION);
-        assert_eq!(tdraw_version_choices()[0], TDRAW_FORMAT_VERSION);
-        assert_eq!(tdraw_version_label(1), "v1 (TraceDraw 0.5)");
-        st.tdraw_version = 0;
+        assert_eq!(st.file_name(), "native.gdr");
+        assert_eq!(st.gdr_version, GDR_FORMAT_VERSION);
+        assert_eq!(gdr_version_choices()[0], GDR_FORMAT_VERSION);
+        assert_eq!(gdr_version_label(1), "v1 (GraphDraw 0.5)");
+        st.gdr_version = 0;
         let mut st = st.clone();
         assert!(app.finish_save_as(&mut st));
-        let text = std::fs::read_to_string(dir.join("native.tdraw")).unwrap_or_default();
-        assert_eq!(tracedraw_core::document::tdraw_text_version(&text), 0);
+        let text = std::fs::read_to_string(dir.join("native.gdr")).unwrap_or_default();
+        assert_eq!(graphdraw_core::document::gdr_text_version(&text), 0);
         // Ctrl+S keeps the version; opening the file brings it back.
         app.engine.mark_saved();
         app.save(false);
-        let text = std::fs::read_to_string(dir.join("native.tdraw")).unwrap_or_default();
-        assert_eq!(tracedraw_core::document::tdraw_text_version(&text), 0);
+        let text = std::fs::read_to_string(dir.join("native.gdr")).unwrap_or_default();
+        assert_eq!(graphdraw_core::document::gdr_text_version(&text), 0);
         let mut other = App::headless();
-        other.open_path(dir.join("native.tdraw"));
-        assert_eq!(other.tdraw_version, Some(0));
+        other.open_path(dir.join("native.gdr"));
+        assert_eq!(other.gdr_version, Some(0));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -895,7 +895,7 @@ mod tests {
         for (typed, saved) in [
             ("a", "a.cdr"),
             ("a.CDR", "a.cdr"),
-            ("a.tdraw", "a.cdr"),
+            ("a.gdr", "a.cdr"),
             ("a.b", "a.b.cdr"),
         ] {
             st.name = typed.into();
@@ -932,12 +932,12 @@ mod tests {
     fn a_drawing_opened_from_a_cdr_file_keeps_its_version() {
         let dir = temp_dir("save-as-keep");
         let doc = drawing().engine.document().clone();
-        // A version TraceDraw saves in is kept: Save asks where (an opened
+        // A version GraphDraw saves in is kept: Save asks where (an opened
         // .cdr is never overwritten without Save As) and offers it.
         let kept = dir.join("kept.cdr");
         std::fs::write(
             &kept,
-            tracedraw_cdr::write::document_to_cdr_version(&doc, 21),
+            graphdraw_cdr::write::document_to_cdr_version(&doc, 21),
         )
         .expect("written");
         let mut app = App::headless();
@@ -951,11 +951,11 @@ mod tests {
         // An older version: Save does not write it, it says so and Save As
         // opens on the oldest version saved.
         let old = dir.join("old.cdr");
-        std::fs::write(&old, tracedraw_cdr::write::document_to_cdr_version(&doc, 9))
+        std::fs::write(&old, graphdraw_cdr::write::document_to_cdr_version(&doc, 9))
             .expect("written");
         app.open_path(old.clone());
         assert_eq!(app.cdr_unsaved_version, Some(9));
-        assert_eq!(app.cdr_version, Some(tracedraw_cdr::write::CHECKED_SINCE));
+        assert_eq!(app.cdr_version, Some(graphdraw_cdr::write::CHECKED_SINCE));
         assert!(app.status.contains("14"), "{}", app.status);
         app.save(false);
         assert!(
@@ -980,9 +980,9 @@ mod tests {
         assert!(matches!(app.dialog, Dialog::None));
         // Versions too old or too new become the nearest saved.
         app.cdr_version = Some(3);
-        assert_eq!(app.cdr_save_version(), tracedraw_cdr::write::CHECKED_SINCE);
+        assert_eq!(app.cdr_save_version(), graphdraw_cdr::write::CHECKED_SINCE);
         app.cdr_version = Some(99);
-        assert_eq!(app.cdr_save_version(), tracedraw_cdr::write::CHECKED_UNTIL);
+        assert_eq!(app.cdr_save_version(), graphdraw_cdr::write::CHECKED_UNTIL);
         assert_eq!(version_choices().first(), Some(&27));
         assert_eq!(version_choices().last(), Some(&14));
         assert!(version_label(15).contains("15"));
@@ -1022,14 +1022,14 @@ mod tests {
     fn the_cmyk_profile_goes_along_unless_left_out() {
         let dir = temp_dir("save-as-profile");
         let mut doc = drawing().engine.document().clone();
-        doc.cmyk_profile = Some(tracedraw_core::DocumentProfile::new(
+        doc.cmyk_profile = Some(graphdraw_core::DocumentProfile::new(
             "Synthetic CMYK",
-            tracedraw_core::icc::test_profiles::lut16_cmyk_profile(),
+            graphdraw_core::icc::test_profiles::lut16_cmyk_profile(),
         ));
         let src = dir.join("src.cdr");
         std::fs::write(
             &src,
-            tracedraw_cdr::write::document_to_cdr_version(&doc, 27),
+            graphdraw_cdr::write::document_to_cdr_version(&doc, 27),
         )
         .expect("written");
         let mut app = App::headless();

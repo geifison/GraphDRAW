@@ -1,6 +1,6 @@
 # Lignes, formes et contours
 
-Tout ce que vous dessinez dans TraceDraw est fait de lignes et de formes. Ces
+Tout ce que vous dessinez dans GraphDraw est fait de lignes et de formes. Ces
 pages expliquent les outils qui les dessinent, comment les remodeler nœud par
 nœud, comment les combiner et les découper, et comment régler le contour qui
 dessine leurs bords.

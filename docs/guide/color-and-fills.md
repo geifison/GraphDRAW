@@ -21,7 +21,7 @@ The palette runs along the bottom of the window. With objects selected:
 You can also **drag a swatch onto an object**, selected or not: drop it
 inside to fill it, or on its outline to colour the outline.
 
-If you click a colour with nothing selected, TraceDraw asks which kinds
+If you click a colour with nothing selected, GraphDraw asks which kinds
 of new objects should take it (see [Default properties](#default-properties)).
 
 The default palette has 99 named CMYK colours; the tooltip shows each

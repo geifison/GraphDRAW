@@ -17,7 +17,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 /// What every workspace file says it is.
-pub const KIND: &str = "tracedraw-workspace";
+pub const KIND: &str = "graphdraw-workspace";
 /// The version written. Files of later versions are read as far as their
 /// parts are understood.
 pub const VERSION: u32 = 1;
@@ -456,7 +456,7 @@ mod tests {
         assert_eq!(to.settings.desktop_rgb, [200, 210, 220]);
         assert!(!to.show_page_border);
         // Through a file on disk, too.
-        let dir = std::env::temp_dir().join(format!("tracedraw-ws-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("graphdraw-ws-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&dir);
         let path = dir.join("mine.tdws");
         from.export_workspace_to(&path, WorkspaceParts::ALL);
@@ -506,9 +506,9 @@ mod tests {
             b"[1, 2, 3]",
             b"{\"kind\": \"something else\", \"version\": 1}",
             b"{\"version\": 1}",
-            b"{\"kind\": \"tracedraw-workspace\", \"version\": 0}",
-            b"{\"kind\": \"tracedraw-workspace\", \"version\": 1, \"shortcuts\": 5}",
-            b"{\"kind\": \"tracedraw-workspace\", \"version\": 1, \"bars\": {\"layout\": {\"toolbox\": \"diagonal\"}}}",
+            b"{\"kind\": \"graphdraw-workspace\", \"version\": 0}",
+            b"{\"kind\": \"graphdraw-workspace\", \"version\": 1, \"shortcuts\": 5}",
+            b"{\"kind\": \"graphdraw-workspace\", \"version\": 1, \"bars\": {\"layout\": {\"toolbox\": \"diagonal\"}}}",
         ] {
             assert!(WorkspaceFile::from_bytes(bytes).is_err(), "{:?}", String::from_utf8_lossy(bytes));
         }

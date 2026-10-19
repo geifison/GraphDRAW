@@ -1,6 +1,6 @@
-# TraceDraw hakkında ve güncellemeler
+# GraphDraw hakkında ve güncellemeler
 
-TraceDraw ücretsiz ve açık kaynaklıdır. Bu sayfa hangi sürüme sahip olduğunuzu
+GraphDraw ücretsiz ve açık kaynaklıdır. Bu sayfa hangi sürüme sahip olduğunuzu
 nasıl göreceğinizi, daha yenisini nasıl alacağınızı ve nereden yardım
 isteyeceğinizi açıklar.
 
@@ -11,16 +11,16 @@ programın neyle yapıldığını görmek için [[menu.help > menu.help.about]]
 komutunu seçin. Kapatmak için [[dialog.close]], <kbd>Enter</kbd> veya
 <kbd>Esc</kbd> tuşuna basın.
 
-![TraceDraw Hakkında kutusu](../../img/welcome-about-and-updates-about.png)
+![GraphDraw Hakkında kutusu](../../img/welcome-about-and-updates-about.png)
 
 ## Güncellemeleri denetleme {#updates}
 
-Masaüstünde TraceDraw, daha yeni bir sürüm çıktığında size haber verebilir.
+Masaüstünde GraphDraw, daha yeni bir sürüm çıktığında size haber verebilir.
 
 Şimdi denetlemek için:
 
 1. [[menu.help > menu.help.updates]] komutunu seçin.
-2. TraceDraw projenin sürüm sayfasından son sürümü sorar ve sizinkinden yeni
+2. GraphDraw projenin sürüm sayfasından son sürümü sorar ve sizinkinden yeni
    olup olmadığını söyler. Test sürümleri ve gecelik derlemeler asla
    önerilmez.
 3. Daha yeni bir sürüm varsa ne yapacağınızı seçin:
@@ -32,9 +32,9 @@ Masaüstünde TraceDraw, daha yeni bir sürüm çıktığında size haber verebi
    - **Bu sürümü atla** o sürümü artık önermez.
    - [[dialog.close]] kutuyu kapatır.
 
-TraceDraw bir Linux AppImage olarak çalıştığında kutu **Yükle** de önerebilir:
+GraphDraw bir Linux AppImage olarak çalıştığında kutu **Yükle** de önerebilir:
 yeni AppImage'ı çalıştırdığınızın yanına indirir, indirmenin eksiksiz ve
-gerçek olduğunu denetler ve eski dosyanın yerine koyar. Yeni sürüm TraceDraw'ı
+gerçek olduğunu denetler ve eski dosyanın yerine koyar. Yeni sürüm GraphDraw'ı
 bir sonraki açışınızda başlar. Bir şey tutmazsa eski dosya olduğu gibi kalır ve
 kutu nedenini söyler.
 
@@ -47,7 +47,7 @@ ve sürüm sayfasını önerir.
 
 [[menu.tools > menu.tools.options > menu.tools.options_global]], sayfa
 [[options.general]], başlangıçta güncellemeleri denetleme ayarını içerir.
-Başta açıktır: TraceDraw günde bir kez başlarken sessizce denetler ve yalnızca
+Başta açıktır: GraphDraw günde bir kez başlarken sessizce denetler ve yalnızca
 atlamadığınız daha yeni bir sürüm çıktığında seslenir.
 
 > **Not:** Tarayıcı sürümü her zaman en yenisidir. Orada
@@ -55,7 +55,7 @@ atlamadığınız daha yeni bir sürüm çıktığında seslenir.
 
 ## Karşılama ekranı {#welcome-screen}
 
-Karşılama ekranı TraceDraw başladığında ilk sekmedir. Buradan bir çizim
+Karşılama ekranı GraphDraw başladığında ilk sekmedir. Buradan bir çizim
 oluşturabilir, son kullandığınız çizimlerden birini açabilir (her biri bir
 küçük resimle; [[menu.file.clear_recent]] onları unutur), bir şablondan
 başlayabilir, haberleri okuyabilir ve öğrenme materyali bulabilirsiniz. Geri
@@ -70,5 +70,5 @@ haberlerini açar.
   soru sorabilir ve fikir paylaşabilirsiniz.
 - [[menu.help > menu.help.support]] sorun takip sistemini açar; orada bir
   sorunu bildirebilirsiniz.
-- [[menu.help > menu.help.message_settings]] TraceDraw iletilerinin
+- [[menu.help > menu.help.message_settings]] GraphDraw iletilerinin
   ayarlandığı seçenekleri açar.

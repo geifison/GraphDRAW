@@ -10,7 +10,7 @@
 //! One undo step.
 
 use crate::app::App;
-use tracedraw_core::{
+use graphdraw_core::{
     geometry::{Affine, Point, Rect, Shape as _, Vec2},
     live::Effect,
     Command, Shape, ShapeId,
@@ -245,7 +245,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::{distort::Distort, ShapeKind};
+    use graphdraw_core::{distort::Distort, ShapeKind};
 
     fn rect(app: &mut App, r: Rect) -> ShapeId {
         app.new_shape(ShapeKind::Rect {
@@ -279,7 +279,7 @@ mod tests {
                     offset: 1.0,
                     outside: true,
                     to_center: false,
-                    fill_to: tracedraw_core::Color::BLACK,
+                    fill_to: graphdraw_core::Color::BLACK,
                     outline_to: None,
                     color_blend: 0,
                     corners: None,

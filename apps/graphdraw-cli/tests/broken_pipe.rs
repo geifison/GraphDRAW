@@ -6,8 +6,8 @@ use std::process::{Command, Stdio};
 
 #[test]
 fn a_reader_that_stops_early_does_not_make_it_panic() {
-    let sample = concat!(env!("CARGO_MANIFEST_DIR"), "/../../sample.tdraw");
-    let mut child = Command::new(env!("CARGO_BIN_EXE_tracedraw-cli"))
+    let sample = concat!(env!("CARGO_MANIFEST_DIR"), "/../../sample.gdr");
+    let mut child = Command::new(env!("CARGO_BIN_EXE_graphdraw-cli"))
         .args(["info", sample])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

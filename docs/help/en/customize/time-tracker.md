@@ -1,7 +1,7 @@
 # Time tracker
 
 The time tracker records the time you spend on a drawing, task by task, and
-keeps the records in the drawing (in `.tdraw` files). Time counts only while
+keeps the records in the drawing (in `.gdr` files). Time counts only while
 you work: after a few idle minutes the clock waits, and your next action starts
 it again.
 

@@ -5,7 +5,7 @@ that turns a request in words ("a red bicycle with blue wheels", "make
 the circle bigger and put the title under it") into a drawing. An AI
 service of the user's choice, with the user's own key, writes a program
 for the scripting object model (the one of the Scripts panel), and
-TraceDraw runs it as one undo step. TraceDraw has no AI of its own and no
+GraphDraw runs it as one undo step. GraphDraw has no AI of its own and no
 account; nothing is sent until the user presses Draw.
 
 ## Prompt bar
@@ -47,7 +47,7 @@ needs one.
 | Address | `https://api.anthropic.com/v1/messages`, or `https://api.openai.com/v1/chat/completions` | empty uses the default shown in grey; local servers: their own address, such as `http://localhost:11434/v1/chat/completions` |
 | Model | `claude-sonnet-5-5` for the Messages API; none for chat completions | the model name as the service lists it |
 | API key | empty | a password field; needed by the Messages API, optional for chat completions (sent as `Authorization: Bearer`) |
-| Remember the key on this computer | off | on: the key is kept in the preferences file (in the browser: the page's local storage), in plain text; off: it lives only until TraceDraw closes |
+| Remember the key on this computer | off | on: the key is kept in the preferences file (in the browser: the page's local storage), in plain text; off: it lives only until GraphDraw closes |
 
 Choosing another service clears the address and model (their defaults
 apply).

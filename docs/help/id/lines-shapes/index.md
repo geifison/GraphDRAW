@@ -1,6 +1,6 @@
 # Garis, bentuk, dan garis luar
 
-Semua yang Anda gambar di TraceDraw terbuat dari garis dan bentuk. Halaman-halaman
+Semua yang Anda gambar di GraphDraw terbuat dari garis dan bentuk. Halaman-halaman
 ini menjelaskan alat yang menggambarnya, cara mengubah bentuknya simpul
 demi simpul, cara menggabung dan memotongnya, serta cara mengatur garis luar
 yang menggambar tepinya.

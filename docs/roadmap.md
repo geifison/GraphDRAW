@@ -13,7 +13,7 @@ toolbox with flyouts, rulers, palette, panels, navigator, status bar.
 Status tracked in `docs/features.md`.
 
 ## M1 Real files (done for all three containers)
-- `tracedraw-cli inspect` dumps chunk trees
+- `graphdraw-cli inspect` dumps chunk trees
 - Text objects read as text with font and size; bitmaps read and drawn
 - Layer names, page names, multi-page
 - Version 16+ container (`content/root.dat`, redirected chunks); a
@@ -41,7 +41,7 @@ Status tracked in `docs/features.md`.
 - Signed Windows downloads and a Microsoft Store package: the build signs through SignPath or Azure Artifact Signing and packs an MSIX once the accounts are set up (build ready; signing waits for the accounts, see `code-signing.md`)
 - JavaScript automation with macro recording (done)
 - User interface in 18 languages (done)
-- JSON control channel and MCP server (`tracedraw --mcp`, see `behavior/mcp.md`) (done)
+- JSON control channel and MCP server (`graphdraw --mcp`, see `behavior/mcp.md`) (done)
 - WebAssembly build: the same editor in the browser (WebGL 2), published to GitHub Pages and attached to releases (done; see `behavior/web.md`)
 
 ## M5 Interchange
@@ -65,12 +65,12 @@ Status tracked in `docs/features.md`.
 - Accessibility: the desktop's text size and high contrast themes followed, coloured tool icons (done; see `behavior/options.md`)
 
 ## M7 File format (planned)
-- `.tdraw` with a format version, migrations from older versions and a stability promise (done; see `tdraw-format.md`)
+- `.gdr` with a format version, migrations from older versions and a stability promise (done; see `gdr-format.md`)
 - Stable object IDs, kept across saves and copies: the base for merging and collaboration, settled before M8 (done; see `architecture.md`, Object identity)
 - `.cdr` target versions written down, each layout confirmed on files (public notes and other readers' documentation only to confirm a layout, never their code)
 
 ## M8 Saving and collaboration (planned)
-- Git hosting: open a `.tdraw` straight from a repository, save as a commit with a message, history from the log (done with a personal access token, see `behavior/github.md`); OAuth sign-in, a branch per session, a pull request from the app, LFS for large files, a visual diff between commits, conflicts resolved in the interface, the token kept in the system keyring (open)
+- Git hosting: open a `.gdr` straight from a repository, save as a commit with a message, history from the log (done with a personal access token, see `behavior/github.md`); OAuth sign-in, a branch per session, a pull request from the app, LFS for large files, a visual diff between commits, conflicts resolved in the interface, the token kept in the system keyring (open)
 - Storage: Google Drive, Dropbox, OneDrive, S3-compatible storage (AWS, MinIO, Cloudflare R2), a synced local folder, WebDAV
 - Real-time editing: a self-hosted WebSocket server, automatic merging with a CRDT (Yjs or Automerge), presence with each user's pointer and selection, optional locks per object, comments anchored to objects, permissions per project, share links that expire, version history with restore
 - Order (decided 2026-10-14): Git hosting first, without a server of our own; storage services and real-time editing later. Stable IDs per object are done

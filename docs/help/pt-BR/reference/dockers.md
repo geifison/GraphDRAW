@@ -56,7 +56,7 @@ página lista cada painel e a página que o explica.
   para recolher os painéis.
 - O botão de fechar na barra de título de um painel o tira das abas; o botão de
   recolher dobra a área dos painéis.
-- Os painéis que você deixa abertos voltam na próxima vez que o TraceDraw
+- Os painéis que você deixa abertos voltam na próxima vez que o GraphDraw
   inicia.
 - Os atalhos dos painéis alternam: pressionar um quando o painel dele está na
   frente oculta os painéis.

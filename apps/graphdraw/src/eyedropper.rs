@@ -11,7 +11,7 @@
 //! (opacity, drop shadow, live effects).
 
 use crate::app::App;
-use tracedraw_core::{
+use graphdraw_core::{
     document::{Shadow, ShapeKind, TextSpan},
     geometry::{Affine, Point},
     id::ShapeId,
@@ -331,7 +331,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::geometry::Rect;
+    use graphdraw_core::geometry::Rect;
 
     fn rect(app: &mut App, r: Rect) -> ShapeId {
         app.new_shape(ShapeKind::Rect {

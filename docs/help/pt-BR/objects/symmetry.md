@@ -12,7 +12,7 @@ então você desenha uma metade (ou uma fatia) e vê o todo. Os comandos ficam e
    (<kbd>Alt+S</kbd>).
 
 Uma linha de espelho vertical é colocada na borda direita do objeto, para que a
-cópia apareça ao lado dele, e o TraceDraw entra direto na edição da simetria.
+cópia apareça ao lado dele, e o GraphDraw entra direto na edição da simetria.
 
 ## Editar uma simetria {#edit}
 

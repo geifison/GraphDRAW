@@ -1,8 +1,8 @@
 # Rysowanie i generowanie z AI
 
-TraceDraw potrafi rysować na podstawie opisu słownego i tworzyć obrazy za pomocą
+GraphDraw potrafi rysować na podstawie opisu słownego i tworzyć obrazy za pomocą
 wybranej przez Ciebie usługi AI, skonfigurowanej z Twoim własnym kluczem.
-TraceDraw nie ma własnej sztucznej inteligencji ani konta: nic nie jest
+GraphDraw nie ma własnej sztucznej inteligencji ani konta: nic nie jest
 wysyłane, dopóki nie uruchomisz polecenia AI, a wtedy do skonfigurowanej usługi
 trafia tylko to, czego potrzebuje dane polecenie. Każde żądanie jest rozliczane
 przez Twoją usługę; lokalne serwery modeli na Twoim komputerze nic nie kosztują.
@@ -47,7 +47,7 @@ okrąg i umieść tytuł pod nim”, na pasku poleceń lub w trybie **Rysuj sło
 panelu [[docker.ai_generate]]
 ([[menu.object > menu.object.ai_generate > menu.object.ai_draw_words]])
 i naciśnij **Rysuj** lub <kbd>Enter</kbd>. Usługa pisze skrypt rysunku, który
-TraceDraw wykonuje jako jeden krok cofania. Rozmowa jest zachowywana, więc
+GraphDraw wykonuje jako jeden krok cofania. Rozmowa jest zachowywana, więc
 możesz prosić o zmiany; **Nowa rozmowa** zaczyna od nowa. **Otwórz w Skryptach**
 pokazuje skrypt.
 

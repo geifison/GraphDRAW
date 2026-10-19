@@ -6,7 +6,7 @@
 //! an arc outside it; a polygon's nodes move with all their mirrored
 //! counterparts (vertices together, the points between them together).
 
-use tracedraw_core::{
+use graphdraw_core::{
     document::{axis_scale, EllipseArc, Shape, ShapeKind},
     geometry::{Point, Rect, Vec2},
 };
@@ -367,7 +367,7 @@ pub fn label(s: &Shape) -> &'static str {
 /// The node whose drag changes one corner only: Ctrl, or the corner node
 /// the Shape tool selected with a click.
 pub fn single_corner(
-    selected: Option<(tracedraw_core::ShapeId, usize)>,
+    selected: Option<(graphdraw_core::ShapeId, usize)>,
     s: &Shape,
     node: KindNode,
     ctrl: bool,
@@ -387,7 +387,7 @@ fn page_radius(s: &Shape, corner: usize) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::{geometry::Affine, CornerKind, Corners, ShapeId};
+    use graphdraw_core::{geometry::Affine, CornerKind, Corners, ShapeId};
 
     fn rect(corners: Corners) -> Shape {
         Shape::new(

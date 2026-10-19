@@ -1,6 +1,6 @@
 #!/bin/bash
-# usage: window_check.sh <tracedraw binary>
-# Starts TraceDraw under Xvfb with a window manager (openbox), once with
+# usage: window_check.sh <graphdraw binary>
+# Starts GraphDraw under Xvfb with a window manager (openbox), once with
 # the splash screen and once without, and checks with xprop that the main
 # window can be maximized and resized and has no maximum size. A window
 # that kept the splash screen's size hints fails here (#1).
@@ -30,15 +30,15 @@ props() {
 check() {
     local name=$1 splash=$2
     mkdir -p "$WORK/$name"
-    WINIT_UNIX_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 TRACEDRAW_NO_SPLASH=$splash \
-        TRACEDRAW_CONFIG_DIR="$WORK/$name" "$BIN" >"$WORK/$name.log" 2>&1 &
+    WINIT_UNIX_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 GRAPHDRAW_NO_SPLASH=$splash \
+        GRAPHDRAW_CONFIG_DIR="$WORK/$name" "$BIN" >"$WORK/$name.log" 2>&1 &
     local app=$!
     # Wait for the main window (its title names the document) to settle.
     local out=""
     for _ in $(seq 1 60); do
         sleep 0.5
         out=$(props) || continue
-        if echo "$out" | grep -q 'WM_NAME.*TraceDraw - '; then
+        if echo "$out" | grep -q 'WM_NAME.*GraphDraw - '; then
             sleep 1
             out=$(props)
             break

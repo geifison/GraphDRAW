@@ -5,9 +5,9 @@
 //! one in their ZIP container), each ink takes the colour that picture
 //! shows where objects painted with it lie uncovered.
 
-use tracedraw_core::document::{Ink, Shape, ShapeKind};
-use tracedraw_core::geometry::{Point, Shape as _};
-use tracedraw_core::{Color, Document, Fill};
+use graphdraw_core::document::{Ink, Shape, ShapeKind};
+use graphdraw_core::geometry::{Point, Shape as _};
+use graphdraw_core::{Color, Document, Fill};
 
 /// The library of the numbered palette colours of versions 3 and 4.
 pub(crate) const V3_PALETTE: u16 = 0x0300;
@@ -79,7 +79,7 @@ impl Preview {
 
     /// The colour (0 to 1) at page point `p` of the area `frame` (in page
     /// mm, origin bottom left) the picture covers.
-    fn at(&self, p: Point, frame: tracedraw_core::geometry::Rect) -> Option<[f64; 3]> {
+    fn at(&self, p: Point, frame: graphdraw_core::geometry::Rect) -> Option<[f64; 3]> {
         let (w, h) = (frame.width(), frame.height());
         if w <= 0.0 || h <= 0.0 {
             return None;
@@ -101,7 +101,7 @@ impl Preview {
 /// Every top-level and nested shape of the first page, bottom to top,
 /// with its page transform folded in.
 fn shapes_bottom_up(doc: &Document) -> Vec<Shape> {
-    fn walk(s: &Shape, above: tracedraw_core::geometry::Affine, out: &mut Vec<Shape>) {
+    fn walk(s: &Shape, above: graphdraw_core::geometry::Affine, out: &mut Vec<Shape>) {
         let t = above * s.transform;
         match &s.kind {
             ShapeKind::Group { children } => {
@@ -125,7 +125,7 @@ fn shapes_bottom_up(doc: &Document) -> Vec<Shape> {
     if let Some(page) = doc.pages.first() {
         for l in page.layers.iter().filter(|l| l.visible) {
             for s in &l.shapes {
-                walk(s, tracedraw_core::geometry::Affine::IDENTITY, &mut out);
+                walk(s, graphdraw_core::geometry::Affine::IDENTITY, &mut out);
             }
         }
     }
@@ -172,7 +172,7 @@ pub fn colours_from_preview(doc: &mut Document, preview: &Preview) -> usize {
             None => return 0,
         }
     } else {
-        tracedraw_core::geometry::Rect::new(0.0, 0.0, w, h)
+        graphdraw_core::geometry::Rect::new(0.0, 0.0, w, h)
     };
     let mut samples: std::collections::BTreeMap<u32, Vec<[f64; 3]>> = Default::default();
     for (i, s) in shapes.iter().enumerate() {
@@ -301,11 +301,11 @@ fn recolor_shape(s: &mut Shape, f: &impl Fn(&mut Color)) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::geometry::Rect;
+    use graphdraw_core::geometry::Rect;
 
     #[test]
     fn library_inks_take_the_colour_their_objects_show_in_the_preview() {
-        let mut doc = Document::new("t", tracedraw_core::geometry::Size::new(100.0, 100.0));
+        let mut doc = Document::new("t", graphdraw_core::geometry::Size::new(100.0, 100.0));
         let ink = ink_id(0x22, 0x07db);
         doc.inks.push(ink_entry(0x22, 0x07db));
         let mut s = Shape::new(

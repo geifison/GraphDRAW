@@ -4,7 +4,7 @@
 
 use crate::app::{App, Drag};
 use egui::{Modifiers, PointerButton, Response};
-use tracedraw_core::{
+use graphdraw_core::{
     document::ShapeKind,
     geometry::{BezPath, Point, Rect, Vec2},
     nodes::{self, NodeType, Which},
@@ -28,7 +28,7 @@ pub struct NodeHit {
 
 /// The four corners of a picture on the page, in node order (from its
 /// rectangle's first corner), or `None` for other objects.
-pub(crate) fn bitmap_corners(s: &tracedraw_core::Shape) -> Option<[Point; 4]> {
+pub(crate) fn bitmap_corners(s: &graphdraw_core::Shape) -> Option<[Point; 4]> {
     let ShapeKind::Bitmap { rect, .. } = &s.kind else {
         return None;
     };
@@ -123,7 +123,7 @@ impl App {
 
     /// A curve's path, whether it is closed and its transform to the page
     /// (curves inside clip frames too).
-    fn path_of(&self, id: ShapeId) -> Option<(BezPath, bool, tracedraw_core::geometry::Affine)> {
+    fn path_of(&self, id: ShapeId) -> Option<(BezPath, bool, graphdraw_core::geometry::Affine)> {
         let s = self.doc().find_shape(id)?;
         let parent = self.doc().parent_transform(id)?;
         match &s.kind {
@@ -172,15 +172,15 @@ impl App {
         path.line_to((rect.x1, rect.y1));
         path.line_to((rect.x0, rect.y1));
         path.close_path();
-        let mut frame = tracedraw_core::Shape::new(
+        let mut frame = graphdraw_core::Shape::new(
             self.engine.new_shape_id(),
             ShapeKind::Path { path, closed: true },
         );
-        frame.fill = tracedraw_core::Fill::None;
+        frame.fill = graphdraw_core::Fill::None;
         frame.stroke = None;
         let mut inner = s.clone();
         inner.id = self.engine.new_shape_id();
-        inner.transform = tracedraw_core::geometry::Affine::IDENTITY;
+        inner.transform = graphdraw_core::geometry::Affine::IDENTITY;
         let frame_id = frame.id;
         let _ = self.engine.run_with_label(
             &Command::SetShapeKind {
@@ -275,7 +275,7 @@ impl App {
     pub fn kind_node_at(
         &self,
         p: Point,
-    ) -> Option<(tracedraw_core::Shape, crate::kind_nodes::KindNode)> {
+    ) -> Option<(graphdraw_core::Shape, crate::kind_nodes::KindNode)> {
         let tol = self.settings.nodes.pick_px() / self.view.zoom as f64;
         self.selected_shapes()
             .into_iter()
@@ -1017,13 +1017,13 @@ impl App {
             if i > index {
                 break;
             }
-            if matches!(el, tracedraw_core::geometry::PathEl::MoveTo(_)) {
+            if matches!(el, graphdraw_core::geometry::PathEl::MoveTo(_)) {
                 start = i;
             }
         }
         let mut end = els.len();
         for (i, el) in els.iter().enumerate().skip(start + 1) {
-            if matches!(el, tracedraw_core::geometry::PathEl::MoveTo(_)) {
+            if matches!(el, graphdraw_core::geometry::PathEl::MoveTo(_)) {
                 end = i;
                 break;
             }
@@ -1031,11 +1031,11 @@ impl App {
         if start == 0 && end == els.len() {
             return; // single subpath, nothing to extract
         }
-        let mut extracted = tracedraw_core::BezPath::new();
+        let mut extracted = graphdraw_core::BezPath::new();
         for el in &els[start..end] {
             extracted.push(*el);
         }
-        let mut rest = tracedraw_core::BezPath::new();
+        let mut rest = graphdraw_core::BezPath::new();
         for el in els[..start].iter().chain(els[end..].iter()) {
             rest.push(*el);
         }
@@ -1085,7 +1085,7 @@ impl App {
             if dx.abs() > 1e-9 || dy.abs() > 1e-9 {
                 self.run(Command::TransformShapes {
                     shapes: vec![s.id],
-                    transform: tracedraw_core::Affine::translate((dx, dy)),
+                    transform: graphdraw_core::Affine::translate((dx, dy)),
                 });
             }
         }
@@ -1139,13 +1139,13 @@ impl App {
     /// the selected objects, or from the object under the first point.
     /// Objects become curves; what vanishes entirely is deleted.
     pub fn erase_along(&mut self, points: &[Point]) {
-        use tracedraw_core::document::Shape;
-        use tracedraw_core::geometry::Shape as _;
+        use graphdraw_core::document::Shape;
+        use graphdraw_core::geometry::Shape as _;
         let Some(first) = points.first().copied() else {
             return;
         };
         let band =
-            tracedraw_core::shaping::stroke_band(points, self.eraser_width, self.eraser_square);
+            graphdraw_core::shaping::stroke_band(points, self.eraser_width, self.eraser_square);
         if band.elements().is_empty() {
             return;
         }
@@ -1176,10 +1176,10 @@ impl App {
             {
                 continue;
             }
-            let remaining = tracedraw_core::shaping::overlay(
+            let remaining = graphdraw_core::shaping::overlay(
                 &page_path,
                 &band,
-                tracedraw_core::shaping::Op::Trim,
+                graphdraw_core::shaping::Op::Trim,
             );
             if remaining.elements().is_empty() {
                 deleted.push(s.id);
@@ -1210,7 +1210,7 @@ impl App {
 mod constrain_tests {
     use super::constrain_axis;
     use crate::app::App;
-    use tracedraw_core::{document::Guide, geometry::Point, geometry::Vec2, Command};
+    use graphdraw_core::{document::Guide, geometry::Point, geometry::Vec2, Command};
 
     /// A headless app at 1 px per mm with a guideline at x = 50 and the
     /// snapping radius at 10 px (10 mm).
@@ -1261,7 +1261,7 @@ mod constrain_tests {
 #[cfg(test)]
 mod eraser_tests {
     use super::*;
-    use tracedraw_core::geometry::Rect;
+    use graphdraw_core::geometry::Rect;
 
     #[test]
     fn a_band_through_a_rectangle_splits_it_and_a_dot_outside_does_nothing() {
@@ -1284,7 +1284,7 @@ mod eraser_tests {
         let subpaths = path
             .elements()
             .iter()
-            .filter(|e| matches!(e, tracedraw_core::geometry::PathEl::MoveTo(_)))
+            .filter(|e| matches!(e, graphdraw_core::geometry::PathEl::MoveTo(_)))
             .count();
         assert_eq!(subpaths, 2);
         let b = s.bounds();
@@ -1305,7 +1305,7 @@ mod eraser_tests {
 #[cfg(test)]
 mod bitmap_node_tests {
     use super::*;
-    use tracedraw_core::geometry::{Rect, Vec2};
+    use graphdraw_core::geometry::{Rect, Vec2};
 
     fn picture(app: &mut App) -> ShapeId {
         let png = tiny_skia::Pixmap::new(2, 2)
@@ -1349,7 +1349,7 @@ mod bitmap_node_tests {
             panic!("not a clip frame: {:?}", s.kind);
         };
         assert!(matches!(contents[0].kind, ShapeKind::Bitmap { .. }));
-        let b = tracedraw_core::geometry::Shape::bounding_box(&f.page_path());
+        let b = graphdraw_core::geometry::Shape::bounding_box(&f.page_path());
         assert!(
             (b.x1 - 50.0).abs() < 1e-9 && (b.y1 - 40.0).abs() < 1e-9,
             "{b:?}"

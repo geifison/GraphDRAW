@@ -1,7 +1,7 @@
 //! User settings persisted between sessions: language, recent files,
 //! workspace flags, tool defaults. Stored as JSON in the platform config
-//! directory (`%APPDATA%\TraceDraw`, `~/Library/Application Support/TraceDraw`,
-//! `$XDG_CONFIG_HOME/tracedraw`).
+//! directory (`%APPDATA%\GraphDraw`, `~/Library/Application Support/GraphDraw`,
+//! `$XDG_CONFIG_HOME/graphdraw`).
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -38,7 +38,7 @@ pub struct Settings {
     pub wheel_zooms: bool,
     /// Arrowheads created with Object > Create > Arrowhead.
     #[serde(default)]
-    pub custom_arrowheads: Vec<tracedraw_core::Arrowhead>,
+    pub custom_arrowheads: Vec<graphdraw_core::Arrowhead>,
     /// Grid, ruler and guideline settings new drawings start with
     /// (Document Options > Save as Default).
     #[serde(default)]
@@ -73,7 +73,7 @@ pub struct Settings {
     /// as `ui_scale`, which is ignored.
     #[serde(default)]
     pub ui_size: f32,
-    /// Options > General: show the splash screen while TraceDraw starts.
+    /// Options > General: show the splash screen while GraphDraw starts.
     #[serde(default = "default_true")]
     pub show_splash: bool,
     /// Customization > Appearance: dialogs open in the middle of the
@@ -148,11 +148,11 @@ pub struct Settings {
     /// by default).
     #[serde(default = "default_true")]
     pub treat_all_filled: bool,
-    /// Options > TraceDraw > Edit: how visible the objects outside the
+    /// Options > GraphDraw > Edit: how visible the objects outside the
     /// one in focus stay, in percent.
     #[serde(default = "default_focus_visibility")]
     pub focus_visibility: u8,
-    /// Options > TraceDraw > Edit: a double click on a group brings it
+    /// Options > GraphDraw > Edit: a double click on a group brings it
     /// into focus.
     #[serde(default = "default_true")]
     pub focus_double_click: bool,
@@ -210,7 +210,7 @@ pub struct Settings {
     /// What a fill or outline chosen with nothing selected changes.
     #[serde(default)]
     pub defaults: crate::defaults::DefaultsPrefs,
-    /// The bars shown when TraceDraw was left; none in preferences written
+    /// The bars shown when GraphDraw was left; none in preferences written
     /// before they were kept (the workspace's own bars then show).
     #[serde(default)]
     pub shown_bars: Option<ShownBars>,
@@ -279,7 +279,7 @@ pub struct Settings {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub ai_image: Option<crate::ai_image::ImagePrefs>,
     /// Options > Global > General: AI agents on this computer may edit the
-    /// open drawing (MCP, `tracedraw --mcp-window`).
+    /// open drawing (MCP, `graphdraw --mcp-window`).
     #[serde(default)]
     pub mcp_window: bool,
     /// Options > Global > General: look for a newer release once a day at
@@ -691,16 +691,16 @@ fn default_micro_nudge() -> f64 {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(default)]
 pub struct DocumentDefaults {
-    pub grid: tracedraw_core::document::GridSettings,
-    pub rulers: tracedraw_core::document::RulerSettings,
-    pub guides: tracedraw_core::document::GuideSettings,
+    pub grid: graphdraw_core::document::GridSettings,
+    pub rulers: graphdraw_core::document::RulerSettings,
+    pub guides: graphdraw_core::document::GuideSettings,
     /// The fill and outline new objects get.
     #[serde(default)]
-    pub objects: tracedraw_core::ObjectDefaults,
+    pub objects: graphdraw_core::ObjectDefaults,
 }
 
 impl DocumentDefaults {
-    pub fn of(doc: &tracedraw_core::Document) -> Self {
+    pub fn of(doc: &graphdraw_core::Document) -> Self {
         DocumentDefaults {
             grid: doc.metadata.grid,
             rulers: doc.metadata.rulers.clone(),
@@ -709,7 +709,7 @@ impl DocumentDefaults {
         }
     }
 
-    pub fn apply(&self, doc: &mut tracedraw_core::Document) {
+    pub fn apply(&self, doc: &mut graphdraw_core::Document) {
         doc.metadata.grid = self.grid;
         doc.metadata.rulers = self.rulers.clone();
         doc.metadata.guides = self.guides;
@@ -776,9 +776,9 @@ pub struct ToolPrefs {
     pub star_complex: bool,
     pub complex_points: u32,
     pub complex_sharpness: u32,
-    pub rect_corners: tracedraw_core::Corners,
+    pub rect_corners: graphdraw_core::Corners,
     pub corners_together: bool,
-    pub ellipse_arc: Option<tracedraw_core::EllipseArc>,
+    pub ellipse_arc: Option<graphdraw_core::EllipseArc>,
     pub spiral_revolutions: u32,
     pub spiral_logarithmic: bool,
     pub table_rows: u32,
@@ -794,7 +794,7 @@ pub struct ToolPrefs {
     pub text_size_pt: f64,
     pub text_hyphenation: bool,
     /// The envelope editing mode and the mapping and Keep Lines new
-    /// envelopes take (ids of `tracedraw_core::envelope`).
+    /// envelopes take (ids of `graphdraw_core::envelope`).
     pub envelope_mode: String,
     pub envelope_mapping: String,
     pub envelope_keep_lines: bool,
@@ -804,10 +804,10 @@ pub struct ToolPrefs {
     /// Smart Fill's fill and outline of the objects it makes (0 the
     /// default, 1 these, 2 none).
     pub smart_fill_mode: u8,
-    pub smart_fill_color: tracedraw_core::Color,
+    pub smart_fill_color: graphdraw_core::Color,
     pub smart_outline_mode: u8,
     pub smart_outline_width: f64,
-    pub smart_outline_color: tracedraw_core::Color,
+    pub smart_outline_color: graphdraw_core::Color,
     /// The shaping brushes: nib radius (mm), Roughen's spike size (mm) and
     /// the rest of their bars.
     pub brush_radius: f64,
@@ -838,7 +838,7 @@ impl Default for ToolPrefs {
             star_complex: false,
             complex_points: 9,
             complex_sharpness: 2,
-            rect_corners: tracedraw_core::Corners::default(),
+            rect_corners: graphdraw_core::Corners::default(),
             corners_together: true,
             ellipse_arc: None,
             spiral_revolutions: 4,
@@ -854,16 +854,16 @@ impl Default for ToolPrefs {
             text_font: "Arial".into(),
             text_size_pt: 24.0,
             text_hyphenation: false,
-            envelope_mode: tracedraw_core::envelope::Mode::default().id().into(),
-            envelope_mapping: tracedraw_core::envelope::Mapping::default().id().into(),
+            envelope_mode: graphdraw_core::envelope::Mode::default().id().into(),
+            envelope_mapping: graphdraw_core::envelope::Mapping::default().id().into(),
             envelope_keep_lines: false,
             mesh_rows: 2,
             mesh_cols: 2,
             smart_fill_mode: 0,
-            smart_fill_color: tracedraw_core::Color::cmyk_pct(0.0, 0.0, 100.0, 0.0),
+            smart_fill_color: graphdraw_core::Color::cmyk_pct(0.0, 0.0, 100.0, 0.0),
             smart_outline_mode: 0,
             smart_outline_width: 0.2,
-            smart_outline_color: tracedraw_core::Color::BLACK,
+            smart_outline_color: graphdraw_core::Color::BLACK,
             brush_radius: 10.0,
             roughen_amount: 2.0,
             brush: Default::default(),
@@ -1153,10 +1153,10 @@ impl Default for Settings {
     }
 }
 
-/// The folder of a portable copy: a folder called `tracedraw-settings`
+/// The folder of a portable copy: a folder called `graphdraw-settings`
 /// next to the program keeps its preferences there (a USB stick, a copy
 /// that leaves no trace on the computer).
-pub const PORTABLE_DIR: &str = "tracedraw-settings";
+pub const PORTABLE_DIR: &str = "graphdraw-settings";
 
 /// The portable settings folder next to the program `exe`, when there is
 /// one.
@@ -1166,7 +1166,7 @@ pub fn portable_dir(exe: &std::path::Path) -> Option<PathBuf> {
 }
 
 pub fn config_dir() -> Option<PathBuf> {
-    if let Ok(dir) = std::env::var("TRACEDRAW_CONFIG_DIR") {
+    if let Ok(dir) = std::env::var("GRAPHDRAW_CONFIG_DIR") {
         return Some(PathBuf::from(dir));
     }
     #[cfg(not(target_arch = "wasm32"))]
@@ -1175,28 +1175,28 @@ pub fn config_dir() -> Option<PathBuf> {
     }
     #[cfg(target_os = "windows")]
     {
-        std::env::var_os("APPDATA").map(|p| PathBuf::from(p).join("TraceDraw"))
+        std::env::var_os("APPDATA").map(|p| PathBuf::from(p).join("GraphDraw"))
     }
     #[cfg(target_os = "macos")]
     {
         std::env::var_os("HOME")
-            .map(|p| PathBuf::from(p).join("Library/Application Support/TraceDraw"))
+            .map(|p| PathBuf::from(p).join("Library/Application Support/GraphDraw"))
     }
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
         std::env::var_os("XDG_CONFIG_HOME")
             .map(PathBuf::from)
             .or_else(|| std::env::var_os("HOME").map(|p| PathBuf::from(p).join(".config")))
-            .map(|p| p.join("tracedraw"))
+            .map(|p| p.join("graphdraw"))
     }
 }
 
 /// Local storage key of the settings in the browser build.
 #[cfg(target_arch = "wasm32")]
-const WEB_KEY: &str = "tracedraw.settings";
+const WEB_KEY: &str = "graphdraw.settings";
 
 impl Settings {
-    /// The preferences as TraceDraw comes, keeping what is history rather
+    /// The preferences as GraphDraw comes, keeping what is history rather
     /// than choice: the recent drawings, the last folder and the window's
     /// size.
     pub fn reset_keeping_history(&self) -> Settings {
@@ -1477,11 +1477,11 @@ mod tests {
     fn recent_list_dedups_and_caps() {
         let mut s = Settings::default();
         for i in 0..12 {
-            s.touch_recent(std::path::Path::new(&format!("/f{i}.tdraw")));
+            s.touch_recent(std::path::Path::new(&format!("/f{i}.gdr")));
         }
-        s.touch_recent(std::path::Path::new("/f11.tdraw"));
+        s.touch_recent(std::path::Path::new("/f11.gdr"));
         assert_eq!(s.recent_files.len(), 10);
-        assert_eq!(s.recent_files[0], PathBuf::from("/f11.tdraw"));
+        assert_eq!(s.recent_files[0], PathBuf::from("/f11.gdr"));
     }
 
     #[test]
@@ -1502,7 +1502,7 @@ mod tests {
     #[test]
     fn a_reset_keeps_history_and_nothing_else() {
         let mut s = Settings::default();
-        s.recent_files = vec!["/a.tdraw".into()];
+        s.recent_files = vec!["/a.gdr".into()];
         s.last_dir = Some("/drawings".into());
         s.window_maximized = false;
         s.window_size = [1200.0, 800.0];
@@ -1526,10 +1526,10 @@ mod tests {
 
     #[test]
     fn a_settings_folder_next_to_the_program_makes_it_portable() {
-        let base = std::env::temp_dir().join(format!("tracedraw-portable-{}", std::process::id()));
+        let base = std::env::temp_dir().join(format!("graphdraw-portable-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&base);
         std::fs::create_dir_all(&base).expect("dir");
-        let exe = base.join("tracedraw.exe");
+        let exe = base.join("graphdraw.exe");
         assert_eq!(portable_dir(&exe), None);
         std::fs::create_dir_all(base.join(PORTABLE_DIR)).expect("dir");
         assert_eq!(portable_dir(&exe), Some(base.join(PORTABLE_DIR)));

@@ -23,7 +23,7 @@ Farbpalette und das Aussehen der Oberfläche. Wählen Sie einen unter
 
 ## Was gespeichert wird {#kept}
 
-Alles, was Sie ändern, bleibt erhalten, wenn TraceDraw geschlossen wird, und ist
+Alles, was Sie ändern, bleibt erhalten, wenn GraphDraw geschlossen wird, und ist
 beim nächsten Start wieder da: die Optionen, wo jede Leiste sitzt und welche
 Leisten angezeigt werden, das Werkzeug, das jede Gruppe der Werkzeugpalette
 zeigt, die geöffneten Andockfenster, Einheiten, Fangen, die Einstellungen für

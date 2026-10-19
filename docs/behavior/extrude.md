@@ -3,7 +3,7 @@
 A body built from an object's outline, as a live effect
 (`Effect::Extrude`): side faces between the outline and a copy of it,
 and that copy as the far or the near face. The geometry is in
-`tracedraw_core::extrude`, the tool in `extrude_tool.rs`, the bar and
+`graphdraw_core::extrude`, the tool in `extrude_tool.rs`, the bar and
 the controls the Extrude panel shares in `ui/extrude_bar.rs`.
 
 ## Types
@@ -97,7 +97,7 @@ parallel, or Small back when they have a vanishing point.
 ## Turn, lights and bevel
 
 The panel shows these under the other controls; the bar has them in its
-3D menu. The geometry is in `tracedraw_core::extrude3d`.
+3D menu. The geometry is in `graphdraw_core::extrude3d`.
 
 | Control | Default | Range |
 |---|---|---|

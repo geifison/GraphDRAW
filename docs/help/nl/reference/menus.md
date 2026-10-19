@@ -431,17 +431,17 @@ eigen sneltoetsen tonen; zie [Aanpassingsopties](../customize/customization.md#c
 
 | Opdracht | Zie |
 |---|---|
-| [[menu.help.help_topics]] | [Welkom bij de Help van TraceDraw](../index.md#in-the-app) |
-| [[menu.help.product_help]] | [Welkom bij de Help van TraceDraw](../index.md#in-the-app) |
-| [[menu.help.welcome_screen]] | [Over TraceDraw en updates](../welcome/about-and-updates.md) |
-| [[menu.help.video_tutorials]] | [Over TraceDraw en updates](../welcome/about-and-updates.md) |
+| [[menu.help.help_topics]] | [Welkom bij de Help van GraphDraw](../index.md#in-the-app) |
+| [[menu.help.product_help]] | [Welkom bij de Help van GraphDraw](../index.md#in-the-app) |
+| [[menu.help.welcome_screen]] | [Over GraphDraw en updates](../welcome/about-and-updates.md) |
+| [[menu.help.video_tutorials]] | [Over GraphDraw en updates](../welcome/about-and-updates.md) |
 | [[menu.help.hints]] | [The Hints panel](../get-started/hints.md) |
-| [[menu.help.quick_start_guide]] | [Over TraceDraw en updates](../welcome/about-and-updates.md) |
-| [[menu.help.user_guide]] | [Over TraceDraw en updates](../welcome/about-and-updates.md) |
+| [[menu.help.quick_start_guide]] | [Over GraphDraw en updates](../welcome/about-and-updates.md) |
+| [[menu.help.user_guide]] | [Over GraphDraw en updates](../welcome/about-and-updates.md) |
 | [[menu.help.whats_new]] | [Wat is er nieuw](../welcome/whats-new.md) |
 | [[menu.help.highlight_whats_new]] | [Wat is er nieuw](../welcome/whats-new.md) |
-| [[menu.help.updates]] | [Over TraceDraw en updates](../welcome/about-and-updates.md) |
-| [[menu.help.message_settings]] | [Over TraceDraw en updates](../welcome/about-and-updates.md) |
-| [[menu.help.community]] | [Over TraceDraw en updates](../welcome/about-and-updates.md) |
-| [[menu.help.support]] | [Over TraceDraw en updates](../welcome/about-and-updates.md) |
-| [[menu.help.about]] | [Over TraceDraw en updates](../welcome/about-and-updates.md) |
+| [[menu.help.updates]] | [Over GraphDraw en updates](../welcome/about-and-updates.md) |
+| [[menu.help.message_settings]] | [Over GraphDraw en updates](../welcome/about-and-updates.md) |
+| [[menu.help.community]] | [Over GraphDraw en updates](../welcome/about-and-updates.md) |
+| [[menu.help.support]] | [Over GraphDraw en updates](../welcome/about-and-updates.md) |
+| [[menu.help.about]] | [Over GraphDraw en updates](../welcome/about-and-updates.md) |

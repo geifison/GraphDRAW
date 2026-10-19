@@ -9,7 +9,7 @@
 //! start object's, or the blend whose end object is selected.
 
 use crate::app::App;
-use tracedraw_core::{document::Shape, live::Effect, Command, ShapeId, ShapeKind};
+use graphdraw_core::{document::Shape, live::Effect, Command, ShapeId, ShapeKind};
 
 /// The end object as the blend keeps it: in page space, its own effects
 /// left out (a blend of a blend does not draw twice).
@@ -175,7 +175,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::{
+    use graphdraw_core::{
         geometry::{Affine, Rect},
         Color, Fill,
     };
@@ -197,7 +197,7 @@ mod tests {
 
     fn steps_of(app: &App, id: ShapeId) -> Vec<Shape> {
         let s = app.doc().find_shape(id).cloned().expect("start");
-        tracedraw_core::live::evaluate(&s).above
+        graphdraw_core::live::evaluate(&s).above
     }
 
     #[test]

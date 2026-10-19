@@ -53,8 +53,8 @@ the colour at its middle:
 
 ## Checks
 
-- `tracedraw_core::style::tests::meshes_regrid_and_lose_lines_keeping_their_colours`
-- `tracedraw_render::tests::mesh_fill_blends_corner_colours`
-- `tracedraw_render::tests::smooth_mesh_colour_flows_through_the_nodes`
+- `graphdraw_core::style::tests::meshes_regrid_and_lose_lines_keeping_their_colours`
+- `graphdraw_render::tests::mesh_fill_blends_corner_colours`
+- `graphdraw_render::tests::smooth_mesh_colour_flows_through_the_nodes`
 - `mesh_tool::tests::the_mesh_tool_builds_colours_and_clears_meshes`
 - `ui::fill_tool_bars::tests::the_fill_tool_bars_draw`

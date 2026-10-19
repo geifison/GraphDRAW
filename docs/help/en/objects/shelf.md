@@ -2,7 +2,7 @@
 
 The [[docker.shelf]] panel keeps objects and colors apart from any drawing,
 so you can place them in this drawing or another one, today or after
-TraceDraw restarts: logos, stamps, frames, a set of colors. Open it from
+GraphDraw restarts: logos, stamps, frames, a set of colors. Open it from
 [[menu.window > menu.window.dockers]], or right-click a selection and choose
 [[menu.object.add_to_shelf]].
 
@@ -37,7 +37,7 @@ the drawing.
 ### Removing an item {#remove}
 
 Choose an item and click [[shelf.remove]]. Removing cannot be undone, so
-TraceDraw asks first: click [[shelf.remove]] to confirm or [[dialog.cancel]]
+GraphDraw asks first: click [[shelf.remove]] to confirm or [[dialog.cancel]]
 to keep it. Tick [[shelf.dont_ask]] to remove items without asking; to be
 asked again, turn on [[options.warn_shelf_remove]] on the [[options.warnings]]
 page of the global options.

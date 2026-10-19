@@ -145,11 +145,11 @@ pub fn shaping(app: &mut App, ui: &mut Ui) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::{Point, ShapeId, ShapeKind};
+    use graphdraw_core::{Point, ShapeId, ShapeKind};
 
     fn rect(app: &mut App, x0: f64, y0: f64, x1: f64, y1: f64) -> ShapeId {
         app.new_shape(ShapeKind::Rect {
-            rect: tracedraw_core::Rect::new(x0, y0, x1, y1),
+            rect: graphdraw_core::Rect::new(x0, y0, x1, y1),
             radius: 0.0,
             corners: None,
         })

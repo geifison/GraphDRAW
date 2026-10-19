@@ -1,11 +1,11 @@
 # Architecture
 
-TraceDraw is a Cargo workspace. The dependency direction is strict and
+GraphDraw is a Cargo workspace. The dependency direction is strict and
 reviewed: nothing below `apps/` knows about egui, and `core` knows about
 nothing else in the workspace.
 
 ```text
-apps/tracedraw, apps/tracedraw-cli
+apps/graphdraw, apps/graphdraw-cli
         |
         v
 crates/io  ---------> crates/render
@@ -49,7 +49,7 @@ in degrees, counter-clockwise positive. Text sizes in points.
 
 Two numbers name an object. `ShapeId` is counted per drawing and is what
 commands refer to. `Uid` (128 bits, written as 32 hex digits in
-`.tdraw`) is the object's identity for merging and collaboration: the
+`.gdr`) is the object's identity for merging and collaboration: the
 engine gives one to every object without one after each step and on
 opening, and when two objects carry the same one (a copy), the one with
 the lower `ShapeId` keeps it and the other gets a new one. It survives
@@ -83,12 +83,12 @@ layer, drop shadows a separable box blur. `render_fill_image` rasterises
 a fill alone for exporters.
 
 The app caches the rendered page as a texture keyed by document revision,
-view and canvas size (`apps/tracedraw/src/raster.rs`), so the UI only
+view and canvas size (`apps/graphdraw/src/raster.rs`), so the UI only
 re-renders when something changed.
 
 ## io
 
-- Native `.tdraw`: serde JSON of the `Document`. Stable field names;
+- Native `.gdr`: serde JSON of the `Document`. Stable field names;
   additive changes only, with `#[serde(default)]` for new fields.
 - SVG writer: one `<g>` per layer, fills as gradients or data-URI
   patterns, outlines, arrowheads, text as paths, bitmaps as `<image>`.
@@ -96,7 +96,7 @@ re-renders when something changed.
   CMYK fills, axial and radial shadings with stitching functions,
   ExtGState opacity, images, patterns and textures as images.
 
-## apps/tracedraw
+## apps/graphdraw
 
 `App` holds the engine, the current page, the view, the active tool, the
 selection, drag state and tool defaults. `interaction.rs` turns pointer
@@ -106,8 +106,8 @@ standard toolbar, property bar, toolbox, panels, palette, status bar,
 document tabs, dialogs. `canvas.rs` draws the cached raster and the
 overlays (handles, nodes, rubber bands, guides, rulers).
 
-## apps/tracedraw-cli
+## apps/graphdraw-cli
 
 `inspect` (chunk tree of a `.cdr`), `info` (pages, layers, objects),
-`convert` (to `.tdraw`, SVG, PDF). It installs the text engine so text
+`convert` (to `.gdr`, SVG, PDF). It installs the text engine so text
 exports identically to the desktop app.

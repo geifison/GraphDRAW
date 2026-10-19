@@ -7,7 +7,7 @@ use crate::app::{App, Units};
 use crate::i18n::tr;
 use crate::theme::Tokens;
 use egui::{epaint, Color32, Painter, Pos2, Rect, Response, Sense, Stroke, Ui, Vec2};
-use tracedraw_core::{
+use graphdraw_core::{
     document::ShapeKind,
     geometry::{Affine, Point, Size},
     Command, CornerKind, Corners,
@@ -1478,13 +1478,13 @@ pub fn page_bar(app: &mut App, ui: &mut Ui) {
         row(ui, |ui| {
             label_pic(ui, Pic::DupX, &tr("toolbar.duplicate_x_tip"));
             if let Some(x) = distance(ui, app, dup.x, 92.0, Some(0.1)) {
-                new_dup = Some(tracedraw_core::geometry::Vec2::new(x, dup.y));
+                new_dup = Some(graphdraw_core::geometry::Vec2::new(x, dup.y));
             }
         });
         row(ui, |ui| {
             label_pic(ui, Pic::DupY, &tr("toolbar.duplicate_y_tip"));
             if let Some(y) = distance(ui, app, dup.y, 92.0, Some(0.1)) {
-                new_dup = Some(tracedraw_core::geometry::Vec2::new(dup.x, y));
+                new_dup = Some(graphdraw_core::geometry::Vec2::new(dup.x, y));
             }
         });
     });
@@ -1527,7 +1527,7 @@ pub fn resize_pages(app: &mut App, size: Size) {
 
 /// The reference point the X and Y fields show: (column, row) of the 3 x 3
 /// object origin selector, (1, 1) the centre.
-pub fn origin_point(b: tracedraw_core::geometry::Rect, origin: (u8, u8)) -> Point {
+pub fn origin_point(b: graphdraw_core::geometry::Rect, origin: (u8, u8)) -> Point {
     let x = match origin.0 {
         0 => b.x0,
         1 => b.center().x,
@@ -1730,7 +1730,7 @@ pub(crate) const OUTLINE_WIDTHS_MM: [f64; 10] =
 pub fn outline_text(app: &App, width: Option<f64>) -> String {
     match width {
         None => tr("toolbar.none"),
-        Some(w) if w <= tracedraw_core::Stroke::HAIRLINE + 1e-9 => tr("toolbar.hairline"),
+        Some(w) if w <= graphdraw_core::Stroke::HAIRLINE + 1e-9 => tr("toolbar.hairline"),
         Some(w) => {
             let u = app.units;
             let d = if u == Units::Pixels { 2 } else { 3 };
@@ -1750,13 +1750,13 @@ pub(crate) fn parse_outline_width(text: &str, units: Units) -> Option<Option<f64
         return Some(None);
     }
     if is("toolbar.hairline", "hairline") {
-        return Some(Some(tracedraw_core::Stroke::HAIRLINE));
+        return Some(Some(graphdraw_core::Stroke::HAIRLINE));
     }
     let v = crate::ui::field::parse(t, Some(units.mm()))?;
     let mm = units.to_mm(v);
     (mm.is_finite() && mm >= 0.0).then(|| {
-        if mm <= tracedraw_core::Stroke::HAIRLINE {
-            Some(tracedraw_core::Stroke::HAIRLINE)
+        if mm <= graphdraw_core::Stroke::HAIRLINE {
+            Some(graphdraw_core::Stroke::HAIRLINE)
         } else {
             Some(mm.min(1000.0))
         }
@@ -1847,7 +1847,7 @@ fn outline_width_box(app: &mut App, ui: &mut Ui, width: Option<f64>) -> Option<O
                         picked = Some(None);
                     }
                     if ui.selectable_label(false, tr("toolbar.hairline")).clicked() {
-                        picked = Some(Some(tracedraw_core::Stroke::HAIRLINE));
+                        picked = Some(Some(graphdraw_core::Stroke::HAIRLINE));
                     }
                     for w in OUTLINE_WIDTHS_MM {
                         if ui
@@ -1926,7 +1926,7 @@ pub fn outline_part(app: &mut App, ui: &mut Ui) {
         .selected_text(arrow_label(&current))
         .width(56.0)
         .show_ui(ui, |ui| {
-            for a in tracedraw_core::Arrowhead::ALL {
+            for a in graphdraw_core::Arrowhead::ALL {
                 if ui.selectable_label(current == a, arrow_label(&a)).clicked() {
                     let cmds: Vec<Command> = app
                         .selected_shapes()
@@ -1982,8 +1982,8 @@ pub(crate) fn dash_label(d: &[f64]) -> String {
     s
 }
 
-fn arrow_label(a: &tracedraw_core::Arrowhead) -> String {
-    use tracedraw_core::Arrowhead as A;
+fn arrow_label(a: &graphdraw_core::Arrowhead) -> String {
+    use graphdraw_core::Arrowhead as A;
     match a {
         A::None => "\u{2500}".into(),
         A::Arrow => "\u{2500}\u{25B6}".into(),
@@ -2002,7 +2002,7 @@ fn arrow_label(a: &tracedraw_core::Arrowhead) -> String {
 /// new ellipses and the selected ones.
 pub fn ellipse_part(app: &mut App, ui: &mut Ui) {
     // The selection's arc when an ellipse is selected, else the tool's.
-    let selected: Vec<(tracedraw_core::ShapeId, tracedraw_core::geometry::Rect)> = app
+    let selected: Vec<(graphdraw_core::ShapeId, graphdraw_core::geometry::Rect)> = app
         .selected_shapes()
         .iter()
         .filter_map(|s| match &s.kind {
@@ -2023,7 +2023,7 @@ pub fn ellipse_part(app: &mut App, ui: &mut Ui) {
         Some(a) if a.pie => 1,
         Some(_) => 2,
     };
-    let mut arc = current.unwrap_or(tracedraw_core::EllipseArc {
+    let mut arc = current.unwrap_or(graphdraw_core::EllipseArc {
         start_deg: 90.0,
         end_deg: 90.0,
         pie: true,
@@ -2104,10 +2104,10 @@ pub fn ellipse_part(app: &mut App, ui: &mut Ui) {
 /// steps (1 up to what their points allow). With the Star tool, the Star
 /// and Complex Star buttons pick what it draws.
 pub fn polygon_part(app: &mut App, ui: &mut Ui, star: bool) {
-    use tracedraw_core::geometry::{complex_star_max_sharpness, COMPLEX_STAR_MIN_POINTS};
+    use graphdraw_core::geometry::{complex_star_max_sharpness, COMPLEX_STAR_MIN_POINTS};
     type Sel = (
-        tracedraw_core::ShapeId,
-        tracedraw_core::geometry::Rect,
+        graphdraw_core::ShapeId,
+        graphdraw_core::geometry::Rect,
         u32,
         f64,
         Option<u32>,
@@ -2522,7 +2522,7 @@ pub fn zoom_bar(app: &mut App, ui: &mut Ui) {
 /// What the arrange part offers for the selected `shapes`: several
 /// objects (group, combine, shape), a group (ungroup), a curve of several
 /// parts (break apart); `None` when nothing applies.
-pub fn arrange_offers(shapes: &[tracedraw_core::Shape]) -> Option<(bool, bool, bool)> {
+pub fn arrange_offers(shapes: &[graphdraw_core::Shape]) -> Option<(bool, bool, bool)> {
     let many = shapes.len() >= 2;
     let groups = shapes
         .iter()
@@ -2531,7 +2531,7 @@ pub fn arrange_offers(shapes: &[tracedraw_core::Shape]) -> Option<(bool, bool, b
         ShapeKind::Path { path, .. } => {
             path.elements()
                 .iter()
-                .filter(|e| matches!(e, tracedraw_core::geometry::PathEl::MoveTo(_)))
+                .filter(|e| matches!(e, graphdraw_core::geometry::PathEl::MoveTo(_)))
                 .count()
                 > 1
         }
@@ -2686,10 +2686,10 @@ pub fn arrange_part(app: &mut App, ui: &mut Ui) -> bool {
 
 /// The key of a wrap style's name.
 pub fn wrap_style_key(
-    mode: tracedraw_core::WrapMode,
-    side: tracedraw_core::WrapSide,
+    mode: graphdraw_core::WrapMode,
+    side: graphdraw_core::WrapSide,
 ) -> &'static str {
-    use tracedraw_core::{WrapMode as M, WrapSide as S};
+    use graphdraw_core::{WrapMode as M, WrapSide as S};
     match (mode, side) {
         (M::Contour, S::Left) => "context.wrap_contour_left",
         (M::Contour, S::Right) => "context.wrap_contour_right",
@@ -2721,7 +2721,7 @@ fn wrap_style_list(app: &mut App, ui: &mut Ui) {
         .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
         .width(260.0)
         .show(|ui| {
-            for (mode, side) in tracedraw_core::TextWrap::STYLES {
+            for (mode, side) in graphdraw_core::TextWrap::STYLES {
                 let here = on && current.mode == mode && current.side == side;
                 if ui
                     .selectable_label(here, tr(wrap_style_key(mode, side)))
@@ -2760,7 +2760,7 @@ pub fn order_part(app: &mut App, ui: &mut Ui) {
     .clicked()
     {
         let ids = app.selection.clone();
-        app.run(tracedraw_core::Command::SetWrapText {
+        app.run(graphdraw_core::Command::SetWrapText {
             shapes: ids,
             wrap: !wrap,
         });
@@ -2792,12 +2792,12 @@ pub fn order_part(app: &mut App, ui: &mut Ui) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::geometry::Rect as R;
+    use graphdraw_core::geometry::Rect as R;
 
     #[test]
     fn shaping_and_grouping_show_for_several_objects_groups_and_parts() {
-        use tracedraw_core::geometry::Shape as _;
-        use tracedraw_core::{Shape, ShapeId};
+        use graphdraw_core::geometry::Shape as _;
+        use graphdraw_core::{Shape, ShapeId};
         let rect = |id: u64, x: f64| {
             Shape::new(
                 ShapeId(id),
@@ -2875,7 +2875,7 @@ mod tests {
         assert_eq!(parse_outline_width("None", mm), Some(None));
         assert_eq!(
             parse_outline_width("hairline", mm),
-            Some(Some(tracedraw_core::Stroke::HAIRLINE))
+            Some(Some(graphdraw_core::Stroke::HAIRLINE))
         );
         assert_eq!(parse_outline_width("thick", mm), None);
         assert_eq!(parse_outline_width("-1", mm), None);
@@ -2888,7 +2888,7 @@ mod tests {
         assert_eq!(outline_text(&app, Some(0.2)), "0.200 mm");
         assert_eq!(outline_text(&app, None), tr("toolbar.none"));
         assert_eq!(
-            outline_text(&app, Some(tracedraw_core::Stroke::HAIRLINE)),
+            outline_text(&app, Some(graphdraw_core::Stroke::HAIRLINE)),
             tr("toolbar.hairline")
         );
     }

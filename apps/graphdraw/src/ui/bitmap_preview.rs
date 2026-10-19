@@ -8,7 +8,7 @@ use egui::{ColorImage, TextureHandle, TextureOptions, Ui};
 use image::RgbaImage;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
-use tracedraw_core::{document::ShapeKind, BitmapEffect, BitmapFxStack, ShapeId};
+use graphdraw_core::{document::ShapeKind, BitmapEffect, BitmapFxStack, ShapeId};
 
 /// The largest side of the preview copy, pixels.
 pub const THUMB: u32 = 240;

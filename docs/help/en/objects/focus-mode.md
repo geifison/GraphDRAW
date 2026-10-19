@@ -29,4 +29,4 @@ else is faded. Exports and printing are not affected.
   [[menu.tools > menu.tools.options > menu.tools.options_app]].
 - Whether a double-click enters focus mode is set on the same page.
 
-See [TraceDraw options](../customize/options-app.md#edit).
+See [GraphDraw options](../customize/options-app.md#edit).

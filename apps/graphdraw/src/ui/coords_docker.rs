@@ -12,7 +12,7 @@ use crate::theme::Tokens;
 use crate::ui::field::NumField;
 use crate::ui::propbar::{draw_pic, Pic};
 use egui::{epaint, Color32, Key, Modifiers, Pos2, Rect, Sense, Stroke, Ui, Vec2};
-use tracedraw_core::geometry::{
+use graphdraw_core::geometry::{
     complex_star_max_sharpness, BezPath, Point, COMPLEX_STAR_MIN_POINTS,
 };
 
@@ -295,7 +295,7 @@ fn origin_grid(ui: &mut Ui, origin: usize) -> Option<usize> {
 
 pub fn coordinates(app: &mut App, ui: &mut Ui) {
     if let Ok(page) = app.doc().page(app.page) {
-        let r = tracedraw_core::geometry::Rect::new(0.0, 0.0, page.size.width, page.size.height);
+        let r = graphdraw_core::geometry::Rect::new(0.0, 0.0, page.size.width, page.size.height);
         app.coords.place_on(r);
     }
     app.coords_follow_selection();

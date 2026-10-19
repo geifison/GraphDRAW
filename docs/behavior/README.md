@@ -5,7 +5,7 @@ wrong. Each page records:
 
 - defaults and ranges of every control,
 - shortcuts and modifier keys,
-- the formulas TraceDraw uses, with the units,
+- the formulas GraphDraw uses, with the units,
 - checks written as "given, when, then", which are the unit tests that
   gate the feature's row in `docs/features.md`.
 

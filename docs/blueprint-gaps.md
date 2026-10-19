@@ -30,7 +30,7 @@ exceptions, shown disabled so the layout stays complete:
 - `.cdr` generations: `WL` binary (v1, v2), RIFF (v3 to 13), ZIP with
   `content/riffData.cdr` (14, 15), ZIP with `content/root.dat` and
   `content/data/*.dat` ordered by `content/dataFileList.dat` (16 and
-  later). TraceDraw reads all of them, the `WL` binary included, and
+  later). GraphDraw reads all of them, the `WL` binary included, and
   writes versions 7 to 27 (see `cdr-format.md`, "Writing").
 - Coordinates: 1/1000 inch (16-bit versions, `V < 600`), 1/254000 inch
   otherwise.
@@ -76,6 +76,6 @@ EPS, DXF, EMF, WMF, PLT, PSD, HTML, PDF/X-1a, X-3, X-4, `.cdr` (version
 The JavaScript object model covers documents, pages, layers, shapes,
 fills, outlines, colours, `Curve` > `SubPaths` > `Nodes` (position,
 type, move, delete, add) and `Effects` (list, add any effect by its
-`.tdraw` form, `AddExtrude`, `AddBlockShadow`, remove, clear), and
+`.gdr` form, `AddExtrude`, `AddBlockShadow`, remove, clear), and
 import/export filters (`behavior/script-filters.md`); the Scripts panel
 debugs scripts with breakpoints (`behavior/script-debugger.md`).

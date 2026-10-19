@@ -2,7 +2,7 @@
 
 The [[docker.comments]] panel collects review notes on a drawing: pins, boxes
 and arrows on the page, each with a text and replies. Comments are saved with
-the drawing (in `.tdraw` files) and are never printed or exported. Open the
+the drawing (in `.gdr` files) and are never printed or exported. Open the
 panel from [[menu.window > menu.window.dockers]].
 
 ![The Comments panel](../../img/objects-comments.png)

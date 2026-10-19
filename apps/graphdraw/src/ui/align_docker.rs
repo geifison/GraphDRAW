@@ -441,11 +441,11 @@ pub fn align_distribute(app: &mut App, ui: &mut Ui) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::{geometry::Rect as PageRect, ShapeId, ShapeKind};
+    use graphdraw_core::{geometry::Rect as PageRect, ShapeId, ShapeKind};
 
     fn rect(app: &mut App, x0: f64, y0: f64, x1: f64, y1: f64) -> ShapeId {
         app.new_shape(ShapeKind::Rect {
-            rect: tracedraw_core::Rect::new(x0, y0, x1, y1),
+            rect: graphdraw_core::Rect::new(x0, y0, x1, y1),
             radius: 0.0,
             corners: None,
         })
@@ -495,12 +495,12 @@ mod tests {
         let mut app = App::headless();
         let a = rect(&mut app, 10.0, 10.0, 20.0, 20.0);
         let b = rect(&mut app, 50.0, 40.0, 70.0, 60.0);
-        let thick = tracedraw_core::style::Stroke::new(tracedraw_core::Color::BLACK, 4.0);
-        app.run(tracedraw_core::Command::SetStroke {
+        let thick = graphdraw_core::style::Stroke::new(graphdraw_core::Color::BLACK, 4.0);
+        app.run(graphdraw_core::Command::SetStroke {
             shapes: vec![a],
             stroke: Some(thick),
         });
-        app.run(tracedraw_core::Command::SetStroke {
+        app.run(graphdraw_core::Command::SetStroke {
             shapes: vec![b],
             stroke: None,
         });

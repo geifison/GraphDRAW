@@ -63,7 +63,7 @@ pub fn distort_bar(app: &mut App, ui: &mut Ui) {
             changed |= ui
                 .add(
                     NumField::new(&mut s.frequency)
-                        .range(0..=tracedraw_core::distort::MAX_FREQUENCY)
+                        .range(0..=graphdraw_core::distort::MAX_FREQUENCY)
                         .width(44.0),
                 )
                 .on_hover_text(tr("distort.frequency_tip"))
@@ -137,7 +137,7 @@ pub fn distort_bar(app: &mut App, ui: &mut Ui) {
         crate::distort_tool::distortion_of(&sh.effects).is_none()
             && !matches!(
                 sh.kind,
-                tracedraw_core::ShapeKind::Bitmap { .. } | tracedraw_core::ShapeKind::Group { .. }
+                graphdraw_core::ShapeKind::Bitmap { .. } | graphdraw_core::ShapeKind::Group { .. }
             )
     });
     if undistorted
@@ -177,7 +177,7 @@ pub fn draw_centers(app: &App, painter: &Painter) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::{distort::Distort, geometry::Rect, ShapeKind};
+    use graphdraw_core::{distort::Distort, geometry::Rect, ShapeKind};
 
     #[test]
     fn the_bar_draws_for_every_kind_and_shows_the_selection() {

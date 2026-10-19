@@ -1,6 +1,6 @@
 //! AI images: pictures made, remixed or cut out by the AI service the
 //! user sets up with their own key (Tools > Options > AI > Service), when
-//! that service can make pictures. TraceDraw has no AI of its own;
+//! that service can make pictures. GraphDraw has no AI of its own;
 //! nothing is sent until the user asks.
 //!
 //! Two kinds of image API are spoken to: Google's Gemini API
@@ -18,8 +18,8 @@ use serde_json::{json, Value};
 use crate::app::App;
 use crate::i18n::{tr, trf};
 use crate::net::{HttpRequest, HttpResponse, HttpResult};
-use tracedraw_core::document::{Shape, ShapeKind};
-use tracedraw_core::{Command, Rect, ShapeId};
+use graphdraw_core::document::{Shape, ShapeKind};
+use graphdraw_core::{Command, Rect, ShapeId};
 
 /// The kinds of image service.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -474,7 +474,7 @@ pub fn build_edit(
     match prefs.provider {
         ImageProvider::Gemini => gemini_request(prefs, key, prompt, Some(png), None),
         ImageProvider::OpenAi => {
-            let boundary = "tracedraw-ai-image-boundary-7f3a9c";
+            let boundary = "graphdraw-ai-image-boundary-7f3a9c";
             let mut fields = vec![
                 ("model", prefs.model()),
                 ("prompt", prompt.to_string()),
@@ -1396,12 +1396,12 @@ impl App {
     /// An SVG drawing as one group of editable shapes, centred on the page
     /// within four fifths of it, as one undo step.
     pub fn ai_place_svg(&mut self, svg: &str) {
-        use tracedraw_core::geometry::Shape as _;
+        use graphdraw_core::geometry::Shape as _;
         let Some(layer) = self.active_layer() else {
             return;
         };
         let parsed =
-            tracedraw_io::svg_import::parse(svg, &mut tracedraw_core::id::IdSource::default());
+            graphdraw_io::svg_import::parse(svg, &mut graphdraw_core::id::IdSource::default());
         let shapes = match parsed {
             Ok(p) if !p.shapes.is_empty() => p.shapes,
             Ok(_) => {
@@ -1430,11 +1430,11 @@ impl App {
             let page = self.page_size();
             let k = (page.width * 0.8 / b.width()).min(page.height * 0.8 / b.height());
             let c = b.center();
-            group.transform = tracedraw_core::Affine::translate(tracedraw_core::Vec2::new(
+            group.transform = graphdraw_core::Affine::translate(graphdraw_core::Vec2::new(
                 page.width / 2.0,
                 page.height / 2.0,
-            )) * tracedraw_core::Affine::scale(k)
-                * tracedraw_core::Affine::translate(-c.to_vec2());
+            )) * graphdraw_core::Affine::scale(k)
+                * graphdraw_core::Affine::translate(-c.to_vec2());
         }
         if let Err(e) = self.engine.run_batch(
             LABEL_GENERATE,
@@ -1464,9 +1464,9 @@ impl App {
         let (rect, transform) = match over.and_then(|id| self.doc().find_shape(id).cloned()) {
             Some(src) => match &src.kind {
                 ShapeKind::Bitmap { rect, .. } => (*rect, src.transform),
-                _ => (Rect::ZERO, tracedraw_core::Affine::IDENTITY),
+                _ => (Rect::ZERO, graphdraw_core::Affine::IDENTITY),
             },
-            None => (Rect::ZERO, tracedraw_core::Affine::IDENTITY),
+            None => (Rect::ZERO, graphdraw_core::Affine::IDENTITY),
         };
         let rect = if rect.area() > 0.0 {
             // A remix keeps the source's height and its own proportions.
@@ -1492,7 +1492,7 @@ impl App {
             },
         );
         shape.transform = transform;
-        shape.fill = tracedraw_core::Fill::None;
+        shape.fill = graphdraw_core::Fill::None;
         shape.stroke = None;
         shape.name = Some(tr("aiimg.object_name"));
         if let Err(e) = self
@@ -2008,8 +2008,8 @@ mod tests {
                 fx: Default::default(),
             },
         );
-        s.fill = tracedraw_core::Fill::None;
-        app.run(tracedraw_core::Command::AddShape { layer, shape: s });
+        s.fill = graphdraw_core::Fill::None;
+        app.run(graphdraw_core::Command::AddShape { layer, shape: s });
         app.select(vec![id]);
         app.ai_image.style = Some(0);
         app.ai_image.fake = Some(|_| gemini_reply(&png(8, 8, |_, _| [0, 0, 255, 255])));
@@ -2161,7 +2161,7 @@ mod tests {
         assert_eq!(children.len(), 2);
         assert_eq!(g.name.as_deref(), Some(tr("aiimg.vector_name").as_str()));
         // Fitted to four fifths of the page width.
-        use tracedraw_core::geometry::Shape as _;
+        use graphdraw_core::geometry::Shape as _;
         let b = g.page_path().bounding_box();
         assert!(
             (b.width() - app.page_size().width * 0.8).abs() < 0.5,

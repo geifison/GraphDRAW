@@ -1,12 +1,12 @@
 [package]
-name = "tracedraw-text"
+name = "graphdraw-text"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Font discovery, shaping and glyph outlines for TraceDraw"
+description = "Font discovery, shaping and glyph outlines for GraphDraw"
 
 [dependencies]
-tracedraw-core.workspace = true
+graphdraw-core.workspace = true
 kurbo.workspace = true
 fontdb = { version = "0.24", default-features = false, features = ["std"] }
 ttf-parser.workspace = true

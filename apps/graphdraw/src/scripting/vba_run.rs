@@ -19,7 +19,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{channel, Receiver, RecvTimeoutError, Sender};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tracedraw_core::{Command, PageId, ShapeId};
+use graphdraw_core::{Command, PageId, ShapeId};
 
 /// What the app sees of a drawing when a macro starts or resumes: taken on
 /// the app's thread and handed to the macro's.
@@ -167,7 +167,7 @@ struct RunState {
     input: Receiver<Input>,
     stop: Arc<AtomicBool>,
     forms: Arc<Mutex<Forms>>,
-    models: Vec<tracedraw_vba_project::Form>,
+    models: Vec<graphdraw_vba_project::Form>,
     /// Commands of the host already sent to the app.
     flushed: Cell<usize>,
     stopped: Cell<bool>,
@@ -455,7 +455,7 @@ fn native_stop(_this: &JsValue, _args: &[JsValue], ctx: &mut Context) -> JsResul
 
 fn with_forms<T>(
     ctx: &Context,
-    f: impl FnOnce(&mut Forms, &[tracedraw_vba_project::Form]) -> T,
+    f: impl FnOnce(&mut Forms, &[graphdraw_vba_project::Form]) -> T,
 ) -> Option<T> {
     let st = ctx.get_data::<RunState>()?;
     let mut forms = st.forms.lock().ok()?;
@@ -600,14 +600,14 @@ pub fn with_stop_checks(js: &str) -> String {
     js.replace("__f.l=", "__chk();__f.l=")
 }
 
-/// Start `entry` (JavaScript from `tracedraw_vba::entry_call`) of
+/// Start `entry` (JavaScript from `graphdraw_vba::entry_call`) of
 /// `program` (compiled VBA) on a worker thread, with the project's form
 /// designs. Desktop only.
 pub fn start(
     app: &App,
     program: &str,
     entry: &str,
-    models: Vec<tracedraw_vba_project::Form>,
+    models: Vec<graphdraw_vba_project::Form>,
     name: String,
 ) -> Result<MacroRun, String> {
     let (req_tx, req_rx) = channel();
@@ -648,7 +648,7 @@ fn run_thread(
     snap: Snapshot,
     program: String,
     entry: String,
-    models: Vec<tracedraw_vba_project::Form>,
+    models: Vec<graphdraw_vba_project::Form>,
     requests: Sender<Request>,
     input: Receiver<Input>,
     stop: Arc<AtomicBool>,
@@ -696,7 +696,7 @@ fn run_thread(
         for (what, src) in [
             ("common", COMMON),
             ("object model", vg::PRELUDE),
-            ("VBA runtime", tracedraw_vba::RUNTIME_JS),
+            ("VBA runtime", graphdraw_vba::RUNTIME_JS),
             ("forms", GLUE),
         ] {
             ctx.eval(Source::from_bytes(src))

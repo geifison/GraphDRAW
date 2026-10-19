@@ -1,6 +1,6 @@
 # Bitmaps
 
-Bitmaps zijn afbeeldingen van pixels, zoals foto's en scans. TraceDraw plaatst
+Bitmaps zijn afbeeldingen van pixels, zoals foto's en scans. GraphDraw plaatst
 ze in tekeningen, wijzigt hun kleurmodus en formaat, zet ze recht, maskeert
 kleuren, past effecten toe en vectoriseert ze tot vormen. Het zet ook
 vectorobjecten om in bitmaps.

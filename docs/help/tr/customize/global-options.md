@@ -67,6 +67,6 @@ seçeneği burada işaretleyin.
 ![Genel seçeneklerin Dosya Konumları sayfası](../../img/customize-global-options-file-locations.png)
 
 Tercihlerin ve otomatik yedeklerin nerede tutulduğunu gösterir. Tercihler,
-varsa programın yanındaki bir `tracedraw-settings` klasöründe (taşınabilir
+varsa programın yanındaki bir `graphdraw-settings` klasöründe (taşınabilir
 bir kopya), yoksa sisteminizin program ayarları için ayırdığı yerdedir;
 tarayıcı sürümü onları tarayıcıda tutar.

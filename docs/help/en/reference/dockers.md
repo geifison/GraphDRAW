@@ -56,6 +56,6 @@ the page that explains it.
   the panels away.
 - The close button in a panel's title bar takes it out of the tabs; the
   collapse button folds the panel area.
-- The panels you leave open come back the next time TraceDraw starts.
+- The panels you leave open come back the next time GraphDraw starts.
 - Panel shortcuts toggle: pressing one when its panel is in front hides the
   panels.

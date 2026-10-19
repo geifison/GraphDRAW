@@ -64,6 +64,6 @@ message also has a box that stops it; tick the option here to see it again.
 ![The File Locations page of the global options](../../img/customize-global-options-file-locations.png)
 
 Shows where the preferences and the auto-backups are kept. The preferences
-are in a `tracedraw-settings` folder next to the program when there is one
+are in a `graphdraw-settings` folder next to the program when there is one
 (a portable copy), otherwise in your system's place for program settings; the
 browser version keeps them in the browser.

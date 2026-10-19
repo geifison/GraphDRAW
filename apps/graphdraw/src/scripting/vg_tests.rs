@@ -3,7 +3,7 @@
 
 use crate::app::App;
 use crate::scripting::run_vgcore;
-use tracedraw_core::{
+use graphdraw_core::{
     document::{Shape, ShapeKind},
     geometry::Rect,
     Color, Fill, ShapeId,
@@ -185,7 +185,7 @@ fn text_story_edits_the_text_object() {
         panic!("text");
     };
     assert!(spans.iter().all(|s| s.bold && s.size_pt == 30.0));
-    assert_eq!(*align, tracedraw_core::TextAlign::Center);
+    assert_eq!(*align, graphdraw_core::TextAlign::Center);
 }
 
 #[test]
@@ -351,7 +351,7 @@ fn community_macro_replace_a_colour_across_the_page() {
 #[test]
 fn community_macro_export_every_page_as_png() {
     let mut app = App::headless();
-    let dir = std::env::temp_dir().join(format!("tracedraw-vg-export-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("graphdraw-vg-export-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("dir");
     let src = format!(
@@ -501,9 +501,9 @@ fn effects_list_drop_shadows_and_separate_them() {
             corners: None,
         })
         .expect("rect");
-    app.run(tracedraw_core::Command::SetShadow {
+    app.run(graphdraw_core::Command::SetShadow {
         shapes: vec![id],
-        shadow: Some(tracedraw_core::Shadow::default()),
+        shadow: Some(graphdraw_core::Shadow::default()),
     });
     let out = run(
         &mut app,
@@ -539,7 +539,7 @@ fn guides_are_created_and_turned() {
     let guides = &app.doc().pages[0].guides;
     assert!(matches!(
         guides[0].line,
-        tracedraw_core::document::GuideLine::Vertical { x } if (x - 30.0).abs() < 1e-9
+        graphdraw_core::document::GuideLine::Vertical { x } if (x - 30.0).abs() < 1e-9
     ));
 }
 
@@ -621,7 +621,7 @@ fn documents_pages_layers_and_settings() {
             corners: None,
         })
         .expect("rect");
-    app.run(tracedraw_core::Command::SetLocked {
+    app.run(graphdraw_core::Command::SetLocked {
         shapes: vec![id],
         locked: true,
     });
@@ -664,7 +664,7 @@ fn members_without_a_counterpart_raise_named_errors() {
         let mut app = App::headless();
         let err = run_vgcore(&mut app, src, "Macro").expect_err(member);
         assert!(err.contains(member), "{src}: {err}");
-        assert!(err.contains("not available in TraceDraw"), "{err}");
+        assert!(err.contains("not available in GraphDraw"), "{err}");
     }
 }
 

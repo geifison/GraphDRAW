@@ -432,17 +432,17 @@ Ihre eigenen Tastenkürzel zeigen; siehe
 
 | Befehl | Siehe |
 |---|---|
-| [[menu.help.help_topics]] | [Willkommen in der TraceDraw-Hilfe](../index.md#in-the-app) |
-| [[menu.help.product_help]] | [Willkommen in der TraceDraw-Hilfe](../index.md#in-the-app) |
-| [[menu.help.welcome_screen]] | [Über TraceDraw und Updates](../welcome/about-and-updates.md) |
-| [[menu.help.video_tutorials]] | [Über TraceDraw und Updates](../welcome/about-and-updates.md) |
+| [[menu.help.help_topics]] | [Willkommen in der GraphDraw-Hilfe](../index.md#in-the-app) |
+| [[menu.help.product_help]] | [Willkommen in der GraphDraw-Hilfe](../index.md#in-the-app) |
+| [[menu.help.welcome_screen]] | [Über GraphDraw und Updates](../welcome/about-and-updates.md) |
+| [[menu.help.video_tutorials]] | [Über GraphDraw und Updates](../welcome/about-and-updates.md) |
 | [[menu.help.hints]] | [The Hints panel](../get-started/hints.md) |
-| [[menu.help.quick_start_guide]] | [Über TraceDraw und Updates](../welcome/about-and-updates.md) |
-| [[menu.help.user_guide]] | [Über TraceDraw und Updates](../welcome/about-and-updates.md) |
+| [[menu.help.quick_start_guide]] | [Über GraphDraw und Updates](../welcome/about-and-updates.md) |
+| [[menu.help.user_guide]] | [Über GraphDraw und Updates](../welcome/about-and-updates.md) |
 | [[menu.help.whats_new]] | [Neuigkeiten](../welcome/whats-new.md) |
 | [[menu.help.highlight_whats_new]] | [Neuigkeiten](../welcome/whats-new.md) |
-| [[menu.help.updates]] | [Über TraceDraw und Updates](../welcome/about-and-updates.md) |
-| [[menu.help.message_settings]] | [Über TraceDraw und Updates](../welcome/about-and-updates.md) |
-| [[menu.help.community]] | [Über TraceDraw und Updates](../welcome/about-and-updates.md) |
-| [[menu.help.support]] | [Über TraceDraw und Updates](../welcome/about-and-updates.md) |
-| [[menu.help.about]] | [Über TraceDraw und Updates](../welcome/about-and-updates.md) |
+| [[menu.help.updates]] | [Über GraphDraw und Updates](../welcome/about-and-updates.md) |
+| [[menu.help.message_settings]] | [Über GraphDraw und Updates](../welcome/about-and-updates.md) |
+| [[menu.help.community]] | [Über GraphDraw und Updates](../welcome/about-and-updates.md) |
+| [[menu.help.support]] | [Über GraphDraw und Updates](../welcome/about-and-updates.md) |
+| [[menu.help.about]] | [Über GraphDraw und Updates](../welcome/about-and-updates.md) |

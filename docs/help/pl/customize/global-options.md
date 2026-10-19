@@ -66,7 +66,7 @@ aby znów go widzieć.
 ![Strona Lokalizacje plików opcji globalnych](../../img/customize-global-options-file-locations.png)
 
 Pokazuje, gdzie są przechowywane preferencje i automatyczne kopie zapasowe.
-Preferencje znajdują się w folderze `tracedraw-settings` obok programu, jeśli
+Preferencje znajdują się w folderze `graphdraw-settings` obok programu, jeśli
 taki istnieje (kopia przenośna), a w przeciwnym razie w miejscu, którego system
 używa na ustawienia programów; wersja przeglądarkowa przechowuje je
 w przeglądarce.

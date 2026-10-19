@@ -30,7 +30,7 @@ Un fichier de palette peut être un nuancier d'encres d'accompagnement (par
 exemple une palette `.ase` avec des entrées d'accompagnement). Ses entrées
 d'accompagnement s'ouvrent comme des couleurs d'accompagnement, nommées
 comme dans le nuancier ; en appliquer une ajoute l'encre au dessin.
-TraceDraw ne fournit pas de nuanciers sous licence, mais un nuancier que
+GraphDraw ne fournit pas de nuanciers sous licence, mais un nuancier que
 vous possédez s'ouvre comme n'importe quelle palette.
 
 ## Les couleurs d'accompagnement à l'impression et à l'exportation {#output}

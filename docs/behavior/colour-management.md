@@ -84,7 +84,7 @@ transforms once: RGB and CMYK to the display (sRGB), RGB to CMYK and back.
 it is installed; otherwise the built-in conversions apply. Profiles are loaded
 from `.icc`/`.icm` files in Tools > Colour Management (Load profile...),
 remembered by path in the settings and installed again at start-up. The
-CLI `tracedraw-cli icc <file>` prints a profile's class, spaces, version
+CLI `graphdraw-cli icc <file>` prints a profile's class, spaces, version
 and the sRGB values of its primaries, which is how a profile is checked.
 The document stores the profile names used for its colours.
 
@@ -122,11 +122,11 @@ rendered the same picture through the DeviceCMYK image.
 
 A drawing can carry the CMYK profile its CMYK values were chosen in: a
 `.cdr` file's profile (under `color/profiles/cmyk/`) comes with the
-drawing and is saved in its `.tdraw` file. While that drawing is the
+drawing and is saved in its `.gdr` file. While that drawing is the
 active one, its CMYK colours show through its profile (rendering intent
 and black point compensation from the settings); other drawings use the
 profile of the settings. Switching tabs, opening or reverting a drawing
-installs the right one. `tracedraw-cli` renders and exports through the
+installs the right one. `graphdraw-cli` renders and exports through the
 drawing's profile too (relative colorimetric, no black point
 compensation).
 
@@ -160,7 +160,7 @@ width.
   (core) and `tests::outlines_thinner_than_a_pixel_stay_one_pixel_wide`
   (render crate).
 
-- `tracedraw_core` `press::tests::process_inks_show_as_on_a_coated_web_press`:
+- `graphdraw_core` `press::tests::process_inks_show_as_on_a_coated_web_press`:
   the default palette colours on screen within 5 levels.
 - `press::tests::printable_colours_round_trip`: CMYK to RGB to CMYK to RGB
   within one level for ink totals up to 260%.

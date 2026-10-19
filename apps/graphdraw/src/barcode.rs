@@ -5,7 +5,7 @@
 //! [`build`] lays them out in millimetres with the human-readable text.
 //! See docs/behavior/barcode.md.
 
-use tracedraw_core::geometry::{Point, Rect};
+use graphdraw_core::geometry::{Point, Rect};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Symbology {
@@ -62,8 +62,8 @@ impl Symbology {
     pub fn sample(self) -> &'static str {
         match self {
             Symbology::Codabar => "1234567890123",
-            Symbology::Code39 => "TRACEDRAW-2026",
-            Symbology::Code128 => "TraceDraw 2026",
+            Symbology::Code39 => "GRAPHDRAW-2026",
+            Symbology::Code128 => "GraphDraw 2026",
             Symbology::Ean13 => "590123412345",
             Symbology::Ean8 => "9638507",
             Symbology::UpcA => "03600029145",

@@ -14,7 +14,7 @@
 use crate::app::{App, Drag};
 use crate::i18n::tr;
 use egui::{PointerButton, Response};
-use tracedraw_core::{geometry::Point, Command, ShapeId};
+use graphdraw_core::{geometry::Point, Command, ShapeId};
 
 const PREFIX: &str = "anchor.";
 /// Hit radius for anchors, in mm at the current zoom (converted by caller).
@@ -272,8 +272,8 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::document::ShapeKind;
-    use tracedraw_core::geometry::Rect;
+    use graphdraw_core::document::ShapeKind;
+    use graphdraw_core::geometry::Rect;
 
     fn rect(app: &mut App, r: Rect) -> ShapeId {
         app.new_shape(ShapeKind::Rect {
@@ -305,7 +305,7 @@ mod tests {
         assert_eq!(app.anchors_of(a).len(), 5);
         assert_eq!(app.anchors_of(a)[4], Point::new(10.0, 10.0));
         app.select(vec![a]);
-        app.transform_selection(tracedraw_core::Affine::scale(2.0));
+        app.transform_selection(graphdraw_core::Affine::scale(2.0));
         let anchors = app.anchors_of(a);
         let b_a = app.doc().find_shape(a).unwrap().bounds();
         assert!((anchors[4].x - b_a.x1).abs() < 1e-6 && (anchors[4].y - b_a.y1).abs() < 1e-6);

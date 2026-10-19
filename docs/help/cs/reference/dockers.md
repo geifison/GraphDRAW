@@ -56,6 +56,6 @@ která ho vysvětluje.
   panely sbalíte.
 - Tlačítko zavřít v záhlaví panelu ho odebere z karet; tlačítko sbalit sbalí
   oblast panelů.
-- Panely, které necháte otevřené, se vrátí při příštím spuštění TraceDraw.
+- Panely, které necháte otevřené, se vrátí při příštím spuštění GraphDraw.
 - Zkratky panelů přepínají: stisk zkratky, když je její panel vpředu, panely
   skryje.

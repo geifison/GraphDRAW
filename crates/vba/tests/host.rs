@@ -3,7 +3,7 @@
 
 mod common;
 use common::{run, run_err, run_modules};
-use tracedraw_vba::{Module, ModuleKind};
+use graphdraw_vba::{Module, ModuleKind};
 
 #[test]
 fn walks_the_selection_and_changes_shapes() {
@@ -218,7 +218,7 @@ End Sub
 fn unsupported_statements_fail_at_run_time_with_a_clear_message() {
     let e = run_err("Sub Main()\n Open \"c:\\x.txt\" For Output As #1\nEnd Sub");
     assert!(
-        e.contains("Not supported in TraceDraw: Open statement"),
+        e.contains("Not supported in GraphDraw: Open statement"),
         "{e}"
     );
     let e = run_err(

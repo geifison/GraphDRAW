@@ -206,7 +206,7 @@ pub fn dialog(app: &mut App, ctx: &Context, st: &mut TemplateState, close: &mut 
                 .clicked()
             {
                 crate::files::Dialog::new()
-                    .add_filter(tr("file.template"), &["tdt", "tdraw"])
+                    .add_filter(tr("file.template"), &["tdt", "gdr"])
                     .pick_file(app, |app, p| {
                         app.open_path(p);
                         app.file = None;

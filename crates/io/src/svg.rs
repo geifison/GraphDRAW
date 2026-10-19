@@ -2,7 +2,7 @@
 //! from our bottom-up page space to SVG's top-down space.
 
 use std::fmt::Write;
-use tracedraw_core::{
+use graphdraw_core::{
     document::{Shape, ShapeKind},
     geometry::{Affine, PathEl, Shape as _},
     Color, Document, Fill, LineCap, LineJoin,
@@ -63,7 +63,7 @@ pub fn page_to_svg(doc: &Document, page_index: usize) -> String {
 /// (`#page=n`) have no target in a one-page SVG and are left out.
 fn write_shape(
     shape: &Shape,
-    symbols: &[tracedraw_core::Symbol],
+    symbols: &[graphdraw_core::Symbol],
     parent: Affine,
     out: &mut String,
     defs: &mut String,
@@ -106,7 +106,7 @@ fn drop_links(shape: &mut Shape) {
 
 fn write_unlinked(
     shape: &Shape,
-    symbols: &[tracedraw_core::Symbol],
+    symbols: &[graphdraw_core::Symbol],
     parent: Affine,
     out: &mut String,
     defs: &mut String,
@@ -118,7 +118,7 @@ fn write_unlinked(
     }
     let pad = "  ".repeat(indent);
     if !shape.effects.is_empty() {
-        let ev = tracedraw_core::live::evaluate(shape);
+        let ev = graphdraw_core::live::evaluate(shape);
         let _ = writeln!(
             out,
             "{pad}<g id=\"{}\" data-effects=\"{}\">",
@@ -136,17 +136,17 @@ fn write_unlinked(
         // approximate with the average opacity of the mask.
         for e in &shape.effects {
             match e {
-                tracedraw_core::live::Effect::Transparency { mask, .. } => {
+                graphdraw_core::live::Effect::Transparency { mask, .. } => {
                     main.opacity *= average_luminance(mask) as f64;
                 }
-                tracedraw_core::live::Effect::Lens(tracedraw_core::live::Lens::Transparency {
+                graphdraw_core::live::Effect::Lens(graphdraw_core::live::Lens::Transparency {
                     rate,
                     color,
                 }) => {
                     main.fill = Fill::Solid(*color);
                     main.opacity *= rate / 100.0;
                 }
-                tracedraw_core::live::Effect::Lens(_) => {
+                graphdraw_core::live::Effect::Lens(_) => {
                     main.opacity *= 0.5;
                 }
                 _ => {}
@@ -306,7 +306,7 @@ fn write_unlinked(
     // A calligraphic outline has no SVG equivalent: the swept band is
     // written as a filled path after the object.
     let calligraphic = shape.stroke.as_ref().and_then(|s| {
-        tracedraw_core::shaping::outline_band(&shape.page_path(), s, 1.0).map(|b| {
+        graphdraw_core::shaping::outline_band(&shape.page_path(), s, 1.0).map(|b| {
             let band = parent * b;
             let paint = outline_paint_value(s, band.bounding_box(), symbols, defs, next_grad);
             (band, paint)
@@ -374,7 +374,7 @@ fn write_unlinked(
         .and_then(|s| s.painterly.as_ref().map(|b| (s, b)))
     {
         for (alpha, marks) in
-            tracedraw_core::painterly::marks_by_opacity(&shape.page_path(), s.width, brush, 12)
+            graphdraw_core::painterly::marks_by_opacity(&shape.page_path(), s.width, brush, 12)
         {
             let _ = writeln!(
                 out,
@@ -389,7 +389,7 @@ fn write_unlinked(
     // colour. They are built in page space, where the curve direction is
     // unmirrored, and then taken through the parent transform and the flip.
     if let Some(s) = &shape.stroke {
-        for head in tracedraw_core::arrowhead_paths(&shape.page_path(), s) {
+        for head in graphdraw_core::arrowhead_paths(&shape.page_path(), s) {
             let _ = writeln!(
                 out,
                 "{pad}<path d=\"{}\" fill=\"{}\" stroke=\"none\"/>",
@@ -403,9 +403,9 @@ fn write_unlinked(
 /// The SVG paint of an outline: its own paint (a gradient, pattern,
 /// texture or mesh) over `bounds`, or its colour.
 fn outline_paint_value(
-    s: &tracedraw_core::Stroke,
-    bounds: tracedraw_core::Rect,
-    symbols: &[tracedraw_core::Symbol],
+    s: &graphdraw_core::Stroke,
+    bounds: graphdraw_core::Rect,
+    symbols: &[graphdraw_core::Symbol],
     defs: &mut String,
     next_grad: &mut usize,
 ) -> String {
@@ -422,8 +422,8 @@ fn outline_paint_value(
 /// Fills SVG cannot draw (textures, meshes) give a representative colour.
 fn paint_value(
     fill: &Fill,
-    bounds: tracedraw_core::Rect,
-    symbols: &[tracedraw_core::Symbol],
+    bounds: graphdraw_core::Rect,
+    symbols: &[graphdraw_core::Symbol],
     defs: &mut String,
     next_grad: &mut usize,
 ) -> String {
@@ -437,7 +437,7 @@ fn paint_value(
             // stops; a shaped fountain (0 on the edge) runs from the
             // centre out as a radial one.
             let mut stops = f.resolved_stops();
-            if f.kind == tracedraw_core::FountainKind::Shaped {
+            if f.kind == graphdraw_core::FountainKind::Shaped {
                 stops.reverse();
                 for s in &mut stops {
                     s.pos = 1.0 - s.pos;
@@ -454,9 +454,9 @@ fn paint_value(
                 })
                 .collect();
             match f.kind {
-                tracedraw_core::FountainKind::Linear
-                | tracedraw_core::FountainKind::Conical
-                | tracedraw_core::FountainKind::Square => {
+                graphdraw_core::FountainKind::Linear
+                | graphdraw_core::FountainKind::Conical
+                | graphdraw_core::FountainKind::Square => {
                     // SVG has no conical/square gradients; they become linear.
                     let a = f.angle.to_radians();
                     let (x1, y1, x2, y2) = (
@@ -467,13 +467,13 @@ fn paint_value(
                     );
                     let _ = writeln!(defs, "    <linearGradient id=\"{id}\" gradientUnits=\"userSpaceOnUse\" x1=\"{x1}\" y1=\"{y1}\" x2=\"{x2}\" y2=\"{y2}\">\n{stop_xml}    </linearGradient>");
                 }
-                tracedraw_core::FountainKind::Radial => {
+                graphdraw_core::FountainKind::Radial => {
                     let cx = bounds.center().x + f.offset.x * bounds.width() / 2.0;
                     let cy = bounds.center().y - f.offset.y * bounds.height() / 2.0;
                     let r = bounds.width().max(bounds.height()) / 2.0 * std::f64::consts::SQRT_2;
                     let _ = writeln!(defs, "    <radialGradient id=\"{id}\" gradientUnits=\"userSpaceOnUse\" cx=\"{cx}\" cy=\"{cy}\" r=\"{r}\">\n{stop_xml}    </radialGradient>");
                 }
-                tracedraw_core::FountainKind::Shaped => {
+                graphdraw_core::FountainKind::Shaped => {
                     // SVG has no gradient that follows an outline: a radial
                     // one reaching the nearer sides stands in for it.
                     let c = bounds.center();
@@ -483,7 +483,7 @@ fn paint_value(
             }
             format!("url(#{id})")
         }
-        Fill::Pattern(tracedraw_core::Pattern::TwoColor {
+        Fill::Pattern(graphdraw_core::Pattern::TwoColor {
             tile,
             front,
             back,
@@ -509,7 +509,7 @@ fn paint_value(
             let _ = writeln!(defs, "    <pattern id=\"{id}\" patternUnits=\"userSpaceOnUse\" width=\"{s}\" height=\"{s}\"><image width=\"{s}\" height=\"{s}\" href=\"data:image/png;base64,{b64}\"/></pattern>", s = fmt(*size_mm));
             format!("url(#{id})")
         }
-        Fill::Pattern(tracedraw_core::Pattern::Bitmap {
+        Fill::Pattern(graphdraw_core::Pattern::Bitmap {
             png,
             width_px,
             height_px,
@@ -523,7 +523,7 @@ fn paint_value(
             let _ = writeln!(defs, "    <pattern id=\"{id}\" patternUnits=\"userSpaceOnUse\" width=\"{}\" height=\"{}\"><image width=\"{}\" height=\"{}\" href=\"data:image/png;base64,{b64}\"/></pattern>", fmt(*size_mm), fmt(h), fmt(*size_mm), fmt(h));
             format!("url(#{id})")
         }
-        Fill::Pattern(tracedraw_core::Pattern::Vector {
+        Fill::Pattern(graphdraw_core::Pattern::Vector {
             shapes: tile_shapes,
             tile,
         }) => {
@@ -547,7 +547,7 @@ fn paint_value(
         }
         Fill::Texture(t) => {
             // Approximate with the average of the two colours.
-            tracedraw_core::style::lerp_color(t.color_a, t.color_b, 0.5).to_hex()
+            graphdraw_core::style::lerp_color(t.color_a, t.color_b, 0.5).to_hex()
         }
         Fill::Mesh(m) => {
             // Average of the node colours; the renderer image path is exact.
@@ -588,7 +588,7 @@ pub fn average_luminance(fill: &Fill) -> f32 {
             let n = f.stops.len().max(1) as f32;
             f.stops.iter().map(|s| s.color.luminance()).sum::<f32>() / n
         }
-        Fill::Pattern(tracedraw_core::Pattern::TwoColor { front, back, .. }) => {
+        Fill::Pattern(graphdraw_core::Pattern::TwoColor { front, back, .. }) => {
             (front.luminance() + back.luminance()) / 2.0
         }
         Fill::Pattern(_) => 0.5,
@@ -600,7 +600,7 @@ pub fn average_luminance(fill: &Fill) -> f32 {
     }
 }
 
-pub fn path_data(path: &tracedraw_core::BezPath) -> String {
+pub fn path_data(path: &graphdraw_core::BezPath) -> String {
     let mut d = String::new();
     for el in path.elements() {
         match el {
@@ -657,7 +657,7 @@ fn escape(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::{geometry::Rect, Color, Document, Stroke};
+    use graphdraw_core::{geometry::Rect, Color, Document, Stroke};
 
     #[test]
     fn opacity_masks_are_svg_masks() {
@@ -688,7 +688,7 @@ mod tests {
             },
         );
         let id = clip.id.raw();
-        clip.opacity_mask = Some(tracedraw_core::document::OpacityMask { invert: true });
+        clip.opacity_mask = Some(graphdraw_core::document::OpacityMask { invert: true });
         doc.layer_mut(layer).unwrap().shapes.push(clip);
         let svg = page_to_svg(&doc, 0);
         assert!(svg.contains(&format!("<mask id=\"mask{id}\"")), "{svg}");
@@ -703,7 +703,7 @@ mod tests {
         let layer = &mut doc.pages[0].layers[0];
         let rect = |id: u64, link: Option<&str>| {
             let mut s = Shape::new(
-                tracedraw_core::ShapeId(id),
+                graphdraw_core::ShapeId(id),
                 ShapeKind::Rect {
                     rect: Rect::new(10.0, 10.0, 20.0, 20.0),
                     radius: 0.0,
@@ -714,7 +714,7 @@ mod tests {
             s
         };
         let mut group = Shape::new(
-            tracedraw_core::ShapeId(10),
+            graphdraw_core::ShapeId(10),
             ShapeKind::Group {
                 children: vec![rect(11, Some("https://inner.example")), rect(12, None)],
             },
@@ -820,9 +820,9 @@ mod tests {
         let mut doc = Document::default();
         let layer = doc.pages[0].layers[0].id;
         let id = doc.ids_mut().shape();
-        let mut path = tracedraw_core::geometry::BezPath::new();
-        path.move_to(tracedraw_core::Point::new(10.0, 50.0));
-        path.line_to(tracedraw_core::Point::new(110.0, 50.0));
+        let mut path = graphdraw_core::geometry::BezPath::new();
+        path.move_to(graphdraw_core::Point::new(10.0, 50.0));
+        path.line_to(graphdraw_core::Point::new(110.0, 50.0));
         let mut s = Shape::new(
             id,
             ShapeKind::Path {
@@ -832,14 +832,14 @@ mod tests {
         );
         let mut st = Stroke::new(Color::rgb8(255, 0, 0), 1.0);
         st.widths
-            .push(tracedraw_core::WidthNode::symmetric(0.5, 8.0));
+            .push(graphdraw_core::WidthNode::symmetric(0.5, 8.0));
         s.stroke = Some(st.clone());
         doc.layer_mut(layer).unwrap().shapes.push(s);
         let svg = page_to_svg(&doc, 0);
         assert!(svg.contains("fill=\"#ff0000\" stroke=\"none\""), "{svg}");
         assert!(!svg.contains("stroke-width=\"1\""));
         // The native format keeps the nodes.
-        let file = std::env::temp_dir().join(format!("vo-{}.tdraw", std::process::id()));
+        let file = std::env::temp_dir().join(format!("vo-{}.gdr", std::process::id()));
         crate::save_native(&doc, &file).unwrap();
         let back = crate::load_native(&file).unwrap();
         let _ = std::fs::remove_file(&file);
@@ -855,9 +855,9 @@ mod tests {
         let mut doc = Document::default();
         let layer = doc.pages[0].layers[0].id;
         let id = doc.ids_mut().shape();
-        let mut path = tracedraw_core::geometry::BezPath::new();
-        path.move_to(tracedraw_core::Point::new(10.0, 50.0));
-        path.line_to(tracedraw_core::Point::new(110.0, 50.0));
+        let mut path = graphdraw_core::geometry::BezPath::new();
+        path.move_to(graphdraw_core::Point::new(10.0, 50.0));
+        path.line_to(graphdraw_core::Point::new(110.0, 50.0));
         let mut s = Shape::new(
             id,
             ShapeKind::Path {
@@ -866,8 +866,8 @@ mod tests {
             },
         );
         let mut st = Stroke::new(Color::rgb8(0, 128, 0), 6.0);
-        st.painterly = Some(tracedraw_core::painterly::Painterly::new(
-            tracedraw_core::painterly::PainterlyBrush::Watercolor,
+        st.painterly = Some(graphdraw_core::painterly::Painterly::new(
+            graphdraw_core::painterly::PainterlyBrush::Watercolor,
         ));
         s.stroke = Some(st);
         doc.layer_mut(layer).unwrap().shapes.push(s);
@@ -882,16 +882,16 @@ mod tests {
     /// A line from (10, 50) to (60, 50), 2 mm wide, with a custom
     /// triangular end head, moved 100 mm up by its transform.
     fn arrow_line() -> Shape {
-        let mut tri = tracedraw_core::geometry::BezPath::new();
+        let mut tri = graphdraw_core::geometry::BezPath::new();
         tri.move_to((0.0, 0.0));
         tri.line_to((20.0, 10.0));
         tri.line_to((0.0, 20.0));
         tri.close_path();
         let mut line = Shape::new(
-            tracedraw_core::ShapeId(1),
+            graphdraw_core::ShapeId(1),
             ShapeKind::Path {
                 path: {
-                    let mut p = tracedraw_core::geometry::BezPath::new();
+                    let mut p = graphdraw_core::geometry::BezPath::new();
                     p.move_to((10.0, 50.0));
                     p.line_to((60.0, 50.0));
                     p
@@ -901,7 +901,7 @@ mod tests {
         );
         line.fill = Fill::None;
         line.stroke = Some(Stroke {
-            end_arrow: tracedraw_core::Arrowhead::from_shape_path(&tri, "Tri"),
+            end_arrow: graphdraw_core::Arrowhead::from_shape_path(&tri, "Tri"),
             ..Stroke::new(Color::rgb8(0, 0, 255), 2.0)
         });
         line.transform = Affine::translate((0.0, 100.0));
@@ -931,7 +931,7 @@ mod tests {
         // No head: no extra path.
         if let Some(s) = doc.pages[0].layers[0].shapes.first_mut() {
             if let Some(st) = s.stroke.as_mut() {
-                st.end_arrow = tracedraw_core::Arrowhead::None;
+                st.end_arrow = graphdraw_core::Arrowhead::None;
             }
         }
         let svg = page_to_svg(&doc, 0);
@@ -943,7 +943,7 @@ mod tests {
         let mut doc = Document::default();
         let layer = doc.pages[0].layers[0].id;
         let mut tile_square = Shape::new(
-            tracedraw_core::ShapeId(7),
+            graphdraw_core::ShapeId(7),
             ShapeKind::Rect {
                 rect: Rect::new(0.0, 0.0, 5.0, 5.0),
                 radius: 0.0,
@@ -961,9 +961,9 @@ mod tests {
                 corners: None,
             },
         );
-        s.fill = Fill::Pattern(tracedraw_core::Pattern::Vector {
+        s.fill = Fill::Pattern(graphdraw_core::Pattern::Vector {
             shapes: vec![tile_square],
-            tile: tracedraw_core::geometry::Size::new(10.0, 10.0),
+            tile: graphdraw_core::geometry::Size::new(10.0, 10.0),
         });
         s.stroke = None;
         doc.layer_mut(layer).unwrap().shapes.push(s);
@@ -1001,7 +1001,7 @@ mod tests {
 
     #[test]
     fn outline_paints_are_written_as_the_stroke_paint() {
-        use tracedraw_core::{Fountain, FountainKind};
+        use graphdraw_core::{Fountain, FountainKind};
         let red = Color::rgb8(255, 0, 0);
         let blue = Color::rgb8(0, 0, 255);
         // A gradient outline strokes with the gradient.
@@ -1012,8 +1012,8 @@ mod tests {
         assert!(svg.contains("<linearGradient id=\"grad1\""), "{svg}");
         assert!(!svg.contains("#00ff00"), "{svg}");
         // A pattern outline strokes with the pattern.
-        st.fill = Some(Box::new(Fill::Pattern(tracedraw_core::Pattern::TwoColor {
-            tile: tracedraw_core::PatternTile::Checker,
+        st.fill = Some(Box::new(Fill::Pattern(graphdraw_core::Pattern::TwoColor {
+            tile: graphdraw_core::PatternTile::Checker,
             front: red,
             back: blue,
             size_mm: 5.0,
@@ -1021,8 +1021,8 @@ mod tests {
         let svg = one_shape_svg(Fill::None, Some(st.clone()));
         assert!(svg.contains("stroke=\"url(#pat1)\""), "{svg}");
         // A texture outline: a colour between its two, still an outline.
-        st.fill = Some(Box::new(Fill::Texture(tracedraw_core::Texture {
-            kind: tracedraw_core::TextureKind::Clouds,
+        st.fill = Some(Box::new(Fill::Texture(graphdraw_core::Texture {
+            kind: graphdraw_core::TextureKind::Clouds,
             color_a: red,
             color_b: blue,
             scale: 5.0,
@@ -1054,7 +1054,7 @@ mod tests {
             "{svg}"
         );
         let mut saw = Fountain::two(FountainKind::Linear, red, blue, 0.0);
-        saw.repeat = tracedraw_core::FountainRepeat::Repeat;
+        saw.repeat = graphdraw_core::FountainRepeat::Repeat;
         saw.repeats = 3;
         let svg = one_shape_svg(Fill::Fountain(saw), None);
         assert_eq!(svg.matches("<stop ").count(), 6, "{svg}");

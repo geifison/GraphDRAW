@@ -7,7 +7,7 @@
 //! plus `CreateRectangle`, `CreateEllipse`, `CreateArtisticText`,
 //! `CreateCurve`, `CreatePath` (SVG path data), `CreatePolygon`, and
 //! `Shape.PathData` back. Recorded macros are plain scripts; a script that
-//! defines `TraceDrawFilter` can be installed as a file format
+//! defines `GraphDrawFilter` can be installed as a file format
 //! ([`ScriptFilter`], `script_filters.rs`).
 //!
 //! Implementation: one native dispatcher `__td(method, argsJson)` works on
@@ -26,7 +26,7 @@ use boa_engine::{
 };
 use serde_json::{json, Value};
 use std::cell::RefCell;
-use tracedraw_core::{
+use graphdraw_core::{
     document::{Shape, ShapeKind},
     geometry::{Affine, Point, Rect},
     Color, Command, Document, Fill, LayerId, PageId, ShapeId, Stroke, TextSpan,
@@ -44,7 +44,7 @@ struct HostInner {
     /// The drawing's file, when it has one (`Document.FullFileName`).
     file: Option<String>,
     /// The object model of VBA macros (see `scripting/vg.rs`) instead of
-    /// TraceDraw's own JavaScript one.
+    /// GraphDraw's own JavaScript one.
     vg: bool,
     /// What the app shows that macros read: see [`vg::AppView`].
     view: vg::AppView,
@@ -88,7 +88,7 @@ const console = { log: print, error: print, warn: print, info: print };
 function MsgBox(t) { print(t); }
 "#;
 
-/// TraceDraw's own JavaScript object model (lengths in millimetres).
+/// GraphDraw's own JavaScript object model (lengths in millimetres).
 const PRELUDE: &str = r#"
 class Color {
   constructor(v) { this.v = v || {model:'rgb', r:0, g:0, b:0}; }
@@ -292,7 +292,7 @@ const Application = {
   get ActiveShape() { const s = new Document().Selection; return s.Count ? s.Item(1) : null; },
   get ActiveSelection() { return new Document().Selection; },
   get Version() { return __call('version', {}).version; },
-  get Name() { return 'TraceDraw'; },
+  get Name() { return 'GraphDraw'; },
   CreateColor: Color,
 };
 const ActiveDocument = Application.ActiveDocument;
@@ -492,7 +492,7 @@ fn run_host(
 }
 
 /// A script that reads or writes a file format: it defines the global
-/// `TraceDrawFilter` with a `name`, its `extensions` and an `Import(text)`
+/// `GraphDrawFilter` with a `name`, its `extensions` and an `Import(text)`
 /// and/or `Export()` function.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ScriptFilter {
@@ -582,27 +582,27 @@ fn blank_host(doc: Document, trust: Trust) -> HostInner {
     }
 }
 
-/// Read a filter script: what `TraceDrawFilter` says about itself. The
+/// Read a filter script: what `GraphDrawFilter` says about itself. The
 /// script runs with the limits of untrusted scripts against an empty
 /// drawing, and nothing it does is kept.
 pub fn filter_info(src: &str) -> Result<ScriptFilter, String> {
-    let doc = Document::new("Filter", tracedraw_core::Size::new(210.0, 297.0));
+    let doc = Document::new("Filter", graphdraw_core::Size::new(210.0, 297.0));
     let ev = evaluate(
         blank_host(doc, Trust::Untrusted),
         src,
         Some(
-            "typeof TraceDrawFilter === 'undefined' ? '' : JSON.stringify({\
-             name: String(TraceDrawFilter.name || ''),\
-             extensions: [].concat(TraceDrawFilter.extensions || []).map(String),\
-             import: typeof TraceDrawFilter.Import === 'function',\
-             export: typeof TraceDrawFilter.Export === 'function'})",
+            "typeof GraphDrawFilter === 'undefined' ? '' : JSON.stringify({\
+             name: String(GraphDrawFilter.name || ''),\
+             extensions: [].concat(GraphDrawFilter.extensions || []).map(String),\
+             import: typeof GraphDrawFilter.Import === 'function',\
+             export: typeof GraphDrawFilter.Export === 'function'})",
         ),
         None,
     )?;
     ev.result?;
     let text = ev.text.unwrap_or_default();
     if text.is_empty() {
-        return Err("the script defines no TraceDrawFilter".into());
+        return Err("the script defines no GraphDrawFilter".into());
     }
     let v: Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
     let name = v["name"].as_str().unwrap_or("").trim().to_string();
@@ -624,13 +624,13 @@ pub fn filter_info(src: &str) -> Result<ScriptFilter, String> {
     let import = v["import"].as_bool().unwrap_or(false);
     let export = v["export"].as_bool().unwrap_or(false);
     if name.is_empty() {
-        return Err("TraceDrawFilter has no name".into());
+        return Err("GraphDrawFilter has no name".into());
     }
     if extensions.is_empty() {
-        return Err("TraceDrawFilter has no extensions".into());
+        return Err("GraphDrawFilter has no extensions".into());
     }
     if !import && !export {
-        return Err("TraceDrawFilter has neither Import nor Export".into());
+        return Err("GraphDrawFilter has neither Import nor Export".into());
     }
     Ok(ScriptFilter {
         name,
@@ -652,7 +652,7 @@ pub fn run_filter_import(
     let ev = evaluate(
         host_for(app, Trust::User),
         &filter.source,
-        Some("TraceDrawFilter.Import(__input)"),
+        Some("GraphDrawFilter.Import(__input)"),
         Some(text),
     )?;
     ev.result?;
@@ -676,7 +676,7 @@ pub fn run_filter_export(doc: Document, filter: &ScriptFilter) -> Result<String,
     let ev = evaluate(
         blank_host(doc, Trust::User),
         &filter.source,
-        Some("TraceDrawFilter.Export()"),
+        Some("GraphDrawFilter.Export()"),
         None,
     )?;
     ev.result?;
@@ -1017,7 +1017,7 @@ impl HostInner {
             }
             "set_page_size" => {
                 let page = PageId(id_arg(a, "page")?);
-                let size = tracedraw_core::Size::new(num(a, "w", 210.0), num(a, "h", 297.0));
+                let size = graphdraw_core::Size::new(num(a, "w", 210.0), num(a, "h", 297.0));
                 self.run(Command::ResizePage { page, size })?;
                 json!({})
             }
@@ -1030,7 +1030,7 @@ impl HostInner {
                     .doc
                     .page(self.page)
                     .map(|p| p.size)
-                    .unwrap_or(tracedraw_core::document::paper::A4);
+                    .unwrap_or(graphdraw_core::document::paper::A4);
                 self.run(Command::AddPage { name: None, size })?;
                 json!({})
             }
@@ -1343,14 +1343,14 @@ impl HostInner {
                     }
                     sub_of.push(k);
                 }
-                let nodes: Vec<Value> = tracedraw_core::nodes::nodes(path)
+                let nodes: Vec<Value> = graphdraw_core::nodes::nodes(path)
                     .iter()
                     .map(|n| {
                         let p = s.transform * n.pos;
-                        let ty = match tracedraw_core::nodes::node_type_of_with(n, &s.node_types) {
-                            tracedraw_core::nodes::NodeType::Cusp => "cusp",
-                            tracedraw_core::nodes::NodeType::Smooth => "smooth",
-                            tracedraw_core::nodes::NodeType::Symmetrical => "symmetrical",
+                        let ty = match graphdraw_core::nodes::node_type_of_with(n, &s.node_types) {
+                            graphdraw_core::nodes::NodeType::Cusp => "cusp",
+                            graphdraw_core::nodes::NodeType::Smooth => "smooth",
+                            graphdraw_core::nodes::NodeType::Symmetrical => "symmetrical",
                         };
                         let sub = sub_of.get(n.index).copied().unwrap_or(0);
                         let ending = !closed.get(sub).copied().unwrap_or(false)
@@ -1375,7 +1375,7 @@ impl HostInner {
                     return Err("not a curve: convert it to curves first".into());
                 };
                 let index = id_arg(a, "index")? as usize;
-                let node = tracedraw_core::nodes::nodes(path)
+                let node = graphdraw_core::nodes::nodes(path)
                     .into_iter()
                     .find(|n| n.index == index)
                     .ok_or_else(|| format!("no node {index}"))?;
@@ -1390,20 +1390,20 @@ impl HostInner {
                         if !(d.x.is_finite() && d.y.is_finite()) {
                             return Err("the curve cannot be moved there".into());
                         }
-                        tracedraw_core::nodes::move_node(path, index, d)
+                        graphdraw_core::nodes::move_node(path, index, d)
                     }
                     "node_type" => {
                         let ty = match a.get("type").and_then(|t| t.as_str()).unwrap_or("") {
-                            "cusp" => tracedraw_core::nodes::NodeType::Cusp,
-                            "smooth" => tracedraw_core::nodes::NodeType::Smooth,
-                            "symmetrical" => tracedraw_core::nodes::NodeType::Symmetrical,
+                            "cusp" => graphdraw_core::nodes::NodeType::Cusp,
+                            "smooth" => graphdraw_core::nodes::NodeType::Smooth,
+                            "symmetrical" => graphdraw_core::nodes::NodeType::Symmetrical,
                             other => return Err(format!("no node type {other:?}")),
                         };
                         types.insert(index, ty);
-                        tracedraw_core::nodes::set_node_type(path, index, ty)
+                        graphdraw_core::nodes::set_node_type(path, index, ty)
                     }
-                    "node_delete" => tracedraw_core::nodes::delete_node(path, index),
-                    _ => tracedraw_core::nodes::add_node(
+                    "node_delete" => graphdraw_core::nodes::delete_node(path, index),
+                    _ => graphdraw_core::nodes::add_node(
                         path,
                         index,
                         num(a, "t", 0.5).clamp(0.0, 1.0),
@@ -1440,7 +1440,7 @@ impl HostInner {
             }
             "add_effect" => {
                 let id = id_arg(a, "id")?;
-                let effect: tracedraw_core::live::Effect =
+                let effect: graphdraw_core::live::Effect =
                     serde_json::from_value(a.get("effect").cloned().unwrap_or(Value::Null))
                         .map_err(|e| format!("not an effect: {e}"))?;
                 let mut effects = self.shape(id)?.effects;
@@ -1507,8 +1507,8 @@ impl HostInner {
             }
             "drop_shadow" => {
                 let id = ShapeId(id_arg(a, "id")?);
-                let shadow = tracedraw_core::Shadow {
-                    offset: tracedraw_core::Vec2::new(num(a, "dx", 3.0), num(a, "dy", -3.0)),
+                let shadow = graphdraw_core::Shadow {
+                    offset: graphdraw_core::Vec2::new(num(a, "dx", 3.0), num(a, "dy", -3.0)),
                     opacity: num(a, "opacity", 50.0) / 100.0,
                     ..Default::default()
                 };
@@ -1695,7 +1695,7 @@ impl HostInner {
                     .unwrap_or("Arial")
                     .to_string();
                 let frame = a.get("frame").and_then(|f| f.as_array()).and_then(|f| {
-                    Some(tracedraw_core::Size::new(
+                    Some(graphdraw_core::Size::new(
                         f.first()?.as_f64()?,
                         f.get(1)?.as_f64()?,
                     ))
@@ -1706,7 +1706,7 @@ impl HostInner {
                         spans: vec![TextSpan::new(text, font, num(a, "size", 24.0))],
                         origin: Point::new(num(a, "x", 0.0), num(a, "y", 0.0)),
                         frame,
-                        align: tracedraw_core::TextAlign::Left,
+                        align: graphdraw_core::TextAlign::Left,
                         para: Default::default(),
                         on_path: None,
                     },
@@ -1733,7 +1733,7 @@ impl HostInner {
                     return Err("a curve needs at least two points".into());
                 }
                 let closed = a.get("closed").and_then(|c| c.as_bool()).unwrap_or(false);
-                let path = tracedraw_core::geometry::polyline_path(&pts, closed);
+                let path = graphdraw_core::geometry::polyline_path(&pts, closed);
                 let s = Shape::new(ShapeId(0), ShapeKind::Path { path, closed });
                 self.add(layer, s)?
             }
@@ -1743,7 +1743,7 @@ impl HostInner {
                     .get("d")
                     .and_then(|d| d.as_str())
                     .ok_or("missing path data")?;
-                let path = tracedraw_core::geometry::BezPath::from_svg(d)
+                let path = graphdraw_core::geometry::BezPath::from_svg(d)
                     .map_err(|e| format!("path data: {e}"))?;
                 if path.elements().len() < 2 {
                     return Err("path data draws nothing".into());
@@ -1751,7 +1751,7 @@ impl HostInner {
                 let closed = path
                     .elements()
                     .iter()
-                    .any(|e| matches!(e, tracedraw_core::geometry::PathEl::ClosePath));
+                    .any(|e| matches!(e, graphdraw_core::geometry::PathEl::ClosePath));
                 let s = Shape::new(ShapeId(0), ShapeKind::Path { path, closed });
                 self.add(layer, s)?
             }
@@ -1798,15 +1798,15 @@ impl HostInner {
                     .position(|pg| pg.id == self.page)
                     .unwrap_or(0);
                 let data = match ext.as_str() {
-                    "svg" => tracedraw_io::svg::page_to_svg(&self.doc, idx).into_bytes(),
-                    "pdf" => tracedraw_io::pdf::document_to_pdf(&self.doc),
-                    "tdraw" => tracedraw_text::fonts()
+                    "svg" => graphdraw_io::svg::page_to_svg(&self.doc, idx).into_bytes(),
+                    "pdf" => graphdraw_io::pdf::document_to_pdf(&self.doc),
+                    "gdr" => graphdraw_text::fonts()
                         .with_carried_fonts(&self.doc)
                         .to_json()
                         .map_err(|e| e.to_string())?
                         .into_bytes(),
                     "png" => {
-                        let pm = tracedraw_render::render_page_image(&self.doc, self.page, 300.0)
+                        let pm = graphdraw_render::render_page_image(&self.doc, self.page, 300.0)
                             .ok_or("render failed")?;
                         pm.encode_png().map_err(|e| e.to_string())?
                     }
@@ -1963,8 +1963,8 @@ mod tests {
         let shapes = &a.doc().pages[0].layers[0].shapes;
         assert_eq!(shapes.len(), 12);
         // Each bar is a little more orange than the one before.
-        let green = |s: &tracedraw_core::Shape| match &s.fill {
-            tracedraw_core::Fill::Solid(c) => c.to_rgb8()[1],
+        let green = |s: &graphdraw_core::Shape| match &s.fill {
+            graphdraw_core::Fill::Solid(c) => c.to_rgb8()[1],
             _ => 0,
         };
         assert!(green(&shapes[11]) > green(&shapes[0]));
@@ -2020,7 +2020,7 @@ mod tests {
             })
             .expect("rect");
         let effects = vec![
-            tracedraw_core::live::Effect::BlockShadow {
+            graphdraw_core::live::Effect::BlockShadow {
                 offset: kurbo::Vec2::new(1.0, -1.0),
                 color: Color::BLACK,
                 gap: 0.0,

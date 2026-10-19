@@ -29,7 +29,7 @@ objecten die haar gebruiken, behouden de vervangende kleur.
 Een paletbestand kan een boek met steunkleurinkten zijn (bijvoorbeeld een
 `.ase`-palet met steunkleuritems). De steunkleuritems openen als steunkleuren,
 met de namen uit het boek; als u er een toepast, wordt de inkt aan de tekening
-toegevoegd. TraceDraw levert geen gelicentieerde kleurenboeken mee, maar een
+toegevoegd. GraphDraw levert geen gelicentieerde kleurenboeken mee, maar een
 boek dat u bezit, opent als elk ander palet.
 
 ## Steunkleuren bij afdrukken en exporteren {#output}

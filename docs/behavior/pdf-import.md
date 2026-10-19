@@ -65,7 +65,7 @@ they are read, object streams and cross-reference streams included.
   file's name, a masked field, OK and Cancel); the user or the owner
   password opens it. A wrong one asks again and says so; Cancel leaves
   it closed and says why in the status bar. Import asks the same way.
-- On the command line `TRACEDRAW_PASSWORD` gives the password.
+- On the command line `GRAPHDRAW_PASSWORD` gives the password.
 - Other security handlers (certificates) are refused with a message.
 
 How: the parser never decrypts. The trailer's `/Encrypt` key is renamed

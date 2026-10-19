@@ -8,7 +8,7 @@
 
 use crate::app::App;
 use egui::{Painter, Response, Ui};
-use tracedraw_core::{
+use graphdraw_core::{
     geometry::{Affine, Point, Vec2},
     Command, ShapeId,
 };
@@ -272,7 +272,7 @@ pub fn drop_menu_ui(app: &mut App, ui: &mut Ui) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::{Color, Fill, Rect, ShapeKind, Stroke};
+    use graphdraw_core::{Color, Fill, Rect, ShapeKind, Stroke};
 
     fn two_boxes(app: &mut App) -> (ShapeId, ShapeId) {
         let a = app
@@ -300,7 +300,7 @@ mod tests {
         (a, b)
     }
 
-    fn bounds(app: &App, id: ShapeId) -> tracedraw_core::Rect {
+    fn bounds(app: &App, id: ShapeId) -> graphdraw_core::Rect {
         app.doc()
             .shape(id)
             .map(|(_, s)| s.bounds())

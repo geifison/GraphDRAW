@@ -5,9 +5,9 @@
 //! to a number of colours, merged into bigger tiles where neighbours match,
 //! and welded into one curve per colour.
 
-use tracedraw_core::document::{Shape, ShapeKind};
-use tracedraw_core::geometry::{Affine, BezPath, Point, Rect, Shape as _};
-use tracedraw_core::{Color, Command, Fill};
+use graphdraw_core::document::{Shape, ShapeKind};
+use graphdraw_core::geometry::{Affine, BezPath, Point, Rect, Shape as _};
+use graphdraw_core::{Color, Command, Fill};
 
 /// How tiles follow the source.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -336,7 +336,7 @@ fn tile_path(t: &Tile, s: &VectorMosaicSettings) -> BezPath {
                 * Affine::scale(t.size)
                 * unit.clone()
         }
-        _ => tracedraw_core::geometry::Circle::new(t.centre, half).to_path(0.01),
+        _ => graphdraw_core::geometry::Circle::new(t.centre, half).to_path(0.01),
     }
 }
 
@@ -345,7 +345,7 @@ fn tile_path(t: &Tile, s: &VectorMosaicSettings) -> BezPath {
 pub fn mosaic_shapes(
     tiles: &[Tile],
     s: &VectorMosaicSettings,
-    mut next_id: impl FnMut() -> tracedraw_core::ShapeId,
+    mut next_id: impl FnMut() -> graphdraw_core::ShapeId,
 ) -> Vec<Shape> {
     let make = |id, kind: ShapeKind, color: [u8; 3]| {
         let mut sh = Shape::new(id, kind);
@@ -594,7 +594,7 @@ mod tests {
             },
             || {
                 n += 1;
-                tracedraw_core::ShapeId(n)
+                graphdraw_core::ShapeId(n)
             },
         );
         let distinct: std::collections::HashSet<[u8; 3]> = plain.iter().map(|t| t.color).collect();

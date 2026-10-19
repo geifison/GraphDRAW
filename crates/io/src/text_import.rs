@@ -9,9 +9,9 @@
 //! `word/document.xml`: `w:p` paragraphs, `w:r` runs with `w:rPr`
 //! properties, `w:t`, `w:tab` and `w:br`.
 
-use tracedraw_core::geometry::{Point, Size};
-use tracedraw_core::id::IdSource;
-use tracedraw_core::{ParagraphStyle, Shape, ShapeKind, TextAlign, TextSpan};
+use graphdraw_core::geometry::{Point, Size};
+use graphdraw_core::id::IdSource;
+use graphdraw_core::{ParagraphStyle, Shape, ShapeKind, TextAlign, TextSpan};
 
 /// Size of the frame the text is placed in and its top left corner.
 #[derive(Debug, Clone, Copy)]
@@ -42,7 +42,7 @@ pub struct ImportedText {
 
 impl ImportedText {
     pub fn text(&self) -> String {
-        tracedraw_core::spans_text(&self.spans)
+        graphdraw_core::spans_text(&self.spans)
     }
 
     /// One paragraph text frame holding the text.
@@ -50,7 +50,7 @@ impl ImportedText {
         let spans = if self.spans.is_empty() {
             vec![TextSpan::new("", DEFAULT_FONT, DEFAULT_SIZE_PT)]
         } else {
-            tracedraw_core::merge_equal_spans(self.spans)
+            graphdraw_core::merge_equal_spans(self.spans)
         };
         let origin = Point::new(
             place.origin_top_left.x,
@@ -523,13 +523,13 @@ pub fn parse_docx_xml(xml: &str) -> Result<ImportedText, String> {
                 out.spans.push(span);
             }
         }
-        if tracedraw_core::spans_char_count(&out.spans) > MAX_TEXT {
+        if graphdraw_core::spans_char_count(&out.spans) > MAX_TEXT {
             out.warnings.push("text truncated".into());
             break;
         }
     }
     out.align = align.unwrap_or(TextAlign::Left);
-    out.spans = tracedraw_core::merge_equal_spans(out.spans);
+    out.spans = graphdraw_core::merge_equal_spans(out.spans);
     Ok(out)
 }
 

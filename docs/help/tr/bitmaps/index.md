@@ -1,7 +1,7 @@
 # Bitmapler
 
 Bitmapler fotoğraflar ve taramalar gibi piksellerden oluşan resimlerdir.
-TraceDraw onları çizimlere yerleştirir, renk modlarını ve boyutlarını
+GraphDraw onları çizimlere yerleştirir, renk modlarını ve boyutlarını
 değiştirir, düzeltir, renkleri maskeler, efekt uygular ve onları şekillere
 dönüştürerek izler. Vektör nesneleri de bitmape dönüştürür.
 

@@ -5,9 +5,9 @@
 
 use std::path::PathBuf;
 
-use tracedraw_core::document::{ParagraphStyle, Shape, ShapeKind, TextAlign, TextSpan};
-use tracedraw_core::style::{Fountain, FountainKind, Stroke};
-use tracedraw_core::{Affine, Color, Document, Fill, Point, Rect, Size};
+use graphdraw_core::document::{ParagraphStyle, Shape, ShapeKind, TextAlign, TextSpan};
+use graphdraw_core::style::{Fountain, FountainKind, Stroke};
+use graphdraw_core::{Affine, Color, Document, Fill, Point, Rect, Size};
 
 /// A template's category, for the category filter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -387,7 +387,7 @@ impl Doc {
     }
 
     fn line(&mut self, a: Point, b: Point, color: u32, width: f64) {
-        let mut path = tracedraw_core::BezPath::new();
+        let mut path = graphdraw_core::BezPath::new();
         path.move_to(a);
         path.line_to(b);
         self.push(
@@ -490,7 +490,7 @@ impl Doc {
             .and_then(|p| p.layers.first_mut())
             .and_then(|l| l.shapes.last_mut())
         {
-            let c = tracedraw_core::Vec2::new(cx, cy);
+            let c = graphdraw_core::Vec2::new(cx, cy);
             s.transform =
                 Affine::translate(c) * Affine::rotate(deg.to_radians()) * Affine::translate(-c);
         }
@@ -1089,7 +1089,7 @@ pub fn thumbnail(doc: &Document, px: u32) -> Option<(u32, u32, Vec<u8>)> {
         return None;
     }
     let dpi = (px as f64 / longer * 25.4).max(1.0);
-    let pm = tracedraw_render::render_page_image(doc, page.id, dpi)?;
+    let pm = graphdraw_render::render_page_image(doc, page.id, dpi)?;
     Some((pm.width(), pm.height(), pm.data().to_vec()))
 }
 
@@ -1146,7 +1146,7 @@ mod sheet {
         };
         for (i, t) in super::built_in().iter().enumerate() {
             let doc = super::document(t, "T").expect("doc");
-            let pm = tracedraw_render::render_page_image(&doc, doc.pages[0].id, 60.0).expect("pm");
+            let pm = graphdraw_render::render_page_image(&doc, doc.pages[0].id, 60.0).expect("pm");
             pm.save_png(format!("{dir}/{i:02}.png")).expect("png");
         }
     }

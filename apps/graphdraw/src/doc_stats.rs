@@ -3,9 +3,9 @@
 //! and symbols. See docs/behavior/document-properties.md.
 
 use std::collections::{BTreeMap, BTreeSet};
-use tracedraw_core::document::ShapeKind;
-use tracedraw_core::geometry::PathEl;
-use tracedraw_core::{Color, Document, Fill, Shape};
+use graphdraw_core::document::ShapeKind;
+use graphdraw_core::geometry::PathEl;
+use graphdraw_core::{Color, Document, Fill, Shape};
 
 /// The counts, gathered over every page and the master layers, inside
 /// groups and clip frames.
@@ -50,7 +50,7 @@ pub struct DocStats {
 }
 
 /// Nodes and subpaths of a path.
-fn path_counts(path: &tracedraw_core::BezPath) -> (usize, usize) {
+fn path_counts(path: &graphdraw_core::BezPath) -> (usize, usize) {
     let mut nodes = 0;
     let mut subpaths = 0;
     for el in path.elements() {
@@ -123,7 +123,7 @@ impl DocStats {
                 } else {
                     self.artistic_texts += 1;
                 }
-                let text = tracedraw_core::document::spans_text(spans);
+                let text = graphdraw_core::document::spans_text(spans);
                 self.characters += text.chars().filter(|c| *c != '\n').count();
                 self.words += text.split_whitespace().count();
                 for sp in spans {
@@ -207,12 +207,12 @@ pub fn stats(doc: &Document) -> DocStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::geometry::{BezPath, Point, Rect};
+    use graphdraw_core::geometry::{BezPath, Point, Rect};
 
     #[test]
     fn counts_curves_text_fills_and_outlines_through_groups() {
-        let mut doc = Document::new("t", tracedraw_core::geometry::Size::new(100.0, 100.0));
-        let mut ids = tracedraw_core::id::IdSource::default();
+        let mut doc = Document::new("t", graphdraw_core::geometry::Size::new(100.0, 100.0));
+        let mut ids = graphdraw_core::id::IdSource::default();
         let mut path = BezPath::new();
         path.move_to((0.0, 0.0));
         path.line_to((10.0, 0.0));
@@ -232,11 +232,11 @@ mod tests {
             },
         );
         rect.fill = Fill::None;
-        rect.stroke = Some(tracedraw_core::Stroke::hairline(Color::rgb8(0, 0, 0)));
+        rect.stroke = Some(graphdraw_core::Stroke::hairline(Color::rgb8(0, 0, 0)));
         let mut text = Shape::new(
             ids.shape(),
             ShapeKind::Text {
-                spans: vec![tracedraw_core::TextSpan::new("two words", "Selawik", 12.0)],
+                spans: vec![graphdraw_core::TextSpan::new("two words", "Selawik", 12.0)],
                 origin: Point::new(0.0, 0.0),
                 frame: None,
                 align: Default::default(),

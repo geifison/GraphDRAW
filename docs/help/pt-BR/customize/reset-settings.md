@@ -1,16 +1,16 @@
 # Redefinir configurações
 
 Se a sua configuração ficar confusa, você pode devolver todas as preferências ao
-jeito que o TraceDraw vem. Seus desenhos nunca são tocados.
+jeito que o GraphDraw vem. Seus desenhos nunca são tocados.
 
 ## Para redefinir todas as configurações {#reset}
 
 - Escolha [[options.reset_all]] na página [[options.general]] de
   [[menu.tools > menu.tools.options > menu.tools.options_global]].
 - Ou pressione <kbd>F8</kbd> enquanto a tela de abertura aparece quando o
-  TraceDraw inicia.
+  GraphDraw inicia.
 
-O TraceDraw pergunta antes. **Redefinir** devolve todas as preferências, mas
+O GraphDraw pergunta antes. **Redefinir** devolve todas as preferências, mas
 mantém a lista de desenhos recentes, a última pasta e o tamanho da janela.
 [[dialog.cancel]] não muda nada.
 

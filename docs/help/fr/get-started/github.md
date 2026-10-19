@@ -1,6 +1,6 @@
 # Conserver des dessins sur GitHub
 
-TraceDraw peut ouvrir des dessins depuis un dépôt GitHub et les y
+GraphDraw peut ouvrir des dessins depuis un dépôt GitHub et les y
 enregistrer sous forme de commits, sur le bureau comme dans le navigateur.
 Chaque enregistrement devient une version dans l'historique du dépôt, que
 vous pouvez rouvrir plus tard. Les commandes se trouvent dans
@@ -13,7 +13,7 @@ pour enregistrer, créez sur GitHub un jeton d'accès personnel à granularité
 fine, avec un accès en lecture et en écriture au contenu du dépôt, et
 collez-le dans le champ [[github.token]].
 
-Le jeton est conservé tant que TraceDraw fonctionne. Cochez
+Le jeton est conservé tant que GraphDraw fonctionne. Cochez
 [[github.remember_token]] pour le garder pour la fois suivante ; il est alors
 stocké en clair dans vos préférences (dans le navigateur, dans le stockage
 de ce navigateur). Les boîtes de dialogue retiennent aussi le dernier dépôt,
@@ -25,7 +25,7 @@ la dernière branche et le dernier chemin.
 2. Tapez le [[github.repository]] sous la forme `propriétaire/nom` ou son
    adresse github.com.
 3. Tapez la [[github.branch]], ou laissez-la vide pour `main`.
-4. Tapez le chemin du [[github.path]], par exemple `art/logo.tdraw`.
+4. Tapez le chemin du [[github.path]], par exemple `art/logo.gdr`.
 5. Cliquez sur [[dialog.ok]].
 
 Le dessin s'ouvre dans un nouvel onglet, qui porte le nom du fichier. Il
@@ -44,7 +44,7 @@ l'y enregistre de nouveau. Pour n'importe quel dessin, choisissez
    "Update" suivi du nom du fichier).
 3. Cliquez sur [[dialog.ok]].
 
-Le dessin est enregistré sous forme de fichier `.tdraw`, avec ses polices,
+Le dessin est enregistré sous forme de fichier `.gdr`, avec ses polices,
 dans un nouveau commit sur cette branche. [[menu.file.save_as]] enregistre
 toujours un fichier sur votre ordinateur.
 

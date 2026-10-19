@@ -1,7 +1,7 @@
 # Mapas de bits
 
 Los mapas de bits son imágenes hechas de píxeles, como fotos y escaneos.
-TraceDraw los coloca en los dibujos, cambia su modo de color y su tamaño, los
+GraphDraw los coloca en los dibujos, cambia su modo de color y su tamaño, los
 endereza, enmascara colores, aplica efectos y los vectoriza en formas. También
 convierte objetos vectoriales en mapas de bits.
 

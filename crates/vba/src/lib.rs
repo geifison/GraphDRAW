@@ -1,4 +1,4 @@
-//! VBA macros for TraceDraw: a compiler from VBA modules to JavaScript
+//! VBA macros for GraphDraw: a compiler from VBA modules to JavaScript
 //! that runs on the app's script engine, over the same object model as
 //! its scripts. The generated program needs [`RUNTIME_JS`] (the VBA
 //! built-ins and the helpers that give member access, calls, errors and

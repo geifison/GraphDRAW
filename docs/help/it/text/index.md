@@ -1,6 +1,6 @@
 # Testo
 
-TraceDraw ha due tipi di testo. Il **testo artistico** è una riga, o poche
+GraphDraw ha due tipi di testo. Il **testo artistico** è una riga, o poche
 righe, posta in un punto: titoli, etichette, loghi. Il **testo in paragrafo**
 scorre dentro una cornice e va a capo ai suoi bordi: testo corrente, colonne,
 elenchi. Entrambi si formattano carattere per carattere, si adattano a

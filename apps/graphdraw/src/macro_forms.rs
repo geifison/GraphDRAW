@@ -4,7 +4,7 @@
 //! docs/behavior/vba.md, "Forms on screen".
 
 use serde_json::{json, Value};
-use tracedraw_vba_project::{Control, ControlKind, Form};
+use graphdraw_vba_project::{Control, ControlKind, Form};
 
 /// A font as forms use it.
 #[derive(Debug, Clone, PartialEq)]
@@ -29,8 +29,8 @@ impl Default for FormFont {
     }
 }
 
-impl From<&tracedraw_vba_project::Font> for FormFont {
-    fn from(f: &tracedraw_vba_project::Font) -> Self {
+impl From<&graphdraw_vba_project::Font> for FormFont {
+    fn from(f: &graphdraw_vba_project::Font) -> Self {
         FormFont {
             name: f.name.clone(),
             size: if f.size > 0.0 { f.size } else { 8.0 },

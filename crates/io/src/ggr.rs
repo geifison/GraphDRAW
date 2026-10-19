@@ -13,8 +13,8 @@
 //! is not a plain linear RGB blend with its middle halfway is sampled into
 //! several stops. Alpha is not kept: fountain stops are opaque.
 
-use tracedraw_core::color::{hsb_to_rgb, rgb_to_hsb};
-use tracedraw_core::{Color, Stop};
+use graphdraw_core::color::{hsb_to_rgb, rgb_to_hsb};
+use graphdraw_core::{Color, Stop};
 
 /// Stops each non-linear segment is sampled into.
 const SAMPLES: usize = 16;

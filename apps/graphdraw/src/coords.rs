@@ -7,7 +7,7 @@
 use crate::app::App;
 use crate::i18n::tr;
 use egui::{PointerButton, Response};
-use tracedraw_core::{
+use graphdraw_core::{
     document::{axis_scale, ShapeKind},
     geometry::{
         complex_star_max_sharpness, polyline_path, Affine, BezPath, PathEl, Point, Rect,
@@ -304,7 +304,7 @@ impl CoordsState {
             return;
         }
         let a = self.line_angle().to_radians();
-        self.end = self.start + l * tracedraw_core::geometry::Vec2::new(a.cos(), a.sin());
+        self.end = self.start + l * graphdraw_core::geometry::Vec2::new(a.cos(), a.sin());
     }
 
     pub fn set_line_angle(&mut self, deg: f64) {
@@ -313,7 +313,7 @@ impl CoordsState {
         }
         let l = self.line_length();
         let a = deg.to_radians();
-        self.end = self.start + l * tracedraw_core::geometry::Vec2::new(a.cos(), a.sin());
+        self.end = self.start + l * graphdraw_core::geometry::Vec2::new(a.cos(), a.sin());
     }
 
     /// The box's lower-left and upper-right corners, when it is not
@@ -547,7 +547,7 @@ impl CoordsState {
             at.checked_sub(2).and_then(|i| self.curve.get(i)),
         ) {
             (Some(a), Some(b)) => *a + (*a - *b),
-            (Some(a), None) => *a + tracedraw_core::geometry::Vec2::new(10.0, 0.0),
+            (Some(a), None) => *a + graphdraw_core::geometry::Vec2::new(10.0, 0.0),
             _ => self.at,
         };
         self.curve.insert(at, p);
@@ -792,7 +792,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::geometry::Shape as _;
+    use graphdraw_core::geometry::Shape as _;
 
     fn close(a: Point, b: Point) -> bool {
         (a - b).hypot() < 1e-6

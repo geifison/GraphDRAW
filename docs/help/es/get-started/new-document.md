@@ -68,7 +68,7 @@ Marque [[newdoc.dont_show]] para crear dibujos nuevos al momento, con los
 últimos valores usados. Para volver a ver el cuadro de diálogo, active el
 ajuste correspondiente en la página [[options.general]] de
 [[menu.tools > menu.tools.options > menu.tools.options_app]]. Vea
-[Opciones de TraceDraw](../customize/options-app.md#general).
+[Opciones de GraphDraw](../customize/options-app.md#general).
 
 ## Otras formas de empezar {#other-ways}
 

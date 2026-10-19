@@ -31,10 +31,10 @@ body:
   - type: input
     id: version
     attributes:
-      label: TraceDraw version
+      label: GraphDraw version
       description: Help > About, or the name of the file you downloaded.
   - type: textarea
     id: files
     attributes:
       label: Files and screenshots
-      description: A drawing that shows the problem (zipped), a screenshot, or the last lines of the log if TraceDraw stopped.
+      description: A drawing that shows the problem (zipped), a screenshot, or the last lines of the log if GraphDraw stopped.

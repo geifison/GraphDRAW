@@ -21,7 +21,7 @@ título; o modelo em si nunca muda.
    <kbd>Enter</kbd>.
 
 O controle [[tpl.thumbnail_size]], embaixo, aumenta ou diminui as miniaturas, e
-[[welcome.open_template]] abre qualquer arquivo `.tdt` ou `.tdraw` como modelo.
+[[welcome.open_template]] abre qualquer arquivo `.tdt` ou `.gdr` como modelo.
 
 ![A caixa de diálogo Novo a partir de modelo](../../img/templates-styles-templates-new-from-template.png)
 

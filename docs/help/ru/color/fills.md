@@ -1,6 +1,6 @@
 # Заливки
 
-Заливка окрашивает внутреннюю часть замкнутого объекта. В TraceDraw шесть
+Заливка окрашивает внутреннюю часть замкнутого объекта. В GraphDraw шесть
 видов заливки: [[docker.fill_none]], [[docker.fill_uniform]] (один сплошной
 цвет), [[docker.fill_fountain]] (цвета, плавно переходящие друг в друга),
 [[docker.fill_pattern]], [[docker.fill_texture]] и [[docker.fill_mesh]]

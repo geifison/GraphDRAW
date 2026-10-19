@@ -1,11 +1,11 @@
 name: Feature request
-description: Something TraceDraw should do and does not yet.
+description: Something GraphDraw should do and does not yet.
 labels: ["enhancement"]
 body:
   - type: markdown
     attributes:
       value: |
-        Check [docs/features.md](https://github.com/igtoth/tracedraw/blob/main/docs/features.md) first: it lists every capability and its status.
+        Check [docs/features.md](https://github.com/geifison/GraphDRAW/blob/main/docs/features.md) first: it lists every capability and its status.
   - type: textarea
     id: what
     attributes:

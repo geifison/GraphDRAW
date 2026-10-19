@@ -4,10 +4,10 @@
 
 VBA macros are compiled to JavaScript and run against the object model
 VBA macros for drawing suites use (`scripting::run_vgcore`,
-`apps/tracedraw/src/scripting/vg_model.js` over the `vg_*` host methods
+`apps/graphdraw/src/scripting/vg_model.js` over the `vg_*` host methods
 in `scripting/vg.rs`). Member names, argument names and order, 1-based
 indexes and the `cdr*` constants are the ones those macros are written
-against, so the compiled code calls them unchanged. TraceDraw's own
+against, so the compiled code calls them unchanged. GraphDraw's own
 JavaScript object model (the Scripts panel, lengths in millimetres) is
 separate and unchanged.
 
@@ -43,7 +43,7 @@ selection as one object, type `cdrSelectionShape`, with `Shapes`),
 `ActiveSelectionRange`, `ActiveShape` (the first selected object),
 `ActiveWindow` (`Refresh`, `ActiveView`, accepted without effect),
 `Documents` (the active drawing only), `Version` "27.0", `VersionMajor`
-27, `VersionMinor`, `Name` "TraceDraw", `Visible`, `Optimization`,
+27, `VersionMinor`, `Name` "GraphDraw", `Visible`, `Optimization`,
 `EventsEnabled`, `Refresh`, `CreateColor(ColorString)` ("#RRGGBB",
 "RGB255,USER,r,g,b", "CMYK100,USER,c,m,y,k", "GRAY255,USER,v"),
 `CreateRGBColor`, `CreateCMYKColor`, `CreateGrayColor`,
@@ -238,7 +238,7 @@ member, `cdrWEBP` from a later version of the reference), `cdrImageType`,
 `cdrEffectType`, `cdrAlignment`, `cdrFontLine`, `cdrFontCase`,
 `cdrSegmentType`, `cdrOutlineType`, `cdrOutlineLineCaps`, `cdrMergeMode`,
 `cdrTransparencyAppliedTo`, `cdrDistributeArea`, `cdrAlignDistributeH`,
-`cdrAlignShapesTo`, and the members TraceDraw defines of
+`cdrAlignShapesTo`, and the members GraphDraw defines of
 `cdrTextLanguage` and `cdrCursorShape`.
 
 Checked against published type definitions rather than the reference:
@@ -260,13 +260,13 @@ checked for `CreateRectangle`, `CreateRectangle2`, `CreateEllipse2`,
 `SetPosition`, `SetSize`, `SetSizeEx`, `Move`, `Rotate`, `Duplicate`,
 `ApplyUniformFill`, `ApplyFountainFill`, `RGBAssign`, `CMYKAssign`,
 `CopyAssign`, `ConvertToBitmapEx`, `Resample`, `FindShapes`, `Export`,
-`ExportEx` and `ExportBitmap`. Trailing parameters TraceDraw has no use
+`ExportEx` and `ExportBitmap`. Trailing parameters GraphDraw has no use
 for are accepted and ignored.
 
 ### Coverage from published macros
 
 Four published macro projects (60 modules) were read only to count
-which members they call; none of their code is in TraceDraw. The members
+which members they call; none of their code is in GraphDraw. The members
 called three times or more, with what they do here (W works; N works with
 no visible effect, because the feature it controls is a window mode or
 does not exist; E raises an error that names the member; F belongs to
@@ -388,8 +388,8 @@ The remaining rarer members follow the same rules:
   - the constants they use.
 ## Language
 
-The `tracedraw-vba` crate compiles VBA modules (`.bas`, `.cls`, `.frm`
-code) to JavaScript that runs on the same engine as TraceDraw scripts,
+The `graphdraw-vba` crate compiles VBA modules (`.bas`, `.cls`, `.frm`
+code) to JavaScript that runs on the same engine as GraphDraw scripts,
 over the same object model. This page covers the language; the object
 model is documented with scripting.
 
@@ -461,7 +461,7 @@ and the vb constants.
 ### Not supported
 
 These compile and fail at run time with error 445
-`Not supported in TraceDraw: ...` (or 429 for objects):
+`Not supported in GraphDraw: ...` (or 429 for objects):
 
 - `Declare` and any Windows API call.
 - File statements: Open, Close, Print #, Write #, Input #, Line Input,
@@ -491,8 +491,8 @@ These compile and fail at run time with error 445
 
 ## Macro files and forms
 
-The `tracedraw-vba-project` crate (`crates/vba-project`) reads the files
-VBA macros come in, so their code and forms can run in TraceDraw. It
+The `graphdraw-vba-project` crate (`crates/vba-project`) reads the files
+VBA macros come in, so their code and forms can run in GraphDraw. It
 follows the public MS-OVBA and MS-OFORMS specifications.
 
 ### Project files
@@ -510,7 +510,7 @@ follows the public MS-OVBA and MS-OFORMS specifications.
   forms, Russian comments in code page 1251): the code read from each
   project file is the same, line by line, as the project's exported
   source files, and the form controls land where the form shows them
-  (`cargo run -p tracedraw-vba-project --example compare -- file.gms
+  (`cargo run -p graphdraw-vba-project --example compare -- file.gms
   folder`; `--example dump -- file.gms` prints the modules and the
   forms' controls).
 - The `dir` stream and the modules' code are stored compressed (MS-OVBA
@@ -651,7 +651,7 @@ follows the public MS-OVBA and MS-OFORMS specifications.
 ## VBA macros in the app
 
 Macro projects written for other drawing suites load and run in the
-desktop app (`apps/tracedraw/src/macros.rs`, `scripting/vba_run.rs`,
+desktop app (`apps/graphdraw/src/macros.rs`, `scripting/vba_run.rs`,
 `ui/macros_ui.rs`). The browser build lists nothing and says that
 macros run in the desktop version.
 
@@ -671,7 +671,7 @@ macros run in the desktop version.
   button (vbDefaultButton2 to 4), and returns vbOK (1) to vbNo (7).
   Enter picks the default button; Esc and the close box answer Cancel
   when there is one and OK for a lone OK; Yes No and Abort Retry Ignore
-  must be answered with a button. The title is "TraceDraw" when the
+  must be answered with a button. The title is "GraphDraw" when the
   macro gives none.
 - InputBox shows the prompt, a text field with the default, OK and
   Cancel; Cancel, Esc and the close box return "".

@@ -7,7 +7,7 @@ use crate::i18n::tr;
 use crate::ui::field::NumField;
 use crate::ui::propbar::{pic_button, sep, Pic};
 use egui::Ui;
-use tracedraw_core::document::{PathTextOrientation, PathTextVertical, TextAlign};
+use graphdraw_core::document::{PathTextOrientation, PathTextVertical, TextAlign};
 
 const ORIENTATIONS: [(PathTextOrientation, &str); 4] = [
     (PathTextOrientation::Rotate, "toolbar.path_rotate"),

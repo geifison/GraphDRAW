@@ -4,7 +4,7 @@ use crate::app::App;
 use crate::i18n::tr;
 use crate::theme::Tokens;
 use egui::Ui;
-use tracedraw_core::Command;
+use graphdraw_core::Command;
 
 pub fn fullscreen(app: &mut App, ui: &mut Ui) {
     let ctx = ui.ctx().clone();
@@ -27,21 +27,21 @@ pub fn fullscreen(app: &mut App, ui: &mut Ui) {
             let w = (bounds.width() * zoom).ceil() as u32;
             let h = (bounds.height() * zoom).ceil() as u32;
             let doc = app.engine.document().clone();
-            let view = tracedraw_render::ViewTransform {
+            let view = graphdraw_render::ViewTransform {
                 zoom,
                 origin_x: -bounds.x0 * zoom,
                 origin_y: bounds.y1 * zoom,
             };
-            let opts = tracedraw_render::RenderOptions {
+            let opts = graphdraw_render::RenderOptions {
                 width: w.max(1),
                 height: h.max(1),
                 view,
                 preview: None,
                 wireframe: false,
-                ..tracedraw_render::RenderOptions::default()
+                ..graphdraw_render::RenderOptions::default()
             };
             let page_id = app.page;
-            if let Some(mut pm) = tracedraw_render::render_page(&doc, page_id, &opts) {
+            if let Some(mut pm) = graphdraw_render::render_page(&doc, page_id, &opts) {
                 if !app.preview_selected_only {
                     let mut white = tiny_skia::Pixmap::new(pm.width(), pm.height())
                         .unwrap_or_else(|| tiny_skia::Pixmap::new(1, 1).expect("pixmap"));
@@ -109,7 +109,7 @@ pub fn page_sorter(app: &mut App, ui: &mut Ui) {
         }
     });
     ui.separator();
-    let pages: Vec<(tracedraw_core::PageId, String, tracedraw_core::Size)> = app
+    let pages: Vec<(graphdraw_core::PageId, String, graphdraw_core::Size)> = app
         .doc()
         .pages
         .iter()
@@ -118,8 +118,8 @@ pub fn page_sorter(app: &mut App, ui: &mut Ui) {
     let n = pages.len();
     let doc = app.engine.document().clone();
     let mut goto: Option<usize> = None;
-    let mut mv: Option<(tracedraw_core::PageId, usize)> = None;
-    let mut del: Option<tracedraw_core::PageId> = None;
+    let mut mv: Option<(graphdraw_core::PageId, usize)> = None;
+    let mut del: Option<graphdraw_core::PageId> = None;
     egui::ScrollArea::vertical().show(ui, |ui| {
         ui.horizontal_wrapped(|ui| {
             for (i, (id, name, size)) in pages.iter().enumerate() {
@@ -141,7 +141,7 @@ pub fn page_sorter(app: &mut App, ui: &mut Ui) {
                         },
                     );
                     let dpi = thumb_h as f64 / (size.height / 25.4);
-                    if let Some(pm) = tracedraw_render::render_page_image(&doc, *id, dpi.max(4.0)) {
+                    if let Some(pm) = graphdraw_render::render_page_image(&doc, *id, dpi.max(4.0)) {
                         let image = egui::ColorImage::from_rgba_premultiplied(
                             [pm.width() as usize, pm.height() as usize],
                             pm.data(),

@@ -5,7 +5,7 @@
 //! they find and selects the object an issue is about.
 
 use serde::{Deserialize, Serialize};
-use tracedraw_core::{
+use graphdraw_core::{
     document::{PrimaryColorMode, ShapeKind},
     geometry::{Affine, Point, Rect},
     Color, Document, Fill, Shape, ShapeId,
@@ -294,7 +294,7 @@ fn fill_colors(f: &Fill) -> Vec<Color> {
         Fill::Fountain(g) => g.stops.iter().map(|s| s.color).collect(),
         Fill::Mesh(m) => m.nodes.iter().map(|n| n.color).collect(),
         Fill::Pattern(p) => match p {
-            tracedraw_core::Pattern::TwoColor { front, back, .. } => vec![*front, *back],
+            graphdraw_core::Pattern::TwoColor { front, back, .. } => vec![*front, *back],
             _ => Vec::new(),
         },
     }
@@ -373,7 +373,7 @@ fn text_checks(
     ctx: &Ctx,
     s: &Shape,
     t: Affine,
-    spans: &[tracedraw_core::TextSpan],
+    spans: &[graphdraw_core::TextSpan],
     paragraph: bool,
     out: &mut Vec<Issue>,
 ) {
@@ -448,7 +448,7 @@ pub fn counts(issues: &[Issue]) -> (usize, usize) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::{
+    use graphdraw_core::{
         document::{Layer, TextSpan},
         geometry::Size,
         Stroke,
@@ -609,7 +609,7 @@ mod tests {
             .push(Shape::new(id, rect(10.0, 10.0, 5.0, 5.0)));
         d.pages[0].layers.push(hidden);
         // A second, empty page.
-        let page = tracedraw_core::document::Page {
+        let page = graphdraw_core::document::Page {
             id: d.ids_mut().page(),
             name: "Back".into(),
             size: Size::new(100.0, 100.0),

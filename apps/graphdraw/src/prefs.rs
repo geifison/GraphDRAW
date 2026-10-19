@@ -194,7 +194,7 @@ impl Default for FormatPrefs {
             pdf_bleed_mm: st.bleed_mm,
             remember_last: false,
             import_place: ImportPlace::AsInFile,
-            cdr_version: tracedraw_cdr::write::NEWEST_VERSION,
+            cdr_version: graphdraw_cdr::write::NEWEST_VERSION,
             skip_export_dialog: false,
         }
     }
@@ -447,7 +447,7 @@ mod tests {
 
     #[test]
     fn imported_objects_can_go_to_the_middle_of_the_view() {
-        let dir = std::env::temp_dir().join(format!("tracedraw-import-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("graphdraw-import-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&dir);
         let svg = dir.join("box.svg");
         std::fs::write(
@@ -497,13 +497,13 @@ mod tests {
             "{text}"
         );
         // With the font that draws its text in the meantime.
-        if let Some(s) = tracedraw_text::fonts().substitute("Nowhere Sans") {
+        if let Some(s) = graphdraw_text::fonts().substitute("Nowhere Sans") {
             assert!(text.contains(&format!("Nowhere Sans ({s})")), "{text}");
         }
         // Nothing to say, or the warnings turned off: no message.
         app.dialog = Dialog::None;
         app.missing_fonts.clear();
-        app.show_open_notes("b.tdraw".into(), 0);
+        app.show_open_notes("b.gdr".into(), 0);
         assert!(matches!(app.dialog, Dialog::None));
         app.settings.warnings.unread_objects = false;
         app.show_open_notes("c.cdr".into(), 5);
@@ -521,8 +521,8 @@ mod tests {
         let ctx = crate::theme::ui_context();
         let mut app = crate::app::App::headless();
         let id = app
-            .new_shape(tracedraw_core::ShapeKind::Rect {
-                rect: tracedraw_core::geometry::Rect::new(0.0, 0.0, 5.0, 5.0),
+            .new_shape(graphdraw_core::ShapeKind::Rect {
+                rect: graphdraw_core::geometry::Rect::new(0.0, 0.0, 5.0, 5.0),
                 radius: 0.0,
                 corners: None,
             })

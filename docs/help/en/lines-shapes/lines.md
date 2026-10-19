@@ -1,6 +1,6 @@
 # Drawing lines and curves
 
-A line in TraceDraw is a **curve**: a path made of **segments** that join at
+A line in GraphDraw is a **curve**: a path made of **segments** that join at
 **nodes**. Segments can be straight or curved. A curve can be open, with two
 ends, or closed, when its end meets its start, and then it can be filled.
 
@@ -16,7 +16,7 @@ a pencil.
 1. Choose the [[tool.freehand]] tool.
 2. Drag on the page. Release the button to finish.
 
-TraceDraw follows the pointer and smooths the line when you release it. The
+GraphDraw follows the pointer and smooths the line when you release it. The
 smoothing (0 to 100, 50 at first) on the property bar sets how much: a
 higher value gives fewer nodes and a softer line. When you are zoomed in,
 the line keeps more detail.

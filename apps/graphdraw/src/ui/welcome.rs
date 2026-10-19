@@ -17,7 +17,7 @@ pub fn welcome_screen(app: &mut App, ui: &mut Ui) {
     ui.add_space(8.0);
     ui.horizontal(|ui| {
         ui.add_space(24.0);
-        ui.heading(egui::RichText::new("TraceDraw").size(26.0));
+        ui.heading(egui::RichText::new("GraphDraw").size(26.0));
         ui.add_space(30.0);
         for (tab, key) in [
             (WelcomeTab::GetStarted, "welcome.get_started"),
@@ -364,7 +364,7 @@ fn templates(app: &mut App, ui: &mut Ui) {
             ui.strong(tr("welcome.my_templates"));
             if ui.button(tr("welcome.open_template")).clicked() {
                 crate::files::Dialog::new()
-                    .add_filter("TraceDraw template", &["tdt", "tdraw"])
+                    .add_filter("GraphDraw template", &["tdt", "gdr"])
                     .pick_file(app, |app, p| {
                         app.open_path(p);
                         app.file = None;

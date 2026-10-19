@@ -36,11 +36,11 @@ undo step ("QR Code"); the group's transform (moved, scaled, rotated)
 stays. Content that cannot be encoded (nothing filled in, too much for a
 code) changes nothing and is shown in red.
 
-New objects encode `https://github.com/igtoth/tracedraw`, black on white.
+New objects encode `https://github.com/geifison/GraphDRAW`, black on white.
 
 ## Files
 
-- `.tdraw`: the group keeps its settings in `qr` (kind, fields,
+- `.gdr`: the group keeps its settings in `qr` (kind, fields,
   `pixel_mm`, `dark`, `light`, `outline`); older files without it read
   as before.
 - `.cdr` and other formats: written as the group of its two shapes.
@@ -55,5 +55,5 @@ New objects encode `https://github.com/igtoth/tracedraw`, black on white.
 - Each kind writes the form above, and a code of every kind reads back;
   fields shared by name carry over.
 - Validate reports grey on white and white on black as unreadable.
-- The settings survive `.tdraw`; a version 27 `.cdr` reads back the
+- The settings survive `.gdr`; a version 27 `.cdr` reads back the
   group of two shapes.

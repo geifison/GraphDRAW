@@ -6,8 +6,8 @@ use crate::i18n::tr;
 use crate::theme::Tokens;
 use crate::ui::dialogs::Dialog;
 use egui::Ui;
-use tracedraw_core::document::ShapeKind;
-use tracedraw_core::Command;
+use graphdraw_core::document::ShapeKind;
+use graphdraw_core::Command;
 
 const MENU_WIDTH: f32 = 250.0;
 /// Menu rows: 26 px tall, a 30 px grey gutter
@@ -1074,8 +1074,8 @@ mod tests {
 
     use super::*;
     use egui::Context;
-    use tracedraw_core::geometry::{Point, Rect};
-    use tracedraw_core::ShapeKind;
+    use graphdraw_core::geometry::{Point, Rect};
+    use graphdraw_core::ShapeKind;
 
     /// A document with one of the object kinds the menus act on.
     fn mixed_app() -> App {
@@ -2019,7 +2019,7 @@ fn layout_menu(app: &mut App, ui: &mut Ui) {
         let page = app.page;
         app.run(Command::ResizePage {
             page,
-            size: tracedraw_core::geometry::Size::new(s.height, s.width),
+            size: graphdraw_core::geometry::Size::new(s.height, s.width),
         });
         app.fit_pending = true;
     }
@@ -2436,7 +2436,7 @@ fn object_menu(app: &mut App, ui: &mut Ui) {
     let has_fill = app
         .selected_shapes()
         .iter()
-        .any(|s| !matches!(s.fill, tracedraw_core::Fill::None));
+        .any(|s| !matches!(s.fill, graphdraw_core::Fill::None));
     if check(
         ui,
         "menu.object.overprint_fill",
@@ -3344,10 +3344,10 @@ fn help_menu(app: &mut App, ui: &mut Ui) {
         app.options_page = crate::ui::dialogs::OptionsPage::General;
     }
     if item(ui, "menu.help.community", "", true) {
-        app.open_url("https://github.com/igtoth/tracedraw/discussions");
+        app.open_url("https://github.com/geifison/GraphDRAW/discussions");
     }
     if item(ui, "menu.help.support", "", true) {
-        app.open_url("https://github.com/igtoth/tracedraw/issues");
+        app.open_url("https://github.com/geifison/GraphDRAW/issues");
     }
     sep(ui);
     if item(ui, "menu.help.about", "", true) {

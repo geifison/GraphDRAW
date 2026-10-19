@@ -1,5 +1,5 @@
 //! The Contour tool and the settings its bar and the Contour panel share
-//! (`Effect::Contour`, drawn by `tracedraw_core::live`).
+//! (`Effect::Contour`, drawn by `graphdraw_core::live`).
 //!
 //! A drag from an object draws a live contour: away from the object's
 //! middle past its edge gives an outside contour, toward the middle an
@@ -10,7 +10,7 @@
 
 use crate::app::App;
 use serde::{Deserialize, Serialize};
-use tracedraw_core::{
+use graphdraw_core::{
     geometry::Point, live::Effect, shaping::Join, Color, Command, ShapeId, ShapeKind,
 };
 
@@ -347,7 +347,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::{geometry::Rect, Fill};
+    use graphdraw_core::{geometry::Rect, Fill};
 
     fn square(app: &mut App) -> ShapeId {
         let id = app

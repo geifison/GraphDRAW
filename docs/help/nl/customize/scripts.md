@@ -10,7 +10,7 @@ menu.tools.scripts_docker]]).
 
 ## Scripts schrijven en uitvoeren {#run}
 
-Een script werkt met de objecten van TraceDraw: `Application`,
+Een script werkt met de objecten van GraphDraw: `Application`,
 `ActiveDocument`, `ActivePage`, `ActiveLayer` en de vormen, vullingen,
 omtrekken, kleuren, curven en effecten. Bijvoorbeeld:
 
@@ -38,7 +38,7 @@ expressie om die te evalueren op de plek waar het script gepauzeerd is.
 
 ## Scriptfilters {#filters}
 
-Een script dat `TraceDrawFilter` definieert, met een naam, extensies en een
+Een script dat `GraphDrawFilter` definieert, met een naam, extensies en een
 functie `Import` of `Export`, voegt een bestandsindeling toe aan
 [[menu.file.import]] en [[menu.file.export]]. Klik op
 [[docker.install_filter]] om het te bewaren; [[docker.script_filters]] toont de
@@ -46,23 +46,23 @@ geïnstalleerde filters met [[docker.edit]] en [[docker.remove]].
 
 ## AI-assistenten (MCP) {#mcp}
 
-TraceDraw spreekt het Model Context Protocol, zodat AI-assistenten op uw
+GraphDraw spreekt het Model Context Protocol, zodat AI-assistenten op uw
 computer tekeningen kunnen openen, bewerken, inspecteren, exporteren en
 opslaan:
 
-- `tracedraw --mcp` voert TraceDraw zonder venster uit voor een assistent.
+- `graphdraw --mcp` voert GraphDraw zonder venster uit voor een assistent.
 - Om een assistent de tekening te laten bewerken die in uw venster geopend is,
   schakelt u [[options.mcp_window]] in op de pagina [[options.general]] van
   [[menu.tools > menu.tools.options > menu.tools.options_global]], en geeft u
-  de assistent `tracedraw --mcp-window` als opdracht. Elke wijziging is één
+  de assistent `graphdraw --mcp-window` als opdracht. Elke wijziging is één
   ongedaan-makenstap die u kunt terugdraaien. Alleen programma's op uw computer
-  met het geheime token dat TraceDraw wegschrijft, kunnen verbinding maken.
+  met het geheime token dat GraphDraw wegschrijft, kunnen verbinding maken.
 
 ## Het opdrachtregelprogramma {#cli}
 
-Elke download bevat ook `tracedraw-cli`, dat tekeningen tussen indelingen
+Elke download bevat ook `graphdraw-cli`, dat tekeningen tussen indelingen
 omzet zonder het programma te openen, voor batchwerk.
 
 ## Macro's {#macros}
 
-TraceDraw voert VBA-macroprojecten uit die voor tekenprogramma's zijn geschreven (desktopversie). [[menu.tools > menu.tools.macros > menu.tools.macros_load]] voegt een project (`.gms`) of modulebestanden (`.bas`, `.cls`, `.frm`) toe; projecten worden bewaard en bij het starten geladen. Het paneel [[docker.macros]] toont de macro's: dubbelklik op een macro of gebruik [[menu.tools > menu.tools.macros > menu.tools.macros_run]] (<kbd>Alt+Shift+F8</kbd>) om hem uit te voeren. Formulieren, berichtvensters en invoervensters van de macro verschijnen op het scherm, <kbd>Esc</kbd> of [[menu.tools > menu.tools.macros > menu.tools.macros_stop]] stopt hem, en alles wat één uitvoering verandert is één stap ongedaan maken. [[menu.tools > menu.tools.macros > menu.tools.macro_editor]] (<kbd>Alt+F11</kbd>) toont en bewerkt de code. Macro's die Windows-functies of het objectmodel van de editor zelf aanroepen, werken niet.
+GraphDraw voert VBA-macroprojecten uit die voor tekenprogramma's zijn geschreven (desktopversie). [[menu.tools > menu.tools.macros > menu.tools.macros_load]] voegt een project (`.gms`) of modulebestanden (`.bas`, `.cls`, `.frm`) toe; projecten worden bewaard en bij het starten geladen. Het paneel [[docker.macros]] toont de macro's: dubbelklik op een macro of gebruik [[menu.tools > menu.tools.macros > menu.tools.macros_run]] (<kbd>Alt+Shift+F8</kbd>) om hem uit te voeren. Formulieren, berichtvensters en invoervensters van de macro verschijnen op het scherm, <kbd>Esc</kbd> of [[menu.tools > menu.tools.macros > menu.tools.macros_stop]] stopt hem, en alles wat één uitvoering verandert is één stap ongedaan maken. [[menu.tools > menu.tools.macros > menu.tools.macro_editor]] (<kbd>Alt+F11</kbd>) toont en bewerkt de code. Macro's die Windows-functies of het objectmodel van de editor zelf aanroepen, werken niet.

@@ -4,7 +4,7 @@
 //! paragraph text frame of its size in its place.
 
 use crate::app::App;
-use tracedraw_core::{
+use graphdraw_core::{
     document::{ParagraphStyle, Shape, ShapeKind, TextSpan},
     geometry::{Point, Size},
     Command, ShapeId,
@@ -128,12 +128,12 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::geometry::Affine;
+    use graphdraw_core::geometry::Affine;
 
     fn turned_rect(app: &mut App) -> ShapeId {
         let id = app
             .new_shape(ShapeKind::Rect {
-                rect: tracedraw_core::Rect::new(10.0, 10.0, 50.0, 30.0),
+                rect: graphdraw_core::Rect::new(10.0, 10.0, 50.0, 30.0),
                 radius: 0.0,
                 corners: None,
             })
@@ -179,7 +179,7 @@ mod tests {
         let mut app = App::headless();
         let id = app
             .new_shape(ShapeKind::Rect {
-                rect: tracedraw_core::Rect::new(10.0, 10.0, 50.0, 30.0),
+                rect: graphdraw_core::Rect::new(10.0, 10.0, 50.0, 30.0),
                 radius: 0.0,
                 corners: None,
             })

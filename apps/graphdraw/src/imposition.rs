@@ -11,7 +11,7 @@
 //! targets, colour bars, a densitometer scale and a line of page
 //! information.
 
-use tracedraw_core::{
+use graphdraw_core::{
     document::{Layer, Page, ShapeKind, TextSpan},
     geometry::{Affine, BezPath, Point, Rect, Size},
     Color, Document, Fill, Shape, ShapeId, Stroke,
@@ -302,7 +302,7 @@ pub fn crop_marks(cells: &[Cell], bleed: f64) -> BezPath {
 
 /// A registration target: a circle with a cross through it.
 fn target(p: &mut BezPath, c: Point, r: f64) {
-    p.extend(tracedraw_core::geometry::ellipse_path(Rect::new(
+    p.extend(graphdraw_core::geometry::ellipse_path(Rect::new(
         c.x - r,
         c.y - r,
         c.x + r,
@@ -442,7 +442,7 @@ pub fn marks(
                     spans: vec![TextSpan::new((i + 1).to_string(), "DejaVu Sans", 6.0)],
                     origin: Point::new(c.trim.center().x, c.trim.y0 - bleed - 3.5),
                     frame: None,
-                    align: tracedraw_core::document::TextAlign::Center,
+                    align: graphdraw_core::document::TextAlign::Center,
                     para: Default::default(),
                     on_path: None,
                 },
@@ -589,7 +589,7 @@ pub fn impose(doc: &Document, o: &Options) -> Document {
     out
 }
 
-fn renumber(s: &mut Shape, ids: &mut tracedraw_core::id::IdSource) {
+fn renumber(s: &mut Shape, ids: &mut graphdraw_core::id::IdSource) {
     s.id = ids.shape();
     match &mut s.kind {
         ShapeKind::Group { children } => children.iter_mut().for_each(|c| renumber(c, ids)),
@@ -705,7 +705,7 @@ mod tests {
         let segments = marks
             .elements()
             .iter()
-            .filter(|e| matches!(e, tracedraw_core::geometry::PathEl::MoveTo(_)))
+            .filter(|e| matches!(e, graphdraw_core::geometry::PathEl::MoveTo(_)))
             .count();
         assert_eq!(segments, (6 + 4) * 2);
     }
@@ -758,7 +758,7 @@ mod tests {
         }
         assert!(shapes.iter().all(|s| walk(s, &mut seen)));
         // A sheet the PDF writer accepts.
-        let pdf = tracedraw_io::pdf::document_to_pdf(&out);
+        let pdf = graphdraw_io::pdf::document_to_pdf(&out);
         assert!(pdf.starts_with(b"%PDF"));
     }
 }

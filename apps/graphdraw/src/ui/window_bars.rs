@@ -513,7 +513,7 @@ fn page_tab_menu(app: &App, ui: &mut Ui) -> Option<PageTabAction> {
 /// Carry out a page tab menu command on the current page.
 pub(crate) fn apply_page_tab_action(app: &mut App, action: PageTabAction) {
     use crate::ui::dialogs::{Dialog, OptionsPage};
-    use tracedraw_core::Command;
+    use graphdraw_core::Command;
     match action {
         PageTabAction::Rename => {
             let name = app
@@ -545,7 +545,7 @@ pub(crate) fn apply_page_tab_action(app: &mut App, action: PageTabAction) {
             let page = app.page;
             app.run(Command::ResizePage {
                 page,
-                size: tracedraw_core::geometry::Size::new(s.height, s.width),
+                size: graphdraw_core::geometry::Size::new(s.height, s.width),
             });
             app.fit_pending = true;
         }

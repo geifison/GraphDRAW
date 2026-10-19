@@ -1,6 +1,6 @@
 # CMX exchange files
 
-What TraceDraw knows of `.cmx` files, read by `crates/cdr/src/cmx.rs`.
+What GraphDraw knows of `.cmx` files, read by `crates/cdr/src/cmx.rs`.
 Every fact below was found on public sample files and checked against the
 preview picture each file carries (see `CLEANROOM.md`). "Confirmed" means
 a file shows it; "assumed" means the reader relies on it without a file

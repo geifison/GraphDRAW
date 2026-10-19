@@ -9,7 +9,7 @@ writes the AutoCAD 2000 (AC1015) dialect that every CAD reader accepts.
   centimetres, metres and the rest scale accordingly). The page is the
   `$EXTMIN`/`$EXTMAX` extents, or the content bounds, plus a 5 mm margin;
   the lower-left corner moves to the origin.
-- Layers: one TraceDraw layer per DXF layer, in order of first use; the
+- Layers: one GraphDraw layer per DXF layer, in order of first use; the
   LAYER table supplies the "by layer" colour (ACI index 1..255, true
   colour 420 when present). "By block" entities take the INSERT's colour.
 - Entities: LINE, LWPOLYLINE and POLYLINE/VERTEX (bulges become arcs),

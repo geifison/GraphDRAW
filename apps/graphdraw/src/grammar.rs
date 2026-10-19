@@ -5,7 +5,7 @@
 //! UI applies through the normal command path.
 
 use crate::app::App;
-use tracedraw_core::{document::ShapeKind, Command, ShapeId, TextSpan};
+use graphdraw_core::{document::ShapeKind, Command, ShapeId, TextSpan};
 
 /// The maximum sentence length before `Rule::LongSentence` fires.
 pub const LONG_SENTENCE_WORDS: usize = 40;

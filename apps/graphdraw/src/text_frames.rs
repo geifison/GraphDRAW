@@ -6,8 +6,8 @@
 //! docs/behavior/text.md.
 
 use crate::app::App;
-use tracedraw_core::geometry::{Affine, Point, Rect, Size};
-use tracedraw_core::{Command, Shape, ShapeId, ShapeKind};
+use graphdraw_core::geometry::{Affine, Point, Rect, Size};
+use graphdraw_core::{Command, Shape, ShapeId, ShapeKind};
 
 /// A paragraph text frame as shown on screen.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -150,14 +150,14 @@ impl App {
                 on_path: None,
                 ..
             } => {
-                let req = tracedraw_core::document::text_outline::TextRequest {
+                let req = graphdraw_core::document::text_outline::TextRequest {
                     spans,
                     frame: Some(*f),
                     align: *align,
                     para,
                     on_path: None,
                 };
-                tracedraw_text::fonts().layout(&req).overflow
+                graphdraw_text::fonts().layout(&req).overflow
             }
             _ => false,
         };
@@ -218,7 +218,7 @@ mod tests {
 
     fn paragraph(app: &mut App) -> ShapeId {
         // The real text engine, so the words wrap in the frame.
-        tracedraw_text::install();
+        graphdraw_text::install();
         app.start_text(Point::new(20.0, 20.0), Some(Size::new(60.0, 30.0)));
         for c in "Some words to flow in the frame".chars() {
             app.text_insert(&c.to_string());

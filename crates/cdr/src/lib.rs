@@ -1,4 +1,4 @@
-//! tracedraw-cdr: a clean-room reader for `.cdr` files.
+//! graphdraw-cdr: a clean-room reader for `.cdr` files.
 //!
 //! What we know about the format comes from public reverse-engineering notes
 //! and from observing real files, never from any vendor's code.
@@ -13,7 +13,7 @@
 //! The reader has three layers:
 //! 1. [`container`]: detect the container, hand back the RIFF bytes.
 //! 2. [`riff`]: walk the chunk tree without interpreting it.
-//! 3. [`parse`]: turn chunks into a [`tracedraw_core::Document`] (best effort).
+//! 3. [`parse`]: turn chunks into a [`graphdraw_core::Document`] (best effort).
 //!
 //! Anything we do not understand is skipped with a logged warning, never a
 //! failure: opening a file must always yield a document.
@@ -57,8 +57,8 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// centre (a sun drawn red in the middle stores yellow first); ours run
 /// from the centre out. The same mirror turns either order into the
 /// other.
-pub(crate) fn mirror_centred_stops(f: &mut tracedraw_core::Fountain) {
-    use tracedraw_core::FountainKind;
+pub(crate) fn mirror_centred_stops(f: &mut graphdraw_core::Fountain) {
+    use graphdraw_core::FountainKind;
     if matches!(f.kind, FountainKind::Radial | FountainKind::Square) {
         for s in &mut f.stops {
             s.pos = 1.0 - s.pos;
@@ -68,7 +68,7 @@ pub(crate) fn mirror_centred_stops(f: &mut tracedraw_core::Fountain) {
 }
 
 /// Read a `.cdr` file into a document. The report lists what was skipped.
-pub fn open(path: impl AsRef<Path>) -> Result<(tracedraw_core::Document, ParseReport)> {
+pub fn open(path: impl AsRef<Path>) -> Result<(graphdraw_core::Document, ParseReport)> {
     let bytes = std::fs::read(path.as_ref())?;
     let title = path
         .as_ref()
@@ -81,7 +81,7 @@ pub fn open(path: impl AsRef<Path>) -> Result<(tracedraw_core::Document, ParseRe
 
 /// Same as [`open`], from memory. CMX exchange files (RIFF form `CMX1`)
 /// are read as well, by [`cmx::open_bytes`].
-pub fn open_bytes(bytes: &[u8], title: &str) -> Result<(tracedraw_core::Document, ParseReport)> {
+pub fn open_bytes(bytes: &[u8], title: &str) -> Result<(graphdraw_core::Document, ParseReport)> {
     if cmx::is_cmx(bytes) {
         return cmx::open_bytes(bytes, title);
     }

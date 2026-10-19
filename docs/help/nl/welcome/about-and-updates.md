@@ -1,6 +1,6 @@
-# Over TraceDraw en updates
+# Over GraphDraw en updates
 
-TraceDraw is vrij en opensource. Deze pagina legt uit hoe u ziet welke versie
+GraphDraw is vrij en opensource. Deze pagina legt uit hoe u ziet welke versie
 u hebt, hoe u een nieuwere krijgt en waar u hulp kunt vragen.
 
 ## Het venster Info {#about}
@@ -10,16 +10,16 @@ licentie, een koppeling naar de broncode en de bouwstenen van het programma te
 zien. Druk op [[dialog.close]], <kbd>Enter</kbd> of <kbd>Esc</kbd> om het te
 sluiten.
 
-![Het venster Over TraceDraw](../../img/welcome-about-and-updates-about.png)
+![Het venster Over GraphDraw](../../img/welcome-about-and-updates-about.png)
 
 ## Naar updates zoeken {#updates}
 
-Op de desktop kan TraceDraw u laten weten wanneer er een nieuwere versie is.
+Op de desktop kan GraphDraw u laten weten wanneer er een nieuwere versie is.
 
 Zo controleert u nu:
 
 1. Kies [[menu.help > menu.help.updates]].
-2. TraceDraw vraagt de releasepagina van het project naar de nieuwste versie
+2. GraphDraw vraagt de releasepagina van het project naar de nieuwste versie
    en zegt of die nieuwer is dan de uwe. Testversies en nachtelijke builds
    worden nooit aangeboden.
 3. Als er een nieuwere versie is, kiest u wat u wilt doen:
@@ -32,10 +32,10 @@ Zo controleert u nu:
    - **Deze versie overslaan** biedt die versie niet meer aan.
    - [[dialog.close]] sluit het venster.
 
-Als TraceDraw als Linux-AppImage draait, kan het venster ook **Installeren**
+Als GraphDraw als Linux-AppImage draait, kan het venster ook **Installeren**
 aanbieden: het downloadt de nieuwe AppImage naast de huidige, controleert of de
 download volledig en echt is, en zet hem in de plaats van het oude bestand. De
-nieuwe versie start de volgende keer dat u TraceDraw opent. Klopt er iets
+nieuwe versie start de volgende keer dat u GraphDraw opent. Klopt er iets
 niet, dan blijft het oude bestand zoals het was en zegt het venster waarom.
 
 Mislukt de controle (bijvoorbeeld zonder internetverbinding), dan meldt het
@@ -47,7 +47,7 @@ venster dat en biedt het de releasepagina aan.
 
 [[menu.tools > menu.tools.options > menu.tools.options_global]], pagina
 [[options.general]], heeft een instelling om bij het starten naar updates te
-zoeken. Die staat eerst aan: eens per dag controleert TraceDraw stil bij het
+zoeken. Die staat eerst aan: eens per dag controleert GraphDraw stil bij het
 starten en meldt zich alleen als er een nieuwere versie is die u niet hebt
 overgeslagen.
 
@@ -56,7 +56,7 @@ overgeslagen.
 
 ## Het welkomstscherm {#welcome-screen}
 
-Het welkomstscherm is het eerste tabblad als TraceDraw start. Van daaruit maakt
+Het welkomstscherm is het eerste tabblad als GraphDraw start. Van daaruit maakt
 u een tekening, opent u een van de laatst gebruikte tekeningen (elk met een
 miniatuur; [[menu.file.clear_recent]] vergeet ze), begint u vanuit een
 sjabloon, leest u het nieuws en vindt u leermateriaal. Kies
@@ -72,4 +72,4 @@ nieuws.
 - [[menu.help > menu.help.support]] opent de issuetracker, waar u een probleem
   kunt melden.
 - [[menu.help > menu.help.message_settings]] opent de opties waarin de
-  meldingen van TraceDraw worden ingesteld.
+  meldingen van GraphDraw worden ingesteld.

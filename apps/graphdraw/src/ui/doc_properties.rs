@@ -9,7 +9,7 @@ use crate::doc_stats::DocStats;
 use crate::i18n::{tr, trf};
 use crate::theme::Tokens;
 use egui::{Context, RichText, Ui};
-use tracedraw_core::Command;
+use graphdraw_core::Command;
 
 /// Languages offered, as their tag and their own name.
 pub const LANGUAGES: [(&str, &str); 30] = [
@@ -208,7 +208,7 @@ fn report(app: &App, ui: &mut Ui, st: &DocStats) {
     line(
         ui,
         &tr("color_mgmt.primary_mode"),
-        if md.primary_color_mode == tracedraw_core::document::PrimaryColorMode::Rgb {
+        if md.primary_color_mode == graphdraw_core::document::PrimaryColorMode::Rgb {
             "RGB"
         } else {
             "CMYK"

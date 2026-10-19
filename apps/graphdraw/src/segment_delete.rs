@@ -11,7 +11,7 @@
 //! an object with nothing left is deleted. One undo step.
 
 use crate::app::App;
-use tracedraw_core::{
+use graphdraw_core::{
     document::{Shape, ShapeKind},
     geometry::{BezPath, Line, ParamCurve, ParamCurveNearest, PathEl, PathSeg, Point, Rect},
     Command, ShapeId,
@@ -27,7 +27,7 @@ pub struct Sub {
 /// The subpaths of `path`; one that ends where it started counts as
 /// closed.
 pub fn subs_of(path: &BezPath) -> Vec<Sub> {
-    tracedraw_core::effects::subpaths(path)
+    graphdraw_core::effects::subpaths(path)
         .into_iter()
         .filter_map(|(sub, closed)| {
             let mut segs: Vec<PathSeg> = sub.segments().collect();
@@ -57,7 +57,7 @@ fn lines_of(path: &BezPath) -> Vec<Line> {
     let mut out = Vec::new();
     let mut start = Point::ZERO;
     let mut last = Point::ZERO;
-    tracedraw_core::geometry::flatten(path, 0.02, &mut |el| match el {
+    graphdraw_core::geometry::flatten(path, 0.02, &mut |el| match el {
         PathEl::MoveTo(p) => {
             start = p;
             last = p;
@@ -487,7 +487,7 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::geometry::Shape as _;
+    use graphdraw_core::geometry::Shape as _;
 
     fn line(app: &mut App, a: (f64, f64), b: (f64, f64)) -> ShapeId {
         let mut p = BezPath::new();

@@ -17,7 +17,7 @@ later, and removing the last one gives the original back.
   as `0xRRGGBB`, lists as the index of the chosen item, check boxes as 0
   or 1. Missing settings take the effect's defaults, and every setting
   is clamped to its range, so a file can never break an effect.
-- The native `.tdraw` file stores the list; a bitmap without effects
+- The native `.gdr` file stores the list; a bitmap without effects
   writes no `fx` field, and older files load unchanged.
 - Changes that rework the pixels themselves (colour modes, Resample,
   Manually Inflate Bitmap, Straighten Image, Bitmap Color Mask, Update

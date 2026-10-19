@@ -6,7 +6,7 @@
 use crate::app::App;
 use std::collections::HashSet;
 use std::sync::{OnceLock, RwLock};
-use tracedraw_core::{document::ShapeKind, Command, ShapeId, TextSpan};
+use graphdraw_core::{document::ShapeKind, Command, ShapeId, TextSpan};
 
 const CORE_WORDS: &str = include_str!("../lang/core-words.txt");
 

@@ -8,7 +8,7 @@ use crate::app::{App, Units};
 use crate::i18n::{tr, trf};
 use crate::theme::Tokens;
 use egui::{Context, Ui};
-use tracedraw_core::{
+use graphdraw_core::{
     document::ShapeKind,
     geometry::{Rect, Size},
     Color, Command,
@@ -82,7 +82,7 @@ impl Default for ExportState {
 }
 
 /// Where a `.cdr` file that does not open right is sent in.
-pub const CDR_ISSUE: &str = "https://github.com/igtoth/tracedraw/issues/new?template=cdr_file.yml";
+pub const CDR_ISSUE: &str = "https://github.com/geifison/GraphDRAW/issues/new?template=cdr_file.yml";
 
 pub const PDF_STANDARDS: [&str; 4] = ["PDF 1.4", "PDF/X-1a:2003", "PDF/X-3:2003", "PDF/X-4"];
 
@@ -460,7 +460,7 @@ pub struct FindReplaceState {
     pub match_case: bool,
     pub whole_word: bool,
     pub kind: usize,
-    pub results: Vec<tracedraw_core::ShapeId>,
+    pub results: Vec<graphdraw_core::ShapeId>,
     pub cursor: usize,
 }
 
@@ -588,21 +588,21 @@ pub enum Dialog {
     Options,
     PageNumberSettings,
     RenameLayer {
-        layer: tracedraw_core::LayerId,
+        layer: graphdraw_core::LayerId,
         name: String,
     },
     RenameObject {
-        shape: tracedraw_core::ShapeId,
+        shape: graphdraw_core::ShapeId,
         name: String,
     },
     DocumentProperties(Box<crate::ui::doc_properties::DocPropsState>),
-    /// Save on a drawing opened from a `.cdr` version TraceDraw does not
+    /// Save on a drawing opened from a `.cdr` version GraphDraw does not
     /// save in: choose another version first.
     OldCdrVersion {
         version: u16,
     },
     ConfirmClose,
-    /// Reset every preference to the defaults? (F8 while TraceDraw
+    /// Reset every preference to the defaults? (F8 while GraphDraw
     /// starts, Options > Global.)
     ConfirmResetSettings,
     /// At start-up: drawings a session that ended without closing left in
@@ -1131,8 +1131,8 @@ pub fn show(app: &mut App, ctx: &Context) {
                     "dialog.old_cdr_text",
                     &[
                         ("version", &version.to_string()),
-                        ("oldest", &tracedraw_cdr::write::CHECKED_SINCE.to_string()),
-                        ("newest", &tracedraw_cdr::write::CHECKED_UNTIL.to_string()),
+                        ("oldest", &graphdraw_cdr::write::CHECKED_SINCE.to_string()),
+                        ("newest", &graphdraw_cdr::write::CHECKED_UNTIL.to_string()),
                     ],
                 ));
                 let a = tr("dialog.old_cdr_choose");
@@ -1524,11 +1524,11 @@ pub fn show(app: &mut App, ctx: &Context) {
                     let c = page.center();
                     let rect =
                         Rect::new(c.x - w / 2.0, c.y - h / 2.0, c.x + w / 2.0, c.y + h / 2.0);
-                    let table = tracedraw_core::Table::new(
+                    let table = graphdraw_core::Table::new(
                         rect,
                         *rows,
                         *cols,
-                        Some(tracedraw_core::Stroke::hairline(Color::BLACK)),
+                        Some(graphdraw_core::Stroke::hairline(Color::BLACK)),
                     );
                     if let Some(id) = app.new_shape(ShapeKind::Table(table)) {
                         app.select(vec![id]);
@@ -1922,10 +1922,10 @@ pub fn show(app: &mut App, ctx: &Context) {
 
 pub fn paper_presets() -> Vec<(&'static str, Size)> {
     vec![
-        ("A4", tracedraw_core::document::paper::A4),
-        ("A3", tracedraw_core::document::paper::A3),
+        ("A4", graphdraw_core::document::paper::A4),
+        ("A3", graphdraw_core::document::paper::A3),
         ("A5", Size::new(148.0, 210.0)),
-        ("Letter", tracedraw_core::document::paper::LETTER),
+        ("Letter", graphdraw_core::document::paper::LETTER),
         ("Legal", Size::new(215.9, 355.6)),
         ("Tabloid", Size::new(279.4, 431.8)),
         ("Business card", Size::new(90.0, 50.0)),
@@ -1945,15 +1945,15 @@ pub fn paper_presets() -> Vec<(&'static str, Size)> {
 }
 
 /// A QR code as one even-odd path of module squares.
-pub(crate) fn qr_path(text: &str, size_mm: f64) -> Result<tracedraw_core::BezPath, String> {
-    use tracedraw_core::geometry::Shape as _;
+pub(crate) fn qr_path(text: &str, size_mm: f64) -> Result<graphdraw_core::BezPath, String> {
+    use graphdraw_core::geometry::Shape as _;
     if text.trim().is_empty() {
         return Err(tr("dialog.qr_empty"));
     }
     let code = qrcode::QrCode::new(text.as_bytes()).map_err(|e| e.to_string())?;
     let n = code.width();
     let module = size_mm / n as f64;
-    let mut path = tracedraw_core::BezPath::new();
+    let mut path = graphdraw_core::BezPath::new();
     for y in 0..n {
         for x in 0..n {
             if code[(x, y)] == qrcode::Color::Dark {
@@ -2057,13 +2057,13 @@ pub(crate) fn page_size_page(app: &mut App, ui: &mut Ui) {
             app.run(Command::ResizePage { page, size: sheet });
             for c in 0..cols {
                 let x0 = left + c as f64 * px;
-                app.add_guide(tracedraw_core::document::Guide::vertical(x0));
-                app.add_guide(tracedraw_core::document::Guide::vertical(x0 + label.width));
+                app.add_guide(graphdraw_core::document::Guide::vertical(x0));
+                app.add_guide(graphdraw_core::document::Guide::vertical(x0 + label.width));
             }
             for r in 0..rows {
                 let y1 = sheet.height - (top + r as f64 * py);
-                app.add_guide(tracedraw_core::document::Guide::horizontal(y1));
-                app.add_guide(tracedraw_core::document::Guide::horizontal(
+                app.add_guide(graphdraw_core::document::Guide::horizontal(y1));
+                app.add_guide(graphdraw_core::document::Guide::horizontal(
                     y1 - label.height,
                 ));
             }
@@ -2201,7 +2201,7 @@ pub(crate) fn page_size_page(app: &mut App, ui: &mut Ui) {
     });
     if changed {
         let size = Size::new(w.max(1.0), h.max(1.0));
-        let pages: Vec<tracedraw_core::PageId> = if app.options_current_only {
+        let pages: Vec<graphdraw_core::PageId> = if app.options_current_only {
             vec![app.page]
         } else {
             app.doc().pages.iter().map(|p| p.id).collect()
@@ -4295,7 +4295,7 @@ mod tests {
 
     /// Every dialog, as the menus open it.
     fn all_dialogs(app: &App) -> Vec<Dialog> {
-        let layer = app.active_layer().unwrap_or(tracedraw_core::LayerId(1));
+        let layer = app.active_layer().unwrap_or(graphdraw_core::LayerId(1));
         vec![
             Dialog::NodeAlign {
                 horizontal: true,
@@ -4330,7 +4330,7 @@ mod tests {
             Dialog::Updates,
             Dialog::Recover(vec![crate::recovery::Found {
                 marker: "/nowhere/session-x.json".into(),
-                backups: vec!["/nowhere/AutoBackup_of_art.tdraw".into()],
+                backups: vec!["/nowhere/AutoBackup_of_art.gdr".into()],
             }]),
             Dialog::Export(ExportState::default()),
             Dialog::Print(PrintState::default()),
@@ -4509,12 +4509,12 @@ mod tests {
         let mut app = App::headless();
         let r = app
             .new_shape(ShapeKind::Rect {
-                rect: tracedraw_core::geometry::Rect::new(10.0, 10.0, 60.0, 40.0),
+                rect: graphdraw_core::geometry::Rect::new(10.0, 10.0, 60.0, 40.0),
                 radius: 0.0,
                 corners: None,
             })
             .expect("rect");
-        app.start_text(tracedraw_core::geometry::Point::new(20.0, 80.0), None);
+        app.start_text(graphdraw_core::geometry::Point::new(20.0, 80.0), None);
         app.text_insert("Dialog test");
         app.finish_text();
         app.select(vec![r]);

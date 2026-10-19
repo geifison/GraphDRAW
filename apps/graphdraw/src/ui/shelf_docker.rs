@@ -323,8 +323,8 @@ fn drop_item(app: &mut App, ctx: &egui::Context, uid: u64, tiles: &[(u64, Rect)]
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::geometry::Rect as PageRect;
-    use tracedraw_core::{ShapeId, ShapeKind};
+    use graphdraw_core::geometry::Rect as PageRect;
+    use graphdraw_core::{ShapeId, ShapeKind};
 
     fn frame(ctx: &egui::Context, app: &mut App, events: Vec<egui::Event>) {
         let input = egui::RawInput {

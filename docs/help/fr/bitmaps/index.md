@@ -1,7 +1,7 @@
 # Bitmaps
 
 Les bitmaps sont des images faites de pixels, comme les photos et les
-numérisations. TraceDraw les place dans les dessins, change leur mode de
+numérisations. GraphDraw les place dans les dessins, change leur mode de
 couleur et leur taille, les redresse, masque des couleurs, applique des effets
 et les vectorise en formes. Il transforme aussi des objets vectoriels en
 bitmaps.

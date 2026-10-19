@@ -473,7 +473,7 @@ fn message_box_with(
 ) -> Option<usize> {
     let mut picked = None;
     let before = take_close_request(ctx);
-    window("TraceDraw").show(ctx, |ui| {
+    window("GraphDraw").show(ctx, |ui| {
         ui.set_min_width(360.0);
         ui.horizontal(|ui| {
             ui.add_space(4.0);

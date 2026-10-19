@@ -12,7 +12,7 @@ one half (or one slice) and see the whole. The commands are in
    (<kbd>Alt+S</kbd>).
 
 A vertical mirror line is placed at the right edge of the object, so the copy
-appears next to it, and TraceDraw goes straight into editing the symmetry.
+appears next to it, and GraphDraw goes straight into editing the symmetry.
 
 ## Editing a symmetry {#edit}
 

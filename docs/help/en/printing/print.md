@@ -1,6 +1,6 @@
 # Printing a drawing
 
-Choose [[menu.file > menu.file.print]] (<kbd>Ctrl+P</kbd>). TraceDraw builds a
+Choose [[menu.file > menu.file.print]] (<kbd>Ctrl+P</kbd>). GraphDraw builds a
 PDF of the sheets and opens it in your system's viewer, where you choose the
 printer and print. In the browser version, the PDF is downloaded.
 

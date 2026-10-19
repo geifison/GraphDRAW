@@ -93,7 +93,7 @@ fn mime_for(name: &str) -> &'static str {
         "webp" => "image/webp",
         "gif" => "image/gif",
         "html" => "text/html",
-        "tdraw" | "json" => "application/json",
+        "gdr" | "json" => "application/json",
         "txt" | "js" | "csv" => "text/plain",
         _ => "application/octet-stream",
     }
@@ -165,7 +165,7 @@ fn load_font_list() {
         CATALOG.with(|c| *c.borrow_mut() = catalog);
         // The font lists take them in with the next frame (the fonts'
         // generation changes).
-        tracedraw_text::fonts().offer_families(&families);
+        graphdraw_text::fonts().offer_families(&families);
         request_repaint();
     });
 }
@@ -173,7 +173,7 @@ fn load_font_list() {
 /// Fetch the files of the families text asked for since the last frame;
 /// the text engine takes them in as they arrive and the page draws again.
 pub fn fetch_requested_fonts() {
-    for family in tracedraw_text::fonts().take_font_requests() {
+    for family in graphdraw_text::fonts().take_font_requests() {
         // The folder's files, else the catalog's.
         let mut urls: Vec<String> = FONT_FILES.with(|f| {
             f.borrow()
@@ -192,7 +192,7 @@ pub fn fetch_requested_fonts() {
                     None => log::warn!("could not fetch the font file {url}"),
                 }
             }
-            if tracedraw_text::fonts().add_fonts(data).is_empty() {
+            if graphdraw_text::fonts().add_fonts(data).is_empty() {
                 log::warn!("the font folder gave nothing usable for {family}");
             }
             request_repaint();
@@ -203,7 +203,7 @@ pub fn fetch_requested_fonts() {
 /// Register the bundled fonts with the text engine (before first use).
 pub fn register_fonts() {
     for (_, data) in WEB_FONTS {
-        tracedraw_text::add_font_data(data.to_vec());
+        graphdraw_text::add_font_data(data.to_vec());
     }
     if WEB_FONTS.is_empty() {
         log::warn!("no fonts were bundled into this build; text objects cannot be drawn");
@@ -245,22 +245,22 @@ fn guard_shortcuts() {
     guard.forget();
 }
 
-/// Start the editor on the page's `<canvas id="tracedraw">`.
+/// Start the editor on the page's `<canvas id="graphdraw">`.
 pub fn start() {
     eframe::WebLogger::init(log::LevelFilter::Info).ok();
     guard_shortcuts();
     register_fonts();
-    tracedraw_text::install();
+    graphdraw_text::install();
     load_font_list();
     wasm_bindgen_futures::spawn_local(async {
         let Some(document) = web_sys::window().and_then(|w| w.document()) else {
             return;
         };
         let Some(canvas) = document
-            .get_element_by_id("tracedraw")
+            .get_element_by_id("graphdraw")
             .and_then(|e| e.dyn_into::<web_sys::HtmlCanvasElement>().ok())
         else {
-            log::error!("no <canvas id=\"tracedraw\"> on the page");
+            log::error!("no <canvas id=\"graphdraw\"> on the page");
             return;
         };
         let result = eframe::WebRunner::new()
@@ -280,10 +280,10 @@ pub fn start() {
                     // The splash says so and the reason shows under it,
                     // keeping the page's links to the downloads.
                     let text = format!(
-                        "TraceDraw could not start: {e:?}. A browser with WebGL 2 is needed."
+                        "GraphDraw could not start: {e:?}. A browser with WebGL 2 is needed."
                     );
                     if let Some(status) = document.get_element_by_id("loading-status") {
-                        status.set_inner_html("TraceDraw could not start");
+                        status.set_inner_html("GraphDraw could not start");
                     }
                     if let Some(bar) = document.get_element_by_id("loading-bar") {
                         bar.set_attribute("fill", "#e0533d").ok();

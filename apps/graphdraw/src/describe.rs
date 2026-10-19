@@ -3,7 +3,7 @@
 
 use crate::app::App;
 use serde_json::{json, Value};
-use tracedraw_core::{document::ShapeKind, Fill};
+use graphdraw_core::{document::ShapeKind, Fill};
 
 fn fill_summary(f: &Fill) -> Value {
     match f {
@@ -20,7 +20,7 @@ fn fill_summary(f: &Fill) -> Value {
 
 /// One object: id, type, name, bounds in mm, fill, outline, opacity,
 /// text and font, group children, effect count.
-pub fn shape_json(s: &tracedraw_core::document::Shape) -> Value {
+pub fn shape_json(s: &graphdraw_core::document::Shape) -> Value {
     let b = s.bounds();
     let kind = match &s.kind {
         ShapeKind::Rect { .. } => "rectangle",
@@ -142,7 +142,7 @@ pub fn active_page(app: &App, max_objects: usize) -> Value {
 /// `shape_json` while `budget` lasts; objects past it are counted in
 /// `omitted` (with their children).
 fn capped_shape_json(
-    s: &tracedraw_core::document::Shape,
+    s: &graphdraw_core::document::Shape,
     budget: &mut usize,
     omitted: &mut usize,
 ) -> Option<Value> {
@@ -162,7 +162,7 @@ fn capped_shape_json(
 }
 
 /// An object and every object inside it.
-fn count(s: &tracedraw_core::document::Shape) -> usize {
+fn count(s: &graphdraw_core::document::Shape) -> usize {
     match &s.kind {
         ShapeKind::Group { children } => 1 + children.iter().map(count).sum::<usize>(),
         _ => 1,
@@ -172,7 +172,7 @@ fn count(s: &tracedraw_core::document::Shape) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::geometry::Rect;
+    use graphdraw_core::geometry::Rect;
 
     #[test]
     fn the_active_page_is_described_up_to_a_number_of_objects() {

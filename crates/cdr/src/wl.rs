@@ -34,11 +34,11 @@
 
 use crate::parse::ParseReport;
 use crate::{Error, Result};
-use tracedraw_core::document::{
+use graphdraw_core::document::{
     Layer, Page, ParagraphStyle, Shape, ShapeKind, TextAlign, TextSpan,
 };
-use tracedraw_core::geometry::{Affine, Point, Rect, Size};
-use tracedraw_core::{Color, Fill, Stroke};
+use graphdraw_core::geometry::{Affine, Point, Rect, Size};
+use graphdraw_core::{Color, Fill, Stroke};
 
 /// Thousandths of an inch to millimetres.
 const UNIT_MM: f64 = 25.4 / 1000.0;
@@ -78,7 +78,7 @@ struct Record {
 }
 
 /// Read a version 1 or 2 drawing.
-pub fn open_bytes(bytes: &[u8], title: &str) -> Result<(tracedraw_core::Document, ParseReport)> {
+pub fn open_bytes(bytes: &[u8], title: &str) -> Result<(graphdraw_core::Document, ParseReport)> {
     if !is_wl(bytes) {
         return Err(Error::NotCdr);
     }
@@ -111,7 +111,7 @@ pub fn open_bytes(bytes: &[u8], title: &str) -> Result<(tracedraw_core::Document
     let size = Size::new(page_box.0, page_box.1);
     let fonts = font_table(d, end);
 
-    let mut doc = tracedraw_core::Document::new(title, size);
+    let mut doc = graphdraw_core::Document::new(title, size);
     doc.pages.clear();
     let page_id = doc.ids_mut().page();
     let layer_id = doc.ids_mut().layer();
@@ -258,7 +258,7 @@ fn read_object(
     rec: &Record,
     fonts: &[(u16, String)],
     centre: Affine,
-    doc: &mut tracedraw_core::Document,
+    doc: &mut graphdraw_core::Document,
     report: &mut ParseReport,
 ) -> Option<Shape> {
     let r = rec.at;

@@ -20,7 +20,7 @@ changes.
 4. Click [[tpl.open]], double-click the template, or press <kbd>Enter</kbd>.
 
 The [[tpl.thumbnail_size]] slider at the bottom makes the thumbnails larger or
-smaller, and [[welcome.open_template]] opens any `.tdt` or `.tdraw` file as a
+smaller, and [[welcome.open_template]] opens any `.tdt` or `.gdr` file as a
 template.
 
 ![The New from Template dialog box](../../img/templates-styles-templates-new-from-template.png)

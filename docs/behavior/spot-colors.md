@@ -3,7 +3,7 @@
 A spot colour is a named ink printed on a plate of its own (a metallic,
 a brand colour). The drawing keeps a list of its inks (`Document::inks`:
 a number, a name and the ink's process stand-in, C, M, Y, K at full
-strength), saved in `.tdraw`; a colour on an ink is `Color::Spot` (the
+strength), saved in `.gdr`; a colour on an ink is `Color::Spot` (the
 ink's number, a tint 0 to 100 % and the stand-in, so it shows and
 converts without the list).
 

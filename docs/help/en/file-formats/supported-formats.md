@@ -4,15 +4,15 @@
 
 | Format | Notes |
 |---|---|
-| TraceDraw (`.tdraw`) | the native format; keeps everything, including effects, styles, comments and fonts |
+| GraphDraw (`.gdr`) | the native format; keeps everything, including effects, styles, comments and fonts |
 | CDR (`.cdr`) | versions 14 to 27 from Save As; keeps pages, layers, shapes, curves, groups, text, bitmaps, fills, outlines and transparency; effects are written as plain objects |
-| TraceDraw template (`.tdt`) | from [[menu.file.save_as_template]] |
+| GraphDraw template (`.tdt`) | from [[menu.file.save_as_template]] |
 
 ## Opening and importing {#open}
 
 | Format | What comes in |
 |---|---|
-| TraceDraw (`.tdraw`, `.tdt`) | everything |
+| GraphDraw (`.gdr`, `.tdt`) | everything |
 | CDR (`.cdr`), from the oldest versions to the newest | pages, layers, shapes, curves, groups, text, bitmaps, fills, outlines, transparency, embedded fonts, the color profile |
 | CMX | pages, layers, shapes, fills, outlines, images, clips, text |
 | SVG, SVGZ | shapes, groups, clips, gradients, images, text |

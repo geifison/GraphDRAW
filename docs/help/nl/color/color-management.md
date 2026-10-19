@@ -74,5 +74,5 @@ statusbalk, toont de tekening zoals die zou worden afgedrukt: kleuren die
 CMYK-inkten niet kunnen afdrukken, zien er doffer uit. Het paneel
 [[docker.color]] waarschuwt ook voor zulke kleuren.
 
-Zonder geladen profielen zet TraceDraw kleuren om met een eigen model van
+Zonder geladen profielen zet GraphDraw kleuren om met een eigen model van
 proceskleuren op gestreken papier.

@@ -73,5 +73,5 @@ destra della barra di stato, mostra il disegno come verrebbe stampato: i
 colori che gli inchiostri CMYK non possono stampare appaiono più spenti. Anche
 il pannello [[docker.color]] avvisa di tali colori.
 
-Senza profili caricati, TraceDraw converte i colori con un proprio modello di
+Senza profili caricati, GraphDraw converte i colori con un proprio modello di
 inchiostri di quadricromia su carta patinata.

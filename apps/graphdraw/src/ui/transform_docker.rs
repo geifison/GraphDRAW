@@ -23,13 +23,13 @@ use crate::i18n::tr;
 use crate::theme::Tokens;
 use crate::ui::propbar::{origin_point, pic_button, Pic};
 use egui::{Color32, Rect, Sense, Stroke, Ui, Vec2};
-use tracedraw_core::geometry::{Affine, Point, Rect as PageRect, Vec2 as PageVec};
-use tracedraw_core::{Command, ShapeId};
+use graphdraw_core::geometry::{Affine, Point, Rect as PageRect, Vec2 as PageVec};
+use graphdraw_core::{Command, ShapeId};
 
 /// At most this many copies come from one Apply.
 pub const MAX_COPIES: u32 = 500;
 
-/// The docker's fields, kept while TraceDraw runs. Distances are in
+/// The docker's fields, kept while GraphDraw runs. Distances are in
 /// millimetres, angles in degrees, scales in percent; absolute positions
 /// count from the ruler origin, as the rulers do.
 #[derive(Debug, Clone, PartialEq)]
@@ -700,12 +700,12 @@ pub fn transformations(app: &mut App, ui: &mut Ui) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::ShapeKind;
+    use graphdraw_core::ShapeKind;
 
     fn square(app: &mut App) -> ShapeId {
         let id = app
             .new_shape(ShapeKind::Rect {
-                rect: tracedraw_core::Rect::new(10.0, 10.0, 30.0, 20.0),
+                rect: graphdraw_core::Rect::new(10.0, 10.0, 30.0, 20.0),
                 radius: 0.0,
                 corners: None,
             })
@@ -848,7 +848,7 @@ mod tests {
         app.transform.pick_anchor(app.selection_bounds());
         let tall = app
             .new_shape(ShapeKind::Rect {
-                rect: tracedraw_core::Rect::new(0.0, 0.0, 5.0, 40.0),
+                rect: graphdraw_core::Rect::new(0.0, 0.0, 5.0, 40.0),
                 radius: 0.0,
                 corners: None,
             })

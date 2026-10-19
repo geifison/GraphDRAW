@@ -1,16 +1,16 @@
 # Obnovení nastavení
 
 Pokud se vaše nastavení zamotá, můžete všechny předvolby vrátit do stavu, v
-jakém TraceDraw přichází. Vašich kreseb se to nikdy nedotkne.
+jakém GraphDraw přichází. Vašich kreseb se to nikdy nedotkne.
 
 ## Obnovení všech nastavení {#reset}
 
 - Zvolte [[options.reset_all]] na stránce [[options.general]] v
   [[menu.tools > menu.tools.options > menu.tools.options_global]].
-- Nebo stiskněte <kbd>F8</kbd>, když se při spouštění TraceDraw zobrazuje
+- Nebo stiskněte <kbd>F8</kbd>, když se při spouštění GraphDraw zobrazuje
   úvodní obrazovka.
 
-TraceDraw se nejprve zeptá. **Obnovit** vrátí všechny předvolby, ale ponechá
+GraphDraw se nejprve zeptá. **Obnovit** vrátí všechny předvolby, ale ponechá
 seznam posledních kreseb, poslední složku a velikost okna.
 [[dialog.cancel]] nic nezmění.
 

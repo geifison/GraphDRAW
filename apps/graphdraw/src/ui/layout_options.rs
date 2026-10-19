@@ -8,7 +8,7 @@ use crate::guides::GuidePreset;
 use crate::i18n::tr;
 use crate::theme::Tokens;
 use egui::Ui;
-use tracedraw_core::{
+use graphdraw_core::{
     document::{GridDisplay, Guide, GuideLine, GuideStyle, Metadata},
     geometry::Point,
     Color, Command,
@@ -126,7 +126,7 @@ impl NamedPreset {
 
     /// The guideline sets this preset adds, for a page of `size` with
     /// `bleed` around it (mm).
-    pub fn presets(self, size: tracedraw_core::geometry::Size, bleed: f64) -> Vec<GuidePreset> {
+    pub fn presets(self, size: graphdraw_core::geometry::Size, bleed: f64) -> Vec<GuidePreset> {
         let inch = 25.4;
         match self {
             NamedPreset::OneInchMargins => vec![GuidePreset::Margins {
@@ -182,7 +182,7 @@ impl NamedPreset {
 /// upper-left quarter.
 pub fn preset_lines(
     preset: NamedPreset,
-    size: tracedraw_core::geometry::Size,
+    size: graphdraw_core::geometry::Size,
     bleed: f64,
 ) -> Vec<GuideLine> {
     let inch = 25.4;
@@ -195,7 +195,7 @@ pub fn preset_lines(
                 right: inch,
             }
             .lines(size);
-            let inner = tracedraw_core::geometry::Size::new(
+            let inner = graphdraw_core::geometry::Size::new(
                 (size.width - 2.0 * inch).max(0.0),
                 size.height,
             );
@@ -212,7 +212,7 @@ pub fn preset_lines(
             out
         }
         NamedPreset::UpperLeftGrid => {
-            let quarter = tracedraw_core::geometry::Size::new(size.width / 2.0, size.height / 2.0);
+            let quarter = graphdraw_core::geometry::Size::new(size.width / 2.0, size.height / 2.0);
             GuidePreset::Grid {
                 rows: 4,
                 columns: 4,
@@ -815,7 +815,7 @@ pub fn apply_presets(app: &mut App, form: &PresetForm) {
                 (0.0, 0.0)
             };
             let inner =
-                tracedraw_core::geometry::Size::new((size.width - l - r).max(0.0), size.height);
+                graphdraw_core::geometry::Size::new((size.width - l - r).max(0.0), size.height);
             for line in (GuidePreset::Columns {
                 count: form.column_count,
                 gutter: form.column_gutter,
@@ -1092,7 +1092,7 @@ fn style_key(s: GuideStyle) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::geometry::Size;
+    use graphdraw_core::geometry::Size;
 
     #[test]
     fn the_form_counts_from_the_ruler_origin() {

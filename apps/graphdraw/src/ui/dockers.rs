@@ -4,7 +4,7 @@ use crate::app::{App, DockerTab};
 use crate::i18n::{tr, trf};
 use crate::theme::Tokens;
 use egui::Ui;
-use tracedraw_core::{
+use graphdraw_core::{
     document::ShapeKind, Arrowhead, Color, Command, Fill, Fountain, FountainKind, FountainRepeat,
     Pattern, PatternTile, Stop, Stroke, Texture, TextureKind,
 };
@@ -306,7 +306,7 @@ fn color_row(ui: &mut Ui, label: &str, c: &mut Color) -> bool {
 }
 
 /// Give the selection these further fills and outlines (one undo step).
-fn set_extra_paint(app: &mut App, fills: Vec<Fill>, strokes: Vec<tracedraw_core::Stroke>) {
+fn set_extra_paint(app: &mut App, fills: Vec<Fill>, strokes: Vec<graphdraw_core::Stroke>) {
     let shapes = app.selection.clone();
     app.run(Command::SetExtraPaint {
         shapes,
@@ -317,7 +317,7 @@ fn set_extra_paint(app: &mut App, fills: Vec<Fill>, strokes: Vec<tracedraw_core:
 
 /// The further fills of the selection (the first object's): each with
 /// its editor and a cross; Add Fill puts a copy of the fill on top.
-fn extra_fills(app: &mut App, ui: &mut Ui, first: &tracedraw_core::Shape) {
+fn extra_fills(app: &mut App, ui: &mut Ui, first: &graphdraw_core::Shape) {
     let mut fills = first.extra_fills.clone();
     let mut changed = false;
     let mut remove = None;
@@ -356,7 +356,7 @@ fn extra_fills(app: &mut App, ui: &mut Ui, first: &tracedraw_core::Shape) {
 }
 
 /// The further outlines of the selection, as [`extra_fills`].
-fn extra_strokes(app: &mut App, ui: &mut Ui, first: &tracedraw_core::Shape) {
+fn extra_strokes(app: &mut App, ui: &mut Ui, first: &graphdraw_core::Shape) {
     let mut strokes = first.extra_strokes.clone();
     let custom = app.settings.custom_arrowheads.clone();
     let mut changed = false;
@@ -396,7 +396,7 @@ fn extra_strokes(app: &mut App, ui: &mut Ui, first: &tracedraw_core::Shape) {
         let base = first
             .stroke
             .clone()
-            .unwrap_or_else(|| tracedraw_core::Stroke::hairline(tracedraw_core::Color::BLACK));
+            .unwrap_or_else(|| graphdraw_core::Stroke::hairline(graphdraw_core::Color::BLACK));
         strokes.push(base);
         changed = true;
     }
@@ -421,13 +421,13 @@ fn properties(app: &mut App, ui: &mut Ui) {
         ui.strong(tr("docker.default_properties"));
         let mut fill = app.default_fill();
         if fill_editor(ui, &mut fill) {
-            app.set_default_properties(tracedraw_core::DefaultKind::Graphic, |p| p.fill = fill);
+            app.set_default_properties(graphdraw_core::DefaultKind::Graphic, |p| p.fill = fill);
         }
         ui.separator();
         let mut stroke = app.default_stroke();
         let custom = app.settings.custom_arrowheads.clone();
         if outline_editor(ui, &mut stroke, &custom) {
-            app.set_default_properties(tracedraw_core::DefaultKind::Graphic, |p| p.stroke = stroke);
+            app.set_default_properties(graphdraw_core::DefaultKind::Graphic, |p| p.stroke = stroke);
         }
         return;
     }
@@ -445,7 +445,7 @@ fn properties(app: &mut App, ui: &mut Ui) {
         }
     ));
     let b = app.selection_bounds().unwrap_or_default();
-    let o = app.to_ruler(tracedraw_core::geometry::Point::new(b.x0, b.y0));
+    let o = app.to_ruler(graphdraw_core::geometry::Point::new(b.x0, b.y0));
     ui.label(
         egui::RichText::new(format!(
             "x {:.2}  y {:.2}  w {:.2}  h {:.2} {}",
@@ -621,10 +621,10 @@ fn properties(app: &mut App, ui: &mut Ui) {
 fn qr_section(
     app: &mut App,
     ui: &mut Ui,
-    id: tracedraw_core::ShapeId,
-    qr: &tracedraw_core::QrCode,
+    id: graphdraw_core::ShapeId,
+    qr: &graphdraw_core::QrCode,
 ) {
-    use tracedraw_core::QrKind;
+    use graphdraw_core::QrKind;
     let mut next = qr.clone();
     let mut changed = false;
     let msg_id = egui::Id::new(("qr_message", id.raw()));
@@ -744,8 +744,8 @@ fn qr_section(
 }
 
 /// The name of a kind of QR content.
-fn qr_kind_key(k: tracedraw_core::QrKind) -> &'static str {
-    use tracedraw_core::QrKind;
+fn qr_kind_key(k: graphdraw_core::QrKind) -> &'static str {
+    use graphdraw_core::QrKind;
     match k {
         QrKind::Url => "qr.kind_url",
         QrKind::Email => "qr.kind_email",
@@ -874,9 +874,9 @@ fn section_header(app: &mut App, ui: &mut Ui, id: &str, title: &str) -> bool {
 /// The Properties docker's rectangle part: corner style, the four corner
 /// sizes, editing them together and relative corner scaling, as on the
 /// property bar.
-fn rectangle_section(app: &mut App, ui: &mut Ui, c: tracedraw_core::Corners) {
+fn rectangle_section(app: &mut App, ui: &mut Ui, c: graphdraw_core::Corners) {
     use crate::ui::propbar::{edit_corners, CornerEdit};
-    use tracedraw_core::{CornerKind, Corners};
+    use graphdraw_core::{CornerKind, Corners};
     let mut edit = None;
     ui.horizontal_wrapped(|ui| {
         for (kind, key) in [
@@ -1075,8 +1075,8 @@ fn fill_editor(ui: &mut Ui, fill: &mut Fill) -> bool {
                 scale: 20.0,
                 seed: 1,
             }),
-            _ => Fill::Mesh(tracedraw_core::Mesh::new(
-                tracedraw_core::geometry::Rect::new(0.0, 0.0, 100.0, 100.0),
+            _ => Fill::Mesh(graphdraw_core::Mesh::new(
+                graphdraw_core::geometry::Rect::new(0.0, 0.0, 100.0, 100.0),
                 2,
                 2,
                 base,
@@ -1119,7 +1119,7 @@ fn fill_editor(ui: &mut Ui, fill: &mut Fill) -> bool {
 }
 
 /// Stops drawn left to right as one mesh.
-fn gradient_swatch(p: &egui::Painter, r: egui::Rect, stops: &[tracedraw_core::Stop]) {
+fn gradient_swatch(p: &egui::Painter, r: egui::Rect, stops: &[graphdraw_core::Stop]) {
     let mut mesh = egui::Mesh::default();
     for (i, st) in stops.iter().enumerate() {
         let [cr, cg, cb] = st.color.to_rgb8();
@@ -1137,7 +1137,7 @@ fn gradient_swatch(p: &egui::Painter, r: egui::Rect, stops: &[tracedraw_core::St
 }
 
 /// Stops drawn bottom to top as one mesh.
-fn gradient_swatch_up(p: &egui::Painter, r: egui::Rect, stops: &[tracedraw_core::Stop]) {
+fn gradient_swatch_up(p: &egui::Painter, r: egui::Rect, stops: &[graphdraw_core::Stop]) {
     let mut mesh = egui::Mesh::default();
     for (i, st) in stops.iter().enumerate() {
         let [cr, cg, cb] = st.color.to_rgb8();
@@ -1314,7 +1314,7 @@ fn fountain_editor(ui: &mut Ui, f: &mut Fountain) -> bool {
     if let Some(path) = crate::files::take_picked(&ggr_key) {
         match crate::files::read_to_string(&path)
             .map_err(|e| e.to_string())
-            .and_then(|text| tracedraw_io::ggr::read(&text))
+            .and_then(|text| graphdraw_io::ggr::read(&text))
         {
             Ok(g) => {
                 f.stops = g.stops;
@@ -1327,7 +1327,7 @@ fn fountain_editor(ui: &mut Ui, f: &mut Fountain) -> bool {
         let next = f.stops.get(i + 1).map(|s| s.pos).unwrap_or(1.0);
         let pos = (f.stops[i].pos + next) / 2.0;
         // The stops' own colour there (not the repeats or the inversion).
-        let color = tracedraw_core::style::sample_stops(&f.sorted_stops(), pos);
+        let color = graphdraw_core::style::sample_stops(&f.sorted_stops(), pos);
         f.stops.insert(i + 1, Stop { pos, color });
         changed = true;
     }
@@ -1495,7 +1495,7 @@ fn pattern_editor(ui: &mut Ui, p: &mut Pattern) -> bool {
                 let sy = h / tile.height.max(1e-6);
                 for s in shapes.iter_mut() {
                     s.transform =
-                        tracedraw_core::geometry::Affine::scale_non_uniform(sx, sy) * s.transform;
+                        graphdraw_core::geometry::Affine::scale_non_uniform(sx, sy) * s.transform;
                 }
                 tile.width = w;
                 tile.height = h;
@@ -1655,9 +1655,9 @@ fn outline_editor(ui: &mut Ui, stroke: &mut Option<Stroke>, custom: &[Arrowhead]
         ui.horizontal(|ui| {
             ui.label(tr("docker.caps"));
             for (c, n) in [
-                (tracedraw_core::LineCap::Butt, "docker.cap_butt"),
-                (tracedraw_core::LineCap::Round, "docker.cap_round"),
-                (tracedraw_core::LineCap::Square, "docker.cap_square"),
+                (graphdraw_core::LineCap::Butt, "docker.cap_butt"),
+                (graphdraw_core::LineCap::Round, "docker.cap_round"),
+                (graphdraw_core::LineCap::Square, "docker.cap_square"),
             ] {
                 if ui.selectable_label(s.cap == c, tr(n)).clicked() {
                     s.cap = c;
@@ -1668,9 +1668,9 @@ fn outline_editor(ui: &mut Ui, stroke: &mut Option<Stroke>, custom: &[Arrowhead]
         ui.horizontal(|ui| {
             ui.label(tr("docker.corners"));
             for (j, n) in [
-                (tracedraw_core::LineJoin::Miter, "docker.join_miter"),
-                (tracedraw_core::LineJoin::Round, "docker.join_round"),
-                (tracedraw_core::LineJoin::Bevel, "docker.join_bevel"),
+                (graphdraw_core::LineJoin::Miter, "docker.join_miter"),
+                (graphdraw_core::LineJoin::Round, "docker.join_round"),
+                (graphdraw_core::LineJoin::Bevel, "docker.join_bevel"),
             ] {
                 if ui.selectable_label(s.join == j, tr(n)).clicked() {
                     s.join = j;
@@ -1764,7 +1764,7 @@ pub fn kind_name(k: &ShapeKind) -> String {
             }
         }
         ShapeKind::Path { path, .. } => {
-            let n = tracedraw_core::nodes::nodes(path).len();
+            let n = graphdraw_core::nodes::nodes(path).len();
             trf("kind.curve_n", &[("n", &n.to_string())])
         }
         ShapeKind::Text { spans, frame, .. } => {
@@ -1868,27 +1868,27 @@ mod tests {
     /// colour, the other kinds its own fill, none takes it away.
     #[test]
     fn outline_paint_offers_every_fill_kind() {
-        let red = tracedraw_core::Color::rgb8(255, 0, 0);
-        let mut s = tracedraw_core::Stroke::new(red, 1.0);
+        let red = graphdraw_core::Color::rgb8(255, 0, 0);
+        let mut s = graphdraw_core::Stroke::new(red, 1.0);
         assert_eq!(outline_paint_of(&s), Fill::Solid(red));
         let texture = Fill::Texture(Texture {
             kind: TextureKind::Wood,
             color_a: red,
-            color_b: tracedraw_core::Color::WHITE,
+            color_b: graphdraw_core::Color::WHITE,
             scale: 5.0,
             seed: 1,
         });
         for paint in [
-            Fill::linear(red, tracedraw_core::Color::WHITE, 0.0),
+            Fill::linear(red, graphdraw_core::Color::WHITE, 0.0),
             Fill::Pattern(Pattern::TwoColor {
                 tile: PatternTile::Dots,
                 front: red,
-                back: tracedraw_core::Color::WHITE,
+                back: graphdraw_core::Color::WHITE,
                 size_mm: 4.0,
             }),
             texture,
-            Fill::Mesh(tracedraw_core::Mesh::new(
-                tracedraw_core::geometry::Rect::new(0.0, 0.0, 10.0, 10.0),
+            Fill::Mesh(graphdraw_core::Mesh::new(
+                graphdraw_core::geometry::Rect::new(0.0, 0.0, 10.0, 10.0),
                 1,
                 1,
                 red,
@@ -1898,7 +1898,7 @@ mod tests {
             assert_eq!(s.fill.as_deref(), Some(&paint));
             assert_eq!(outline_paint_of(&s), paint);
         }
-        let blue = tracedraw_core::Color::rgb8(0, 0, 255);
+        let blue = graphdraw_core::Color::rgb8(0, 0, 255);
         assert!(!set_outline_paint(&mut s, Fill::Solid(blue)));
         assert_eq!((s.color, s.fill.is_none()), (blue, true));
         assert!(set_outline_paint(&mut s, Fill::None));
@@ -1919,7 +1919,7 @@ mod tests {
         app.settings.autocorrect.enabled = false;
         let id = app
             .new_shape(ShapeKind::Rect {
-                rect: tracedraw_core::geometry::Rect::new(10.0, 10.0, 60.0, 40.0),
+                rect: graphdraw_core::geometry::Rect::new(10.0, 10.0, 60.0, 40.0),
                 radius: 0.0,
                 corners: None,
             })
@@ -1943,9 +1943,9 @@ mod tests {
         // Further fills and outlines show with their editors.
         set_extra_paint(
             &mut app,
-            vec![Fill::Solid(tracedraw_core::Color::BLACK)],
-            vec![tracedraw_core::Stroke::hairline(
-                tracedraw_core::Color::WHITE,
+            vec![Fill::Solid(graphdraw_core::Color::BLACK)],
+            vec![graphdraw_core::Stroke::hairline(
+                graphdraw_core::Color::WHITE,
             )],
         );
         let s = app.doc().find_shape(id).expect("shape").clone();
@@ -1961,8 +1961,8 @@ mod tests {
         // Every outline paint and the gradient options draw in the docker.
         let mut fountain = Fountain::two(
             FountainKind::Shaped,
-            tracedraw_core::Color::BLACK,
-            tracedraw_core::Color::WHITE,
+            graphdraw_core::Color::BLACK,
+            graphdraw_core::Color::WHITE,
             0.0,
         );
         fountain.repeat = FountainRepeat::Mirror;
@@ -1974,19 +1974,19 @@ mod tests {
             Fill::Fountain(fountain),
             Fill::Texture(Texture {
                 kind: TextureKind::Marble,
-                color_a: tracedraw_core::Color::BLACK,
-                color_b: tracedraw_core::Color::WHITE,
+                color_a: graphdraw_core::Color::BLACK,
+                color_b: graphdraw_core::Color::WHITE,
                 scale: 5.0,
                 seed: 1,
             }),
-            Fill::Mesh(tracedraw_core::Mesh::new(
-                tracedraw_core::geometry::Rect::new(10.0, 10.0, 60.0, 40.0),
+            Fill::Mesh(graphdraw_core::Mesh::new(
+                graphdraw_core::geometry::Rect::new(10.0, 10.0, 60.0, 40.0),
                 2,
                 2,
-                tracedraw_core::Color::BLACK,
+                graphdraw_core::Color::BLACK,
             )),
         ] {
-            let mut stroke = tracedraw_core::Stroke::new(tracedraw_core::Color::BLACK, 2.0);
+            let mut stroke = graphdraw_core::Stroke::new(graphdraw_core::Color::BLACK, 2.0);
             stroke.fill = Some(Box::new(paint));
             app.run(Command::SetStroke {
                 shapes: vec![id],

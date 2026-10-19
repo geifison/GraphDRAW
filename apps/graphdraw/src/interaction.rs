@@ -9,11 +9,11 @@ pub enum PenEdit {
     Node,
     /// A segment (curve, segment index, place along it): a click adds a
     /// node there.
-    Segment(tracedraw_core::ShapeId, usize, f64),
+    Segment(graphdraw_core::ShapeId, usize, f64),
 }
 use crate::tools::Tool;
 use egui::{Key, Modifiers, PointerButton, Response};
-use tracedraw_core::{
+use graphdraw_core::{
     document::ShapeKind,
     geometry::{Affine, Point, Rect, Shape as _, Vec2},
     Color, Command, Fill, ShapeId,
@@ -174,14 +174,14 @@ impl App {
     /// box; filled objects inside their shape (an open curve only when the
     /// document fills open curves, unfilled ones too with "Treat all
     /// objects as filled"); otherwise near the outline.
-    fn shape_hit(&self, s: &tracedraw_core::Shape, p: Point, tol: f64) -> bool {
+    fn shape_hit(&self, s: &graphdraw_core::Shape, p: Point, tol: f64) -> bool {
         if !self.visual_bounds(s).inflate(tol, tol).contains(p) {
             return false;
         }
         if !s.effects.is_empty() {
             // What the object draws: its warped outline and the objects
             // its effects add.
-            let ev = tracedraw_core::live::evaluate(s);
+            let ev = graphdraw_core::live::evaluate(s);
             return std::iter::once(ev.main)
                 .chain(ev.below)
                 .chain(ev.above)
@@ -216,10 +216,10 @@ impl App {
     /// its own objects is.
     fn children_hit(
         &self,
-        g: &tracedraw_core::Shape,
+        g: &graphdraw_core::Shape,
         p: Point,
         tol: f64,
-    ) -> Vec<tracedraw_core::Shape> {
+    ) -> Vec<graphdraw_core::Shape> {
         let ShapeKind::Group { children } = &g.kind else {
             return Vec::new();
         };
@@ -321,7 +321,7 @@ impl App {
         let mut out = Vec::new();
         fn leaves(
             app: &App,
-            s: &tracedraw_core::Shape,
+            s: &graphdraw_core::Shape,
             p: Point,
             tol: f64,
             out: &mut Vec<ShapeId>,
@@ -358,7 +358,7 @@ impl App {
         let doc = self.doc();
         let fill_open = doc.metadata.fill_open_curves;
         let all_filled = self.settings.treat_all_filled;
-        let fill_counts = |s: &tracedraw_core::Shape| {
+        let fill_counts = |s: &graphdraw_core::Shape| {
             all_filled
                 || (!matches!(s.fill, Fill::None)
                     && (fill_open || !matches!(s.kind, ShapeKind::Path { closed: false, .. })))
@@ -1608,7 +1608,7 @@ impl App {
                 if let Some(ShapeKind::Path { path, closed }) =
                     self.doc().find_shape(id).map(|s| s.kind.clone())
                 {
-                    let np = tracedraw_core::nodes::add_node(&path, index, t);
+                    let np = graphdraw_core::nodes::add_node(&path, index, t);
                     if self
                         .engine
                         .run_with_label(
@@ -1648,13 +1648,13 @@ impl App {
         }
         let tol = self.settings.nodes.pick_px() / self.view.zoom as f64;
         let lp = shape.transform.inverse() * p;
-        if tracedraw_core::nodes::nodes(path)
+        if graphdraw_core::nodes::nodes(path)
             .iter()
             .any(|n| (n.pos - lp).hypot() <= tol)
         {
             return Some(PenEdit::Node);
         }
-        let (index, t, d) = tracedraw_core::nodes::nearest_segment(path, lp)?;
+        let (index, t, d) = graphdraw_core::nodes::nearest_segment(path, lp)?;
         (d <= tol).then_some(PenEdit::Segment(*id, index, t))
     }
 
@@ -1769,7 +1769,7 @@ impl App {
                 if r.width() > 2.0 && r.height() > 2.0 {
                     self.start_text(
                         Point::new(r.x0, r.y0),
-                        Some(tracedraw_core::geometry::Size::new(r.width(), r.height())),
+                        Some(graphdraw_core::geometry::Size::new(r.width(), r.height())),
                     );
                 }
             }
@@ -1827,9 +1827,9 @@ impl App {
                 // Smoothing (Options > Tools > Curves, the property bar)
                 // sets how far the stroke may be simplified, on screen.
                 let tol = self.settings.curves.freehand_tolerance_px() / self.view.zoom as f64;
-                let pts = tracedraw_core::geometry::simplify(&points, tol.max(0.02));
+                let pts = graphdraw_core::geometry::simplify(&points, tol.max(0.02));
                 if pts.len() >= 2 {
-                    let path = tracedraw_core::geometry::smooth_path(&pts, false);
+                    let path = graphdraw_core::geometry::smooth_path(&pts, false);
                     self.add_drawn_line(path);
                 }
             }
@@ -2533,7 +2533,7 @@ impl App {
         // tool letters).
         let nodes_chosen = self.tool == Tool::Shape && !self.node_selection.is_empty();
         if nodes_chosen {
-            use tracedraw_core::nodes::NodeType;
+            use graphdraw_core::nodes::NodeType;
             let now = self.current_node_type();
             let toggled = |key: Key, pair: NodeType| {
                 let ty = if now == Some(pair) {

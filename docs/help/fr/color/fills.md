@@ -1,6 +1,6 @@
 # Surfaces
 
-Une surface peint l'intérieur d'un objet fermé. TraceDraw propose six sortes
+Une surface peint l'intérieur d'un objet fermé. GraphDraw propose six sortes
 de surface : [[docker.fill_none]], [[docker.fill_uniform]] (une seule couleur
 unie), [[docker.fill_fountain]] (des couleurs qui se fondent les unes dans
 les autres), [[docker.fill_pattern]], [[docker.fill_texture]] et

@@ -432,17 +432,17 @@ próprios atalhos; veja
 
 | Comando | Veja |
 |---|---|
-| [[menu.help.help_topics]] | [Bem-vindo à Ajuda do TraceDraw](../index.md#in-the-app) |
-| [[menu.help.product_help]] | [Bem-vindo à Ajuda do TraceDraw](../index.md#in-the-app) |
-| [[menu.help.welcome_screen]] | [Sobre o TraceDraw e atualizações](../welcome/about-and-updates.md) |
-| [[menu.help.video_tutorials]] | [Sobre o TraceDraw e atualizações](../welcome/about-and-updates.md) |
+| [[menu.help.help_topics]] | [Bem-vindo à Ajuda do GraphDraw](../index.md#in-the-app) |
+| [[menu.help.product_help]] | [Bem-vindo à Ajuda do GraphDraw](../index.md#in-the-app) |
+| [[menu.help.welcome_screen]] | [Sobre o GraphDraw e atualizações](../welcome/about-and-updates.md) |
+| [[menu.help.video_tutorials]] | [Sobre o GraphDraw e atualizações](../welcome/about-and-updates.md) |
 | [[menu.help.hints]] | [O painel Dicas](../get-started/hints.md) |
-| [[menu.help.quick_start_guide]] | [Sobre o TraceDraw e atualizações](../welcome/about-and-updates.md) |
-| [[menu.help.user_guide]] | [Sobre o TraceDraw e atualizações](../welcome/about-and-updates.md) |
+| [[menu.help.quick_start_guide]] | [Sobre o GraphDraw e atualizações](../welcome/about-and-updates.md) |
+| [[menu.help.user_guide]] | [Sobre o GraphDraw e atualizações](../welcome/about-and-updates.md) |
 | [[menu.help.whats_new]] | [Novidades](../welcome/whats-new.md) |
 | [[menu.help.highlight_whats_new]] | [Novidades](../welcome/whats-new.md) |
-| [[menu.help.updates]] | [Sobre o TraceDraw e atualizações](../welcome/about-and-updates.md) |
-| [[menu.help.message_settings]] | [Sobre o TraceDraw e atualizações](../welcome/about-and-updates.md) |
-| [[menu.help.community]] | [Sobre o TraceDraw e atualizações](../welcome/about-and-updates.md) |
-| [[menu.help.support]] | [Sobre o TraceDraw e atualizações](../welcome/about-and-updates.md) |
-| [[menu.help.about]] | [Sobre o TraceDraw e atualizações](../welcome/about-and-updates.md) |
+| [[menu.help.updates]] | [Sobre o GraphDraw e atualizações](../welcome/about-and-updates.md) |
+| [[menu.help.message_settings]] | [Sobre o GraphDraw e atualizações](../welcome/about-and-updates.md) |
+| [[menu.help.community]] | [Sobre o GraphDraw e atualizações](../welcome/about-and-updates.md) |
+| [[menu.help.support]] | [Sobre o GraphDraw e atualizações](../welcome/about-and-updates.md) |
+| [[menu.help.about]] | [Sobre o GraphDraw e atualizações](../welcome/about-and-updates.md) |

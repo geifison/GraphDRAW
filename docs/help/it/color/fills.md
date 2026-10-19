@@ -1,6 +1,6 @@
 # Riempimenti
 
-Un riempimento colora l'interno di un oggetto chiuso. TraceDraw ha sei tipi di
+Un riempimento colora l'interno di un oggetto chiuso. GraphDraw ha sei tipi di
 riempimento: [[docker.fill_none]], [[docker.fill_uniform]] (un unico colore
 piatto), [[docker.fill_fountain]] (colori che sfumano l'uno nell'altro),
 [[docker.fill_pattern]], [[docker.fill_texture]] e [[docker.fill_mesh]]

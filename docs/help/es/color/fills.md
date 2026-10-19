@@ -1,6 +1,6 @@
 # Rellenos
 
-Un relleno pinta el interior de un objeto cerrado. TraceDraw tiene seis tipos
+Un relleno pinta el interior de un objeto cerrado. GraphDraw tiene seis tipos
 de relleno: [[docker.fill_none]], [[docker.fill_uniform]] (un color plano),
 [[docker.fill_fountain]] (colores que se funden unos con otros),
 [[docker.fill_pattern]], [[docker.fill_texture]] y [[docker.fill_mesh]]

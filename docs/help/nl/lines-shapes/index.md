@@ -1,6 +1,6 @@
 # Lijnen, vormen en omtrekken
 
-Alles wat u in TraceDraw tekent, bestaat uit lijnen en vormen. Deze pagina's
+Alles wat u in GraphDraw tekent, bestaat uit lijnen en vormen. Deze pagina's
 leggen de gereedschappen uit die ze tekenen, hoe u ze knooppunt voor
 knooppunt vervormt, hoe u ze combineert en snijdt, en hoe u de omtrek instelt
 die hun randen tekent.

@@ -1,10 +1,10 @@
 //! Guidelines on the active page: hit testing, selection, dragging (move,
 //! rotate, drag off the drawing window to delete), locking and presets.
 //! The guideline geometry and appearance live in the document
-//! (`tracedraw_core::document::Guide`); every change is a command.
+//! (`graphdraw_core::document::Guide`); every change is a command.
 
 use crate::app::{App, Drag};
-use tracedraw_core::{
+use graphdraw_core::{
     document::{Guide, GuideLine},
     geometry::{Point, Size, Vec2},
     Color, Command,

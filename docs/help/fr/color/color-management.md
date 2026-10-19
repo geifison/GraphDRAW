@@ -76,5 +76,5 @@ droite de la barre d'état, montre le dessin tel qu'il serait imprimé : les
 couleurs que les encres CMJN ne peuvent pas imprimer paraissent plus ternes.
 Le panneau [[docker.color]] signale aussi ces couleurs.
 
-Sans profils chargés, TraceDraw convertit les couleurs avec son propre
+Sans profils chargés, GraphDraw convertit les couleurs avec son propre
 modèle d'encres quadrichromiques sur papier couché.

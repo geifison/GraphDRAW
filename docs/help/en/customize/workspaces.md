@@ -21,7 +21,7 @@ interface. Choose one in [[menu.window > menu.window.workspace]], or on the
 
 ## What is kept {#kept}
 
-Everything you change is kept when TraceDraw closes and comes back the next
+Everything you change is kept when GraphDraw closes and comes back the next
 time: the options, where each bar sits and which bars show, the tool each
 toolbox group shows, the panels that are open, units, snapping, the settings
 new objects take and what the window shows.

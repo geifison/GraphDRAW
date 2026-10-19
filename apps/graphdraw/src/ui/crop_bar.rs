@@ -10,7 +10,7 @@ use crate::i18n::tr;
 use crate::theme::Tokens;
 use crate::ui::propbar::{distance, label_text, origin_point, row, sep, stacked};
 use egui::{Color32, Painter, Stroke, Ui};
-use tracedraw_core::geometry::{Point, Rect};
+use graphdraw_core::geometry::{Point, Rect};
 
 fn dim(ui: &mut Ui, text: String) {
     ui.label(

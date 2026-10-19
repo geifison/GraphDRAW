@@ -395,7 +395,7 @@ impl AiSession {
 }
 
 /// What the service is told about the job and the object model.
-pub const SYSTEM_PROMPT: &str = r#"You are the drawing assistant of TraceDraw, a vector illustration editor. You draw by writing one JavaScript program for TraceDraw's object model. Reply with the whole program in a single ```javascript code block and nothing else.
+pub const SYSTEM_PROMPT: &str = r#"You are the drawing assistant of GraphDraw, a vector illustration editor. You draw by writing one JavaScript program for GraphDraw's object model. Reply with the whole program in a single ```javascript code block and nothing else.
 
 Units and axes: lengths in millimetres; the origin is the bottom-left corner of the page; x grows to the right and y upwards. Angles in degrees, counter-clockwise. Text sizes in points.
 
@@ -1103,7 +1103,7 @@ mod tests {
     #[test]
     fn scripts_from_the_service_cannot_reach_files_or_run_forever() {
         let mut app = app();
-        let dir = std::env::temp_dir().join(format!("tracedraw-ai-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("graphdraw-ai-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&dir);
         let target = dir.join("x.svg");
         let src = format!(
@@ -1256,7 +1256,7 @@ mod tests {
     }
 
     /// A real service refuses a made-up key with its own message (needs
-    /// the network: `cargo test -p tracedraw -- --ignored the_real`).
+    /// the network: `cargo test -p graphdraw -- --ignored the_real`).
     #[cfg(not(target_arch = "wasm32"))]
     #[test]
     #[ignore]

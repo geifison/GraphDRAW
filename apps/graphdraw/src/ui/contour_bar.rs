@@ -12,7 +12,7 @@ use crate::ui::field::NumField;
 use crate::ui::fill_tool_bars::color_pick;
 use crate::ui::propbar::sep;
 use egui::Ui;
-use tracedraw_core::shaping::Join;
+use graphdraw_core::shaping::Join;
 
 fn dim(ui: &mut Ui, text: String) {
     ui.label(
@@ -142,10 +142,10 @@ pub fn contour_actions(app: &mut App, ui: &mut Ui) {
     let bare = app.selected_shapes().iter().any(|s| {
         !s.effects
             .iter()
-            .any(|e| matches!(e, tracedraw_core::live::Effect::Contour { .. }))
+            .any(|e| matches!(e, graphdraw_core::live::Effect::Contour { .. }))
             && !matches!(
                 s.kind,
-                tracedraw_core::ShapeKind::Bitmap { .. } | tracedraw_core::ShapeKind::Group { .. }
+                graphdraw_core::ShapeKind::Bitmap { .. } | graphdraw_core::ShapeKind::Group { .. }
             )
     });
     ui.horizontal(|ui| {
@@ -181,7 +181,7 @@ pub fn contour_bar(app: &mut App, ui: &mut Ui) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::{geometry::Rect, ShapeKind};
+    use graphdraw_core::{geometry::Rect, ShapeKind};
 
     #[test]
     fn the_bar_and_the_panel_draw() {

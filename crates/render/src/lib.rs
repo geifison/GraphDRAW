@@ -11,8 +11,8 @@ use tiny_skia::{
     Path as SkPath, PathBuilder, Pixmap, RadialGradient, SpreadMode, Stroke as SkStroke,
     StrokeDash, Transform,
 };
-use tracedraw_core::geometry::Shape as _;
-use tracedraw_core::{
+use graphdraw_core::geometry::Shape as _;
+use graphdraw_core::{
     document::{Shape, ShapeKind},
     geometry::{Affine, BezPath, PathEl, Point, Rect},
     Color, Document, Fill, LineCap as LCap, LineJoin as LJoin, PageId, ShapeId, Stroke,
@@ -52,7 +52,7 @@ pub struct Preview {
 /// `width` x `height`, in place. The renderer has no bitmap effects of its
 /// own: the application that has them registers this for the Bitmap
 /// Effects lens; without it the lens shows what is beneath unchanged.
-pub type PixelEffects = fn(&[tracedraw_core::BitmapEffect], u32, u32, &mut Vec<u8>);
+pub type PixelEffects = fn(&[graphdraw_core::BitmapEffect], u32, u32, &mut Vec<u8>);
 
 static PIXEL_EFFECTS: std::sync::OnceLock<PixelEffects> = std::sync::OnceLock::new();
 
@@ -85,7 +85,7 @@ pub struct RenderOptions {
     pub draft: bool,
     /// Focus mode: this object drawn as it is and everything else faded
     /// to the given visibility (0 to 1).
-    pub focus: Option<(tracedraw_core::ShapeId, f32)>,
+    pub focus: Option<(graphdraw_core::ShapeId, f32)>,
 }
 
 impl Default for RenderOptions {
@@ -203,7 +203,7 @@ pub fn render_page(doc: &Document, page: PageId, opts: &RenderOptions) -> Option
     };
     if let Some(bg) = &page.background {
         let mut bg_shape = Shape::new(
-            tracedraw_core::ShapeId(0),
+            graphdraw_core::ShapeId(0),
             ShapeKind::Rect {
                 rect: page.rect(),
                 radius: 0.0,
@@ -252,7 +252,7 @@ struct Renderer<'a> {
     screen: Affine,
     zoom: f64,
     flags: Flags,
-    symbols: &'a [tracedraw_core::Symbol],
+    symbols: &'a [graphdraw_core::Symbol],
     /// Objects drawn displaced (the live drag preview), on a layer or
     /// inside a group or a clip frame.
     preview: Option<&'a Preview>,
@@ -303,7 +303,7 @@ impl Renderer<'_> {
         }
         // Character backgrounds go under the text, in its transform.
         if matches!(shape.kind, ShapeKind::Text { .. }) && !self.flags.wireframe {
-            for (rect, fill) in tracedraw_core::document::text_backgrounds(&shape.kind) {
+            for (rect, fill) in graphdraw_core::document::text_backgrounds(&shape.kind) {
                 let mut bg = Shape::new(
                     shape.id,
                     ShapeKind::Rect {
@@ -322,18 +322,18 @@ impl Renderer<'_> {
         // Live effects: geometry warps, extra objects below and above, and
         // the pixel effects (lens, non-uniform transparency).
         if !shape.effects.is_empty() {
-            let ev = tracedraw_core::live::evaluate(shape);
+            let ev = graphdraw_core::live::evaluate(shape);
             for b in &ev.below {
                 let mut b = b.clone();
                 b.effects.clear();
                 self.draw_shape(&b, parent);
             }
             let lens = shape.effects.iter().find_map(|e| match e {
-                tracedraw_core::live::Effect::Lens(l) => Some(l.clone()),
+                graphdraw_core::live::Effect::Lens(l) => Some(l.clone()),
                 _ => None,
             });
             let transparency = shape.effects.iter().find_map(|e| match e {
-                tracedraw_core::live::Effect::Transparency { mask, merge, .. } => {
+                graphdraw_core::live::Effect::Transparency { mask, merge, .. } => {
                     Some((mask.clone(), *merge))
                 }
                 _ => None,
@@ -511,7 +511,7 @@ impl Renderer<'_> {
                 .stroke
                 .as_ref()
                 .map(|s| s.color)
-                .unwrap_or(tracedraw_core::Color::BLACK);
+                .unwrap_or(graphdraw_core::Color::BLACK);
             self.hairline(&sk, color);
             return;
         }
@@ -695,7 +695,7 @@ impl Renderer<'_> {
                 };
                 let [r, g, b] = stroke.color.to_rgb8();
                 for mark in
-                    tracedraw_core::painterly::marks(&page_path, stroke.width * scale, brush)
+                    graphdraw_core::painterly::marks(&page_path, stroke.width * scale, brush)
                 {
                     let Some(mp) = to_sk_path(&(self.screen * mark.path)) else {
                         continue;
@@ -718,14 +718,14 @@ impl Renderer<'_> {
                 1.0
             };
             if let Some(band) =
-                tracedraw_core::shaping::outline_band(&page_path, stroke, object_scale)
+                graphdraw_core::shaping::outline_band(&page_path, stroke, object_scale)
             {
                 // Calligraphic nib or variable width: fill the band instead
                 // of stroking, with the outline's own fill when it has one.
                 if let Some(bp) = to_sk_path(&(self.screen * band.clone())) {
                     match outline_paint(stroke, transform) {
                         Some(fill) => {
-                            use tracedraw_core::geometry::Shape as _;
+                            use graphdraw_core::geometry::Shape as _;
                             let b = bbox(&band).to_path(0.01);
                             self.draw_fill(&fill, &b, &bp, FillRule::Winding);
                         }
@@ -744,7 +744,7 @@ impl Renderer<'_> {
                 // A filled outline: the stroke's area painted with the fill,
                 // spread over the outline's bounds.
                 if let Some(band) = sk.stroke(&sk_stroke, 1.0) {
-                    use tracedraw_core::geometry::Shape as _;
+                    use graphdraw_core::geometry::Shape as _;
                     let pad = (sk_stroke.width as f64 / self.zoom.max(1e-9)) / 2.0;
                     let b = bbox(&page_path).inflate(pad, pad);
                     self.draw_fill(&fill, &b.to_path(0.01), &band, FillRule::Winding);
@@ -753,7 +753,7 @@ impl Renderer<'_> {
                 self.pixmap
                     .stroke_path(&sk, &paint, &sk_stroke, Transform::identity(), None);
             }
-            for head in tracedraw_core::style::arrowhead_paths(&page_path, stroke) {
+            for head in graphdraw_core::style::arrowhead_paths(&page_path, stroke) {
                 if let Some(hp) = to_sk_path(&(self.screen * head)) {
                     self.pixmap.fill_path(
                         &hp,
@@ -778,7 +778,7 @@ impl Renderer<'_> {
     }
 
     /// A one pixel line along `sk` (the Wireframe view).
-    fn hairline(&mut self, sk: &tiny_skia::Path, color: tracedraw_core::Color) {
+    fn hairline(&mut self, sk: &tiny_skia::Path, color: graphdraw_core::Color) {
         let mut paint = Paint::default();
         let [r, g, b] = color.to_rgb8();
         paint.set_color_rgba8(r, g, b, 255);
@@ -792,8 +792,8 @@ impl Renderer<'_> {
     }
 
     /// Lens: transform the pixels already drawn beneath the shape's area.
-    fn draw_lens(&mut self, shape: &Shape, parent: Affine, lens: &tracedraw_core::live::Lens) {
-        use tracedraw_core::live::Lens;
+    fn draw_lens(&mut self, shape: &Shape, parent: Affine, lens: &graphdraw_core::live::Lens) {
+        use graphdraw_core::live::Lens;
         let transform = parent * shape.transform;
         let path = self.screen * (transform * shape.local_path());
         let Some(sk) = to_sk_path(&path) else {
@@ -942,7 +942,7 @@ impl Renderer<'_> {
         shape: &Shape,
         parent: Affine,
         mask_fill: &Fill,
-        merge: tracedraw_core::live::MergeMode,
+        merge: graphdraw_core::live::MergeMode,
     ) {
         let (w, h) = (self.pixmap.width(), self.pixmap.height());
         let (Some(mut layer), Some(mut mask_pm)) = (Pixmap::new(w, h), Pixmap::new(w, h)) else {
@@ -955,13 +955,13 @@ impl Renderer<'_> {
         let transform = parent * shape.transform;
         let page_path = transform * shape.local_path();
         let bounds = page_path.bounding_box();
-        let rect_path = tracedraw_core::geometry::rect_path(bounds, 0.0);
+        let rect_path = graphdraw_core::geometry::rect_path(bounds, 0.0);
         if let Some(sk) = to_sk_path(&(self.screen * rect_path.clone())) {
             let mut sub = self.sub(&mut mask_pm);
             sub.flags.wireframe = false;
             match mask_fill {
                 // A shaped mask follows the object, over its whole bounds.
-                Fill::Fountain(f) if f.kind == tracedraw_core::FountainKind::Shaped => {
+                Fill::Fountain(f) if f.kind == graphdraw_core::FountainKind::Shaped => {
                     if let Some(shape_sk) = to_sk_path(&(self.screen * page_path.clone())) {
                         sub.fill_shaped(f, &shape_sk, &sk, FillRule::EvenOdd);
                     }
@@ -993,7 +993,7 @@ impl Renderer<'_> {
             }
         }
         use tiny_skia::BlendMode as B;
-        use tracedraw_core::live::MergeMode as M;
+        use graphdraw_core::live::MergeMode as M;
         let blend = match merge {
             M::Normal | M::Red | M::Green | M::Blue => B::SourceOver,
             M::Add => B::Plus,
@@ -1070,10 +1070,10 @@ impl Renderer<'_> {
                     .map(|s| GradientStop::new(s.pos as f32, sk_color(s.color)))
                     .collect();
                 match f.kind {
-                    tracedraw_core::FountainKind::Shaped => {
+                    graphdraw_core::FountainKind::Shaped => {
                         self.fill_shaped(f, sk, sk, rule);
                     }
-                    tracedraw_core::FountainKind::Linear => {
+                    graphdraw_core::FountainKind::Linear => {
                         let a = f.angle.to_radians();
                         let (cx, cy) = (b.center().x, b.center().y);
                         let half = (b.width() * a.cos().abs() + b.height() * a.sin().abs()) / 2.0;
@@ -1091,7 +1091,7 @@ impl Renderer<'_> {
                                 .fill_path(sk, &paint, rule, Transform::identity(), None);
                         }
                     }
-                    tracedraw_core::FountainKind::Radial => {
+                    graphdraw_core::FountainKind::Radial => {
                         let c = Point::new(
                             b.center().x + f.offset.x * b.width() / 2.0,
                             b.center().y + f.offset.y * b.height() / 2.0,
@@ -1112,8 +1112,8 @@ impl Renderer<'_> {
                                 .fill_path(sk, &paint, rule, Transform::identity(), None);
                         }
                     }
-                    tracedraw_core::FountainKind::Conical
-                    | tracedraw_core::FountainKind::Square => {
+                    graphdraw_core::FountainKind::Conical
+                    | graphdraw_core::FountainKind::Square => {
                         let f2 = f.clone();
                         let base = f.sorted_stops();
                         let key = format!("{f:?}");
@@ -1121,7 +1121,7 @@ impl Renderer<'_> {
                             let dx = u - 0.5 - f2.offset.x / 2.0;
                             let dy = v - 0.5 - f2.offset.y / 2.0;
                             let t = match f2.kind {
-                                tracedraw_core::FountainKind::Conical => {
+                                graphdraw_core::FountainKind::Conical => {
                                     let a = dy.atan2(dx) - f2.angle.to_radians();
                                     let a =
                                         a.rem_euclid(std::f64::consts::TAU) / std::f64::consts::TAU;
@@ -1133,7 +1133,7 @@ impl Renderer<'_> {
                                 }
                                 _ => (dx.abs().max(dy.abs()) * 2.0).min(1.0),
                             };
-                            tracedraw_core::style::sample_stops(&base, f2.stop_param(t))
+                            graphdraw_core::style::sample_stops(&base, f2.stop_param(t))
                         });
                     }
                 }
@@ -1170,7 +1170,7 @@ impl Renderer<'_> {
     /// nodes without creases.
     fn fill_mesh(
         &mut self,
-        m: &tracedraw_core::Mesh,
+        m: &graphdraw_core::Mesh,
         sk: &SkPath,
         rule: FillRule,
         blend: tiny_skia::BlendMode,
@@ -1183,10 +1183,10 @@ impl Renderer<'_> {
         mask.fill_path(sk, rule, true, Transform::identity());
         let cols = m.cols as usize + 1;
         let node = |r: usize, c: usize| m.nodes.get(r * cols + c).copied();
-        let lerp = |a: tracedraw_core::MeshNode, b: tracedraw_core::MeshNode, t: f64| {
-            tracedraw_core::MeshNode {
+        let lerp = |a: graphdraw_core::MeshNode, b: graphdraw_core::MeshNode, t: f64| {
+            graphdraw_core::MeshNode {
                 pos: a.pos + (b.pos - a.pos) * t,
-                color: tracedraw_core::style::lerp_color(a.color, b.color, t as f32),
+                color: graphdraw_core::style::lerp_color(a.color, b.color, t as f32),
                 alpha: a.alpha + (b.alpha - a.alpha) * t as f32,
             }
         };
@@ -1311,7 +1311,7 @@ impl Renderer<'_> {
     /// whole mask, so zooming and panning keep the colours in place.
     fn fill_shaped(
         &mut self,
-        f: &tracedraw_core::Fountain,
+        f: &graphdraw_core::Fountain,
         mask: &SkPath,
         area: &SkPath,
         rule: FillRule,
@@ -1357,7 +1357,7 @@ impl Renderer<'_> {
                     return;
                 };
                 for (px, d) in pm.pixels_mut().iter_mut().zip(&dist) {
-                    let c = tracedraw_core::style::sample_stops(&base, f.stop_param(d / deepest));
+                    let c = graphdraw_core::style::sample_stops(&base, f.stop_param(d / deepest));
                     let [r, g, bb] = c.to_rgb8();
                     *px = tiny_skia::ColorU8::from_rgba(r, g, bb, 255).premultiply();
                 }
@@ -1389,7 +1389,7 @@ impl Renderer<'_> {
         key: &str,
         f: impl Fn(f64, f64) -> Color + Sync,
     ) {
-        use tracedraw_core::geometry::Shape as _;
+        use graphdraw_core::geometry::Shape as _;
         let b = bbox(page_path);
         let sb = (self.screen * b.to_path(0.01)).bounding_box();
         if !(sb.width() > 0.0 && sb.height() > 0.0) {
@@ -1397,7 +1397,7 @@ impl Renderer<'_> {
         }
         // Zoomed in, the object may be far larger than the window; a pixel
         // of margin keeps the edges smooth.
-        let vis = sb.intersect(tracedraw_core::Rect::new(
+        let vis = sb.intersect(graphdraw_core::Rect::new(
             -1.0,
             -1.0,
             self.pixmap.width() as f64 + 1.0,
@@ -1454,11 +1454,11 @@ impl Renderer<'_> {
             .fill_path(sk, &paint, rule, Transform::identity(), None);
     }
 
-    fn fill_pattern(&mut self, p: &tracedraw_core::Pattern, sk: &SkPath, rule: FillRule) {
+    fn fill_pattern(&mut self, p: &graphdraw_core::Pattern, sk: &SkPath, rule: FillRule) {
         let mut paint = Paint::default();
         paint.anti_alias = self.flags.anti_alias;
         match p {
-            tracedraw_core::Pattern::TwoColor {
+            graphdraw_core::Pattern::TwoColor {
                 tile,
                 front,
                 back,
@@ -1494,7 +1494,7 @@ impl Renderer<'_> {
                 self.pixmap
                     .fill_path(sk, &paint, rule, Transform::identity(), None);
             }
-            tracedraw_core::Pattern::Bitmap {
+            graphdraw_core::Pattern::Bitmap {
                 png,
                 width_px,
                 size_mm,
@@ -1514,7 +1514,7 @@ impl Renderer<'_> {
                 self.pixmap
                     .fill_path(sk, &paint, rule, Transform::identity(), None);
             }
-            tracedraw_core::Pattern::Vector { shapes, tile } => {
+            graphdraw_core::Pattern::Vector { shapes, tile } => {
                 let Some(pm) = self.render_vector_tile(shapes, *tile) else {
                     return;
                 };
@@ -1540,7 +1540,7 @@ impl Renderer<'_> {
     fn render_vector_tile(
         &self,
         shapes: &[Shape],
-        tile: tracedraw_core::geometry::Size,
+        tile: graphdraw_core::geometry::Size,
     ) -> Option<Pixmap> {
         if !(tile.width.is_finite() && tile.height.is_finite())
             || tile.width <= 0.0
@@ -1891,12 +1891,12 @@ fn fbm(x: f64, y: f64, seed: u32) -> f64 {
     v
 }
 
-pub fn texture_value(kind: tracedraw_core::TextureKind, x: f64, y: f64, seed: u32) -> f64 {
+pub fn texture_value(kind: graphdraw_core::TextureKind, x: f64, y: f64, seed: u32) -> f64 {
     match kind {
-        tracedraw_core::TextureKind::Clouds => fbm(x, y, seed).clamp(0.0, 1.0),
-        tracedraw_core::TextureKind::Marble => ((x + 4.0 * fbm(x, y, seed)) * 2.0).sin().abs(),
-        tracedraw_core::TextureKind::Noise => noise(x * 8.0, y * 8.0, seed),
-        tracedraw_core::TextureKind::Wood => {
+        graphdraw_core::TextureKind::Clouds => fbm(x, y, seed).clamp(0.0, 1.0),
+        graphdraw_core::TextureKind::Marble => ((x + 4.0 * fbm(x, y, seed)) * 2.0).sin().abs(),
+        graphdraw_core::TextureKind::Noise => noise(x * 8.0, y * 8.0, seed),
+        graphdraw_core::TextureKind::Wood => {
             let r = ((x - 0.5).powi(2) + (y * 0.2).powi(2)).sqrt() * 6.0 + fbm(x, y, seed) * 1.5;
             r.fract()
         }
@@ -1904,7 +1904,7 @@ pub fn texture_value(kind: tracedraw_core::TextureKind, x: f64, y: f64, seed: u3
 }
 
 fn bbox(p: &BezPath) -> Rect {
-    use tracedraw_core::geometry::Shape as _;
+    use graphdraw_core::geometry::Shape as _;
     p.bounding_box()
 }
 
@@ -1951,7 +1951,7 @@ pub fn render_fill_image(fill: &Fill, bounds: Rect, dpi: f64) -> Option<Pixmap> 
         origin_y: bounds.y1 * zoom,
     };
     let screen = view.affine();
-    let page_path = tracedraw_core::geometry::rect_path(bounds, 0.0);
+    let page_path = graphdraw_core::geometry::rect_path(bounds, 0.0);
     let sk = to_sk_path(&(screen * page_path.clone()))?;
     let mut r = Renderer {
         pixmap: &mut pixmap,
@@ -1975,7 +1975,7 @@ pub fn render_fill_image_in(fill: &Fill, path: &BezPath, dpi: f64) -> Option<Pix
     let Fill::Fountain(f) = fill else {
         return render_fill_image(fill, bounds, dpi);
     };
-    if f.kind != tracedraw_core::FountainKind::Shaped {
+    if f.kind != graphdraw_core::FountainKind::Shaped {
         return render_fill_image(fill, bounds, dpi);
     }
     let zoom = dpi / 25.4;
@@ -1991,7 +1991,7 @@ pub fn render_fill_image_in(fill: &Fill, path: &BezPath, dpi: f64) -> Option<Pix
         origin_y: bounds.y1 * zoom,
     }
     .affine();
-    let rect = to_sk_path(&(screen * tracedraw_core::geometry::rect_path(bounds, 0.0)))?;
+    let rect = to_sk_path(&(screen * graphdraw_core::geometry::rect_path(bounds, 0.0)))?;
     let mask = to_sk_path(&(screen * path.clone()))?;
     let mut r = Renderer {
         pixmap: &mut pixmap,
@@ -2061,8 +2061,8 @@ pub fn render_page_image_with(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::document::{Shape, ShapeKind};
-    use tracedraw_core::{
+    use graphdraw_core::document::{Shape, ShapeKind};
+    use graphdraw_core::{
         Fountain, FountainKind, Pattern, PatternTile, Stop, Texture, TextureKind,
     };
 
@@ -2072,7 +2072,7 @@ mod tests {
     }
 
     fn doc_with(shapes: Vec<Shape>) -> (Document, PageId) {
-        let mut doc = Document::new("t", tracedraw_core::geometry::Size::new(100.0, 100.0));
+        let mut doc = Document::new("t", graphdraw_core::geometry::Size::new(100.0, 100.0));
         let page = doc.pages[0].id;
         let layer = doc.pages[0].layers[0].id;
         for s in shapes {
@@ -2083,7 +2083,7 @@ mod tests {
 
     fn rect(id: u64, r: Rect, fill: Color) -> Shape {
         let mut s = Shape::new(
-            tracedraw_core::ShapeId(id),
+            graphdraw_core::ShapeId(id),
             ShapeKind::Rect {
                 rect: r,
                 radius: 0.0,
@@ -2101,8 +2101,8 @@ mod tests {
     fn further_fills_and_outlines_paint_over_the_first() {
         let mut r = rect(1, Rect::new(10.0, 10.0, 90.0, 90.0), Color::rgb8(255, 0, 0));
         r.extra_fills = vec![Fill::Solid(Color::rgb8(0, 0, 255))];
-        r.stroke = Some(tracedraw_core::Stroke::new(Color::BLACK, 4.0));
-        r.extra_strokes = vec![tracedraw_core::Stroke::new(Color::rgb8(0, 255, 0), 2.0)];
+        r.stroke = Some(graphdraw_core::Stroke::new(Color::BLACK, 4.0));
+        r.extra_strokes = vec![graphdraw_core::Stroke::new(Color::rgb8(0, 255, 0), 2.0)];
         let (doc, page) = doc_with(vec![r]);
         let opts = RenderOptions {
             width: 100,
@@ -2155,13 +2155,13 @@ mod tests {
             ..Fountain::two(FountainKind::Linear, Color::WHITE, Color::BLACK, 0.0)
         });
         let mut clip = Shape::new(
-            tracedraw_core::ShapeId(3),
+            graphdraw_core::ShapeId(3),
             ShapeKind::ClipFrame {
                 frame: Box::new(frame),
                 contents: vec![contents],
             },
         );
-        clip.opacity_mask = Some(tracedraw_core::document::OpacityMask { invert: false });
+        clip.opacity_mask = Some(graphdraw_core::document::OpacityMask { invert: false });
         let opts = RenderOptions {
             width: 100,
             height: 100,
@@ -2182,7 +2182,7 @@ mod tests {
         assert_eq!(px(&pm, 25, 50), (255, 0, 0));
         assert_eq!(pm.pixel(75, 50).unwrap().alpha(), 0);
         assert_eq!(pm.pixel(5, 50).unwrap().alpha(), 0);
-        clip.opacity_mask = Some(tracedraw_core::document::OpacityMask { invert: true });
+        clip.opacity_mask = Some(graphdraw_core::document::OpacityMask { invert: true });
         let pm = render(&clip);
         assert_eq!(pm.pixel(25, 50).unwrap().alpha(), 0);
         assert_eq!(pm.pixel(75, 50).unwrap().alpha(), 255);
@@ -2198,7 +2198,7 @@ mod tests {
         let a = rect(1, Rect::new(0.0, 0.0, 10.0, 10.0), red);
         let b = rect(2, Rect::new(20.0, 0.0, 30.0, 10.0), blue);
         let mut g = Shape::new(
-            tracedraw_core::ShapeId(3),
+            graphdraw_core::ShapeId(3),
             ShapeKind::Group {
                 children: vec![a, b],
             },
@@ -2219,7 +2219,7 @@ mod tests {
         let pm = render_page(&doc, page, &opts).unwrap();
         assert_eq!(px(&pm, 15, 85), (255, 0, 0));
         opts.preview = Some(Preview {
-            shapes: vec![tracedraw_core::ShapeId(1)],
+            shapes: vec![graphdraw_core::ShapeId(1)],
             transform: Affine::translate((0.0, 40.0)),
         });
         let pm = render_page(&doc, page, &opts).unwrap();
@@ -2231,7 +2231,7 @@ mod tests {
 
     #[test]
     fn open_curves_are_not_filled_unless_the_document_says_so() {
-        use tracedraw_core::geometry::Point as P;
+        use graphdraw_core::geometry::Point as P;
         // A "U" (open) and a triangle (closed) in one curve.
         let mut path = BezPath::new();
         path.move_to(P::new(10.0, 90.0));
@@ -2245,7 +2245,7 @@ mod tests {
         let closed = closed_subpaths(&path);
         assert_eq!(closed.elements().len(), 4);
         let mut s = Shape::new(
-            tracedraw_core::ShapeId(1),
+            graphdraw_core::ShapeId(1),
             ShapeKind::Path {
                 path,
                 closed: false,
@@ -2277,17 +2277,17 @@ mod tests {
     #[test]
     fn calligraphic_outline_is_wide_across_the_nib_and_thin_along_it() {
         // 25.4 dpi: one pixel per millimetre. Flat 6 mm nib at 0 degrees.
-        let mut nib = tracedraw_core::Stroke::hairline(Color::BLACK);
+        let mut nib = graphdraw_core::Stroke::hairline(Color::BLACK);
         nib.width = 6.0;
         nib.stretch = 0.1;
         nib.nib_angle = 0.0;
         let mut vertical = Shape::new(
-            tracedraw_core::ShapeId(1),
+            graphdraw_core::ShapeId(1),
             ShapeKind::Path {
                 path: {
-                    let mut p = tracedraw_core::geometry::BezPath::new();
-                    p.move_to(tracedraw_core::geometry::Point::new(30.0, 10.0));
-                    p.line_to(tracedraw_core::geometry::Point::new(30.0, 90.0));
+                    let mut p = graphdraw_core::geometry::BezPath::new();
+                    p.move_to(graphdraw_core::geometry::Point::new(30.0, 10.0));
+                    p.line_to(graphdraw_core::geometry::Point::new(30.0, 90.0));
                     p
                 },
                 closed: false,
@@ -2296,12 +2296,12 @@ mod tests {
         vertical.fill = Fill::None;
         vertical.stroke = Some(nib.clone());
         let mut horizontal = vertical.clone();
-        horizontal.id = tracedraw_core::ShapeId(2);
+        horizontal.id = graphdraw_core::ShapeId(2);
         horizontal.kind = ShapeKind::Path {
             path: {
-                let mut p = tracedraw_core::geometry::BezPath::new();
-                p.move_to(tracedraw_core::geometry::Point::new(10.0, 70.0));
-                p.line_to(tracedraw_core::geometry::Point::new(90.0, 70.0));
+                let mut p = graphdraw_core::geometry::BezPath::new();
+                p.move_to(graphdraw_core::geometry::Point::new(10.0, 70.0));
+                p.line_to(graphdraw_core::geometry::Point::new(90.0, 70.0));
                 p
             },
             closed: false,
@@ -2322,8 +2322,8 @@ mod tests {
     fn invert_lens_inverts_what_is_beneath() {
         let base = rect(1, Rect::new(0.0, 0.0, 100.0, 100.0), Color::rgb8(255, 0, 0));
         let mut lens = rect(2, Rect::new(25.0, 25.0, 75.0, 75.0), Color::WHITE);
-        lens.effects.push(tracedraw_core::live::Effect::Lens(
-            tracedraw_core::live::Lens::Invert,
+        lens.effects.push(graphdraw_core::live::Effect::Lens(
+            graphdraw_core::live::Lens::Invert,
         ));
         let (doc, page) = doc_with(vec![base, lens]);
         let pm = render_page_image(&doc, page, 25.4).unwrap();
@@ -2335,7 +2335,7 @@ mod tests {
     fn bitmap_effects_lens_runs_the_registered_effects_beneath_it() {
         // A stand-in for the application's effects: "swap" swaps red and
         // blue.
-        fn run(effects: &[tracedraw_core::BitmapEffect], _w: u32, _h: u32, rgba: &mut Vec<u8>) {
+        fn run(effects: &[graphdraw_core::BitmapEffect], _w: u32, _h: u32, rgba: &mut Vec<u8>) {
             if effects.iter().any(|e| e.id == "swap") {
                 for px in rgba.chunks_mut(4) {
                     px.swap(0, 2);
@@ -2345,9 +2345,9 @@ mod tests {
         set_pixel_effects(run);
         let base = rect(1, Rect::new(0.0, 0.0, 100.0, 100.0), Color::rgb8(255, 0, 0));
         let mut lens = rect(2, Rect::new(25.0, 25.0, 75.0, 75.0), Color::WHITE);
-        lens.effects.push(tracedraw_core::live::Effect::Lens(
-            tracedraw_core::live::Lens::Effects {
-                effects: vec![tracedraw_core::BitmapEffect {
+        lens.effects.push(graphdraw_core::live::Effect::Lens(
+            graphdraw_core::live::Lens::Effects {
+                effects: vec![graphdraw_core::BitmapEffect {
                     id: "swap".into(),
                     params: Default::default(),
                     visible: true,
@@ -2397,10 +2397,10 @@ mod tests {
         );
         // A thick grey outline across the page, no fill.
         let mut line = Shape::new(
-            tracedraw_core::ShapeId(2),
+            graphdraw_core::ShapeId(2),
             ShapeKind::Path {
                 path: {
-                    let mut p = tracedraw_core::geometry::BezPath::new();
+                    let mut p = graphdraw_core::geometry::BezPath::new();
                     p.move_to((0.0, 50.0));
                     p.line_to((100.0, 50.0));
                     p
@@ -2436,10 +2436,10 @@ mod tests {
         // A 0.1 mm black line at 25.4 dpi (a tenth of a pixel): drawn as a
         // full-strength one-pixel line, not faded to a tenth.
         let mut line = Shape::new(
-            tracedraw_core::ShapeId(1),
+            graphdraw_core::ShapeId(1),
             ShapeKind::Path {
                 path: {
-                    let mut p = tracedraw_core::geometry::BezPath::new();
+                    let mut p = graphdraw_core::geometry::BezPath::new();
                     p.move_to((0.0, 50.5));
                     p.line_to((100.0, 50.5));
                     p
@@ -2501,8 +2501,8 @@ mod tests {
     fn complex_effects_off_skips_the_lens() {
         let base = rect(1, Rect::new(0.0, 0.0, 100.0, 100.0), Color::rgb8(255, 0, 0));
         let mut lens = rect(2, Rect::new(25.0, 25.0, 75.0, 75.0), Color::WHITE);
-        lens.effects.push(tracedraw_core::live::Effect::Lens(
-            tracedraw_core::live::Lens::Invert,
+        lens.effects.push(graphdraw_core::live::Effect::Lens(
+            graphdraw_core::live::Lens::Invert,
         ));
         let (doc, page) = doc_with(vec![base, lens]);
         let full = render_page_image(&doc, page, 25.4).unwrap();
@@ -2524,9 +2524,9 @@ mod tests {
     #[test]
     fn complex_effects_off_skips_the_transparency_mask() {
         let mut s = rect(1, Rect::new(0.0, 0.0, 100.0, 10.0), Color::rgb8(0, 0, 0));
-        s.effects.push(tracedraw_core::live::Effect::Transparency {
+        s.effects.push(graphdraw_core::live::Effect::Transparency {
             mask: Fill::linear(Color::WHITE, Color::BLACK, 0.0),
-            merge: tracedraw_core::live::MergeMode::Normal,
+            merge: graphdraw_core::live::MergeMode::Normal,
             target: 2,
         });
         let (doc, page) = doc_with(vec![s]);
@@ -2543,17 +2543,17 @@ mod tests {
     #[test]
     fn custom_arrowhead_paints_the_line_end() {
         // A right-pointing triangle, 20 wide and 20 tall, as a custom head.
-        let mut tri = tracedraw_core::geometry::BezPath::new();
+        let mut tri = graphdraw_core::geometry::BezPath::new();
         tri.move_to((0.0, 0.0));
         tri.line_to((20.0, 10.0));
         tri.line_to((0.0, 20.0));
         tri.close_path();
-        let head = tracedraw_core::Arrowhead::from_shape_path(&tri, "Tri");
+        let head = graphdraw_core::Arrowhead::from_shape_path(&tri, "Tri");
         let mut line = Shape::new(
-            tracedraw_core::ShapeId(1),
+            graphdraw_core::ShapeId(1),
             ShapeKind::Path {
                 path: {
-                    let mut p = tracedraw_core::geometry::BezPath::new();
+                    let mut p = graphdraw_core::geometry::BezPath::new();
                     p.move_to((10.0, 50.0));
                     p.line_to((60.0, 50.0));
                     p
@@ -2589,7 +2589,7 @@ mod tests {
         let mut plain = doc.clone();
         if let Some(s) = plain.pages[0].layers[0].shapes.first_mut() {
             if let Some(st) = s.stroke.as_mut() {
-                st.end_arrow = tracedraw_core::Arrowhead::None;
+                st.end_arrow = graphdraw_core::Arrowhead::None;
             }
         }
         let pm2 = render_page_image(&plain, page, 25.4).unwrap();
@@ -2600,9 +2600,9 @@ mod tests {
     #[test]
     fn fountain_transparency_fades_the_object() {
         let mut s = rect(1, Rect::new(0.0, 0.0, 100.0, 10.0), Color::rgb8(0, 0, 0));
-        s.effects.push(tracedraw_core::live::Effect::Transparency {
+        s.effects.push(graphdraw_core::live::Effect::Transparency {
             mask: Fill::linear(Color::WHITE, Color::BLACK, 0.0),
-            merge: tracedraw_core::live::MergeMode::Normal,
+            merge: graphdraw_core::live::MergeMode::Normal,
             target: 2,
         });
         let (doc, page) = doc_with(vec![s]);
@@ -2620,7 +2620,7 @@ mod tests {
     fn shaped_transparency_follows_the_object() {
         // White at the edge (opaque), black inside (clear): a black disc
         // fades towards its middle, the same all round.
-        let id = tracedraw_core::ShapeId(1);
+        let id = graphdraw_core::ShapeId(1);
         let mut s = Shape::new(
             id,
             ShapeKind::Ellipse {
@@ -2630,14 +2630,14 @@ mod tests {
         );
         s.fill = Fill::Solid(Color::BLACK);
         s.stroke = None;
-        s.effects.push(tracedraw_core::live::Effect::Transparency {
+        s.effects.push(graphdraw_core::live::Effect::Transparency {
             mask: Fill::Fountain(Fountain::two(
                 FountainKind::Shaped,
                 Color::WHITE,
                 Color::BLACK,
                 0.0,
             )),
-            merge: tracedraw_core::live::MergeMode::Normal,
+            merge: graphdraw_core::live::MergeMode::Normal,
             target: 2,
         });
         let (doc, page) = doc_with(vec![s]);
@@ -2653,7 +2653,7 @@ mod tests {
     #[test]
     fn contour_effect_draws_outside_steps() {
         let mut s = rect(1, Rect::new(40.0, 40.0, 60.0, 60.0), Color::rgb8(255, 0, 0));
-        s.effects.push(tracedraw_core::live::Effect::Contour {
+        s.effects.push(graphdraw_core::live::Effect::Contour {
             steps: 2,
             offset: 5.0,
             outside: true,
@@ -2681,7 +2681,7 @@ mod tests {
         let render = |smooth: bool| {
             let mut s = rect(1, Rect::new(0.0, 0.0, 100.0, 100.0), Color::WHITE);
             let mut m =
-                tracedraw_core::Mesh::new(Rect::new(0.0, 0.0, 100.0, 100.0), 2, 2, Color::BLACK);
+                graphdraw_core::Mesh::new(Rect::new(0.0, 0.0, 100.0, 100.0), 2, 2, Color::BLACK);
             m.nodes[4].color = Color::WHITE; // the middle node
             m.smooth = smooth;
             s.fill = Fill::Mesh(m);
@@ -2700,7 +2700,7 @@ mod tests {
     fn mesh_fill_blends_corner_colours() {
         let mut s = rect(1, Rect::new(0.0, 0.0, 100.0, 100.0), Color::WHITE);
         let mut m =
-            tracedraw_core::Mesh::new(Rect::new(0.0, 0.0, 100.0, 100.0), 1, 1, Color::WHITE);
+            graphdraw_core::Mesh::new(Rect::new(0.0, 0.0, 100.0, 100.0), 1, 1, Color::WHITE);
         m.nodes[0].color = Color::rgb8(255, 0, 0); // bottom-left
         m.nodes[1].color = Color::rgb8(0, 0, 255); // bottom-right
         m.nodes[2].color = Color::rgb8(255, 0, 0);
@@ -2788,9 +2788,9 @@ mod tests {
         let mut s = rect(1, Rect::new(0.0, 0.0, 20.0, 20.0), Color::WHITE);
         s.fill = Fill::Pattern(Pattern::Vector {
             shapes: vec![tile_square],
-            tile: tracedraw_core::geometry::Size::new(10.0, 10.0),
+            tile: graphdraw_core::geometry::Size::new(10.0, 10.0),
         });
-        let mut doc = Document::new("t", tracedraw_core::geometry::Size::new(20.0, 20.0));
+        let mut doc = Document::new("t", graphdraw_core::geometry::Size::new(20.0, 20.0));
         let page = doc.pages[0].id;
         let layer = doc.pages[0].layers[0].id;
         doc.layer_mut(layer).unwrap().shapes.push(s);
@@ -2815,14 +2815,14 @@ mod tests {
         let mut child = rect(8, Rect::new(2.0, 2.0, 8.0, 8.0), Color::rgb8(0, 0, 255));
         child.stroke = Some(Stroke::new(Color::rgb8(0, 255, 0), 2.0));
         let group = Shape::new(
-            tracedraw_core::ShapeId(9),
+            graphdraw_core::ShapeId(9),
             ShapeKind::Group {
                 children: vec![child],
             },
         );
         let fill = Fill::Pattern(Pattern::Vector {
             shapes: vec![group],
-            tile: tracedraw_core::geometry::Size::new(10.0, 10.0),
+            tile: graphdraw_core::geometry::Size::new(10.0, 10.0),
         });
         let pm = render_fill_image(&fill, Rect::new(0.0, 0.0, 10.0, 10.0), 254.0).unwrap();
         // 10 px per mm: the centre is blue, the 2 mm outline band is green.
@@ -2839,10 +2839,10 @@ mod tests {
     #[test]
     fn degenerate_vector_pattern_does_not_panic() {
         for tile in [
-            tracedraw_core::geometry::Size::new(0.0, 10.0),
-            tracedraw_core::geometry::Size::new(f64::NAN, 10.0),
-            tracedraw_core::geometry::Size::new(0.0001, 0.0001),
-            tracedraw_core::geometry::Size::new(1.0e9, 1.0e9),
+            graphdraw_core::geometry::Size::new(0.0, 10.0),
+            graphdraw_core::geometry::Size::new(f64::NAN, 10.0),
+            graphdraw_core::geometry::Size::new(0.0001, 0.0001),
+            graphdraw_core::geometry::Size::new(1.0e9, 1.0e9),
         ] {
             let fill = Fill::Pattern(Pattern::Vector {
                 shapes: vec![rect(1, Rect::new(0.0, 0.0, 1.0, 1.0), Color::BLACK)],
@@ -2870,7 +2870,7 @@ mod tests {
 
     #[test]
     fn large_textures_on_screen_are_quick_and_exports_keep_every_pixel() {
-        let mut doc = Document::new("t", tracedraw_core::geometry::Size::new(300.0, 300.0));
+        let mut doc = Document::new("t", graphdraw_core::geometry::Size::new(300.0, 300.0));
         let layer = doc.pages[0].layers[0].id;
         let id = doc.ids_mut().shape();
         let mut s = Shape::new(
@@ -2926,10 +2926,10 @@ mod tests {
 
     #[test]
     fn outlines_take_a_gradient_fill() {
-        let mut doc = Document::new("t", tracedraw_core::geometry::Size::new(100.0, 20.0));
+        let mut doc = Document::new("t", graphdraw_core::geometry::Size::new(100.0, 20.0));
         let layer = doc.pages[0].layers[0].id;
         let id = doc.ids_mut().shape();
-        let mut path = tracedraw_core::BezPath::new();
+        let mut path = graphdraw_core::BezPath::new();
         path.move_to((5.0, 10.0));
         path.line_to((95.0, 10.0));
         let mut s = Shape::new(
@@ -2941,8 +2941,8 @@ mod tests {
         );
         s.fill = Fill::None;
         let mut stroke = Stroke::new(Color::rgb8(0, 255, 0), 6.0);
-        stroke.fill = Some(Box::new(Fill::Fountain(tracedraw_core::Fountain::two(
-            tracedraw_core::FountainKind::Linear,
+        stroke.fill = Some(Box::new(Fill::Fountain(graphdraw_core::Fountain::two(
+            graphdraw_core::FountainKind::Linear,
             Color::rgb8(255, 0, 0),
             Color::rgb8(0, 0, 255),
             0.0,
@@ -2961,7 +2961,7 @@ mod tests {
 
     /// A 100 x 10 mm rectangle filled with `fill`, drawn at 1 px/mm.
     fn strip(fill: Fill) -> Pixmap {
-        let mut doc = Document::new("t", tracedraw_core::geometry::Size::new(100.0, 10.0));
+        let mut doc = Document::new("t", graphdraw_core::geometry::Size::new(100.0, 10.0));
         let page = doc.pages[0].id;
         let mut s = rect(1, Rect::new(0.0, 0.0, 100.0, 10.0), Color::WHITE);
         s.fill = fill;
@@ -2979,7 +2979,7 @@ mod tests {
         let red_at = |img: &Pixmap, x: u32| img.pixel(x, 5).unwrap().red();
         // Sawtooth twice: light just before the middle, dark just after.
         let mut f = bw();
-        f.repeat = tracedraw_core::FountainRepeat::Repeat;
+        f.repeat = graphdraw_core::FountainRepeat::Repeat;
         f.repeats = 2;
         let img = strip(Fill::Fountain(f));
         assert!(red_at(&img, 48) > 220, "{}", red_at(&img, 48));
@@ -2987,7 +2987,7 @@ mod tests {
         assert!((red_at(&img, 25) as i32 - 128).abs() < 20);
         // Triangular twice: white in the middle, black at both ends.
         let mut m = bw();
-        m.repeat = tracedraw_core::FountainRepeat::Mirror;
+        m.repeat = graphdraw_core::FountainRepeat::Mirror;
         m.repeats = 2;
         let img = strip(Fill::Fountain(m));
         assert!(red_at(&img, 50) > 240 && red_at(&img, 1) < 15 && red_at(&img, 98) < 15);
@@ -3066,10 +3066,10 @@ mod tests {
     #[test]
     fn outlines_take_pattern_texture_mesh_and_shaped_paints() {
         let line = |paint: Fill| {
-            let mut doc = Document::new("t", tracedraw_core::geometry::Size::new(100.0, 20.0));
+            let mut doc = Document::new("t", graphdraw_core::geometry::Size::new(100.0, 20.0));
             let layer = doc.pages[0].layers[0].id;
             let id = doc.ids_mut().shape();
-            let mut path = tracedraw_core::BezPath::new();
+            let mut path = graphdraw_core::BezPath::new();
             path.move_to((5.0, 10.0));
             path.line_to((95.0, 10.0));
             let mut s = Shape::new(
@@ -3091,7 +3091,7 @@ mod tests {
         // A two-colour pattern: both colours along the outline, never the
         // outline colour, nothing beside it.
         let img = line(Fill::Pattern(Pattern::TwoColor {
-            tile: tracedraw_core::PatternTile::Stripes,
+            tile: graphdraw_core::PatternTile::Stripes,
             front: red,
             back: blue,
             size_mm: 4.0,
@@ -3103,7 +3103,7 @@ mod tests {
         assert!(col.iter().any(|p| p.red() > 200) && col.iter().any(|p| p.blue() > 200));
         // A texture.
         let img = line(Fill::Texture(Texture {
-            kind: tracedraw_core::TextureKind::Noise,
+            kind: graphdraw_core::TextureKind::Noise,
             color_a: red,
             color_b: blue,
             scale: 2.0,
@@ -3113,7 +3113,7 @@ mod tests {
         assert!(p.green() < 30 && p.red() + p.blue() > 150, "{p:?}");
         // A mesh: its nodes are local to the object, red on the left and
         // blue on the right.
-        let mut m = tracedraw_core::Mesh::new(Rect::new(5.0, 7.0, 95.0, 13.0), 1, 1, red);
+        let mut m = graphdraw_core::Mesh::new(Rect::new(5.0, 7.0, 95.0, 13.0), 1, 1, red);
         for (i, n) in m.nodes.iter_mut().enumerate() {
             if i % 2 == 1 {
                 n.color = blue;
@@ -3137,7 +3137,7 @@ mod tests {
 
     #[test]
     fn procedural_fills_work_out_only_the_visible_part() {
-        let mut doc = Document::new("t", tracedraw_core::geometry::Size::new(100.0, 100.0));
+        let mut doc = Document::new("t", graphdraw_core::geometry::Size::new(100.0, 100.0));
         let layer = doc.pages[0].layers[0].id;
         let id = doc.ids_mut().shape();
         let mut s = Shape::new(
@@ -3190,7 +3190,7 @@ mod tests {
 
     #[test]
     fn star_fill_covers_center_and_not_corner() {
-        let mut doc = Document::new("t", tracedraw_core::geometry::Size::new(100.0, 100.0));
+        let mut doc = Document::new("t", graphdraw_core::geometry::Size::new(100.0, 100.0));
         let layer = doc.pages[0].layers[0].id;
         let id = doc.ids_mut().shape();
         let mut s = Shape::new(
@@ -3218,7 +3218,7 @@ mod tests {
     #[test]
     fn without_anti_aliasing_edges_are_hard() {
         let mut ellipse = Shape::new(
-            tracedraw_core::ShapeId(3),
+            graphdraw_core::ShapeId(3),
             ShapeKind::Ellipse {
                 rect: Rect::new(10.0, 10.0, 90.0, 70.0),
                 arc: None,
@@ -3253,7 +3253,7 @@ mod tests {
 
     #[test]
     fn half_transparent_red_over_white_is_pink() {
-        let mut doc = Document::new("t", tracedraw_core::geometry::Size::new(20.0, 20.0));
+        let mut doc = Document::new("t", graphdraw_core::geometry::Size::new(20.0, 20.0));
         let layer = doc.pages[0].layers[0].id;
         let id = doc.ids_mut().shape();
         let mut s = Shape::new(
@@ -3277,7 +3277,7 @@ mod tests {
 
     #[test]
     fn shadow_darkens_pixels_beside_the_object() {
-        let mut doc = Document::new("t", tracedraw_core::geometry::Size::new(40.0, 40.0));
+        let mut doc = Document::new("t", graphdraw_core::geometry::Size::new(40.0, 40.0));
         let layer = doc.pages[0].layers[0].id;
         let id = doc.ids_mut().shape();
         let mut s = Shape::new(
@@ -3290,8 +3290,8 @@ mod tests {
         );
         s.fill = Fill::Solid(Color::rgb8(0, 0, 255));
         s.stroke = None;
-        s.shadow = Some(tracedraw_core::Shadow {
-            offset: tracedraw_core::geometry::Vec2::new(5.0, -5.0),
+        s.shadow = Some(graphdraw_core::Shadow {
+            offset: graphdraw_core::geometry::Vec2::new(5.0, -5.0),
             opacity: 0.8,
             blur: 0.0,
             color: Color::BLACK,
@@ -3308,7 +3308,7 @@ mod tests {
 
     #[test]
     fn dashed_hairline_does_not_panic() {
-        let mut doc = Document::new("t", tracedraw_core::geometry::Size::new(50.0, 50.0));
+        let mut doc = Document::new("t", graphdraw_core::geometry::Size::new(50.0, 50.0));
         let layer = doc.pages[0].layers[0].id;
         let id = doc.ids_mut().shape();
         let mut s = Shape::new(

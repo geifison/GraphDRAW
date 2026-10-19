@@ -220,7 +220,7 @@ pub(crate) struct RunStyle {
     /// An inline uniform fill colour (version 16 and later style strings
     /// describe the run's fill as an object with its colour);
     /// `Some(None)` is no fill.
-    pub fill_color: Option<Option<tracedraw_core::Color>>,
+    pub fill_color: Option<Option<graphdraw_core::Color>>,
     /// Version 16+ style strings: underline and strikeout on or off.
     pub underline: Option<bool>,
     pub strikethrough: Option<bool>,
@@ -1579,8 +1579,8 @@ pub(crate) fn object_opacity(style: &str) -> Option<f64> {
 /// degrees, the centre offsets in percent of the object and a `xScale` or
 /// `yScale` under 1 a padded edge, as the doubles of version 16+ fill
 /// records. `None` for other transparencies.
-pub(crate) fn object_transparency_mask(style: &str) -> Option<(tracedraw_core::Fill, u8)> {
-    use tracedraw_core::{Color, Fill, Fountain, FountainKind, Stop};
+pub(crate) fn object_transparency_mask(style: &str) -> Option<(graphdraw_core::Fill, u8)> {
+    use graphdraw_core::{Color, Fill, Fountain, FountainKind, Stop};
     let t = style.trim_matches(|c: char| c == '\0' || c.is_whitespace());
     let Json::Obj(items) = parse_json(t)? else {
         return None;
@@ -1642,7 +1642,7 @@ pub(crate) fn object_transparency_mask(style: &str) -> Option<(tracedraw_core::F
             },
         ],
         angle: num(&fill, "angle").unwrap_or(0.0).rem_euclid(360.0),
-        offset: tracedraw_core::geometry::Point::new(pct("xCenterOffset"), pct("yCenterOffset")),
+        offset: graphdraw_core::geometry::Point::new(pct("xCenterOffset"), pct("yCenterOffset")),
         edge_pad,
         ..Default::default()
     };
@@ -1693,7 +1693,7 @@ pub(crate) fn frame_width_units(style: &str) -> Option<f64> {
 /// both seen in a version 21 file; `RGB255` and `GRAY255` assumed alike);
 /// `type` 0 is no fill (`Some(None)`). Other fill types give `None` (the
 /// object's fill applies).
-fn inline_fill_color(fill: &Json) -> Option<Option<tracedraw_core::Color>> {
+fn inline_fill_color(fill: &Json) -> Option<Option<graphdraw_core::Color>> {
     let Json::Obj(items) = fill else {
         return None;
     };
@@ -1710,8 +1710,8 @@ fn inline_fill_color(fill: &Json) -> Option<Option<tracedraw_core::Color>> {
 }
 
 /// A colour written `MODEL,PALETTE,v1,v2,...` in version 16+ style strings.
-pub(crate) fn parse_color_spec(spec: &str) -> Option<tracedraw_core::Color> {
-    use tracedraw_core::Color;
+pub(crate) fn parse_color_spec(spec: &str) -> Option<graphdraw_core::Color> {
+    use graphdraw_core::Color;
     let parts: Vec<&str> = spec.split(',').map(str::trim).collect();
     let model = parts.first()?.to_ascii_uppercase();
     let nums: Vec<f64> = parts
@@ -1910,7 +1910,7 @@ mod tests {
         assert_eq!(s.outl_id, None);
         assert_eq!(
             s.fill_color,
-            Some(Some(tracedraw_core::Color::cmyk_pct(
+            Some(Some(graphdraw_core::Color::cmyk_pct(
                 0.0, 100.0, 100.0, 0.0
             )))
         );
@@ -1920,11 +1920,11 @@ mod tests {
         assert_eq!(s.fill_color, Some(None));
         assert_eq!(
             parse_color_spec("CMYK,USER,0,0,0,100,100,x"),
-            Some(tracedraw_core::Color::cmyk_pct(0.0, 0.0, 0.0, 100.0))
+            Some(graphdraw_core::Color::cmyk_pct(0.0, 0.0, 0.0, 100.0))
         );
         assert_eq!(
             parse_color_spec("RGB255,USER,255,128,0,100,x"),
-            Some(tracedraw_core::Color::rgb8(255, 128, 0))
+            Some(graphdraw_core::Color::rgb8(255, 128, 0))
         );
         assert_eq!(parse_color_spec("PANTONE,X,1"), None);
         assert_eq!(parse_color_spec(""), None);
@@ -1957,7 +1957,7 @@ mod tests {
 
     #[test]
     fn graded_transparency_becomes_a_mask() {
-        use tracedraw_core::{Color, Fill, FountainKind};
+        use graphdraw_core::{Color, Fill, FountainKind};
         let style = r#"{"fill":{},"transparency":{"mode":"0","fill":{"type":"2","fountainType":"1","angle":"-90","xCenterOffset":"10","yCenterOffset":"-5","xScale":"0.8","yScale":"1","primaryColor":"GRAY255,USER,255,100,0","secondaryColor":"GRAY255,USER,0,100,0"},"appliesTo":"0","startTransparency":"0","endTransparency":"1"}}"#;
         let (mask, target) = object_transparency_mask(style).expect("mask");
         assert_eq!(target, 0);

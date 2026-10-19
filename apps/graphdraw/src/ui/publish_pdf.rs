@@ -5,7 +5,7 @@
 //! information and bookmarks (Document), transparency flattening
 //! (Objects), the bleed (Prepress), password protection (Security), and
 //! list what the preflight found (Issues). OK writes the file. The PDF
-//! itself comes from `tracedraw_io::pdf`. See docs/behavior/publish-to-pdf.md.
+//! itself comes from `graphdraw_io::pdf`. See docs/behavior/publish-to-pdf.md.
 
 use crate::app::App;
 use crate::i18n::{tr, trf};
@@ -14,9 +14,9 @@ use crate::ui::dialogs::{window, ExportState, PDF_STANDARDS};
 use egui::{Color32, Context, RichText, Ui};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-use tracedraw_core::Document;
-use tracedraw_io::pdf::{PdfOptions, PdfStandard};
-use tracedraw_io::pdf_crypt::{Permissions, Security};
+use graphdraw_core::Document;
+use graphdraw_io::pdf::{PdfOptions, PdfStandard};
+use graphdraw_io::pdf_crypt::{Permissions, Security};
 
 /// Width of the dialog's pages.
 const WIDTH: f32 = 560.0;
@@ -89,7 +89,7 @@ impl Default for PdfPreset {
     }
 }
 
-/// The presets that come with TraceDraw: (i18n key of the name, preset).
+/// The presets that come with GraphDraw: (i18n key of the name, preset).
 pub fn builtin_presets() -> Vec<(&'static str, PdfPreset)> {
     let base = PdfPreset::default();
     vec![
@@ -528,8 +528,8 @@ pub fn document_for(app: &App, st: &PublishState) -> Document {
 }
 
 /// Add `offset` to the symbol numbers of the instances in `shapes`.
-fn renumber_symbols(shapes: &mut [tracedraw_core::Shape], offset: usize) {
-    use tracedraw_core::document::ShapeKind;
+fn renumber_symbols(shapes: &mut [graphdraw_core::Shape], offset: usize) {
+    use graphdraw_core::document::ShapeKind;
     for s in shapes {
         match &mut s.kind {
             ShapeKind::SymbolInstance { index } => *index += offset,
@@ -572,7 +572,7 @@ pub fn publish(app: &App, st: &PublishState, path: &Path) -> Result<String, Stri
         return Err(tr("publish.need_pages"));
     }
     let opts = st.options(crate::export::pdfx_profile(app, st.prefs.standard()));
-    let pdf = tracedraw_io::pdf::document_to_pdf_with(&doc, &opts);
+    let pdf = graphdraw_io::pdf::document_to_pdf_with(&doc, &opts);
     crate::files::write(path, pdf).map_err(|e| e.to_string())?;
     Ok(trf(
         "status.exported",
@@ -1019,7 +1019,7 @@ fn password_row(ui: &mut Ui, value: &mut String, masked: bool) {
 mod tests {
     use super::*;
     use egui::{vec2, Pos2, Rect};
-    use tracedraw_core::{geometry::Size, Document};
+    use graphdraw_core::{geometry::Size, Document};
 
     fn app_with_two_pages() -> App {
         let mut app = App::headless();
@@ -1087,7 +1087,7 @@ mod tests {
         let mut st = PublishState::new(&app);
         st.prefs.show_bookmarks = true;
         st.subject = "Spring".into();
-        let dir = std::env::temp_dir().join(format!("tracedraw-publish-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("graphdraw-publish-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&dir);
         let path = dir.join("leaflet.pdf");
         let msg = publish(&app, &st, &path).expect("published");
@@ -1113,8 +1113,8 @@ mod tests {
         let text = String::from_utf8_lossy(&bytes).into_owned();
         assert!(text.starts_with("%PDF-1.7") && text.contains("/Encrypt "));
         assert!(!text.contains("Spring"));
-        let mut ids = tracedraw_core::id::IdSource::default();
-        let imp = tracedraw_io::pdf_import::parse(&bytes, &mut ids).expect("opens");
+        let mut ids = graphdraw_core::id::IdSource::default();
+        let imp = graphdraw_io::pdf_import::parse(&bytes, &mut ids).expect("opens");
         assert_eq!(imp.pages.len(), 2);
         assert_eq!(imp.title.as_deref(), Some("Leaflet"));
         // A password to open it, and the current page alone.
@@ -1123,8 +1123,8 @@ mod tests {
         st.pages = Pages::Current;
         publish(&app, &st, &path).expect("published");
         let bytes = std::fs::read(&path).expect("written");
-        assert!(tracedraw_io::pdf_import::parse(&bytes, &mut ids).is_err());
-        let imp = tracedraw_io::pdf_import::parse_with_password(&bytes, &mut ids, "abc")
+        assert!(graphdraw_io::pdf_import::parse(&bytes, &mut ids).is_err());
+        let imp = graphdraw_io::pdf_import::parse_with_password(&bytes, &mut ids, "abc")
             .expect("opens with its password");
         assert_eq!(imp.pages.len(), 1);
         let _ = std::fs::remove_dir_all(&dir);
@@ -1193,8 +1193,8 @@ mod tests {
         assert!(st.prefs.user_presets.is_empty());
         // The selection, at its own size or on the page.
         let id = app
-            .new_shape(tracedraw_core::document::ShapeKind::Rect {
-                rect: tracedraw_core::geometry::Rect::new(10.0, 10.0, 30.0, 20.0),
+            .new_shape(graphdraw_core::document::ShapeKind::Rect {
+                rect: graphdraw_core::geometry::Rect::new(10.0, 10.0, 30.0, 20.0),
                 radius: 0.0,
                 corners: None,
             })

@@ -1,6 +1,6 @@
 # Ferramentas de escrita
 
-O TraceDraw verifica ortografia e gramática, encontra sinônimos, corrige
+O GraphDraw verifica ortografia e gramática, encontra sinônimos, corrige
 enquanto você digita e conserta textos que chegaram com caracteres errados. Os
 comandos ficam em [[menu.text > menu.text.writing_tools]] e no menu
 [[menu.text]].
@@ -27,7 +27,7 @@ da página ([[writing.scope_document]]) ou só os textos selecionados
 4. [[writing.undo]] desfaz a última substituição.
 
 [[writing.options]] tem [[writing.ignore_digits]] e
-[[writing.ignore_capitals]]. O TraceDraw usa os dicionários instalados no seu
+[[writing.ignore_capitals]]. O GraphDraw usa os dicionários instalados no seu
 sistema; sem nenhum, só uma lista de palavras incluída é usada.
 
 ### Gramática {#grammar}

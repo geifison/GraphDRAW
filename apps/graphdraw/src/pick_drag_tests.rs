@@ -10,8 +10,8 @@ use crate::interaction::skew_transform;
 use crate::tools::Tool;
 use crate::ui::cursors::{for_tool, resize_icon, ShapeMark, ToolCursor};
 use egui::{Event, Modifiers, PointerButton, Pos2};
-use tracedraw_core::geometry::{Affine, Point, Rect, Vec2};
-use tracedraw_core::{ShapeId, ShapeKind};
+use graphdraw_core::geometry::{Affine, Point, Rect, Vec2};
+use graphdraw_core::{ShapeId, ShapeKind};
 
 fn frame(ctx: &egui::Context, app: &mut App, events: Vec<Event>, modifiers: Modifiers) {
     // The keys held come first, as the windowing layer sends them.
@@ -98,7 +98,7 @@ fn setup() -> (egui::Context, App, ShapeId) {
     app.set_tool(Tool::Pick);
     app.select(vec![id]);
     // Filled, so that a press inside it picks it.
-    app.apply_fill(tracedraw_core::Fill::Solid(tracedraw_core::Color::rgb8(
+    app.apply_fill(graphdraw_core::Fill::Solid(graphdraw_core::Color::rgb8(
         200, 30, 30,
     )));
     // The window's bars settle over the first frames; then the page fits.
@@ -320,7 +320,7 @@ fn handle_modifiers_shape_the_scale() {
             anchor,
             start_bounds: b,
             current,
-            grab: tracedraw_core::geometry::Vec2::ZERO,
+            grab: graphdraw_core::geometry::Vec2::ZERO,
             mods,
         })
         .expect("transform")
@@ -572,7 +572,7 @@ fn the_status_bar_tells_how_far_how_much_and_what_angle() {
         anchor: Point::new(10.0, 25.0),
         start_bounds: Rect::new(10.0, 10.0, 60.0, 40.0),
         current: Point::new(85.0, 25.0),
-        grab: tracedraw_core::geometry::Vec2::ZERO,
+        grab: graphdraw_core::geometry::Vec2::ZERO,
         mods: HandleMods::default(),
     };
     let text = info(&app);
@@ -620,7 +620,7 @@ fn objects_dropped_on_the_document_palette_give_their_colours() {
     assert!(app
         .doc()
         .palette
-        .contains(&tracedraw_core::Color::rgb8(200, 30, 30)));
+        .contains(&graphdraw_core::Color::rgb8(200, 30, 30)));
 }
 
 fn click_at(ctx: &egui::Context, app: &mut App, at: Pos2, mods: Modifiers) {
@@ -644,7 +644,7 @@ fn click_at(ctx: &egui::Context, app: &mut App, at: Pos2, mods: Modifiers) {
     }
 }
 
-fn last_path(app: &App) -> tracedraw_core::BezPath {
+fn last_path(app: &App) -> graphdraw_core::BezPath {
     app.doc()
         .all_layers()
         .flat_map(|l| &l.shapes)
@@ -682,8 +682,8 @@ fn ctrl_keeps_lines_to_the_constrain_angle() {
         .elements()
         .iter()
         .filter_map(|e| match e {
-            tracedraw_core::geometry::PathEl::MoveTo(p)
-            | tracedraw_core::geometry::PathEl::LineTo(p) => Some(*p),
+            graphdraw_core::geometry::PathEl::MoveTo(p)
+            | graphdraw_core::geometry::PathEl::LineTo(p) => Some(*p),
             _ => None,
         })
         .collect();
@@ -703,8 +703,8 @@ fn ctrl_keeps_lines_to_the_constrain_angle() {
         .elements()
         .iter()
         .filter_map(|e| match e {
-            tracedraw_core::geometry::PathEl::MoveTo(p)
-            | tracedraw_core::geometry::PathEl::LineTo(p) => Some(*p),
+            graphdraw_core::geometry::PathEl::MoveTo(p)
+            | graphdraw_core::geometry::PathEl::LineTo(p) => Some(*p),
             _ => None,
         })
         .collect();
@@ -731,7 +731,7 @@ fn grouped() -> (egui::Context, App, [ShapeId; 3], ShapeId) {
             })
             .expect("rect");
         app.select(vec![id]);
-        app.apply_fill(tracedraw_core::Fill::Solid(tracedraw_core::Color::rgb8(
+        app.apply_fill(graphdraw_core::Fill::Solid(graphdraw_core::Color::rgb8(
             30, 30, 200,
         )));
         ids.push(id);
@@ -740,7 +740,7 @@ fn grouped() -> (egui::Context, App, [ShapeId; 3], ShapeId) {
     app.group_selection();
     let group = app.selection[0];
     // The group is moved, so its objects' space is not the page's.
-    app.run(tracedraw_core::Command::TransformShapes {
+    app.run(graphdraw_core::Command::TransformShapes {
         shapes: vec![group],
         transform: Affine::translate((5.0, 0.0)),
     });
@@ -786,7 +786,7 @@ fn ctrl_click_chooses_an_object_inside_a_group() {
     app.redo();
     assert_eq!(app.selection, vec![a]);
     // A colour reaches it alone.
-    app.apply_fill(tracedraw_core::Fill::Solid(tracedraw_core::Color::rgb8(
+    app.apply_fill(graphdraw_core::Fill::Solid(graphdraw_core::Color::rgb8(
         0, 200, 0,
     )));
     let fill_of = |app: &App, id| app.doc().find_shape(id).map(|s| s.fill.clone());
@@ -817,7 +817,7 @@ fn alt_click_digs_to_the_object_beneath() {
         })
         .expect("rect");
     app.select(vec![top]);
-    app.apply_fill(tracedraw_core::Fill::Solid(tracedraw_core::Color::rgb8(
+    app.apply_fill(graphdraw_core::Fill::Solid(graphdraw_core::Color::rgb8(
         200, 200, 0,
     )));
     let both = app.view.to_screen(Point::new(110.0, 160.0));
@@ -1040,8 +1040,8 @@ fn the_pointer_shows_moves_for_objects_and_guidelines() {
     );
     assert!(app.doc().is_nested(a));
     // Guidelines: arrows across them; a locked one keeps the arrow.
-    app.add_guide(tracedraw_core::document::Guide::horizontal(250.0));
-    app.add_guide(tracedraw_core::document::Guide::vertical(250.0));
+    app.add_guide(graphdraw_core::document::Guide::horizontal(250.0));
+    app.add_guide(graphdraw_core::document::Guide::vertical(250.0));
     let on_h = app.view.to_screen(Point::new(200.0, 250.0));
     let on_v = app.view.to_screen(Point::new(250.0, 200.0));
     assert_eq!(
@@ -1161,7 +1161,7 @@ fn plus_duplicates_in_place_and_edits_nodes_in_the_shape_tool() {
         app.doc()
             .find_shape(id)
             .and_then(|s| match &s.kind {
-                ShapeKind::Path { path, .. } => Some(tracedraw_core::nodes::nodes(path).len()),
+                ShapeKind::Path { path, .. } => Some(graphdraw_core::nodes::nodes(path).len()),
                 _ => None,
             })
             .expect("curve")
@@ -1214,11 +1214,11 @@ fn dragging_a_segment_bends_it_and_a_click_marks_where_a_node_goes() {
     let to = app.view.to_screen(Point::new(35.0, 0.0));
     drag(&ctx, &mut app, from, to, Modifiers::NONE, Vec::new());
     let bent = path_of(&app);
-    let mid = tracedraw_core::nodes::point_on_segment(&bent, index, t).expect("point");
+    let mid = graphdraw_core::nodes::point_on_segment(&bent, index, t).expect("point");
     assert!((mid - Point::new(35.0, 0.0)).hypot() < 0.3, "{mid:?}");
     // The corners stay; one undo puts the side back.
-    let corners = |p: &tracedraw_core::BezPath| {
-        tracedraw_core::nodes::nodes(p)
+    let corners = |p: &graphdraw_core::BezPath| {
+        graphdraw_core::nodes::nodes(p)
             .iter()
             .map(|n| n.pos)
             .collect::<Vec<_>>()
@@ -1226,7 +1226,7 @@ fn dragging_a_segment_bends_it_and_a_click_marks_where_a_node_goes() {
     assert_eq!(corners(&bent), corners(&before));
     app.undo();
     assert_eq!(corners(&path_of(&app)), corners(&before));
-    let mid = tracedraw_core::nodes::point_on_segment(&path_of(&app), index, t).expect("point");
+    let mid = graphdraw_core::nodes::point_on_segment(&path_of(&app), index, t).expect("point");
     assert!((mid.y - 10.0).abs() < 1e-6);
     // A click on the right side chooses it and marks the spot; + puts a
     // node there.
@@ -1252,7 +1252,7 @@ fn dragging_a_segment_bends_it_and_a_click_marks_where_a_node_goes() {
 fn node_keys_in_the_shape_tool() {
     let (ctx, mut app, id) = setup();
     // A curve with a smooth-able middle node.
-    let mut path = tracedraw_core::BezPath::new();
+    let mut path = graphdraw_core::BezPath::new();
     path.move_to((10.0, 10.0));
     path.curve_to((20.0, 10.0), (30.0, 20.0), (40.0, 30.0));
     path.curve_to((45.0, 40.0), (55.0, 30.0), (70.0, 20.0));
@@ -1270,7 +1270,7 @@ fn node_keys_in_the_shape_tool() {
     let hit = app.node_at(Point::new(40.0, 30.0)).expect("node");
     app.node_selection = vec![(hit.shape, hit.index)];
     let ty = |app: &App| app.node_type_of(c, hit.index);
-    use tracedraw_core::nodes::NodeType;
+    use graphdraw_core::nodes::NodeType;
     assert_eq!(ty(&app), NodeType::Cusp);
     // C switches cusp and smooth, S symmetrical and smooth (a cusp node
     // becomes symmetrical), Y makes it symmetrical. The type is kept with
@@ -1304,7 +1304,7 @@ fn node_keys_in_the_shape_tool() {
     );
     assert_eq!(ty(&app), NodeType::Cusp);
     let handles = |app: &App| match app.doc().find_shape(c).map(|s| s.kind.clone()) {
-        Some(ShapeKind::Path { path, .. }) => tracedraw_core::nodes::nodes(&path)
+        Some(ShapeKind::Path { path, .. }) => graphdraw_core::nodes::nodes(&path)
             .into_iter()
             .find(|n| n.index == hit.index)
             .map(|n| (n.ctrl_in, n.ctrl_out))
@@ -1832,7 +1832,7 @@ fn bspline_clicks_place_control_points_of_a_smooth_curve() {
     // Four control points: one cubic from the first to the last point,
     // the middle two as its handles (not four corners joined by lines).
     assert_eq!(segs.len(), 1, "{segs:?}");
-    let tracedraw_core::geometry::PathSeg::Cubic(c) = segs[0] else {
+    let graphdraw_core::geometry::PathSeg::Cubic(c) = segs[0] else {
         panic!("a cubic: {segs:?}");
     };
     let near = |a: Point, b: Point| (a - b).hypot() < 0.5;
@@ -1962,9 +1962,9 @@ fn click_page(ctx: &egui::Context, app: &mut App, p: Point) {
     click_at(ctx, app, at, Modifiers::NONE);
 }
 
-fn cubic(seg: tracedraw_core::geometry::PathSeg) -> tracedraw_core::geometry::CubicBez {
+fn cubic(seg: graphdraw_core::geometry::PathSeg) -> graphdraw_core::geometry::CubicBez {
     match seg {
-        tracedraw_core::geometry::PathSeg::Cubic(c) => c,
+        graphdraw_core::geometry::PathSeg::Cubic(c) => c,
         other => panic!("a cubic: {other:?}"),
     }
 }
@@ -1994,7 +1994,7 @@ fn a_pen_click_after_a_pulled_node_gives_a_straight_segment() {
     assert!(near(s0.p2, Point::new(130.0, 130.0)), "{s0:?}");
     // Out of it after a plain click: straight, the node a cusp.
     assert!(
-        matches!(segs[1], tracedraw_core::geometry::PathSeg::Line(_)),
+        matches!(segs[1], graphdraw_core::geometry::PathSeg::Line(_)),
         "{segs:?}"
     );
 }
@@ -2073,7 +2073,7 @@ fn dragging_from_the_first_node_shapes_only_the_closing_segment() {
         .iter()
         .rev()
         .find_map(|s| match s {
-            tracedraw_core::geometry::PathSeg::Cubic(c) if near(c.p3, a) => Some(*c),
+            graphdraw_core::geometry::PathSeg::Cubic(c) if near(c.p3, a) => Some(*c),
             _ => None,
         })
         .expect("a curved closing segment");
@@ -2084,7 +2084,7 @@ fn dragging_from_the_first_node_shapes_only_the_closing_segment() {
 /// A curve from (100, 100) through (150, 100) to (200, 100), selected,
 /// with the Shape tool.
 fn line_curve(ctx: &egui::Context, app: &mut App) -> ShapeId {
-    let mut path = tracedraw_core::BezPath::new();
+    let mut path = graphdraw_core::BezPath::new();
     path.move_to((100.0, 100.0));
     path.line_to((150.0, 100.0));
     path.line_to((200.0, 100.0));
@@ -2103,7 +2103,7 @@ fn line_curve(ctx: &egui::Context, app: &mut App) -> ShapeId {
 
 fn node_count(app: &App, id: ShapeId) -> usize {
     match &app.doc().find_shape(id).expect("curve").kind {
-        ShapeKind::Path { path, .. } => tracedraw_core::nodes::nodes(path).len(),
+        ShapeKind::Path { path, .. } => graphdraw_core::nodes::nodes(path).len(),
         _ => 0,
     }
 }
@@ -2136,7 +2136,7 @@ fn the_pen_adds_a_node_on_a_segment_and_drags_a_node_of_the_selected_curve() {
         _ => unreachable!(),
     };
     assert!(
-        tracedraw_core::nodes::nodes(&path)
+        graphdraw_core::nodes::nodes(&path)
             .iter()
             .any(|n| near(n.pos, Point::new(150.0, 130.0))),
         "{path:?}"
@@ -2154,7 +2154,7 @@ fn nodes_are_taken_within_the_pick_distance_and_a_near_miss_keeps_the_selection(
     let to = app.view.to_screen(Point::new(150.0, 120.0));
     drag(&ctx, &mut app, from, to, Modifiers::NONE, Vec::new());
     let moved = match &app.doc().find_shape(id).expect("curve").kind {
-        ShapeKind::Path { path, .. } => tracedraw_core::nodes::nodes(path)
+        ShapeKind::Path { path, .. } => graphdraw_core::nodes::nodes(path)
             .iter()
             .any(|n| (n.pos.y - 100.0).abs() > 5.0),
         _ => false,
@@ -2193,13 +2193,13 @@ fn the_shape_tool_says_a_rectangle_is_still_a_rectangle() {
 fn rounded_corners_keep_their_size_when_relative_scaling_is_off() {
     let (ctx, mut app, id) = setup();
     for fixed in [true, false] {
-        let mut c = tracedraw_core::Corners::uniform(5.0, tracedraw_core::CornerKind::Round);
+        let mut c = graphdraw_core::Corners::uniform(5.0, graphdraw_core::CornerKind::Round);
         c.fixed = fixed;
-        let _ = app.engine.run(&tracedraw_core::Command::SetShapeKind {
+        let _ = app.engine.run(&graphdraw_core::Command::SetShapeKind {
             shape: id,
             kind: ShapeKind::rect_with_corners(Rect::new(10.0, 10.0, 60.0, 40.0), c),
         });
-        let _ = app.engine.run(&tracedraw_core::Command::TransformShapes {
+        let _ = app.engine.run(&graphdraw_core::Command::TransformShapes {
             shapes: vec![id],
             transform: Affine::IDENTITY,
         });

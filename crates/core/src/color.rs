@@ -1,4 +1,4 @@
-//! Colour values. TraceDraw keeps the colour model the user chose, since
+//! Colour values. GraphDraw keeps the colour model the user chose, since
 //! print work is CMYK-first; spot colours keep their name and a CMYK
 //! fallback. CMYK shows through the built-in press model (`crate::press`,
 //! fitted to a coated web offset press) and the other

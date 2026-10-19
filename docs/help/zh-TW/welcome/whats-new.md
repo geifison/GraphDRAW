@@ -1,6 +1,6 @@
 # 新功能
 
-TraceDraw 的每個版本都會加入功能和修正。本頁說明如何得知變更內容，並列出最近
+GraphDraw 的每個版本都會加入功能和修正。本頁說明如何得知變更內容，並列出最近
 版本的重點。
 
 ## 在程式中查看新內容 {#in-the-program}
@@ -9,14 +9,14 @@ TraceDraw 的每個版本都會加入功能和修正。本頁說明如何得知�
   版本的新聞。
 - 開啟 [[menu.help > menu.help.highlight_whats_new]]，在功能表中標出本版本的新
   內容：每個新命令的結尾、通往新命令的子功能表箭頭旁，以及包含新命令的功能表
-  標題上方都會出現一個小圓點。關閉該命令後標記消失，下次啟動 TraceDraw 時該
+  標題上方都會出現一個小圓點。關閉該命令後標記消失，下次啟動 GraphDraw 時該
   命令又會關閉。
 - 每個版本的完整變更清單在專案的
-  [變更記錄](https://github.com/igtoth/tracedraw/blob/main/CHANGELOG.md) 中。
+  [變更記錄](https://github.com/geifison/GraphDRAW/blob/main/CHANGELOG.md) 中。
 
 ## 最近版本的重點 {#highlights}
 
-- **使用你的語言的說明。** 每個 **?** 按鈕和 <kbd>F1</kbd> 都會以 TraceDraw
+- **使用你的語言的說明。** 每個 **?** 按鈕和 <kbd>F1</kbd> 都會以 GraphDraw
   設定的語言開啟本說明中關於眼前對話方塊、面板或工具的頁面。
 - **文件屬性。** [[menu.file > menu.file.document_properties]] 保存繪圖的
   語言、標題、主旨、作者、版權、標籤、備註和評等，並附有繪圖內容的完整報告。

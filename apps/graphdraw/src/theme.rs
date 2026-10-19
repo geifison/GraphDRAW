@@ -719,7 +719,7 @@ fn fallback_fonts(defs: &mut egui::FontDefinitions) -> Vec<String> {
         ],
         // Cyrillic is in the bundled font; Latin extended too.
     ];
-    let fs = tracedraw_text::fonts();
+    let fs = graphdraw_text::fonts();
     let mut added = Vec::new();
     for group in groups {
         let Some((name, data, index)) = fs.first_face_data(group) else {

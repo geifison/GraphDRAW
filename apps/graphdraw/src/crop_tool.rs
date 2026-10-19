@@ -15,7 +15,7 @@
 //! deleted. One undo step.
 
 use crate::app::App;
-use tracedraw_core::{
+use graphdraw_core::{
     document::{Shape, ShapeKind},
     geometry::{Affine, BezPath, ParamCurve, PathEl, Point, Rect, Shape as _, Vec2},
     shaping, Command, Fill, ShapeId,
@@ -106,7 +106,7 @@ fn clip_path(page: &BezPath, rect: Rect) -> (BezPath, bool) {
         Point::new(rect.x0, rect.y1),
         Point::new(rect.x0, rect.y0),
     ];
-    for (sub, closed) in tracedraw_core::effects::subpaths(page) {
+    for (sub, closed) in graphdraw_core::effects::subpaths(page) {
         if closes(&sub, closed) {
             closed_parts.extend(sub.elements().iter().copied());
             if !closed {
@@ -383,7 +383,7 @@ pub fn moved(r: Rect, v: Vec2) -> Rect {
 mod tests {
     use super::*;
     use crate::tools::Tool;
-    use tracedraw_core::Color;
+    use graphdraw_core::Color;
 
     fn rect_shape(app: &mut App, r: Rect) -> ShapeId {
         let id = app
@@ -517,14 +517,14 @@ mod tests {
         // gives outlines here).
         let tid = app
             .new_shape(ShapeKind::Text {
-                spans: vec![tracedraw_core::TextSpan::new(
+                spans: vec![graphdraw_core::TextSpan::new(
                     "Crop me".to_string(),
                     app.text_font.clone(),
                     24.0,
                 )],
                 origin: Point::new(10.0, 5.0),
                 frame: None,
-                align: tracedraw_core::TextAlign::Left,
+                align: graphdraw_core::TextAlign::Left,
                 para: Default::default(),
                 on_path: None,
             })

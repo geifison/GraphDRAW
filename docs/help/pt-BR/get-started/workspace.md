@@ -1,6 +1,6 @@
 # O espaço de trabalho
 
-A janela do TraceDraw contém seus desenhos e tudo o que é preciso para
+A janela do GraphDraw contém seus desenhos e tudo o que é preciso para
 trabalhar neles. Esta página dá nome às suas partes, para que as outras páginas
 desta Ajuda façam sentido.
 

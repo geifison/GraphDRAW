@@ -56,6 +56,6 @@ paneli ve onu açıklayan sayfayı listeler.
   panelleri katlar.
 - Bir panelin başlık çubuğundaki kapatma düğmesi onu sekmelerden çıkarır;
   daraltma düğmesi panel alanını katlar.
-- Açık bıraktığınız paneller TraceDraw bir sonraki açılışta geri gelir.
+- Açık bıraktığınız paneller GraphDraw bir sonraki açılışta geri gelir.
 - Panel kısayolları açıp kapatır: paneli öndeyken kısayoluna basmak panelleri
   gizler.

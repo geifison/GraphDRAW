@@ -1,9 +1,9 @@
 [package]
-name = "tracedraw-core"
+name = "graphdraw-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Document model, geometry and command engine for the TraceDraw vector editor"
+description = "Document model, geometry and command engine for the GraphDraw vector editor"
 
 [dependencies]
 kurbo.workspace = true

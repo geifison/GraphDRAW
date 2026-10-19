@@ -8,7 +8,7 @@
 //! masks (applied as alpha). Blend modes and adjustment layers are not
 //! interpreted; adjustment layers have no pixels and are skipped.
 
-use tracedraw_core::{
+use graphdraw_core::{
     document::{Shape, ShapeKind},
     geometry::{Rect, Size},
     id::IdSource,
@@ -746,7 +746,7 @@ fn to_rgba(
                 let l = s(0) as f32 / 255.0 * 100.0;
                 let a = s(1) as f32 - 128.0;
                 let bb = s(2) as f32 - 128.0;
-                let [r, g, b] = tracedraw_core::color::lab_to_rgb(l, a, bb);
+                let [r, g, b] = graphdraw_core::color::lab_to_rgb(l, a, bb);
                 let q = |v: f32| (v.clamp(0.0, 1.0) * 255.0).round() as u8;
                 (q(r), q(g), q(b))
             }
@@ -941,12 +941,12 @@ pub fn page_to_psd(doc: &Document, page_index: usize, dpi: f64) -> Option<Vec<u8
     let zoom = dpi / 25.4;
     let w = (page.size.width * zoom).ceil().max(1.0) as u32;
     let h = (page.size.height * zoom).ceil().max(1.0) as u32;
-    let view = tracedraw_render::ViewTransform {
+    let view = graphdraw_render::ViewTransform {
         zoom,
         origin_x: 0.0,
         origin_y: h as f64,
     };
-    let opts = || tracedraw_render::RenderOptions {
+    let opts = || graphdraw_render::RenderOptions {
         width: w,
         height: h,
         view,
@@ -960,7 +960,7 @@ pub fn page_to_psd(doc: &Document, page_index: usize, dpi: f64) -> Option<Vec<u8
     };
 
     // One render per visible layer, with every other layer hidden.
-    let layer_ids: Vec<(tracedraw_core::id::LayerId, String)> = doc
+    let layer_ids: Vec<(graphdraw_core::id::LayerId, String)> = doc
         .layers_for_page(page_id)
         .ok()?
         .iter()
@@ -978,10 +978,10 @@ pub fn page_to_psd(doc: &Document, page_index: usize, dpi: f64) -> Option<Vec<u8
                 l.visible = l.id == *id;
             }
         }
-        let px = tracedraw_render::render_page(&one, page_id, &opts())?;
+        let px = graphdraw_render::render_page(&one, page_id, &opts())?;
         layers.push((name.clone(), unpremultiply(&px)));
     }
-    let composite = tracedraw_render::render_page_image_with(doc, page_id, dpi, &opts())?;
+    let composite = graphdraw_render::render_page_image_with(doc, page_id, dpi, &opts())?;
     let comp = unpremultiply(&composite);
     let n = (w as usize) * (h as usize);
 
@@ -1070,8 +1070,8 @@ pub fn page_to_psd(doc: &Document, page_index: usize, dpi: f64) -> Option<Vec<u8
 #[cfg(test)]
 mod write_tests {
     use super::*;
-    use tracedraw_core::geometry::{Rect, Size};
-    use tracedraw_core::{Color, Fill, Shape, ShapeKind};
+    use graphdraw_core::geometry::{Rect, Size};
+    use graphdraw_core::{Color, Fill, Shape, ShapeKind};
 
     #[test]
     fn written_psd_reads_back_with_its_layers_and_pixels() {
@@ -1088,7 +1088,7 @@ mod write_tests {
         r.fill = Fill::Solid(Color::rgb8(255, 0, 0));
         r.stroke = None;
         doc.pages[0].layers[0].shapes.push(r);
-        let second = tracedraw_core::Layer::new(ids.layer(), "Top");
+        let second = graphdraw_core::Layer::new(ids.layer(), "Top");
         doc.pages[0].layers.push(second);
         doc.set_ids(ids);
         let bytes = page_to_psd(&doc, 0, 25.4).unwrap();

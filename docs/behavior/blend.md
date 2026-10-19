@@ -28,7 +28,7 @@ Under "Color Blend" three picture buttons: Direct, Clockwise and
 Counterclockwise. With a blend selected every change applies live and
 New path, Clear Blend and Break Apart follow; otherwise a full-width
 Apply blends the two selected objects with these settings
-(`tracedraw_core::live::tests::blend_options_change_the_steps`).
+(`graphdraw_core::live::tests::blend_options_change_the_steps`).
 
 ## Property bar (Blend tool)
 

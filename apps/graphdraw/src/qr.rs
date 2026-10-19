@@ -4,7 +4,7 @@
 //! docs/behavior/qr-code.md.
 
 use crate::app::App;
-use tracedraw_core::{
+use graphdraw_core::{
     document::ShapeKind,
     geometry::{BezPath, Point, Rect, Shape as _},
     Command, Fill, QrCode, Shape, ShapeId,
@@ -228,7 +228,7 @@ pub fn validate(qr: &QrCode) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::{Color, QrKind};
+    use graphdraw_core::{Color, QrKind};
 
     #[test]
     fn insert_places_a_selected_qr_code_that_reads_back() {
@@ -335,7 +335,7 @@ mod tests {
         let mut app = App::headless();
         let id = app.insert_qr_code().expect("placed");
         let json = app.doc().to_json().expect("json");
-        let back = tracedraw_core::Document::from_json(&json).expect("reads");
+        let back = graphdraw_core::Document::from_json(&json).expect("reads");
         assert_eq!(
             back.find_shape(id).and_then(|s| s.qr.clone()),
             app.doc().find_shape(id).and_then(|s| s.qr.clone())
@@ -346,8 +346,8 @@ mod tests {
     fn qr_code_objects_are_written_to_cdr_as_their_shapes() {
         let mut app = App::headless();
         app.insert_qr_code().expect("placed");
-        let bytes = tracedraw_cdr::write::document_to_cdr_version(app.doc(), 27);
-        let (back, _) = tracedraw_cdr::open_bytes(&bytes, "qr").expect("reads back");
+        let bytes = graphdraw_cdr::write::document_to_cdr_version(app.doc(), 27);
+        let (back, _) = graphdraw_cdr::open_bytes(&bytes, "qr").expect("reads back");
         let groups: Vec<&Shape> = back.pages[0]
             .layers
             .iter()

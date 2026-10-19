@@ -23,7 +23,7 @@ in [[menu.window > menu.window.workspace]], o nella pagina
 
 ## Cosa viene conservato {#kept}
 
-Tutto ciò che cambi viene conservato quando TraceDraw si chiude e ritorna la
+Tutto ciò che cambi viene conservato quando GraphDraw si chiude e ritorna la
 volta successiva: le opzioni, dove si trova ciascuna barra e quali barre sono
 visibili, lo strumento mostrato da ciascun gruppo della casella degli
 strumenti, i pannelli aperti, le unità, l'aggancio, le impostazioni dei nuovi

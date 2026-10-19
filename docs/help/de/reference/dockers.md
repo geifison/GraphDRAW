@@ -58,6 +58,6 @@ listet jedes Andockfenster und die Seite auf, die es erklärt.
 - Die Schaltfläche Schließen in der Titelleiste eines Andockfensters nimmt es
   aus den Registerkarten; die Schaltfläche Einklappen klappt den Bereich ein.
 - Andockfenster, die Sie offen lassen, kommen beim nächsten Start von
-  TraceDraw wieder.
+  GraphDraw wieder.
 - Die Tastenkürzel der Andockfenster schalten um: Drücken Sie eines, während
   sein Andockfenster vorn ist, werden die Andockfenster ausgeblendet.

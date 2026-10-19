@@ -1,7 +1,7 @@
 # Time Tracker
 
 Records the time spent on a drawing, task by task, and keeps the records
-in the drawing (`.tdraw` files; `.cdr` files do not carry them). Code:
+in the drawing (`.gdr` files; `.cdr` files do not carry them). Code:
 `time_tracker.rs` (records, clock, exports) and `ui/time_tracker.rs`
 (toolbar and dialog).
 
@@ -99,9 +99,9 @@ Tools > Time Tracker... or the toolbar's Tasks... button:
 
 ## Checks
 
-- `tracedraw_core` `document::tests::time_tracker_round_trips_and_is_left_out_when_empty`
-- `tracedraw_core` `engine::tests::time_tracker_stays_out_of_the_history`
-- `tracedraw_core` `engine::tests::recording_moves_the_start_and_finish`
+- `graphdraw_core` `document::tests::time_tracker_round_trips_and_is_left_out_when_empty`
+- `graphdraw_core` `engine::tests::time_tracker_stays_out_of_the_history`
+- `graphdraw_core` `engine::tests::recording_moves_the_start_and_finish`
 - `time_tracker::tests::the_clock_counts_work_and_stops_in_a_break`
 - `time_tracker::tests::durations_read_and_write`
 - `time_tracker::tests::dates_read_and_write_in_a_time_zone`

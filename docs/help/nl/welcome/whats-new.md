@@ -1,6 +1,6 @@
 # Wat is er nieuw
 
-Elke versie van TraceDraw voegt functies en verbeteringen toe. Deze pagina legt
+Elke versie van GraphDraw voegt functies en verbeteringen toe. Deze pagina legt
 uit hoe u ziet wat er veranderd is en noemt de hoogtepunten van de laatste
 versies.
 
@@ -13,16 +13,16 @@ versies.
   eind van elke nieuwe opdracht, naast de pijl van een submenu dat ernaar
   leidt, en boven de titel van een menu dat er een bevat. De markeringen
   verdwijnen als u de opdracht uitzet, en de opdracht staat weer uit als
-  TraceDraw de volgende keer start.
+  GraphDraw de volgende keer start.
 - De volledige lijst met wijzigingen van elke versie staat in het
-  [wijzigingslogboek](https://github.com/igtoth/tracedraw/blob/main/CHANGELOG.md)
+  [wijzigingslogboek](https://github.com/geifison/GraphDRAW/blob/main/CHANGELOG.md)
   van het project.
 
 ## Hoogtepunten van recente versies {#highlights}
 
 - **Help in uw taal.** Elke knop **?** en <kbd>F1</kbd> openen de pagina van
   deze Help over het dialoogvenster, paneel of gereedschap voor u, in de taal
-  waarop TraceDraw is ingesteld.
+  waarop GraphDraw is ingesteld.
 - **Documenteigenschappen.**
   [[menu.file > menu.file.document_properties]] bewaart taal, titel,
   onderwerp, auteur, copyright, trefwoorden, notities en beoordeling van een

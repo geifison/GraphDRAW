@@ -7,7 +7,7 @@
 //! canvas draws them in screen space.
 
 use serde::{Deserialize, Serialize};
-use tracedraw_core::geometry::{Point, Rect, Vec2};
+use graphdraw_core::geometry::{Point, Rect, Vec2};
 
 /// Below this, two values are the same line.
 const SAME: f64 = 1e-6;

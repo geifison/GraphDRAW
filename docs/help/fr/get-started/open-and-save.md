@@ -1,6 +1,6 @@
 # Ouvrir et enregistrer des dessins
 
-TraceDraw enregistre les dessins dans son propre format, `.tdraw`, qui
+GraphDraw enregistre les dessins dans son propre format, `.gdr`, qui
 conserve tout, et peut aussi enregistrer des fichiers `.cdr`. Il ouvre de
 nombreux autres formats ; voir
 [Formats de fichier pris en charge](../file-formats/supported-formats.md).
@@ -40,7 +40,7 @@ pouvez les réactiver dans la page [[options.warnings]] de
 
 Choisissez [[menu.file > menu.file.save]] (<kbd>Ctrl+S</kbd>) pour écrire le
 dessin dans son fichier. Un nouveau dessin, ou un dessin ouvert depuis un
-format que TraceDraw sait seulement lire, n'a pas encore de fichier :
+format que GraphDraw sait seulement lire, n'a pas encore de fichier :
 Enregistrer ouvre alors la boîte de dialogue [[dialog.save_drawing]].
 
 ## Enregistrer sous {#save-as}
@@ -62,9 +62,9 @@ Pour enregistrer un dessin sous un nouveau nom :
    dossier de la liste pour l'ouvrir ; cliquez sur un fichier pour reprendre
    son nom.
 2. Tapez le [[dialog.file_name]]. L'extension du type choisi est ajoutée.
-3. Choisissez [[dialog.save_as_type]] : TraceDraw (`*.tdraw`) ou
+3. Choisissez [[dialog.save_as_type]] : GraphDraw (`*.gdr`) ou
    [[file.cdr_files]].
-4. Choisissez la [[dialog.cdr_version]]. Pour les fichiers TraceDraw, c'est
+4. Choisissez la [[dialog.cdr_version]]. Pour les fichiers GraphDraw, c'est
    la version du format, la plus récente en premier. Pour les fichiers
    `.cdr`, c'est la version du fichier, de 27 à 14 ; un programme plus
    ancien ne peut ouvrir qu'une version aussi ancienne que lui ou plus
@@ -80,7 +80,7 @@ Pour enregistrer un dessin sous un nouveau nom :
    pour l'enlever). Ce sont les propriétés du dessin, affichées aussi dans
    [Propriétés du document](../pages-layout/document-properties.md).
 7. Cliquez sur [[dialog.save]] ou appuyez sur <kbd>Entrée</kbd>. Si le
-   fichier existe, TraceDraw demande s'il faut le [[dialog.replace]].
+   fichier existe, GraphDraw demande s'il faut le [[dialog.replace]].
 
 La boîte de dialogue s'ouvre dans le dossier du dessin, sinon dans le
 dernier dossier où vous avez enregistré, sinon dans votre dossier de
@@ -106,9 +106,9 @@ conserve les dessins dans un dépôt GitHub (voir [GitHub](github.md)).
 Choisissez [[menu.file > menu.file.close]] (<kbd>Ctrl+F4</kbd>), cliquez sur
 le bouton de fermeture de l'onglet du dessin, ou cliquez sur l'onglet avec
 le bouton du milieu. [[menu.file.close_all]] ferme tous les dessins, et
-[[menu.file.exit]] (<kbd>Alt+F4</kbd>) ferme TraceDraw.
+[[menu.file.exit]] (<kbd>Alt+F4</kbd>) ferme GraphDraw.
 
-Quand un dessin a des modifications non enregistrées, TraceDraw demande
+Quand un dessin a des modifications non enregistrées, GraphDraw demande
 d'abord s'il faut les enregistrer : [[dialog.yes]] enregistre (en demandant
 un nom si le dessin n'a pas encore de fichier), [[dialog.no]] ferme sans
 enregistrer et [[dialog.cancel]] laisse le dessin ouvert. Quand plusieurs
@@ -119,15 +119,15 @@ arrête.
 
 ## Sauvegarde automatique et récupération {#recovery}
 
-Sur le bureau, TraceDraw conserve des sauvegardes de vos dessins ouverts
+Sur le bureau, GraphDraw conserve des sauvegardes de vos dessins ouverts
 tant que la sauvegarde automatique est active (la page [[options.save]] de
 [[menu.tools > menu.tools.options > menu.tools.options_app]] règle la
 fréquence et l'emplacement ; toutes les 20 minutes au départ). Fermer
-TraceDraw normalement les supprime.
+GraphDraw normalement les supprime.
 
-Si TraceDraw s'est arrêté sans se fermer, par exemple après une coupure de
+Si GraphDraw s'est arrêté sans se fermer, par exemple après une coupure de
 courant, il propose les sauvegardes au démarrage suivant :
 [[dialog.recover]] ouvre chacune comme un dessin non enregistré
 (Enregistrer demande alors où l'enregistrer), et [[dialog.discard]] laisse
-les sauvegardes dans leur dossier. Deux fenêtres TraceDraw ouvertes en même
+les sauvegardes dans leur dossier. Deux fenêtres GraphDraw ouvertes en même
 temps ne se proposent jamais les dessins l'une de l'autre.

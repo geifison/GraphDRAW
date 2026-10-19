@@ -3,7 +3,7 @@
 //! docs/behavior/bitmap-tracing.md for the algorithm and defaults.
 
 use image::{Rgba, RgbaImage};
-use tracedraw_core::{
+use graphdraw_core::{
     geometry::{BezPath, Point, Rect},
     Color,
 };
@@ -185,12 +185,12 @@ fn outline(img: &RgbaImage, s: &Settings) -> Vec<Traced> {
             if ring.len() < 3 {
                 continue;
             }
-            let simplified = tracedraw_core::geometry::simplify(&ring, tolerance);
+            let simplified = graphdraw_core::geometry::simplify(&ring, tolerance);
             if simplified.len() < 3 {
                 continue;
             }
             let sub = if s.smoothing > 0.0 {
-                tracedraw_core::geometry::smooth_path(&simplified, true)
+                graphdraw_core::geometry::smooth_path(&simplified, true)
             } else {
                 polyline_closed(&simplified)
             };
@@ -510,14 +510,14 @@ fn centerline(img: &RgbaImage, s: &Settings) -> Vec<Traced> {
     let tolerance = 0.5 + (100.0 - s.detail) / 100.0 * 2.0;
     let mut out = Vec::new();
     for l in lines {
-        let simplified = tracedraw_core::geometry::simplify(&l, tolerance);
+        let simplified = graphdraw_core::geometry::simplify(&l, tolerance);
         if simplified.len() < 2 {
             continue;
         }
         let path = if s.smoothing > 0.0 && simplified.len() > 2 {
-            tracedraw_core::geometry::smooth_path(&simplified, false)
+            graphdraw_core::geometry::smooth_path(&simplified, false)
         } else {
-            tracedraw_core::geometry::polyline_path(&simplified, false)
+            graphdraw_core::geometry::polyline_path(&simplified, false)
         };
         out.push(Traced {
             path,
@@ -607,15 +607,15 @@ pub fn render_traced(traced: &[Traced], w: u32, h: u32, stroke_px: f64) -> RgbaI
         let mut pb = tiny_skia::PathBuilder::new();
         for el in t.path.elements() {
             match *el {
-                tracedraw_core::geometry::PathEl::MoveTo(p) => pb.move_to(p.x as f32, p.y as f32),
-                tracedraw_core::geometry::PathEl::LineTo(p) => pb.line_to(p.x as f32, p.y as f32),
-                tracedraw_core::geometry::PathEl::QuadTo(a, p) => {
+                graphdraw_core::geometry::PathEl::MoveTo(p) => pb.move_to(p.x as f32, p.y as f32),
+                graphdraw_core::geometry::PathEl::LineTo(p) => pb.line_to(p.x as f32, p.y as f32),
+                graphdraw_core::geometry::PathEl::QuadTo(a, p) => {
                     pb.quad_to(a.x as f32, a.y as f32, p.x as f32, p.y as f32)
                 }
-                tracedraw_core::geometry::PathEl::CurveTo(a, b, p) => pb.cubic_to(
+                graphdraw_core::geometry::PathEl::CurveTo(a, b, p) => pb.cubic_to(
                     a.x as f32, a.y as f32, b.x as f32, b.y as f32, p.x as f32, p.y as f32,
                 ),
-                tracedraw_core::geometry::PathEl::ClosePath => pb.close(),
+                graphdraw_core::geometry::PathEl::ClosePath => pb.close(),
             }
         }
         let Some(path) = pb.finish() else {
@@ -660,14 +660,14 @@ pub fn render_traced(traced: &[Traced], w: u32, h: u32, stroke_px: f64) -> RgbaI
 pub fn to_rect(path: &BezPath, img_w: u32, img_h: u32, rect: Rect) -> BezPath {
     let sx = rect.width() / img_w.max(1) as f64;
     let sy = rect.height() / img_h.max(1) as f64;
-    tracedraw_core::geometry::Affine::new([sx, 0.0, 0.0, -sy, rect.x0, rect.y1]) * path.clone()
+    graphdraw_core::geometry::Affine::new([sx, 0.0, 0.0, -sy, rect.x0, rect.y1]) * path.clone()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use image::ImageBuffer;
-    use tracedraw_core::geometry::Shape as _;
+    use graphdraw_core::geometry::Shape as _;
 
     fn circle_image() -> RgbaImage {
         ImageBuffer::from_fn(100, 100, |x, y| {

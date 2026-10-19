@@ -12,7 +12,7 @@
 
 use std::collections::HashMap;
 use std::fmt::Write as _;
-use tracedraw_core::{
+use graphdraw_core::{
     document::{Layer as DocLayer, ParagraphStyle, Shape, ShapeKind, TextSpan},
     geometry::{Affine, BezPath, PathEl, Point, Rect, Size, Vec2},
     id::IdSource,
@@ -307,7 +307,7 @@ impl Ctx<'_> {
                 let r = e.f_or(40, 0.0) * self.unit;
                 let (a0, a1) = (e.f_or(50, 0.0), e.f_or(51, 360.0));
                 (r > 0.0).then(|| {
-                    let path = tracedraw_core::geometry::ellipse_arc_path(
+                    let path = graphdraw_core::geometry::ellipse_arc_path(
                         Rect::new(c.x - r, c.y - r, c.x + r, c.y + r),
                         a0,
                         a1,
@@ -334,9 +334,9 @@ impl Ctx<'_> {
                 let full = (t1 - t0).abs() >= std::f64::consts::TAU - 1e-6;
                 let rect = Rect::new(-a, -b, a, b);
                 let local = if full {
-                    tracedraw_core::geometry::ellipse_path(rect)
+                    graphdraw_core::geometry::ellipse_path(rect)
                 } else {
-                    tracedraw_core::geometry::ellipse_arc_path(
+                    graphdraw_core::geometry::ellipse_arc_path(
                         rect,
                         t0.to_degrees(),
                         t1.to_degrees(),
@@ -550,7 +550,7 @@ impl Ctx<'_> {
                                 let (a0, a1) = (num(i + 4), num(i + 5));
                                 let ccw = num(i + 6) != 0.0;
                                 let (s0, s1) = if ccw { (a0, a1) } else { (-a1, -a0) };
-                                let arc = tracedraw_core::geometry::ellipse_arc_path(
+                                let arc = graphdraw_core::geometry::ellipse_arc_path(
                                     Rect::new(c.x - r, c.y - r, c.x + r, c.y + r),
                                     s0,
                                     s1,
@@ -568,7 +568,7 @@ impl Ctx<'_> {
                                 let (a0, a1) = (num(i + 6), num(i + 7));
                                 let a = major.hypot();
                                 let b = a * ratio;
-                                let local = tracedraw_core::geometry::ellipse_arc_path(
+                                let local = graphdraw_core::geometry::ellipse_arc_path(
                                     Rect::new(-a, -b, a, b),
                                     a0,
                                     a1,
@@ -1179,7 +1179,7 @@ fn fmt(v: f64) -> String {
 
 struct Writer<'a> {
     out: String,
-    symbols: &'a [tracedraw_core::Symbol],
+    symbols: &'a [graphdraw_core::Symbol],
     handle: u32,
     layer: String,
 }
@@ -1234,7 +1234,7 @@ impl Writer<'_> {
                 cur.clear();
             }
         };
-        tracedraw_core::geometry::flatten(path, 0.05, &mut |el| match el {
+        graphdraw_core::geometry::flatten(path, 0.05, &mut |el| match el {
             PathEl::MoveTo(p) => {
                 flush(&mut cur, closed, &mut out);
                 closed = false;
@@ -1301,7 +1301,7 @@ impl Writer<'_> {
             return;
         }
         if !shape.effects.is_empty() {
-            let ev = tracedraw_core::live::evaluate(shape);
+            let ev = graphdraw_core::live::evaluate(shape);
             for s in ev
                 .below
                 .iter()
@@ -1402,7 +1402,7 @@ impl Writer<'_> {
             // Fountain, pattern, texture and mesh fills: their first colour.
             let c = match &shape.fill {
                 Fill::Fountain(f) => f.stops.first().map(|s| s.color),
-                Fill::Pattern(tracedraw_core::Pattern::TwoColor { front, .. }) => Some(*front),
+                Fill::Pattern(graphdraw_core::Pattern::TwoColor { front, .. }) => Some(*front),
                 Fill::Texture(t) => Some(t.color_a),
                 Fill::Mesh(m) => m.nodes.first().map(|n| n.color),
                 _ => None,
@@ -1568,7 +1568,7 @@ fn safe_name(name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::geometry::Shape as _;
+    use graphdraw_core::geometry::Shape as _;
 
     fn dxf(entities: &str) -> String {
         format!(

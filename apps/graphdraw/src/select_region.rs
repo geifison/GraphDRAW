@@ -2,8 +2,8 @@
 //! those lying wholly inside it, or with Alt every object it touches. See
 //! docs/behavior/pick-tool.md and docs/behavior/free-transform.md.
 
-use tracedraw_core::geometry::{rect_path, BezPath, PathEl, Point, Rect, Shape as _};
-use tracedraw_core::{Shape, ShapeKind};
+use graphdraw_core::geometry::{rect_path, BezPath, PathEl, Point, Rect, Shape as _};
+use graphdraw_core::{Shape, ShapeKind};
 
 /// Flattening tolerance for outlines, page millimetres.
 const FLAT_MM: f64 = 0.05;
@@ -87,7 +87,7 @@ pub fn point_in_polygon(pts: &[Point], p: Point) -> bool {
 fn polylines(path: &BezPath) -> Vec<Vec<Point>> {
     let mut out: Vec<Vec<Point>> = Vec::new();
     let mut cur: Vec<Point> = Vec::new();
-    tracedraw_core::geometry::flatten(path, FLAT_MM, &mut |el| match el {
+    graphdraw_core::geometry::flatten(path, FLAT_MM, &mut |el| match el {
         PathEl::MoveTo(p) => {
             if !cur.is_empty() {
                 out.push(std::mem::take(&mut cur));
@@ -174,7 +174,7 @@ pub fn takes(
     if !s.effects.is_empty() {
         // What the object draws: its warped outline and the objects its
         // effects add; wholly inside means all of them.
-        let ev = tracedraw_core::live::evaluate(s);
+        let ev = graphdraw_core::live::evaluate(s);
         let parts: Vec<Shape> = std::iter::once(ev.main)
             .chain(ev.below)
             .chain(ev.above)
@@ -247,7 +247,7 @@ pub fn takes(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tracedraw_core::{Color, Fill, ShapeId};
+    use graphdraw_core::{Color, Fill, ShapeId};
 
     fn rect_shape(id: u64, r: Rect, filled: bool) -> Shape {
         let mut s = Shape::new(

@@ -1,4 +1,4 @@
-# Contributing to TraceDraw
+# Contributing to GraphDraw
 
 Thank you for helping. Read `AGENTS.md` first: it holds the engineering
 rules (commands, no panics on input, layering, tests, units, language).
@@ -19,7 +19,7 @@ This file covers what every contribution must also respect.
 - Bundle only original or openly licensed assets (icons, fonts, images,
   palettes, templates, test files) and list each one in
   `ATTRIBUTION.md` with its author, source and license.
-- TraceDraw stands on its own: do not name other vendors or their
+- GraphDraw stands on its own: do not name other vendors or their
   products in code, comments, docs, commit messages or file names, and do
   not describe a feature as modelled on another program. Give features
   descriptive names of their own.

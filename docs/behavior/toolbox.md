@@ -54,5 +54,5 @@ Each tool's pointer says which tool is active (code: `ui/cursors.rs`):
 | Every other tool (shapes, dimensions, connectors, effects, fills, Crop, Knife, Table, ...) | the cross hair with the tool's icon at its lower right on a light patch |
 
 The cross hair, the arrows and the I-beam are the system's own; the
-icons, nibs and drawn pointers are painted by TraceDraw above the
+icons, nibs and drawn pointers are painted by GraphDraw above the
 drawing. Nib outlines stay between 2 and 400 points on screen.

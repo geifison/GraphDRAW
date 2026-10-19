@@ -8,7 +8,7 @@
 
 use crate::app::App;
 use crate::i18n::{tr, trf};
-use tracedraw_core::{
+use graphdraw_core::{
     document::{ShapeKind, TextSpan},
     geometry::Point,
     Command, ShapeId,
@@ -73,13 +73,13 @@ impl App {
         if shapes.is_empty() {
             return None;
         }
-        let mut tmp = tracedraw_core::Document::new("clipboard", self.page_size());
+        let mut tmp = graphdraw_core::Document::new("clipboard", self.page_size());
         tmp.symbols = self.doc().symbols.clone();
         let layer = tmp.pages[0].layers[0].id;
         if let Ok(l) = tmp.layer_mut(layer) {
             l.shapes = shapes;
         }
-        Some(tracedraw_io::svg::page_to_svg(&tmp, 0))
+        Some(graphdraw_io::svg::page_to_svg(&tmp, 0))
     }
 
     /// Copy to the internal clipboard and, as SVG, to the system clipboard.
@@ -102,14 +102,14 @@ impl App {
             spans: vec![span],
             origin: Point::new(c.x, c.y),
             frame: None,
-            align: tracedraw_core::TextAlign::Left,
+            align: graphdraw_core::TextAlign::Left,
             para: Default::default(),
             on_path: None,
         };
         if let Some(id) = self.new_shape(kind) {
             self.run(Command::SetFill {
                 shapes: vec![id],
-                fill: tracedraw_core::Fill::Solid(tracedraw_core::Color::BLACK),
+                fill: graphdraw_core::Fill::Solid(graphdraw_core::Color::BLACK),
             });
             self.run(Command::SetStroke {
                 shapes: vec![id],
@@ -124,7 +124,7 @@ impl App {
         let Some(layer) = self.active_layer() else {
             return;
         };
-        match tracedraw_io::svg_import::parse(svg, &mut tracedraw_core::id::IdSource::default()) {
+        match graphdraw_io::svg_import::parse(svg, &mut graphdraw_core::id::IdSource::default()) {
             Ok(imported) => {
                 let mut cmds = Vec::new();
                 let mut ids = Vec::new();
@@ -239,7 +239,7 @@ impl App {
         let ShapeKind::Bitmap { png, .. } = &s.kind else {
             return;
         };
-        let dir = std::env::temp_dir().join("tracedraw-edit");
+        let dir = std::env::temp_dir().join("graphdraw-edit");
         if let Err(e) = std::fs::create_dir_all(&dir) {
             self.status = e.to_string();
             return;

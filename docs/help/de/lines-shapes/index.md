@@ -1,6 +1,6 @@
 # Linien, Formen und Umrisse
 
-Alles, was Sie in TraceDraw zeichnen, besteht aus Linien und Formen. Diese
+Alles, was Sie in GraphDraw zeichnen, besteht aus Linien und Formen. Diese
 Seiten erklären die Werkzeuge, die sie zeichnen, wie Sie sie Knoten für Knoten
 umformen, wie Sie sie kombinieren und zerschneiden, und wie Sie den Umriss
 einstellen, der ihre Kanten zeichnet.
