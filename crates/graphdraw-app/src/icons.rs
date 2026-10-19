@@ -232,6 +232,7 @@ pub fn get(name: &str) -> ImageSource<'static> {
         "cur-grab" => icon!("cur-grab"),
         "cur-rotate" => icon!("cur-rotate"),
         "cur-select" => icon!("cur-select"),
+        "cur-select-pick" => icon!("cur-select-pick"),
         "cur-pick-path" => icon!("cur-pick-path"),
         "cur-zoom" => icon!("cur-zoom"),
         "cur-pan" => icon!("cur-pan"),

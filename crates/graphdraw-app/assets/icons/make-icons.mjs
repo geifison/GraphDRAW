@@ -240,6 +240,9 @@ const icons = {
   "cur-move": `<path d="M12 3 V21 M3 12 H21 M9.5 5.5 L12 3 L14.5 5.5 M9.5 18.5 L12 21 L14.5 18.5 M5.5 9.5 L3 12 L5.5 14.5 M18.5 9.5 L21 12 L18.5 14.5"/>`,
   "cur-grab": `<path d="M7.5 11 V9.5 a1.5 1.5 0 0 1 3 0 V11 M10.5 9.5 a1.5 1.5 0 0 1 3 0 V11 M13.5 10 a1.5 1.5 0 0 1 3 0 V12.5 M7.5 11.5 a1.5 1.5 0 0 0 -2.5 1 L6.5 17 a5 5 0 0 0 4.5 3 H13 a4 4 0 0 0 4 -4 V12.5"/>`,
   "cur-rotate": `<path d="M18.5 12 a6.5 6.5 0 1 1 -2 -4.7"/><path d="M17 3.5 V7.5 H13"/>`,
+  // Pré-seleção: a seta da Seleção com uma caixa de alças embaixo, à direita
+  // (o objeto sob o cursor é clicável). Ponta da seta em (4; 2,5).
+  "cur-select-pick": `<path d="M4 2.5 L4 15 L7.2 11.8 L9.5 16.3 L11.4 15.3 L9.2 10.9 L13.5 10.6 Z"/><rect x="14.5" y="14.5" width="6" height="6" stroke-dasharray="1.5 1.5"/>${node(14.5, 14.5, 1.3)}${node(20.5, 20.5, 1.3)}`,
   // ---- página (barra de propriedades sem seleção) ----
   "page-portrait": `<rect x="7" y="3.5" width="10" height="17" rx="1"/><path d="M9.5 7.5 H14.5"/>`,
   "page-landscape": `<rect x="3.5" y="7" width="17" height="10" rx="1"/><path d="M6.5 10 H11.5"/>`,

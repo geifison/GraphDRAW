@@ -4729,6 +4729,14 @@ impl App {
                             ("Esc", tr("Cancelar / limpar seleção", "Cancel / clear selection")),
                             ("Enter", tr("Terminar curva Bézier", "Finish Bézier curve")),
                             (tr("Ctrl+clique", "Ctrl+click"), tr("Selecionar dentro do grupo", "Select inside group")),
+                            (tr("Alt+clique", "Alt+click"), tr("Selecionar o objeto de baixo", "Select the object below")),
+                            (tr("Alt+arrastar", "Alt+drag"), tr("Seleção por toque", "Touch selection")),
+                            (tr("Ctrl+Alt+arrastar", "Ctrl+Alt+drag"), tr("Laço (por toque)", "Lasso (touch)")),
+                            (tr("Shift na alça", "Shift on handle"), tr("Redimensionar a partir do centro", "Resize from the center")),
+                            (tr("Alt na alça", "Alt on handle"), tr("Redimensionar sem proporção", "Resize without proportion")),
+                            (tr("Ctrl na alça", "Ctrl on handle"), tr("Deixar espelhar ao cruzar o lado oposto", "Allow mirroring past the opposite side")),
+                            (tr("Ctrl girando", "Ctrl while rotating"), tr("Ângulo em passos de 15°", "Angle in 15° steps")),
+                            (tr("Alt ao soltar a rotação", "Alt on rotate release"), tr("Girar/inclinar uma cópia", "Rotate/skew a copy")),
                             (tr("Ctrl desenhando", "Ctrl while drawing"), tr("Prender o ângulo da linha em passos de 15°", "Lock the line angle to 15° steps")),
                         ] {
                             ui.monospace(k);

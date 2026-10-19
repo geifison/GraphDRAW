@@ -115,7 +115,13 @@ impl Tool {
         match self {
             Tool::Select => (
                 "tool-select",
-                crate::keymap::hint(tr("Seleção", "Select"), crate::keymap::Command::ToolSelect),
+                crate::keymap::hint(
+                    tr(
+                        "Seleção — clique de novo para girar/inclinar; Alt+arrastar: por toque; Ctrl+Alt: laço; Alt+clique: o de baixo",
+                        "Select — click again to rotate/skew; Alt+drag: touch; Ctrl+Alt: lasso; Alt+click: the one below",
+                    ),
+                    crate::keymap::Command::ToolSelect,
+                ),
                 "V",
             ),
             Tool::Shape => (
@@ -710,7 +716,7 @@ enum Drag {
     Pan,
     Rubber {
         start: Pos2,
-        /// Laço (Alt + arrastar, GD-SEL-03): pontos na página.
+        /// Laço (Ctrl + Alt + arrastar, GD-SEL-03/GD-SLT-04): pontos na página.
         lasso: Option<Vec<Point>>,
     },
     ZoomRect {
@@ -725,7 +731,6 @@ enum Drag {
     Scale {
         handle: Anchor,
         bounds: kurbo::Rect,
-        from_center: bool,
         originals: Vec<(ObjRef, Object)>,
     },
     Rotate {
@@ -912,6 +917,8 @@ struct RenderKey {
     view: View,
     size: [usize; 2],
     ppp: f32,
+    /// Fantasma do arrasto em uso (GD-SLT-13).
+    ghost: bool,
 }
 
 pub struct CanvasState {
@@ -1045,6 +1052,18 @@ pub struct CanvasState {
     drafts: DraftHistory,
     /// Ctrl segurado neste quadro: nós da Bézier/polilinha em passos de 15°.
     angle_lock: bool,
+    /// Teclas modificadoras deste quadro (cor do retângulo por toque).
+    mods: egui::Modifiers,
+    /// Fantasma do arrasto da Seleção (GD-SLT-13): cena de antes do arrasto
+    /// e os IDs que se movem.
+    ghost: Option<Ghost>,
+}
+
+/// Cena de antes do arrasto e os objetos (com os de dentro dos grupos) que
+/// o arrasto transforma (GD-SLT-13).
+struct Ghost {
+    scene: std::sync::Arc<graphdraw_core::render::Scene>,
+    ids: std::collections::HashSet<String>,
 }
 
 impl Default for CanvasState {
@@ -1128,6 +1147,8 @@ impl Default for CanvasState {
             three: None,
             drafts: DraftHistory::default(),
             angle_lock: false,
+            mods: egui::Modifiers::NONE,
+            ghost: None,
         }
     }
 }
@@ -2097,6 +2118,47 @@ impl CanvasState {
         });
     }
 
+    /// Objeto sob o cursor para a pré-seleção (GD-SLT-01); com Ctrl, o de
+    /// dentro do grupo.
+    fn hover_target(&self, ui: &egui::Ui, doc: &DocState, rect: Rect, ph: f64) -> Option<String> {
+        let pos = ui
+            .input(|i| i.pointer.hover_pos())
+            .filter(|p| rect.contains(*p))?;
+        let p = self.page_of(rect, ph, pos);
+        self.pick_focus(doc, p, 5.0 / self.view.zoom, self.mods.ctrl)
+    }
+
+    /// Arrasto da Seleção que mostra fantasma (GD-SLT-13).
+    fn ghosting(&self) -> bool {
+        matches!(
+            self.drag,
+            Drag::Move { .. } | Drag::Scale { .. } | Drag::Rotate { .. } | Drag::Skew { .. }
+        )
+    }
+
+    /// Guarda a cena de antes do arrasto e os IDs da seleção (com os de
+    /// dentro dos grupos), para o fantasma (GD-SLT-13).
+    fn begin_ghost(&mut self, doc: &mut DocState) {
+        fn collect(o: &Object, out: &mut std::collections::HashSet<String>) {
+            out.insert(o.id.clone());
+            if let ObjectKind::Group(g) = &o.kind {
+                for c in &g.children {
+                    collect(c, out);
+                }
+            }
+        }
+        let mut ids = std::collections::HashSet::new();
+        for r in ops::refs(&doc.editor, &doc.selection) {
+            if let Some(o) = doc.editor.get(&r) {
+                collect(o, &mut ids);
+            }
+        }
+        self.ghost = Some(Ghost {
+            scene: doc.scene(),
+            ids,
+        });
+    }
+
     /// Objeto sob o cursor respeitando o modo foco.
     fn pick_focus(&self, doc: &DocState, p: Point, tol: f64, deep: bool) -> Option<String> {
         let id = pick(doc, p, tol, deep)?;
@@ -2178,6 +2240,7 @@ impl CanvasState {
         }
         self.drag = Drag::None;
         self.copy_taken = false;
+        self.ghost = None;
         self.smart_lines.clear();
         self.snap_hit = None;
     }
@@ -2709,6 +2772,7 @@ impl CanvasState {
             doc.editor.cancel();
         }
         self.drag = Drag::None;
+        self.ghost = None;
         self.bezier = None;
         self.three = None;
         self.bspline = None;
@@ -2802,6 +2866,10 @@ impl CanvasState {
         self.eyedrop.active = tool == Tool::Eyedropper;
         self.eyedrop.shift = mods.shift;
         self.angle_lock = angle_locked(mods);
+        self.mods = mods;
+        if !self.ghosting() {
+            self.ghost = None;
+        }
         self.eyedrop.now = ui.input(|i| i.time);
         self.eyedrop.new_stroke = Some(
             defaults
@@ -3224,6 +3292,7 @@ impl CanvasState {
             view: v,
             size: px,
             ppp,
+            ghost: self.ghost.is_some(),
         };
         let panning = matches!(self.drag, Drag::Pan)
             && self.rendered.is_some_and(|r| {
@@ -3232,6 +3301,39 @@ impl CanvasState {
         let want_pixels = self.eyedrop.active && self.pixels.as_ref().map(|p| p.0) != Some(key);
         if (self.rendered != Some(key) || want_pixels) && !panning {
             let mut scene = doc.scene();
+            // Fantasma (GD-SLT-13): a cena de antes do arrasto, sólida, e por
+            // cima o resultado a 50%; o que nasceu no arrasto (cópias
+            // carimbadas) aparece normal.
+            if let Some(g) = &self.ghost {
+                let before: std::collections::HashSet<&str> =
+                    g.scene.items.iter().map(|i| i.object_id()).collect();
+                let mut items = g.scene.items.clone();
+                for it in &scene.items {
+                    let id = it.object_id();
+                    if g.ids.contains(id) {
+                        let mut it = it.clone();
+                        it.fade(theme::GHOST_OPACITY);
+                        items.push(it);
+                    } else if !before.contains(id) {
+                        items.push(it.clone());
+                    }
+                }
+                let mut blends = g.scene.blends.clone();
+                blends.extend(scene.blends.iter().map(|(k, v)| (k.clone(), *v)));
+                let mut overprints = g.scene.overprints.clone();
+                overprints.extend(scene.overprints.iter().map(|(k, v)| (k.clone(), *v)));
+                scene = std::sync::Arc::new(graphdraw_core::render::Scene {
+                    width: scene.width,
+                    height: scene.height,
+                    background: scene.background.clone(),
+                    bleed: scene.bleed,
+                    items,
+                    missing_fonts: Vec::new(),
+                    blends,
+                    overprints,
+                    item_bounds: Default::default(),
+                });
+            }
             // Modo foco (GD-BDR-82): só os objetos do foco aparecem.
             if let Some(ids) = self.focus_ids(doc) {
                 let mut items = Vec::new();
@@ -3457,6 +3559,14 @@ impl CanvasState {
             })
         };
         match &self.drag {
+            // Grudado num encaixe ou guia inteligente: a tinta muda (GD-SLT-12).
+            Drag::Move { .. } if self.snap_hit.is_some() || !self.smart_lines.is_empty() => {
+                return Glyph::Tinted {
+                    name: "cur-move",
+                    hotspot: (12.0, 12.0),
+                    ink: theme::GUIDE_OBJECT,
+                };
+            }
             Drag::Move { .. } => return icon("cur-move", 12.0, 12.0),
             Drag::Rotate { .. } => return icon("cur-rotate", 12.0, 12.0),
             Drag::Scale { handle, .. } => return resize(*handle),
@@ -3493,6 +3603,28 @@ impl CanvasState {
                         (false, _) => resize(a),
                     };
                 }
+            }
+        }
+        // Seleção (GD-SLT-01/02): sobre objeto livre, pré-seleção; sobre o
+        // selecionado ou o "X" do centro, mover.
+        if tool == Tool::Select && matches!(self.drag, Drag::None) {
+            let on_center = !self.rotate_mode
+                && ops::selection_bounds(&doc.editor, &doc.selection, false).is_some_and(|b| {
+                    (self.screen(rect, ph, b.center()) - pos).length() <= theme::HANDLE_HIT
+                });
+            let under = self.pick_focus(
+                doc,
+                self.page_of(rect, ph, pos),
+                5.0 / self.view.zoom,
+                self.mods.ctrl,
+            );
+            match under {
+                _ if on_center && !self.mods.alt => return icon("cur-move", 12.0, 12.0),
+                Some(id) if doc.selection.contains(&id) && !self.mods.alt => {
+                    return icon("cur-move", 12.0, 12.0);
+                }
+                Some(_) => return icon("cur-select-pick", 4.0, 2.5),
+                None => {}
             }
         }
         match tool {
@@ -3750,33 +3882,57 @@ impl CanvasState {
         {
             let sr = self.screen_rect(rect, ph, b);
             painter.rect_stroke(sr, theme::RADIUS_NONE, thin, egui::StrokeKind::Middle);
+            // Objeto-chave (GD-SLT-08): com 2+ objetos, o último selecionado
+            // fica parado no alinhamento; a caixa dele em linha mais grossa.
+            if doc.selection.len() >= 2
+                && let Some(kb) = doc
+                    .selection
+                    .last()
+                    .and_then(|id| doc.editor.find(id))
+                    .and_then(|r| ops::object_bounds(&doc.editor, &r, false))
+            {
+                painter.rect_stroke(
+                    self.screen_rect(rect, ph, kb),
+                    theme::RADIUS_NONE,
+                    EStroke::new(theme::KEY_OBJECT_WIDTH, accent()),
+                    egui::StrokeKind::Middle,
+                );
+            }
+            let c = self.screen(rect, ph, b.center());
             if self.rotate_mode {
+                // Estado 2 (GD-SLT-03): setas curvas nos cantos (girar), retas
+                // nas arestas (inclinar) e o pivô em alvo.
                 for (a, p) in self.handle_rects(rect, ph, b) {
-                    let corner = matches!(
-                        a,
-                        Anchor::TopLeft
-                            | Anchor::TopRight
-                            | Anchor::BottomLeft
-                            | Anchor::BottomRight
-                    );
-                    if corner {
-                        painter.circle(p, theme::HANDLE_SIZE / 2.0, theme::HANDLE_FILL, hs);
+                    let (fx, fy) = a.fraction();
+                    if fx != 0.5 && fy != 0.5 {
+                        let out = (p - c).normalized();
+                        let out = if out.is_finite() {
+                            out
+                        } else {
+                            Vec2::new(1.0, -1.0).normalized()
+                        };
+                        paint_rotate_arrow(painter, p, out);
                     } else {
-                        let d = theme::HANDLE_SIZE / 2.0 + theme::SPACE_050;
-                        let pts = vec![
-                            p + Vec2::new(0.0, -d),
-                            p + Vec2::new(d, 0.0),
-                            p + Vec2::new(0.0, d),
-                            p + Vec2::new(-d, 0.0),
-                        ];
-                        painter.add(egui::Shape::convex_polygon(pts, theme::HANDLE_FILL, hs));
+                        let along = if fy != 0.5 { Vec2::X } else { Vec2::Y };
+                        paint_skew_arrow(painter, p, along);
                     }
                 }
-                let c = self.screen(rect, ph, self.rotation_center(b));
-                let (cr, arm) = (theme::ROTATION_CENTER, theme::ROTATION_CENTER_ARM);
-                painter.circle_stroke(c, cr, thin);
-                painter.line_segment([c - Vec2::new(arm, 0.0), c + Vec2::new(arm, 0.0)], thin);
-                painter.line_segment([c - Vec2::new(0.0, arm), c + Vec2::new(0.0, arm)], thin);
+                let pc = self.screen(rect, ph, self.rotation_center(b));
+                for (w, col) in [
+                    (
+                        theme::GUIDE_WIDTH + 2.0 * theme::CURSOR_HALO_WIDTH,
+                        theme::HANDLE_FILL,
+                    ),
+                    (theme::GUIDE_WIDTH, accent()),
+                ] {
+                    painter.circle_stroke(pc, theme::ROTATION_CENTER, EStroke::new(w, col));
+                }
+                painter.circle(
+                    pc,
+                    theme::PIVOT_DOT,
+                    accent(),
+                    EStroke::new(theme::CURSOR_HALO_WIDTH, theme::HANDLE_FILL),
+                );
             } else {
                 for (_, p) in self.handle_rects(rect, ph, b) {
                     // Âncora: 6 × 6 px, borda 1,5 px, raio `radius-xs` (5.1).
@@ -3784,7 +3940,35 @@ impl CanvasState {
                     painter.rect_filled(r, theme::RADIUS_XS, theme::HANDLE_FILL);
                     painter.rect_stroke(r, theme::RADIUS_XS, hs, egui::StrokeKind::Middle);
                 }
+                // "X" do centro (GD-SLT-02).
+                let k = theme::CENTER_MARK;
+                for (w, col) in [
+                    (
+                        theme::GUIDE_WIDTH + 2.0 * theme::CURSOR_HALO_WIDTH,
+                        theme::HANDLE_FILL,
+                    ),
+                    (theme::GUIDE_WIDTH, accent()),
+                ] {
+                    let st = EStroke::new(w, col);
+                    painter.line_segment([c + Vec2::new(-k, -k), c + Vec2::new(k, k)], st);
+                    painter.line_segment([c + Vec2::new(-k, k), c + Vec2::new(k, -k)], st);
+                }
             }
+        }
+        // Pré-seleção (GD-SLT-01): contorno sutil do objeto livre sob o cursor.
+        if tool == Tool::Select
+            && matches!(self.drag, Drag::None)
+            && let Some(id) = self.hover_target(ui, doc, rect, ph)
+            && !doc.selection.contains(&id)
+            && let Some(path) = page_outline(doc, &id)
+        {
+            self.stroke_bez(
+                painter,
+                rect,
+                ph,
+                &path,
+                EStroke::new(theme::GUIDE_WIDTH, theme::SELECTION_HOVER),
+            );
         }
         if tool == Tool::Shape || (tool == Tool::FxEnvelope && single_envelope(doc).is_some()) {
             self.paint_nodes(painter, doc, rect, ph);
@@ -3852,18 +4036,60 @@ impl CanvasState {
         // Retângulos elásticos e prévias.
         let hover = ui.input(|i| i.pointer.hover_pos());
         match &self.drag {
-            Drag::Rubber {
-                lasso: Some(pts), ..
-            } => {
-                let mut line: Vec<Pos2> = pts.iter().map(|q| self.screen(rect, ph, *q)).collect();
-                if let Some(h) = hover {
+            Drag::Rubber { start, lasso } => {
+                // Formigas marchando (GD-SLT-04); verde com Alt (por toque).
+                let mut line: Vec<Pos2> = match lasso {
+                    Some(pts) => pts.iter().map(|q| self.screen(rect, ph, *q)).collect(),
+                    None => match hover {
+                        Some(h) => {
+                            let r = Rect::from_two_pos(*start, h);
+                            vec![
+                                r.left_top(),
+                                r.right_top(),
+                                r.right_bottom(),
+                                r.left_bottom(),
+                            ]
+                        }
+                        None => Vec::new(),
+                    },
+                };
+                if lasso.is_some()
+                    && let Some(h) = hover
+                {
                     line.push(h);
                 }
                 if line.len() >= 2 {
-                    painter.add(egui::Shape::closed_line(line, thin));
+                    let touch = self.mods.alt;
+                    let (ink, fill) = if touch {
+                        (theme::ACCENT_SUCCESS, theme::SELECTION_TOUCH_FILL)
+                    } else {
+                        (accent(), theme::SELECTION_FILL)
+                    };
+                    if lasso.is_none() {
+                        painter.rect_filled(
+                            Rect::from_two_pos(line[0], line[2]),
+                            theme::RADIUS_NONE,
+                            fill,
+                        );
+                    }
+                    line.push(line[0]);
+                    painter.add(egui::Shape::line(
+                        line.clone(),
+                        EStroke::new(theme::GUIDE_WIDTH, theme::HANDLE_FILL),
+                    ));
+                    let t = ui.input(|i| i.time) as f32;
+                    let period = theme::MARQUEE_DASH + theme::MARQUEE_GAP;
+                    painter.extend(egui::Shape::dashed_line_with_offset(
+                        &line,
+                        EStroke::new(theme::GUIDE_WIDTH, ink),
+                        &[theme::MARQUEE_DASH],
+                        &[theme::MARQUEE_GAP],
+                        (t * theme::MARQUEE_SPEED).rem_euclid(period),
+                    ));
+                    ui.ctx().request_repaint();
                 }
             }
-            Drag::Rubber { start, .. } | Drag::NodeRubber { start } | Drag::ZoomRect { start } => {
+            Drag::NodeRubber { start } | Drag::ZoomRect { start } => {
                 if let Some(h) = hover {
                     let r = Rect::from_two_pos(*start, h);
                     painter.rect_filled(r, theme::RADIUS_NONE, theme::SELECTION_FILL);
@@ -5817,18 +6043,8 @@ impl CanvasState {
             };
             return;
         }
-        // Alt + arrastar: laço à mão livre (GD-SEL-03, GD-FER-01).
-        if mods.alt {
-            if !mods.shift {
-                doc.selection.clear();
-                self.rotate_mode = false;
-            }
-            self.drag = Drag::Rubber {
-                start: origin,
-                lasso: Some(vec![p]),
-            };
-            return;
-        }
+        // Alças primeiro: com Alt elas valem (cópia ao girar, escala livre).
+        let mut on_center = false;
         if let Some(b) = ops::selection_bounds(&doc.editor, &doc.selection, false) {
             let near = |q: Pos2| (q - origin).length() <= theme::HANDLE_HIT;
             if self.rotate_mode {
@@ -5839,6 +6055,7 @@ impl CanvasState {
                 }
                 for (a, hp) in self.handle_rects(rect, ph, b) {
                     if near(hp) {
+                        self.begin_ghost(doc);
                         let originals = originals(doc);
                         let n = originals.len();
                         let corner = matches!(
@@ -5879,6 +6096,7 @@ impl CanvasState {
             } else {
                 for (a, hp) in self.handle_rects(rect, ph, b) {
                     if near(hp) {
+                        self.begin_ghost(doc);
                         let originals = originals(doc);
                         doc.editor.begin(format!(
                             "{} {}",
@@ -5893,15 +6111,34 @@ impl CanvasState {
                         self.drag = Drag::Scale {
                             handle: a,
                             bounds: b,
-                            from_center: mods.ctrl,
                             originals,
                         };
                         return;
                     }
                 }
+                // O "X" do centro (GD-SLT-02) também move, mesmo sem objeto
+                // embaixo (ex.: o meio vazio de um anel).
+                on_center = !mods.alt && near(self.screen(rect, ph, b.center()));
             }
         }
-        match self.pick_focus(doc, p, tol, mods.ctrl) {
+        // Alt + arrastar: seleção por toque; Ctrl + Alt: laço (GD-SLT-04).
+        if mods.alt {
+            if !mods.shift {
+                doc.selection.clear();
+                self.rotate_mode = false;
+            }
+            self.drag = Drag::Rubber {
+                start: origin,
+                lasso: mods.ctrl.then(|| vec![p]),
+            };
+            return;
+        }
+        let picked = if on_center {
+            doc.selection.last().cloned()
+        } else {
+            self.pick_focus(doc, p, tol, mods.ctrl)
+        };
+        match picked {
             Some(id) => {
                 if !doc.selection.contains(&id) {
                     if mods.shift {
@@ -5912,6 +6149,7 @@ impl CanvasState {
                         self.rot_center = None;
                     }
                 }
+                self.begin_ghost(doc);
                 let originals = originals(doc);
                 let cands = snap::candidates_doc(doc.doc(), doc.page, &self.snap, &doc.selection);
                 // Ponto de pega: canto/centro mais próximo da seleção, para encaixar bordas.
@@ -6313,10 +6551,13 @@ impl CanvasState {
             Drag::Scale {
                 handle,
                 bounds,
-                from_center,
                 originals,
             } => {
-                let fixed = if *from_center || mods.ctrl {
+                // Modificadores (GD-SLT-05): Shift = a partir do centro;
+                // Alt = sem proporção; Ctrl = deixa espelhar; Shift + Ctrl =
+                // centralizado e proporcional garantido.
+                let both = mods.shift && mods.ctrl;
+                let fixed = if mods.shift {
                     bounds.center()
                 } else {
                     handle.opposite().point(*bounds)
@@ -6333,11 +6574,22 @@ impl CanvasState {
                 } else {
                     1.0
                 };
+                if !mods.ctrl {
+                    sx = sx.max(1e-3);
+                    sy = sy.max(1e-3);
+                }
                 let corner = fx != 0.5 && fy != 0.5;
-                if corner && !mods.shift {
-                    let s = if sx.abs() > sy.abs() { sx } else { sy };
-                    sx = s.abs() * sx.signum();
-                    sy = s.abs() * sy.signum();
+                let proportional = both || (corner && !mods.alt);
+                if proportional {
+                    if corner {
+                        let s = if sx.abs() > sy.abs() { sx } else { sy };
+                        sx = s.abs() * sx.signum();
+                        sy = s.abs() * sy.signum();
+                    } else if fx == 0.5 {
+                        sx = sy.abs();
+                    } else {
+                        sy = sx.abs();
+                    }
                 }
                 // Guias inteligentes: a alça encaixa nas bordas e centros dos
                 // outros objetos e da página.
@@ -6361,7 +6613,7 @@ impl CanvasState {
                     );
                     let fit_x = adj.x != 0.0 || lines.iter().any(|l| l.vertical);
                     let fit_y = adj.y != 0.0 || lines.iter().any(|l| !l.vertical);
-                    if corner && !mods.shift {
+                    if proportional && corner {
                         // Proporcional: o eixo que encaixou manda.
                         if fit_x {
                             sx = (np.x + adj.x - fixed.x) / (hp.x - fixed.x);
@@ -6371,7 +6623,7 @@ impl CanvasState {
                             sy = (np.y + adj.y - fixed.y) / (hp.y - fixed.y);
                             sx = sy.abs() * sx.signum();
                         }
-                    } else {
+                    } else if !proportional {
                         if fit_x {
                             sx = (np.x + adj.x - fixed.x) / (hp.x - fixed.x);
                         }
@@ -6381,8 +6633,12 @@ impl CanvasState {
                     }
                     self.smart_lines = lines;
                 }
+                // Sem Ctrl a alça para no tamanho mínimo e não espelha.
+                let mirror = mods.ctrl;
                 let clamp = |v: f64| {
-                    if v.abs() < 1e-3 {
+                    if !mirror {
+                        v.max(1e-3)
+                    } else if v.abs() < 1e-3 {
                         1e-3f64.copysign(v)
                     } else {
                         v
@@ -6829,6 +7085,7 @@ impl CanvasState {
         self.smart = None;
         self.smart_lines.clear();
         self.smart_point = None;
+        self.ghost = None;
         match drag {
             Drag::Knife { pts, .. } => self.knife_end(doc, &pts),
             Drag::Effect { kind, src, gid, .. } => {
@@ -6917,14 +7174,25 @@ impl CanvasState {
             // O arrasto direito termina no próprio tratamento do botão direito.
             d @ Drag::RightMove { .. } => self.drag = d,
             Drag::Rubber { start, lasso } => {
+                // Alt no momento de soltar: por toque (GD-SLT-04).
+                let touch = mods.alt;
                 let hits = match lasso {
                     Some(mut pts) => {
                         pts.push(cur);
-                        query::objects_in_lasso(doc.page(), &pts)
+                        if touch {
+                            query::objects_touching_lasso(doc.page(), &pts)
+                        } else {
+                            query::objects_in_lasso(doc.page(), &pts)
+                        }
                     }
                     None => {
                         let a = self.page_of(rect, ph, start);
-                        query::objects_in_rect(doc.page(), kurbo::Rect::from_points(a, cur))
+                        let r = kurbo::Rect::from_points(a, cur);
+                        if touch {
+                            query::objects_touching_rect(doc.page(), r)
+                        } else {
+                            query::objects_in_rect(doc.page(), r)
+                        }
                     }
                 };
                 let ids: Vec<String> = hits
@@ -6983,6 +7251,24 @@ impl CanvasState {
                 if r.width() * self.view.zoom >= 2.0 && r.height() * self.view.zoom >= 2.0 {
                     let m = Affine::translate((r.x0, r.y0));
                     add_shape(doc, prim, r.width(), r.height(), m, defaults);
+                }
+            }
+            Drag::Rotate { originals, .. } | Drag::Skew { originals, .. } if mods.alt => {
+                // Alt ao soltar (GD-SLT-06): o resultado vira cópia e o
+                // original volta ao lugar.
+                let sel = doc.selection.clone();
+                let copies = ops::transform_copies(&mut doc.editor, &sel, Affine::IDENTITY, 1);
+                for (r, o) in originals {
+                    doc.editor.replace_at(&r, o);
+                }
+                doc.editor.rename_open(format!(
+                    "{} {}",
+                    tr("Transformar em cópia:", "Transform into copy:"),
+                    count(copies.len())
+                ));
+                doc.editor.commit();
+                if !copies.is_empty() {
+                    doc.selection = copies;
                 }
             }
             Drag::Move { .. }
@@ -7122,7 +7408,12 @@ impl CanvasState {
         // Ctrl: o nó novo sai do anterior em passos de 15° (vale mais que o encaixe).
         let locked_from = self
             .angle_lock
-            .then(|| self.bezier.as_ref().and_then(|d| d.nodes.last()).map(|n| pt(n.p)))
+            .then(|| {
+                self.bezier
+                    .as_ref()
+                    .and_then(|d| d.nodes.last())
+                    .map(|n| pt(n.p))
+            })
             .flatten();
         let p = match locked_from {
             Some(prev) => lock_angle(prev, p),
@@ -7289,6 +7580,35 @@ impl CanvasState {
                 ops::edit_text_path(&mut doc.editor, &ids, |p| {
                     p.side = if p.side == "below" { "above" } else { "below" }.into();
                 });
+            }
+            // Alt + clique: o objeto de baixo na pilha sob o cursor; cliques
+            // seguidos descem e voltam ao topo (GD-SLT-07).
+            Tool::Select if mods.alt => {
+                let focus = self.focus_ids(doc);
+                let stack: Vec<String> = query::stack_at(doc.page(), p, tol, mods.ctrl)
+                    .into_iter()
+                    .filter(|id| focus.as_ref().is_none_or(|f| f.contains(id)))
+                    .collect();
+                if !stack.is_empty() {
+                    let at = doc
+                        .selection
+                        .last()
+                        .and_then(|cur| stack.iter().position(|s| s == cur));
+                    let next = match at {
+                        Some(i) => (i + 1) % stack.len(),
+                        None => 1 % stack.len(),
+                    };
+                    let id = stack[next].clone();
+                    if mods.shift {
+                        if !doc.selection.contains(&id) {
+                            doc.selection.push(id);
+                        }
+                    } else {
+                        doc.selection = vec![id];
+                    }
+                    self.rotate_mode = false;
+                    self.rot_center = None;
+                }
             }
             Tool::Select => match self.pick_focus(doc, p, tol, mods.ctrl) {
                 Some(id) => {
@@ -7572,6 +7892,12 @@ enum Glyph {
     },
     /// Mira precisa com o ícone da ferramenta ao lado (ferramentas de desenho).
     Cross { badge: &'static str },
+    /// Ícone com outra tinta (retorno de encaixe, GD-SLT-12).
+    Tinted {
+        name: &'static str,
+        hotspot: (f32, f32),
+        ink: Color32,
+    },
     /// Cursor do sistema (alças de redimensionar).
     System(CursorIcon),
 }
@@ -7580,7 +7906,7 @@ const CURSOR_SIZE: f32 = theme::ICON_CURSOR;
 
 /// Desenha o ícone em preto com um halo branco, para aparecer tanto no papel
 /// quanto na área de trabalho escura.
-fn paint_icon(ctx: &egui::Context, painter: &egui::Painter, name: &str, r: Rect) {
+fn paint_icon(ctx: &egui::Context, painter: &egui::Painter, name: &str, r: Rect, ink: Color32) {
     let img = egui::Image::new(crate::icons::get(name));
     let Ok(egui::load::TexturePoll::Ready { texture }) =
         img.load_for_size(ctx, r.size() * ctx.pixels_per_point())
@@ -7605,7 +7931,7 @@ fn paint_icon(ctx: &egui::Context, painter: &egui::Painter, name: &str, r: Rect)
             theme::CURSOR_HALO,
         );
     }
-    painter.image(texture.id, r, uv, theme::CURSOR_INK);
+    painter.image(texture.id, r, uv, ink);
 }
 
 fn paint_glyph(ctx: &egui::Context, g: &Glyph, pos: Pos2) {
@@ -7620,6 +7946,18 @@ fn paint_glyph(ctx: &egui::Context, g: &Glyph, pos: Pos2) {
                 &painter,
                 name,
                 Rect::from_min_size(min, Vec2::splat(CURSOR_SIZE)),
+                theme::CURSOR_INK,
+            );
+        }
+        Glyph::Tinted { name, hotspot, ink } => {
+            let k = CURSOR_SIZE / 24.0;
+            let min = pos - Vec2::new(hotspot.0 * k, hotspot.1 * k);
+            paint_icon(
+                ctx,
+                &painter,
+                name,
+                Rect::from_min_size(min, Vec2::splat(CURSOR_SIZE)),
+                *ink,
             );
         }
         Glyph::Cross { badge } => {
@@ -7641,7 +7979,7 @@ fn paint_glyph(ctx: &egui::Context, g: &Glyph, pos: Pos2) {
             }
             let off = len - 1.0;
             let r = Rect::from_min_size(pos + Vec2::splat(off), Vec2::splat(theme::CROSS_BADGE));
-            paint_icon(ctx, &painter, badge, r);
+            paint_icon(ctx, &painter, badge, r, theme::CURSOR_INK);
         }
         Glyph::System(_) => {}
     }
@@ -8367,6 +8705,91 @@ fn draw_rect(a: Point, b: Point, mods: egui::Modifiers) -> kurbo::Rect {
         kurbo::Rect::from_points(a - d, a + d)
     } else {
         kurbo::Rect::from_points(a, a + d)
+    }
+}
+
+/// Contorno do objeto em coordenadas da página (grupos: o dos filhos;
+/// efeitos, booleanas e objetos sem contorno: a caixa).
+fn page_outline(doc: &DocState, id: &str) -> Option<kurbo::BezPath> {
+    fn walk(o: &Object, parent: Affine, out: &mut kurbo::BezPath) {
+        if !o.visible {
+            return;
+        }
+        let m = parent * o.transform.affine();
+        match &o.kind {
+            ObjectKind::Group(g) if g.boolean.is_none() && g.effect.is_none() => {
+                for c in &g.children {
+                    walk(c, m, out);
+                }
+            }
+            _ => match query::local_outline(o).filter(|p| !p.elements().is_empty()) {
+                Some(mut p) => {
+                    p.apply_affine(m);
+                    out.extend(p);
+                }
+                None => {
+                    if let Some(b) = query::bounds(o, parent, false) {
+                        out.extend(kurbo::Shape::to_path(&b, 0.1));
+                    }
+                }
+            },
+        }
+    }
+    let r = doc.editor.find(id)?;
+    let o = doc.editor.get(&r)?;
+    let mut out = kurbo::BezPath::new();
+    walk(o, doc.editor.parent_affine(&r), &mut out);
+    (!out.elements().is_empty()).then_some(out)
+}
+
+/// Traço das setas do estado 2 com halo branco (GD-SLT-03).
+fn arrow_strokes() -> [EStroke; 2] {
+    [
+        EStroke::new(
+            theme::HANDLE_STROKE + 2.0 * theme::CURSOR_HALO_WIDTH,
+            theme::HANDLE_FILL,
+        ),
+        EStroke::new(theme::HANDLE_STROKE, theme::ACCENT_PRIMARY),
+    ]
+}
+
+/// Ponta de seta em `tip`, apontando para `dir` (unitário).
+fn arrow_head(tip: Pos2, dir: Vec2) -> Vec<Pos2> {
+    let h = theme::ARROW_HEAD;
+    let n = dir.rot90();
+    vec![tip - dir * h + n * h, tip, tip - dir * h - n * h]
+}
+
+/// Seta bidirecional curva de girar, no canto `p`, virada para `out`
+/// (do centro da caixa para o canto, unitário).
+fn paint_rotate_arrow(painter: &egui::Painter, p: Pos2, out: Vec2) {
+    let r = theme::ROTATE_ARROW_RADIUS;
+    let mid = out.y.atan2(out.x);
+    let span = std::f32::consts::FRAC_PI_4;
+    let arc: Vec<Pos2> = (0..=10)
+        .map(|i| {
+            let a = mid - span + 2.0 * span * i as f32 / 10.0;
+            p + Vec2::new(a.cos(), a.sin()) * r
+        })
+        .collect();
+    let tangent = |a: f32| Vec2::new(-a.sin(), a.cos());
+    let (a0, a1) = (mid - span, mid + span);
+    for st in arrow_strokes() {
+        painter.add(egui::Shape::line(arc.clone(), st));
+        painter.add(egui::Shape::line(arrow_head(arc[10], tangent(a1)), st));
+        painter.add(egui::Shape::line(arrow_head(arc[0], -tangent(a0)), st));
+    }
+}
+
+/// Seta bidirecional reta de inclinar, no meio da aresta `p`, paralela a
+/// ela (`along` unitário).
+fn paint_skew_arrow(painter: &egui::Painter, p: Pos2, along: Vec2) {
+    let l = theme::SKEW_ARROW_HALF;
+    let (a, b) = (p - along * l, p + along * l);
+    for st in arrow_strokes() {
+        painter.line_segment([a, b], st);
+        painter.add(egui::Shape::line(arrow_head(b, along), st));
+        painter.add(egui::Shape::line(arrow_head(a, -along), st));
     }
 }
 
@@ -9531,6 +9954,302 @@ mod tests {
         (ctx, cs, doc, id, rect, ph)
     }
 
+    /// Arrasto com teclas modificadoras (página → tela), em 6 passos.
+    #[allow(clippy::too_many_arguments)]
+    fn drag_mods(
+        ctx: &egui::Context,
+        cs: &mut CanvasState,
+        doc: &mut DocState,
+        rect: Rect,
+        ph: f64,
+        a: Point,
+        b: Point,
+        m: egui::Modifiers,
+    ) {
+        let (sa, sb) = (cs.screen(rect, ph, a), cs.screen(rect, ph, b));
+        let btn = |pos, pressed| egui::Event::PointerButton {
+            pos,
+            button: PointerButton::Primary,
+            pressed,
+            modifiers: m,
+        };
+        canvas_frame_mods(
+            ctx,
+            cs,
+            doc,
+            Tool::Select,
+            vec![egui::Event::PointerMoved(sa)],
+            m,
+        );
+        canvas_frame_mods(ctx, cs, doc, Tool::Select, vec![btn(sa, true)], m);
+        for k in 1..=6 {
+            let pos = sa + (sb - sa) * (k as f32 / 6.0);
+            canvas_frame_mods(
+                ctx,
+                cs,
+                doc,
+                Tool::Select,
+                vec![egui::Event::PointerMoved(pos)],
+                m,
+            );
+        }
+        canvas_frame_mods(ctx, cs, doc, Tool::Select, vec![btn(sb, false)], m);
+        canvas_frame_mods(ctx, cs, doc, Tool::Select, vec![], m);
+    }
+
+    /// Clique (sem mover) com teclas modificadoras.
+    fn click_mods(
+        ctx: &egui::Context,
+        cs: &mut CanvasState,
+        doc: &mut DocState,
+        pos: Pos2,
+        m: egui::Modifiers,
+    ) {
+        let btn = |pressed| egui::Event::PointerButton {
+            pos,
+            button: PointerButton::Primary,
+            pressed,
+            modifiers: m,
+        };
+        canvas_frame_mods(
+            ctx,
+            cs,
+            doc,
+            Tool::Select,
+            vec![egui::Event::PointerMoved(pos)],
+            m,
+        );
+        canvas_frame_mods(ctx, cs, doc, Tool::Select, vec![btn(true)], m);
+        canvas_frame_mods(ctx, cs, doc, Tool::Select, vec![btn(false)], m);
+        canvas_frame_mods(ctx, cs, doc, Tool::Select, vec![], m);
+    }
+
+    fn bounds_of(doc: &DocState, id: &str) -> kurbo::Rect {
+        let r = doc.editor.find(id).unwrap();
+        ops::object_bounds(&doc.editor, &r, false).unwrap()
+    }
+
+    /// GD-SLT-05: canto proporcional por padrão; Alt livre; Shift a partir
+    /// do centro; sem Ctrl não espelha, com Ctrl espelha.
+    #[test]
+    fn gd_slt_05_resize_modifiers() {
+        let (ctx, mut cs, mut doc, id, rect, ph) = bdr_setup();
+        doc.selection = vec![id.clone()];
+        canvas_frame(&ctx, &mut cs, &mut doc, Tool::Select, vec![]);
+        // Quadrado de 20 mm em (50; 100); canto de cima à direita = (70; 120).
+        let corner = Point::new(70_000.0, 120_000.0);
+        let none = egui::Modifiers::NONE;
+        let near = |a: f64, b: f64| (a - b).abs() < 30.0;
+        let to = Point::new(90_000.0, 125_000.0);
+        drag_mods(&ctx, &mut cs, &mut doc, rect, ph, corner, to, none);
+        let b = bounds_of(&doc, &id);
+        assert!(
+            near(b.width(), 40_000.0) && near(b.height(), 40_000.0),
+            "proporcional: {b:?}"
+        );
+        doc.editor.undo();
+        drag_mods(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            rect,
+            ph,
+            corner,
+            to,
+            egui::Modifiers::ALT,
+        );
+        let b = bounds_of(&doc, &id);
+        assert!(
+            near(b.width(), 40_000.0) && near(b.height(), 25_000.0),
+            "Alt livre: {b:?}"
+        );
+        doc.editor.undo();
+        let to = Point::new(80_000.0, 130_000.0);
+        drag_mods(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            rect,
+            ph,
+            corner,
+            to,
+            egui::Modifiers::SHIFT,
+        );
+        let b = bounds_of(&doc, &id);
+        assert!(
+            near(b.center().x, 60_000.0) && near(b.center().y, 110_000.0),
+            "centro: {b:?}"
+        );
+        assert!(near(b.width(), 40_000.0), "{b:?}");
+        doc.editor.undo();
+        // Cruzando o lado esquerdo (x = 50).
+        let to = Point::new(30_000.0, 120_000.0);
+        drag_mods(&ctx, &mut cs, &mut doc, rect, ph, corner, to, none);
+        let b = bounds_of(&doc, &id);
+        assert!(b.x0 >= 50_000.0 - 30.0, "sem Ctrl não espelha: {b:?}");
+        doc.editor.undo();
+        drag_mods(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            rect,
+            ph,
+            corner,
+            to,
+            egui::Modifiers::CTRL,
+        );
+        let b = bounds_of(&doc, &id);
+        assert!(
+            near(b.x0, 30_000.0) && near(b.x1, 50_000.0),
+            "Ctrl espelha: {b:?}"
+        );
+        let r = doc.editor.find(&id).unwrap();
+        let m = doc.editor.get(&r).unwrap().transform.affine();
+        assert!(m.determinant() < 0.0, "espelhado");
+    }
+
+    /// GD-SLT-03/06: segundo clique passa ao estado 2; Ctrl prende o
+    /// ângulo; Alt ao soltar gira uma cópia e o original fica no lugar.
+    #[test]
+    fn gd_slt_06_alt_rotates_a_copy() {
+        let (ctx, mut cs, mut doc, id, rect, ph) = bdr_setup();
+        let mid = cs.screen(rect, ph, Point::new(62_000.0, 112_000.0));
+        click_mods(&ctx, &mut cs, &mut doc, mid, egui::Modifiers::NONE);
+        assert_eq!(doc.selection, vec![id.clone()]);
+        assert!(!cs.rotate_mode);
+        // Passa a janela do duplo clique.
+        for _ in 0..30 {
+            canvas_frame(&ctx, &mut cs, &mut doc, Tool::Select, vec![]);
+        }
+        click_mods(&ctx, &mut cs, &mut doc, mid, egui::Modifiers::NONE);
+        assert!(cs.rotate_mode, "segundo clique → estado 2");
+        let before = doc
+            .editor
+            .get(&doc.editor.find(&id).unwrap())
+            .unwrap()
+            .transform;
+        let (a, b) = (
+            Point::new(70_000.0, 120_000.0),
+            Point::new(60_000.0, 125_000.0),
+        );
+        let m = egui::Modifiers::ALT | egui::Modifiers::CTRL;
+        drag_mods(&ctx, &mut cs, &mut doc, rect, ph, a, b, m);
+        assert_eq!(doc.page().layers[0].objects.len(), 2, "cópia");
+        let orig = doc.editor.get(&doc.editor.find(&id).unwrap()).unwrap();
+        assert_eq!(orig.transform, before, "original intacto");
+        let copy = &doc.page().layers[0].objects[1];
+        assert_eq!(doc.selection, vec![copy.id.clone()]);
+        let c = copy.transform.affine().as_coeffs();
+        let ang = c[1].atan2(c[0]).to_degrees();
+        assert!(
+            (ang / 15.0 - (ang / 15.0).round()).abs() < 1e-6,
+            "15°: {ang}"
+        );
+        assert!(ang.abs() > 1.0, "girou: {ang}");
+        doc.editor.undo();
+        assert_eq!(doc.page().layers[0].objects.len(), 1, "um passo só");
+    }
+
+    /// GD-SLT-07: Alt + clique pega o de baixo; de novo volta ao de cima.
+    #[test]
+    fn gd_slt_07_alt_click_selects_below() {
+        let (ctx, mut cs, mut doc, id, rect, ph) = bdr_setup();
+        let mut top = Object::new(ObjectKind::Rectangle(RectData {
+            width: 20_000.0,
+            height: 20_000.0,
+            corners: None,
+            extra: Map::new(),
+        }));
+        top.transform = graphdraw_core::model::Transform::translate(55_000.0, 105_000.0);
+        top.fill = Some(Fill::solid(graphdraw_core::model::Color::black()));
+        let tid = top.id.clone();
+        doc.editor.insert_object(
+            graphdraw_core::edit::ObjLoc {
+                page: 0,
+                layer: 0,
+                index: 1,
+            },
+            top,
+        );
+        let p = cs.screen(rect, ph, Point::new(62_000.0, 112_000.0));
+        click_mods(&ctx, &mut cs, &mut doc, p, egui::Modifiers::ALT);
+        assert_eq!(doc.selection, vec![id.clone()], "o de baixo");
+        for _ in 0..30 {
+            canvas_frame(&ctx, &mut cs, &mut doc, Tool::Select, vec![]);
+        }
+        click_mods(&ctx, &mut cs, &mut doc, p, egui::Modifiers::ALT);
+        assert_eq!(doc.selection, vec![tid], "volta ao topo");
+    }
+
+    /// GD-SLT-04: retângulo que pega metade do objeto não seleciona; com
+    /// Alt (toque), seleciona.
+    #[test]
+    fn gd_slt_04_alt_marquee_touches() {
+        let (ctx, mut cs, mut doc, id, rect, ph) = bdr_setup();
+        let (a, b) = (
+            Point::new(40_000.0, 90_000.0),
+            Point::new(60_000.0, 130_000.0),
+        );
+        drag_mods(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            rect,
+            ph,
+            a,
+            b,
+            egui::Modifiers::NONE,
+        );
+        assert!(doc.selection.is_empty(), "envolvimento");
+        drag_mods(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            rect,
+            ph,
+            a,
+            b,
+            egui::Modifiers::ALT,
+        );
+        assert_eq!(doc.selection, vec![id]);
+    }
+
+    /// GD-SLT-02/13: arrastar a partir do "X" move mesmo sem preenchimento
+    /// embaixo; durante o arrasto há fantasma, que some ao soltar.
+    #[test]
+    fn gd_slt_02_center_mark_moves_with_ghost() {
+        let (ctx, mut cs, mut doc, id, rect, ph) = bdr_setup();
+        let r = doc.editor.find(&id).unwrap();
+        let mut o = doc.editor.get(&r).unwrap().clone();
+        o.fill = None;
+        o.stroke = Some(graphdraw_core::model::Stroke::new(
+            100.0,
+            graphdraw_core::model::Color::black(),
+        ));
+        doc.editor.replace_at(&r, o);
+        doc.selection = vec![id.clone()];
+        canvas_frame(&ctx, &mut cs, &mut doc, Tool::Select, vec![]);
+        let c = cs.screen(rect, ph, Point::new(60_000.0, 110_000.0));
+        let d = cs.screen(rect, ph, Point::new(80_000.0, 110_000.0));
+        let btn = |pos, pressed| button(pos, PointerButton::Primary, pressed);
+        let mv = egui::Event::PointerMoved;
+        canvas_frame(&ctx, &mut cs, &mut doc, Tool::Select, vec![mv(c)]);
+        canvas_frame(&ctx, &mut cs, &mut doc, Tool::Select, vec![btn(c, true)]);
+        for k in 1..=4 {
+            let pos = c + (d - c) * (k as f32 / 4.0);
+            canvas_frame(&ctx, &mut cs, &mut doc, Tool::Select, vec![mv(pos)]);
+        }
+        assert!(matches!(cs.drag, Drag::Move { .. }), "move pelo X");
+        assert!(
+            cs.ghost.as_ref().is_some_and(|g| g.ids.contains(&id)),
+            "fantasma"
+        );
+        canvas_frame(&ctx, &mut cs, &mut doc, Tool::Select, vec![btn(d, false)]);
+        canvas_frame(&ctx, &mut cs, &mut doc, Tool::Select, vec![]);
+        assert!(cs.ghost.is_none());
+        assert!((bounds_of(&doc, &id).center().x - 80_000.0).abs() < 50.0);
+    }
+
     fn button(pos: Pos2, b: PointerButton, pressed: bool) -> egui::Event {
         egui::Event::PointerButton {
             pos,
@@ -10427,7 +11146,11 @@ mod tests {
         let nodes = |cs: &CanvasState| cs.bezier.as_ref().map_or(0, |b| b.nodes.len());
         let before = doc.page().layers[0].objects.len();
         let rev = doc.editor.revision();
-        for (x, y) in [(20_000.0, 20_000.0), (60_000.0, 20_000.0), (60_000.0, 60_000.0)] {
+        for (x, y) in [
+            (20_000.0, 20_000.0),
+            (60_000.0, 20_000.0),
+            (60_000.0, 60_000.0),
+        ] {
             let p = at(&cs, x, y);
             click(&mut cs, &mut doc, Tool::Bezier, p);
         }
@@ -10441,7 +11164,10 @@ mod tests {
             assert_eq!(nodes(&cs), left);
         }
         assert!(!cs.has_draft());
-        assert!(!cs.can_undo_draft(), "acabou o desenho, o resto é do documento");
+        assert!(
+            !cs.can_undo_draft(),
+            "acabou o desenho, o resto é do documento"
+        );
         assert_eq!(doc.editor.revision(), rev, "documento intocado");
         // Refazer depois de esvaziar devolve o nó (sobrevive a um quadro).
         canvas_frame(&ctx, &mut cs, &mut doc, Tool::Bezier, vec![]);
@@ -10919,7 +11645,10 @@ mod tests {
         assert!((d.x - d.y).abs() < 1e-9, "45°: {d:?}");
         assert!((d.hypot() - (50f64.powi(2) + 52f64.powi(2)).sqrt()).abs() < 1e-9);
         let t = lock_angle(a, a + kurbo::Vec2::new(100.0, 25.0)) - a;
-        assert!((t.y.atan2(t.x).to_degrees() - 15.0).abs() < 1e-9, "15°: {t:?}");
+        assert!(
+            (t.y.atan2(t.x).to_degrees() - 15.0).abs() < 1e-9,
+            "15°: {t:?}"
+        );
     }
 
     /// Ctrl segurado: a linha 2 pontos sai reta e os nós da Bézier e da
@@ -10962,7 +11691,12 @@ mod tests {
         assert!(n[1][0] > n[0][0] + 50_000.0);
         // Polilinha: segundo clique quase vertical → vertical exata.
         for p in [at(150_000.0, 50_000.0), at(152_000.0, 120_000.0)] {
-            frame(&mut cs, &mut doc, Tool::Polyline, egui::Event::PointerMoved(p));
+            frame(
+                &mut cs,
+                &mut doc,
+                Tool::Polyline,
+                egui::Event::PointerMoved(p),
+            );
             frame(&mut cs, &mut doc, Tool::Polyline, press(p, true));
             frame(&mut cs, &mut doc, Tool::Polyline, press(p, false));
         }
@@ -11939,10 +12673,10 @@ mod tests {
         assert_eq!(doc.page().object_count(), 0);
     }
 
-    /// GD-SEL-03: Alt + arrastar desenha um laço; só o objeto cercado entra
-    /// na seleção.
+    /// GD-SEL-03/GD-SLT-04: Ctrl + Alt + arrastar desenha um laço; só o
+    /// objeto que ele toca entra na seleção.
     #[test]
-    fn alt_drag_selects_with_lasso() {
+    fn ctrl_alt_drag_selects_with_lasso() {
         let ctx = crate::theme::test_ctx();
         let mut cs = CanvasState::default();
         let mut doc = DocState::new_blank();
@@ -11982,7 +12716,7 @@ mod tests {
         .iter()
         .map(|&(x, y)| cs.screen(rect, ph, Point::new(x, y)))
         .collect();
-        let alt = egui::Modifiers::ALT;
+        let alt = egui::Modifiers::ALT | egui::Modifiers::CTRL;
         let btn = |pos, pressed| egui::Event::PointerButton {
             pos,
             button: PointerButton::Primary,
@@ -12111,7 +12845,7 @@ mod tests {
         let rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(800.0, 600.0));
         let pos = Pos2::new(400.0, 300.0);
         let name = |g: Glyph| match g {
-            Glyph::Icon { name, .. } => name.to_string(),
+            Glyph::Icon { name, .. } | Glyph::Tinted { name, .. } => name.to_string(),
             Glyph::Cross { badge } => format!("mira+{badge}"),
             Glyph::System(c) => format!("{c:?}"),
         };
