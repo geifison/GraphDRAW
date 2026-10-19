@@ -938,7 +938,7 @@ Tamanho constante em pixels de tela, qualquer que seja o zoom.
 | Centro (estado 1) | × | meio-braço `center-mark` = 4 px, 1 px `accent-primary` sobre halo branco; arrastar move (GD-SLT-02) |
 | Rotação (estado 2, cantos) | ↶↷ | arco de raio `rotate-arrow-radius` = 8 px em volta do canto, virado para fora, com ponta de `arrow-head` = 3 px nos dois lados; 1,5 px `accent-primary` sobre halo branco (GD-SLT-03) |
 | Inclinação (estado 2, arestas) | ↔ | seta reta paralela à aresta, meio-comprimento `skew-arrow-half` = 7 px, pontas `arrow-head`; mesmo traço |
-| Pivô (estado 2) | ◎ | círculo de `rotation-center` = 6 px, 1 px `accent-primary`, com ponto de `pivot-dot` = 1,5 px no meio; arrastável |
+| Pivô (estado 2) | ◎ | círculo de `rotation-center` = 6 px, 1 px `accent-primary`, com ponto de `pivot-dot` = 1,5 px no meio; arrastável; com Ctrl, gruda nos nós e cantos do objeto e mostra a marca de encaixe (5.2, GD-SLT-14) |
 | Objeto-chave | retângulo | com 2+ objetos, a caixa do último selecionado em linha sólida `key-object-width` = 2 px `accent-primary` (GD-SLT-08) |
 | Balão da parada | clique numa parada ou na ponta do eixo | `shadow-popover`, largura `stop-popup-width` = 240 px: “Parada N · posição”, editor de cor no modelo da cor, opacidade %, OK; clique fora ou Esc fecha; o que muda enquanto aberto é um passo de desfazer |
 | Eixo do gradiente | ■—●—■ | linha 1 px `accent-primary` sobre 2,5 px branco; início/fim em quadrado de 8 px (`handle-size` + 2); paradas em círculo de `gradient-mark` (10 px) com a cor da parada; parada escolhida com anel `focus-width` `accent-primary` |

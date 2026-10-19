@@ -6,7 +6,7 @@
 use kurbo::{Affine, Point, Rect};
 
 use super::query::bounds;
-use crate::model::{Document, Guide, ObjectKind, Page};
+use crate::model::{Document, Guide, Object, ObjectKind, Page};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SnapKind {
@@ -141,6 +141,63 @@ pub fn candidates(
     out
 }
 
+/// Pontos de ímã do próprio objeto (GD-SLT-14, pivô com Ctrl): os nós do
+/// contorno (pontas dos segmentos, também de retângulos, polígonos e
+/// elipses), e os cantos, meios e centro da caixa; desce nos grupos. Texto
+/// fica só com a caixa. `parent`: matriz do pai → página.
+pub fn object_points(o: &Object, parent: Affine) -> Vec<(Point, SnapKind)> {
+    fn walk(o: &Object, parent: Affine, out: &mut Vec<(Point, SnapKind)>) {
+        if !o.visible {
+            return;
+        }
+        let m = parent * o.transform.affine();
+        match &o.kind {
+            ObjectKind::Group(g) if g.boolean.is_none() && g.effect.is_none() => {
+                for c in &g.children {
+                    walk(c, m, out);
+                }
+            }
+            ObjectKind::Text(_) => {}
+            _ => {
+                if let Some(path) = super::query::local_outline(o) {
+                    for el in path.elements() {
+                        let q = match *el {
+                            kurbo::PathEl::MoveTo(q)
+                            | kurbo::PathEl::LineTo(q)
+                            | kurbo::PathEl::QuadTo(_, q)
+                            | kurbo::PathEl::CurveTo(_, _, q) => q,
+                            kurbo::PathEl::ClosePath => continue,
+                        };
+                        out.push((m * q, SnapKind::Node));
+                    }
+                }
+            }
+        }
+        if let Some(b) = bounds(o, parent, false) {
+            for q in [
+                Point::new(b.x0, b.y0),
+                Point::new(b.x1, b.y0),
+                Point::new(b.x0, b.y1),
+                Point::new(b.x1, b.y1),
+            ] {
+                out.push((q, SnapKind::BoxCorner));
+            }
+            for q in [
+                Point::new(b.center().x, b.y0),
+                Point::new(b.center().x, b.y1),
+                Point::new(b.x0, b.center().y),
+                Point::new(b.x1, b.center().y),
+            ] {
+                out.push((q, SnapKind::BoxMidpoint));
+            }
+            out.push((b.center(), SnapKind::Center));
+        }
+    }
+    let mut out = Vec::new();
+    walk(o, parent, &mut out);
+    out
+}
+
 /// Guias que valem na página: as dela e as do documento.
 pub fn page_guides(doc: &Document, page: usize) -> Vec<Guide> {
     let mut g = doc.data.settings.guides.clone();
@@ -239,6 +296,52 @@ pub fn snap_guided(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// GD-SLT-14: um retângulo girado dá os 4 cantos reais como nós, mais
+    /// a caixa; um grupo traz os pontos dos filhos.
+    #[test]
+    fn gd_slt_14_object_points_nodes_and_box() {
+        use crate::model::{GroupData, RectData, Transform};
+        let mut r = Object::new(ObjectKind::Rectangle(RectData {
+            width: 10.0,
+            height: 10.0,
+            corners: None,
+            extra: Default::default(),
+        }));
+        r.transform = Transform::from_affine(Affine::rotate(std::f64::consts::FRAC_PI_4));
+        let pts = object_points(&r, Affine::IDENTITY);
+        let nodes: Vec<Point> = pts
+            .iter()
+            .filter(|p| p.1 == SnapKind::Node)
+            .map(|p| p.0)
+            .collect();
+        let d = 10.0 / 2f64.sqrt();
+        for want in [
+            Point::ORIGIN,
+            Point::new(d, d),
+            Point::new(0.0, 2.0 * d),
+            Point::new(-d, d),
+        ] {
+            assert!(
+                nodes.iter().any(|q| (*q - want).hypot() < 1e-6),
+                "{want:?} em {nodes:?}"
+            );
+        }
+        assert!(pts.iter().any(|p| p.1 == SnapKind::BoxCorner));
+        let g = Object::new(ObjectKind::Group(GroupData {
+            children: vec![r],
+            boolean: None,
+            symmetry: None,
+            effect: None,
+            symbol: None,
+            extra: Default::default(),
+        }));
+        let gp = object_points(&g, Affine::translate((100.0, 0.0)));
+        assert!(
+            gp.iter()
+                .any(|p| p.1 == SnapKind::Node && (p.0 - Point::new(100.0, 0.0)).hypot() < 1e-6)
+        );
+    }
     use crate::model::{Object, RectData, Transform};
     use serde_json::Map;
 
