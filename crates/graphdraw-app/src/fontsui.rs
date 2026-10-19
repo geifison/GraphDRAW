@@ -196,6 +196,8 @@ mod tests {
                         size: 12_000.0,
                         weight: 400,
                         italic: false,
+                        caps: None,
+                        cap_spacing: false,
                         extra: Default::default(),
                     },
                     fill: None,

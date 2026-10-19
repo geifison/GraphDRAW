@@ -201,6 +201,9 @@ pub struct App {
     /// Gaveta aberta: grupo, variantes, posição e quadro em que abriu.
     tool_drawer: Option<(&'static str, Vec<crate::toolbox::Variant>, egui::Pos2, u64)>,
     bitmap_dlg: Option<BitmapDialog>,
+    /// Janela Mudar caixa (GD-TXT-12) e o último modo usado nela.
+    case_dlg: Option<crate::caseui::CaseDialog>,
+    case_mode: graphdraw_core::edit::case::CaseMode,
     /// Exportar para corte (PLT/DXF) e gerar linha de corte (doc 17).
     cut_export: Option<crate::cutui::CutExport>,
     cut_line_dlg: Option<crate::cutui::CutLineDialog>,
@@ -297,6 +300,8 @@ impl App {
             tool_group_last: Default::default(),
             tool_drawer: None,
             bitmap_dlg: None,
+            case_dlg: None,
+            case_mode: Default::default(),
             cut_export: None,
             cut_line_dlg: None,
             nest_dlg: None,
@@ -1411,6 +1416,84 @@ impl App {
         }
     }
 
+    /// Caixa tipográfica e espaçamento de capitais do texto alvo (no ponto
+    /// do cursor, na edição; GD-TXT-13).
+    pub(crate) fn text_caps(&self) -> (Option<String>, bool) {
+        let Some(d) = &self.doc else {
+            return (None, false);
+        };
+        let Some(id) = self.text_targets().into_iter().next() else {
+            return (None, false);
+        };
+        match d
+            .editor
+            .find(&id)
+            .and_then(|r| d.editor.get(&r))
+            .map(|o| &o.kind)
+        {
+            Some(ObjectKind::Text(t)) => {
+                graphdraw_core::edit::text::caps_at(t, self.text_style_index())
+            }
+            _ => (None, false),
+        }
+    }
+
+    /// Abre Mudar caixa (GD-TXT-12) no trecho em edição ou nos textos
+    /// selecionados, com o último modo usado; aberta, percorre o ciclo
+    /// rápido.
+    fn open_case_dialog(&mut self) {
+        use crate::caseui::{CaseDialog, CaseTarget};
+        if let Some(dlg) = &mut self.case_dlg {
+            dlg.mode = dlg.mode.cycle();
+            return;
+        }
+        let target = match self.text_range() {
+            Some((id, a, b)) => CaseTarget::Range { id, a, b },
+            None => {
+                let ids = self.text_targets();
+                if ids.is_empty() {
+                    self.status = tr(
+                        "Mudar caixa: selecione um texto",
+                        "Change case: select a text",
+                    )
+                    .into();
+                    return;
+                }
+                CaseTarget::Whole(ids)
+            }
+        };
+        self.case_dlg = Some(CaseDialog::new(self.case_mode, target));
+    }
+
+    /// Janela Mudar caixa (GD-TXT-12): um passo do histórico ao aplicar; o
+    /// trecho em edição continua selecionado (com o novo tamanho).
+    fn case_window(&mut self, ctx: &egui::Context) {
+        let (Some(dlg), Some(d)) = (&mut self.case_dlg, &self.doc) else {
+            return;
+        };
+        let shortcut = self.keys.label(Command::TextChangeCase);
+        let Some(act) = dlg.show(ctx, d, shortcut) else {
+            return;
+        };
+        let dlg = self.case_dlg.take().unwrap();
+        if let crate::caseui::CaseAction::Apply = act {
+            self.case_mode = dlg.mode;
+            if let Some(d) = &mut self.doc {
+                let end = crate::caseui::apply(d, &dlg.target, dlg.mode);
+                if let (Some(end), crate::caseui::CaseTarget::Range { id, a, .. }, Some(te)) =
+                    (end, &dlg.target, &mut self.canvas.text)
+                    && te.id == *id
+                {
+                    if te.caret >= te.anchor {
+                        (te.anchor, te.caret) = (*a, end);
+                    } else {
+                        (te.caret, te.anchor) = (*a, end);
+                    }
+                }
+            }
+        }
+    }
+
     /// Trecho selecionado no texto em edição: objeto e `[início, fim)`.
     pub(crate) fn text_range(&self) -> Option<(String, usize, usize)> {
         let t = self.canvas.text.as_ref()?;
@@ -1778,6 +1861,11 @@ impl App {
                     | C::TextJustify
                     | C::TextBigger
                     | C::TextSmaller
+                    | C::TextChangeCase
+                    | C::TextSmallCaps
+                    | C::TextAllSmallCaps
+                    | C::TextAllCaps
+                    | C::TextCapSpacing
             )
             && let Some(d) = &mut self.doc
         {
@@ -1840,7 +1928,9 @@ impl App {
             C::New => self.request(Pending::New, ctx),
             C::Open => self.request(Pending::Open(None), ctx),
             C::Save => {
-                self.save(false);
+                if self.doc.as_ref().is_some_and(|d| d.editor.is_modified()) {
+                    self.save(false);
+                }
             }
             C::SaveAs => {
                 self.save(true);
@@ -2091,6 +2181,28 @@ impl App {
                     }
                 };
                 self.text_style(st);
+            }
+            C::TextChangeCase => self.open_case_dialog(),
+            C::TextSmallCaps | C::TextAllSmallCaps | C::TextAllCaps => {
+                // Exclusivos: ligar um desliga o outro; o ligado volta ao normal.
+                let want = match c {
+                    C::TextSmallCaps => "small",
+                    C::TextAllSmallCaps => "allSmall",
+                    _ => "all",
+                };
+                let (caps, _) = self.text_caps();
+                let caps = (caps.as_deref() != Some(want)).then(|| want.to_string());
+                self.text_style(graphdraw_core::edit::text::TextStyle {
+                    caps: Some(caps),
+                    ..Default::default()
+                });
+            }
+            C::TextCapSpacing => {
+                let (_, spacing) = self.text_caps();
+                self.text_style(graphdraw_core::edit::text::TextStyle {
+                    cap_spacing: Some(!spacing),
+                    ..Default::default()
+                });
             }
             C::TextToCurves => {
                 let ids = self.text_targets();
@@ -2456,6 +2568,7 @@ impl App {
         let ctx = ui.ctx().clone();
         let has = self.doc.is_some();
         let has_sel = self.doc.as_ref().is_some_and(|d| !d.selection.is_empty());
+        let can_save = self.doc.as_ref().is_some_and(|d| d.editor.is_modified());
         let can_undo = self.doc.as_ref().is_some_and(|d| d.editor.can_undo());
         let can_redo = self.doc.as_ref().is_some_and(|d| d.editor.can_redo());
         egui::MenuBar::new().ui(ui, |ui| {
@@ -2478,7 +2591,7 @@ impl App {
                 ui.separator();
                 if ui
                     .add_enabled(
-                        has,
+                        can_save,
                         crate::keymap::item(ui, tr("Salvar", "Save"),
                             crate::keymap::Command::Save,),
                     )
@@ -3049,6 +3162,25 @@ impl App {
                     }
                 }
                 ui.separator();
+                // Caixa alta e baixa (GD-TXT-11..13).
+                if item(ui, tr("Mudar caixa…", "Change case…"), Command::TextChangeCase, has_text) {
+                    run = Some(Command::TextChangeCase);
+                }
+                let (caps, spacing) = self.text_caps();
+                for (label, cmd, on) in [
+                    (tr("Versalete", "Small caps"), Command::TextSmallCaps, caps.as_deref() == Some("small")),
+                    (tr("Todas em versalete", "All small caps"), Command::TextAllSmallCaps, caps.as_deref() == Some("allSmall")),
+                    (tr("Todas em maiúsculas (só o desenho)", "All caps (display only)"), Command::TextAllCaps, caps.as_deref() == Some("all")),
+                    (tr("Espaçamento de capitais", "Capital spacing"), Command::TextCapSpacing, spacing),
+                ] {
+                    if ui
+                        .add_enabled(has_text, crate::keymap::item(ui, label, cmd).selected(on))
+                        .clicked()
+                    {
+                        run = Some(cmd);
+                    }
+                }
+                ui.separator();
                 for (label, cmd, on) in [
                     (
                         tr("Converter artístico ↔ parágrafo", "Convert artistic ↔ paragraph"),
@@ -3301,6 +3433,7 @@ impl App {
     fn standard_toolbar(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
         let has = self.doc.is_some();
+        let can_save = self.doc.as_ref().is_some_and(|d| d.editor.is_modified());
         let can_undo = self.doc.as_ref().is_some_and(|d| d.editor.can_undo());
         let can_redo = self.doc.as_ref().is_some_and(|d| d.editor.can_redo());
         ui.horizontal(|ui| {
@@ -3331,7 +3464,7 @@ impl App {
                 "file-save",
                 crate::keymap::hint(tr("Salvar", "Save"), crate::keymap::Command::Save),
                 false,
-                has,
+                can_save,
             )
             .clicked()
             {
@@ -3979,6 +4112,7 @@ impl App {
         self.profile_window(ctx);
         self.recovery_window(ctx);
         self.bitmap_window(ctx);
+        self.case_window(ctx);
         self.cut_windows(ctx);
         if let Some(dlg) = &mut self.preset_dlg
             && let Some(ok) = dlg.show(ctx)
@@ -5470,6 +5604,154 @@ mod tests {
             ..Default::default()
         });
         assert!(spans(&app).iter().all(|s| s.font.italic));
+    }
+
+    /// GD-TXT-11/12: Mudar caixa no trecho em edição (a seleção acompanha o
+    /// texto que alongou), Shift+F3 de novo percorre o ciclo, o último modo
+    /// volta na próxima vez e cada aplicação é um passo só do histórico.
+    #[test]
+    fn change_case_dialog_flow() {
+        use crate::caseui::{CaseAction, CaseDialog, CaseTarget};
+        use graphdraw_core::edit::case::CaseMode;
+        use graphdraw_core::edit::text::{insert, new_text};
+        let ctx = crate::theme::test_ctx();
+        let mut app = App::with_ctx(&ctx, None);
+        let id = {
+            let d = app.doc.as_mut().unwrap();
+            let mut o = new_text(10_000.0, 10_000.0, None, "Arial", 5_000.0);
+            if let ObjectKind::Text(t) = &mut o.kind {
+                insert(t, 0, "rua straße nova");
+            }
+            ops::add_object(&mut d.editor, 0, 0, o, "t")
+        };
+        let plain = |app: &App| {
+            let d = app.doc.as_ref().unwrap();
+            match &d.editor.get(&d.editor.find(&id).unwrap()).unwrap().kind {
+                ObjectKind::Text(t) => graphdraw_core::render::text::plain_text(t),
+                _ => unreachable!(),
+            }
+        };
+        let d = app.doc.as_mut().unwrap();
+        app.canvas.edit_text(d, id.clone(), None);
+        let te = app.canvas.text.as_mut().unwrap();
+        (te.anchor, te.caret) = (4, 10);
+        app.run_command(Command::TextChangeCase, &ctx);
+        assert_eq!(
+            app.case_dlg.as_ref().map(|d| (d.mode, d.target.clone())),
+            Some((
+                CaseMode::Sentence,
+                CaseTarget::Range {
+                    id: id.clone(),
+                    a: 4,
+                    b: 10
+                }
+            ))
+        );
+        // Ciclo rápido: minúsculas → MAIÚSCULAS.
+        app.run_command(Command::TextChangeCase, &ctx);
+        app.run_command(Command::TextChangeCase, &ctx);
+        let dlg = app.case_dlg.as_ref().unwrap();
+        assert_eq!(dlg.mode, CaseMode::Upper);
+        let d = app.doc.as_ref().unwrap();
+        assert_eq!(dlg.preview(d).as_deref(), Some("STRASSE"));
+        // Aplicar (o mesmo caminho do botão).
+        let dlg = app.case_dlg.take().unwrap();
+        app.case_mode = dlg.mode;
+        let d = app.doc.as_mut().unwrap();
+        let end = crate::caseui::apply(d, &dlg.target, dlg.mode);
+        assert_eq!(end, Some(11));
+        assert_eq!(plain(&app), "rua STRASSE nova");
+        assert!(app.canvas.text.is_some(), "a edição continua");
+        // O último modo volta na próxima vez; sem trecho, o texto inteiro.
+        let te = app.canvas.text.as_mut().unwrap();
+        te.anchor = te.caret;
+        app.run_command(Command::TextChangeCase, &ctx);
+        assert_eq!(
+            app.case_dlg.as_ref().map(|d| (d.mode, d.target.clone())),
+            Some((CaseMode::Upper, CaseTarget::Whole(vec![id.clone()])))
+        );
+        let d = app.doc.as_mut().unwrap();
+        app.canvas.end_text(d);
+        let d = app.doc.as_mut().unwrap();
+        crate::caseui::apply(d, &CaseTarget::Whole(vec![id.clone()]), CaseMode::Title);
+        assert_eq!(plain(&app), "Rua Strasse Nova");
+        app.doc.as_mut().unwrap().editor.undo();
+        assert_eq!(plain(&app), "rua STRASSE nova", "um passo só");
+        // A janela cabe na tela pequena e Esc cancela sem mudar nada.
+        app.case_dlg = Some(CaseDialog::new(
+            CaseMode::Lower,
+            CaseTarget::Whole(vec![id.clone()]),
+        ));
+        let mut size = egui::Vec2::ZERO;
+        for _ in 0..3 {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::Vec2::new(1366.0, 768.0),
+                )),
+                ..Default::default()
+            };
+            let mut out = ctx.run_ui(input, |ui| app.case_window(ui.ctx()));
+            out.textures_delta.clear();
+            size = ctx.memory(|m| {
+                m.area_rect(egui::Id::unique(crate::caseui::WINDOW_ID))
+                    .map_or(egui::Vec2::ZERO, |r| r.size())
+            });
+        }
+        assert!(
+            size.y > 0.0 && size.y <= 768.0 && size.x <= 1366.0,
+            "{size:?}"
+        );
+        assert!(app.case_dlg.is_some());
+        let dlg = app.case_dlg.as_mut().unwrap();
+        let d = app.doc.as_ref().unwrap();
+        let esc = egui::RawInput {
+            events: vec![egui::Event::Key {
+                key: Key::Escape,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: Default::default(),
+            }],
+            ..Default::default()
+        };
+        let mut act = None;
+        let _ = ctx.run_ui(esc, |ui| act = dlg.show(ui.ctx(), d, None));
+        assert!(matches!(act, Some(CaseAction::Cancel)));
+    }
+
+    /// GD-TXT-13: versalete, todas em versalete e maiúsculas são
+    /// exclusivos; o ligado volta ao normal; o espaçamento de capitais é à
+    /// parte. O texto digitado não muda.
+    #[test]
+    fn typographic_caps_commands_toggle() {
+        use graphdraw_core::edit::text::{insert, new_text};
+        let ctx = crate::theme::test_ctx();
+        let mut app = App::with_ctx(&ctx, None);
+        let id = {
+            let d = app.doc.as_mut().unwrap();
+            let mut o = new_text(10_000.0, 10_000.0, None, "Arial", 5_000.0);
+            if let ObjectKind::Text(t) = &mut o.kind {
+                insert(t, 0, "Texto");
+            }
+            ops::add_object(&mut d.editor, 0, 0, o, "t")
+        };
+        app.doc.as_mut().unwrap().selection = vec![id.clone()];
+        let caps = |app: &App| app.text_caps();
+        app.run_command(Command::TextSmallCaps, &ctx);
+        assert_eq!(caps(&app), (Some("small".into()), false));
+        app.run_command(Command::TextAllCaps, &ctx);
+        assert_eq!(caps(&app), (Some("all".into()), false));
+        app.run_command(Command::TextAllCaps, &ctx);
+        assert_eq!(caps(&app), (None, false));
+        app.run_command(Command::TextAllSmallCaps, &ctx);
+        app.run_command(Command::TextCapSpacing, &ctx);
+        assert_eq!(caps(&app), (Some("allSmall".into()), true));
+        let d = app.doc.as_ref().unwrap();
+        match &d.editor.get(&d.editor.find(&id).unwrap()).unwrap().kind {
+            ObjectKind::Text(t) => assert_eq!(graphdraw_core::render::text::plain_text(t), "Texto"),
+            _ => unreachable!(),
+        }
     }
 
     /// Só trocar de ferramenta, Esc e selecionar tudo não marcam o

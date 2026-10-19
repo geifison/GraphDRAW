@@ -457,6 +457,8 @@ mod tests {
                         size,
                         weight: 400,
                         italic: false,
+                        caps: None,
+                        cap_spacing: false,
                         extra: Map::new(),
                     },
                     fill: None,

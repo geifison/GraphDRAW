@@ -514,7 +514,7 @@ impl SvgWriter {
                 let fill = self.paint(&fill, "fill");
                 let _ = writeln!(
                     self.body,
-                    r#"<text x="{}" y="{}" font-family="{}" font-size="{}"{}{} xml:space="preserve"{fill}>{}</text>"#,
+                    r#"<text x="{}" y="{}" font-family="{}" font-size="{}"{}{}{} xml:space="preserve"{fill}>{}</text>"#,
                     num(run.x),
                     num(-run.y),
                     esc(&run.family),
@@ -528,6 +528,13 @@ impl SvgWriter {
                         r#" font-style="italic""#
                     } else {
                         ""
+                    },
+                    // Caixa tipográfica (GD-TXT-13): o texto digitado fica.
+                    match run.caps.as_deref() {
+                        Some("small") => r#" font-variant="small-caps""#,
+                        Some("allSmall") => r#" style="font-variant-caps:all-small-caps""#,
+                        Some("all") => r#" style="text-transform:uppercase""#,
+                        _ => "",
                     },
                     esc(&run.text)
                 );

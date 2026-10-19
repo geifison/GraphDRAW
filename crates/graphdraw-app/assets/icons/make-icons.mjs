@@ -142,6 +142,12 @@ const icons = {
   "text-center": `<path d="M4 6 H20 M7 10 H17 M4 14 H20 M8 18 H16"/>`,
   "text-right": `<path d="M4 6 H20 M10 10 H20 M4 14 H20 M12 18 H20"/>`,
   "text-justify": `<path d="M4 6 H20 M4 10 H20 M4 14 H20 M4 18 H13"/>`,
+  // Caixa alta e baixa (GD-TXT-11..13): Mudar caixa = A grande, a pequeno e a troca.
+  "text-case": `<path d="M3.5 18 L7.5 7 L11.5 18 M5 14 H10"/><circle cx="16.2" cy="15.3" r="2.7"/><path d="M18.9 12 V18 M13.5 5.5 H19.5 M17.7 3.7 L19.5 5.5 L17.7 7.3"/>`,
+  "text-small-caps": `<path d="M3.5 18 L7.5 6 L11.5 18 M5 14.2 H10 M13.5 18 L16.5 11 L19.5 18 M14.6 15.6 H18.4"/>`,
+  "text-all-small-caps": `<path d="M3.5 18 L7 10 L10.5 18 M4.7 15.3 H9.3 M13.5 18 L17 10 L20.5 18 M14.7 15.3 H19.3"/><path d="M3.5 6 H20.5" stroke-dasharray="1.5 1.8"/>`,
+  "text-all-caps": `<path d="M3.5 5.5 H11 M7.25 5.5 V19 M13 5.5 H20.5 M16.75 5.5 V19"/>`,
+  "text-cap-spacing": `<path d="M3.5 6 H9.5 M6.5 6 V18 M14.5 6 H20.5 M17.5 6 V18"/><path d="M9.8 13 H14.2 M9.8 13 L11.2 11.6 M9.8 13 L11.2 14.4 M14.2 13 L12.8 11.6 M14.2 13 L12.8 14.4"/>`,
   // ---- arquivo e histórico ----
   "file-new": `<path d="M6 3 H14 L19 8 V21 H6 Z M14 3 V8 H19"/><path d="M12.5 12 V18 M9.5 15 H15.5"/>`,
   "file-open": `<path d="M3.5 18.5 V6 H9 L11 8 H19 V10.5"/><path d="M3.5 18.5 L6.5 11 H21 L18 18.5 Z"/>`,

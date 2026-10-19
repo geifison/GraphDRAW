@@ -1184,6 +1184,51 @@ fn text_bar(
             };
         }
     });
+    // Caixa tipográfica (GD-TXT-13): versalete e maiúsculas são exclusivos;
+    // o ligado volta ao normal. Só o desenho muda.
+    let (caps, spacing) = targets
+        .first()
+        .and_then(|id| doc.editor.find(id))
+        .and_then(|r| doc.editor.get(&r))
+        .and_then(|o| match &o.kind {
+            ObjectKind::Text(t) => Some(tedit::caps_at(t, at)),
+            _ => None,
+        })
+        .unwrap_or((None, false));
+    use crate::keymap::Command as C;
+    let mut caps_button = |ui: &mut egui::Ui, icon: &str, cmd: C, want: Option<&str>| {
+        let on = match want {
+            Some(w) => caps.as_deref() == Some(w),
+            None => spacing,
+        };
+        let tip = crate::keymap::hint(cmd.label(), cmd);
+        if icons::button(ui, icon, tip, on, true).clicked() {
+            out = Some(match want {
+                Some(w) => TextStyle {
+                    caps: Some((!on).then(|| w.to_string())),
+                    ..Default::default()
+                },
+                None => TextStyle {
+                    cap_spacing: Some(!on),
+                    ..Default::default()
+                },
+            });
+        }
+    };
+    widgets::stack(ui, |ui, row| {
+        if row == 0 {
+            caps_button(ui, "text-small-caps", C::TextSmallCaps, Some("small"));
+            caps_button(
+                ui,
+                "text-all-small-caps",
+                C::TextAllSmallCaps,
+                Some("allSmall"),
+            );
+        } else {
+            caps_button(ui, "text-all-caps", C::TextAllCaps, Some("all"));
+            caps_button(ui, "text-cap-spacing", C::TextCapSpacing, None);
+        }
+    });
     ui.separator();
     let mut aligns = Vec::new();
     for (icon, tip, a, cmd) in [

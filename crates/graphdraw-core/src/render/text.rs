@@ -29,6 +29,8 @@ pub struct Run {
     pub size: f64,
     pub weight: u16,
     pub italic: bool,
+    /// Caixa tipográfica do trecho (GD-TXT-13), para o SVG.
+    pub caps: Option<String>,
     pub fill: Option<Fill>,
     /// Glifos em curvas, coordenadas locais.
     pub outline: BezPath,
@@ -196,6 +198,8 @@ pub struct GlyphPos {
     /// Caracteres que o glifo representa (vazio nos glifos seguintes de
     /// um mesmo grupo); vai para o ToUnicode do PDF.
     pub text: String,
+    /// Escala sobre o corpo do trecho (versalete sintético, GD-TXT-13).
+    pub scale: f64,
 }
 
 struct ShapedGlyph {
@@ -205,6 +209,8 @@ struct ShapedGlyph {
     advance: f64,
     /// Byte do texto do trecho onde o glifo começa.
     cluster: usize,
+    /// Escala do glifo sobre o corpo do trecho (versalete sintético < 1).
+    scale: f64,
     outline: BezPath,
 }
 
@@ -234,54 +240,236 @@ fn shape_tracked(
     rtl: Option<bool>,
     track: f64,
 ) -> Option<Shaped> {
+    shape_styled(id, text, size, rtl, track, Caps::default())
+}
+
+/// Versalete sintético: corpo das maiúsculas reduzidas (GD-TXT-13).
+pub const SMALL_CAPS_SCALE: f64 = 0.72;
+/// Versalete sintético: espaço a mais depois de cada letra, em fração do corpo.
+pub const SMALL_CAPS_TRACK: f64 = 0.04;
+/// Espaçamento de capitais: folga entre maiúsculas seguidas, em fração do corpo.
+pub const CAP_SPACING: f64 = 0.05;
+
+/// Caixa tipográfica de um trecho (GD-TXT-13): só o desenho muda.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+struct Caps {
+    mode: CapsMode,
+    spacing: bool,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+enum CapsMode {
+    #[default]
+    Normal,
+    Small,
+    AllSmall,
+    All,
+}
+
+impl Caps {
+    fn of(f: &crate::model::FontSpec) -> Caps {
+        Caps {
+            mode: match f.caps.as_deref() {
+                Some("small") => CapsMode::Small,
+                Some("allSmall") => CapsMode::AllSmall,
+                Some("all") => CapsMode::All,
+                _ => CapsMode::Normal,
+            },
+            spacing: f.cap_spacing,
+        }
+    }
+}
+
+/// Pedaço do texto com o mesmo desenho: o texto a desenhar, o byte do
+/// texto original de cada byte dele e se é versalete sintético.
+struct Segment {
+    text: String,
+    origin: Vec<usize>,
+    small: bool,
+}
+
+/// Recursos OpenType e pedaços do texto pela caixa tipográfica. Sem os
+/// glifos de versalete na fonte, as letras vão para maiúscula reduzida.
+/// O `bool` diz se o versalete vem dos glifos da fonte.
+fn caps_segments(
+    face: &rustybuzz::Face,
+    text: &str,
+    caps: Caps,
+) -> (Vec<rustybuzz::Feature>, Vec<Segment>, bool) {
+    let tag = ttf_parser::Tag::from_bytes;
+    let has = |t: &[u8; 4]| {
+        face.tables()
+            .gsub
+            .is_some_and(|g| g.features.into_iter().any(|f| f.tag == tag(t)))
+    };
+    let feature = |t: &[u8; 4]| rustybuzz::Feature::new(tag(t), 1, ..);
+    let mut features = Vec::new();
+    let mut native = false;
+    // Caractere que vai para maiúscula: `Some(reduzida)`.
+    let mut rule: fn(char) -> Option<bool> = |_| None;
+    match caps.mode {
+        CapsMode::Normal => {}
+        CapsMode::All => {
+            if has(b"case") {
+                features.push(feature(b"case"));
+            }
+            rule = |c| c.is_lowercase().then_some(false);
+        }
+        CapsMode::Small => {
+            if has(b"smcp") {
+                features.push(feature(b"smcp"));
+                native = true;
+            } else {
+                rule = |c| c.is_lowercase().then_some(true);
+            }
+        }
+        CapsMode::AllSmall => {
+            if has(b"smcp") && has(b"c2sc") {
+                features.push(feature(b"c2sc"));
+                features.push(feature(b"smcp"));
+                native = true;
+            } else {
+                rule = |c| (c.is_lowercase() || c.is_uppercase()).then_some(true);
+            }
+        }
+    }
+    let mut segs: Vec<Segment> = Vec::new();
+    for (b, c) in text.char_indices() {
+        let (piece, small): (String, bool) = match rule(c) {
+            Some(small) => (c.to_uppercase().collect(), small),
+            None => (c.to_string(), false),
+        };
+        if segs.last().is_none_or(|s| s.small != small) {
+            segs.push(Segment {
+                text: String::new(),
+                origin: Vec::new(),
+                small,
+            });
+        }
+        let s = segs.last_mut().unwrap();
+        s.text.push_str(&piece);
+        s.origin.extend(std::iter::repeat_n(b, piece.len()));
+    }
+    (features, segs, native)
+}
+
+/// Shaping com a caixa tipográfica (GD-TXT-13). Os grupos (`cluster`)
+/// apontam para o texto original, que segue sendo o do cursor e da cópia.
+fn shape_styled(
+    id: fontdb::ID,
+    text: &str,
+    size: f64,
+    rtl: Option<bool>,
+    track: f64,
+    caps: Caps,
+) -> Option<Shaped> {
     fonts().with_face_data(id, |data, index| {
         let face = rustybuzz::Face::from_slice(data, index)?;
-        let scale = size / face.units_per_em() as f64;
-        let mut buffer = rustybuzz::UnicodeBuffer::new();
-        buffer.push_str(text);
-        match rtl {
-            Some(true) => buffer.set_direction(rustybuzz::Direction::RightToLeft),
-            Some(false) => buffer.set_direction(rustybuzz::Direction::LeftToRight),
-            None => {}
+        let upem = face.units_per_em() as f64;
+        let (features, mut segs, native) = caps_segments(&face, text, caps);
+        if rtl == Some(true) {
+            segs.reverse();
         }
-        let shaped = rustybuzz::shape(&face, &[], buffer);
         let mut glyphs = Vec::new();
+        // O glifo desenhado é maiúscula ou versalete (espaçamento de capitais).
+        let mut capital = Vec::new();
         let mut pen = 0.0;
-        for (info, pos) in shaped.glyph_infos().iter().zip(shaped.glyph_positions()) {
-            let gx = pen + pos.x_offset as f64 * scale;
-            let gy = pos.y_offset as f64 * scale;
-            let mut sink = Sink {
-                path: BezPath::new(),
+        for seg in &segs {
+            let gsize = if seg.small {
+                size * SMALL_CAPS_SCALE
+            } else {
+                size
             };
-            let gid = info.glyph_id as u16;
-            let mut outline = BezPath::new();
-            if face
-                .outline_glyph(ttf_parser::GlyphId(gid), &mut sink)
-                .is_some()
-            {
-                outline = sink.path;
-                outline.apply_affine(Affine::new([scale, 0.0, 0.0, scale, gx, gy]));
+            let scale = gsize / upem;
+            let track = track
+                + if seg.small {
+                    SMALL_CAPS_TRACK * size
+                } else {
+                    0.0
+                };
+            let mut buffer = rustybuzz::UnicodeBuffer::new();
+            buffer.push_str(&seg.text);
+            match rtl {
+                Some(true) => buffer.set_direction(rustybuzz::Direction::RightToLeft),
+                Some(false) => buffer.set_direction(rustybuzz::Direction::LeftToRight),
+                None => {}
             }
-            let mut advance = pos.x_advance as f64 * scale;
-            if advance > 0.0 {
-                advance += track;
+            let shaped = rustybuzz::shape(&face, &features, buffer);
+            for (info, pos) in shaped.glyph_infos().iter().zip(shaped.glyph_positions()) {
+                let gx = pen + pos.x_offset as f64 * scale;
+                let gy = pos.y_offset as f64 * scale;
+                let mut sink = Sink {
+                    path: BezPath::new(),
+                };
+                let gid = info.glyph_id as u16;
+                let mut outline = BezPath::new();
+                if face
+                    .outline_glyph(ttf_parser::GlyphId(gid), &mut sink)
+                    .is_some()
+                {
+                    outline = sink.path;
+                    outline.apply_affine(Affine::new([scale, 0.0, 0.0, scale, gx, gy]));
+                }
+                let mut advance = pos.x_advance as f64 * scale;
+                if advance > 0.0 {
+                    advance += track;
+                }
+                let at = info.cluster as usize;
+                let ch = seg.text.get(at..).and_then(|s| s.chars().next());
+                capital.push(
+                    seg.small
+                        || ch.is_some_and(char::is_uppercase)
+                        || (native && ch.is_some_and(char::is_alphabetic)),
+                );
+                glyphs.push(ShapedGlyph {
+                    id: gid,
+                    x: gx,
+                    y: gy,
+                    advance,
+                    cluster: seg.origin.get(at).copied().unwrap_or(text.len()),
+                    scale: if size > 0.0 { gsize / size } else { 1.0 },
+                    outline,
+                });
+                pen += advance;
             }
-            glyphs.push(ShapedGlyph {
-                id: gid,
-                x: gx,
-                y: gy,
-                advance,
-                cluster: info.cluster as usize,
-                outline,
-            });
-            pen += advance;
+        }
+        if caps.spacing {
+            pen = space_capitals(&mut glyphs, &capital, CAP_SPACING * size);
         }
         Some(Shaped {
             glyphs,
             advance: pen,
-            ascent: face.ascender() as f64 * scale,
+            ascent: face.ascender() as f64 * size / upem,
         })
     })?
+}
+
+/// Espaçamento de capitais: `gap` depois de cada maiúscula seguida de outra
+/// (marcas sem avanço não contam); devolve o novo avanço total.
+fn space_capitals(glyphs: &mut [ShapedGlyph], capital: &[bool], gap: f64) -> f64 {
+    let spacing: Vec<usize> = (0..glyphs.len())
+        .filter(|&k| glyphs[k].advance > 0.0)
+        .collect();
+    let mut add = vec![false; glyphs.len()];
+    for w in spacing.windows(2) {
+        if capital[w[0]] && capital[w[1]] {
+            add[w[0]] = true;
+        }
+    }
+    let mut shift = 0.0;
+    let mut pen = 0.0;
+    for (k, g) in glyphs.iter_mut().enumerate() {
+        if shift != 0.0 {
+            g.x += shift;
+            g.outline.apply_affine(Affine::translate((shift, 0.0)));
+        }
+        if add[k] {
+            g.advance += gap;
+            shift += gap;
+        }
+        pen += g.advance;
+    }
+    pen
 }
 
 /// Contorno de `text` na família pedida (sem substituir), com corpo
@@ -555,10 +743,13 @@ pub fn layout_text(t: &TextData) -> TextLayout {
                     }
                     let mut word = word;
                     if wrap {
+                        let caps = Caps::of(&span.font);
                         let width = |t: &str| {
                             fonts[si]
                                 .as_ref()
-                                .and_then(|(id, _, _)| shape(*id, t, span.font.size))
+                                .and_then(|(id, _, _)| {
+                                    shape_styled(*id, t, span.font.size, None, 0.0, caps)
+                                })
                                 .map(|s| s.advance)
                                 .unwrap_or(0.0)
                         };
@@ -608,7 +799,9 @@ pub fn layout_text(t: &TextData) -> TextLayout {
                         }
                         let full = fonts[si]
                             .as_ref()
-                            .and_then(|(id, _, _)| shape(*id, word, span.font.size))
+                            .and_then(|(id, _, _)| {
+                                shape_styled(*id, word, span.font.size, None, 0.0, caps)
+                            })
                             .map(|s| s.advance)
                             .unwrap_or(0.0);
                         line_width += full;
@@ -653,12 +846,13 @@ pub fn layout_text(t: &TextData) -> TextLayout {
                     continue;
                 };
                 let dir = any_rtl.then_some(rtl[pi]);
-                let shaped = shape_tracked(
+                let shaped = shape_styled(
                     id,
                     &p.text,
                     span.font.size,
                     dir,
                     t.tracking * span.font.size,
+                    Caps::of(&span.font),
                 )
                 .unwrap_or(Shaped {
                     glyphs: Vec::new(),
@@ -775,6 +969,7 @@ pub fn layout_text(t: &TextData) -> TextLayout {
                         y: baseline + g.y,
                         advance: g.advance,
                         text,
+                        scale: g.scale,
                     });
                 }
                 runs.push(Run {
@@ -787,6 +982,7 @@ pub fn layout_text(t: &TextData) -> TextLayout {
                     size: span.font.size,
                     weight: span.font.weight,
                     italic: span.font.italic,
+                    caps: span.font.caps.clone(),
                     fill: span.fill.clone(),
                     outline,
                     font: id,
@@ -812,6 +1008,7 @@ pub fn layout_text(t: &TextData) -> TextLayout {
                         y: baseline + g.y,
                         advance: g.advance,
                         text: "-".into(),
+                        scale: g.scale,
                     });
                 }
                 runs.push(Run {
@@ -1299,6 +1496,8 @@ mod tests {
                             size: 10_000.0,
                             weight: 400,
                             italic: false,
+                            caps: None,
+                            cap_spacing: false,
                             extra: Map::new(),
                         },
                         fill: None,
@@ -1362,6 +1561,63 @@ mod tests {
         let (n, w, tight) = (width(0.0), width(0.2), width(-0.1));
         assert!((w - n - 4.0 * 0.2 * 10_000.0).abs() < 1.0, "{n} {w}");
         assert!(tight < n);
+    }
+
+    /// GD-TXT-13: a caixa tipográfica muda o desenho, nunca o texto; o
+    /// versalete usa os glifos da fonte ou maiúsculas reduzidas; o
+    /// espaçamento de capitais abre só entre maiúsculas seguidas.
+    #[test]
+    fn typographic_caps_keep_the_typed_text() {
+        if !has_font() {
+            return;
+        }
+        let lay = |s: &str, caps: Option<&str>, spacing: bool| {
+            let mut t = text("artistic", "left", s, None);
+            t.paragraphs[0].spans[0].font.caps = caps.map(String::from);
+            t.paragraphs[0].spans[0].font.cap_spacing = spacing;
+            layout_text(&t)
+        };
+        let width = |l: &TextLayout| l.lines[0].carets.last().unwrap().1;
+        let ids = |l: &TextLayout| -> Vec<u16> {
+            l.lines[0].runs[0].glyphs.iter().map(|g| g.id).collect()
+        };
+        // Todas em maiúsculas: desenho de "ABC", texto e cursor de "abc".
+        let all = lay("abc", Some("all"), false);
+        let upper = lay("ABC", None, false);
+        assert_eq!(all.lines[0].runs[0].text, "abc");
+        assert_eq!(ids(&all), ids(&upper));
+        assert_eq!(all.lines[0].carets.len(), 4);
+        assert!((width(&all) - width(&upper)).abs() < 1.0);
+        // ß desenhado como SS continua um caractere só no cursor.
+        let sharp = lay("aß", Some("all"), false);
+        assert_eq!(sharp.lines[0].carets.len(), 3);
+        assert_eq!(sharp.lines[0].runs[0].glyphs.len(), 3);
+        // Versalete: maiúscula fica, minúsculas viram versalete.
+        let small = lay("Abc", Some("small"), false);
+        let scales: Vec<f64> = small.lines[0].runs[0]
+            .glyphs
+            .iter()
+            .map(|g| g.scale)
+            .collect();
+        if scales.iter().any(|k| *k < 1.0) {
+            assert_eq!(scales, [1.0, SMALL_CAPS_SCALE, SMALL_CAPS_SCALE]);
+            let all_small = lay("Abc", Some("allSmall"), false);
+            assert!(
+                all_small.lines[0].runs[0]
+                    .glyphs
+                    .iter()
+                    .all(|g| g.scale == SMALL_CAPS_SCALE)
+            );
+        } else {
+            assert_ne!(ids(&small), ids(&lay("Abc", None, false)), "glifos smcp");
+        }
+        assert_eq!(small.lines[0].runs[0].text, "Abc");
+        // Espaçamento de capitais: 3 folgas em ABCD, 1 em AbCD (só C–D).
+        let gap = CAP_SPACING * 10_000.0;
+        let d = width(&lay("ABCD", None, true)) - width(&lay("ABCD", None, false));
+        assert!((d - 3.0 * gap).abs() < 1.0, "{d}");
+        let d = width(&lay("AbCD", None, true)) - width(&lay("AbCD", None, false));
+        assert!((d - gap).abs() < 1.0, "{d}");
     }
 
     /// GD-TXT-09: alinhamentos no caminho, justificar e a volta no caminho

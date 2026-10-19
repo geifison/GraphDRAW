@@ -356,6 +356,13 @@ a seleção; o comando escolhido vale para o objeto bloqueado.
   confirma que cabe numa tela de 1366 × 768.
 - Botões no rodapé, à direita: Cancelar (secondary) e a ação (primary).
   `Esc` cancela.
+- **Mudar caixa** (GD-TXT-11/12): largura `case-dialog-width` = 360 px;
+  título, as cinco opções exclusivas (cada nome escrito do jeito que deixa
+  o texto: "minúsculas", "MAIÚSCULAS", "Todas as Iniciais Maiúsculas",
+  "iNVERTER mAIÚSCULAS/mINÚSCULAS"), a prévia do resultado num quadro de
+  grupo (até 120 caracteres, quebra de parágrafo como ¶), a dica do ciclo
+  com o atalho do perfil ativo em `fg-secondary` e Aplicar | Cancelar. Abre
+  com o último modo usado; o atalho de novo percorre o ciclo; Enter aplica.
 - **Converter em bitmap** (GD-CNV-03): resolução em ppp (10–2400, padrão
   300), Suavizar bordas e Fundo transparente (senão branco); Converter /
   Cancelar.
@@ -404,7 +411,9 @@ a seleção; o comando escolhido vale para o objeto bloqueado.
   contexto não pode empurrar o canvas para cima ou para baixo.
 - **Empilhar:** pares relacionados ficam um sobre o outro (X/Y, L/A,
   espelhar H/V, ordem 2 × 2, agrupar/desagrupar, fonte/estilo e corpo,
-  negrito/itálico, alinhamentos 2 × 2). Controles soltos ficam centrados
+  negrito/itálico, caixa tipográfica 2 × 2 — `text-small-caps` e
+  `text-all-small-caps` em cima, `text-all-caps` e `text-cap-spacing`
+  embaixo, no estado "ligado" quando valem —, alinhamentos 2 × 2). Controles soltos ficam centrados
   na altura.
 - **Sem quebra de linha:** nada quebra linha. Se os controles não cabem na
   largura, a barra rola na horizontal (roda do mouse ou arrasto; barra de
@@ -454,7 +463,7 @@ barra (no máximo os 2–4 controles mais usados) e o que fica só na janela.
 | Retângulo | cantos escolhidos, tipo e raio | — |
 | Polígono/estrela | modo, lados/pontas, nitidez | — |
 | Elipse | elipse/arco/fatia, ângulos | — |
-| Texto | fonte, estilo, corpo, negrito, itálico, alinhamento; texto em caminho: início, distância, lado, orientação, espelho | (menu Texto) |
+| Texto | fonte, estilo, corpo, negrito, itálico, caixa tipográfica (versalete, todas em versalete, todas em maiúsculas, espaçamento de capitais), alinhamento; texto em caminho: início, distância, lado, orientação, espelho | Mudar caixa (menu Texto, menu de contexto, Shift+F3) |
 | Booleanas | as 9 (2 ou mais objetos) | — |
 | Aparência | — | painel Camadas: opacidade, mesclagem, dados do objeto |
 | Gradiente (ferramenta G) | linear/radial na barra da ferramenta | paradas: cor e opacidade no balão da parada |

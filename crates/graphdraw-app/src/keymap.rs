@@ -268,6 +268,11 @@ commands! {
     TextJustify = "text.justify", "Justificar texto", "Justify text", Text, Text, true;
     TextBold = "text.bold", "Negrito", "Bold", Text, Always, true;
     TextItalic = "text.italic", "Itálico", "Italic", Text, Always, true;
+    TextChangeCase = "text.change_case", "Mudar caixa…", "Change case…", Text, Always, true;
+    TextSmallCaps = "text.small_caps", "Versalete", "Small caps", Text, Always, true;
+    TextAllSmallCaps = "text.all_small_caps", "Todas em versalete", "All small caps", Text, Always, true;
+    TextAllCaps = "text.all_caps", "Todas em maiúsculas (só o desenho)", "All caps (display only)", Text, Always, true;
+    TextCapSpacing = "text.cap_spacing", "Espaçamento de capitais", "Capital spacing", Text, Always, true;
     TextToCurves = "text.to_curves", "Converter texto em curvas", "Convert text to curves", Text, Selection, true;
 }
 
@@ -552,6 +557,7 @@ impl Keymap {
     /// Perfil com teclas de função e letras de alinhamento, definido pelo
     /// responsável pelo produto (2026-10-16).
     pub fn alternative() -> Keymap {
+                (TextChangeCase, "Shift+F3"),
         use Command::*;
         Keymap {
             profile: Profile::Alternative,
@@ -618,6 +624,7 @@ impl Keymap {
                 (SaveAs, "Ctrl+Shift+S"),
                 (Import, "Ctrl+I"),
                 (Export, "Ctrl+E"),
+                (TextChangeCase, "Shift+F3"),
                 (Print, "Ctrl+P"),
                 (Undo, "Ctrl+Z"),
                 (Redo, "Ctrl+Shift+Z"),
@@ -1036,6 +1043,11 @@ impl Command {
 
 /// Ícone de 16 px na cor do texto (menus e listas).
 pub fn menu_icon(ui: &egui::Ui, name: &str) -> egui::Image<'static> {
+            Command::TextChangeCase => "text-case",
+            Command::TextSmallCaps => "text-small-caps",
+            Command::TextAllSmallCaps => "text-all-small-caps",
+            Command::TextAllCaps => "text-all-caps",
+            Command::TextCapSpacing => "text-cap-spacing",
     egui::Image::new(crate::icons::get_micro(name))
         .tint(crate::theme::palette(ui).fg_primary)
         .fit_to_exact_size(egui::Vec2::splat(crate::theme::ICON_MICRO))

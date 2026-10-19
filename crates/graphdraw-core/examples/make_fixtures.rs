@@ -103,6 +103,8 @@ fn span(text: &str, size_pt: f64) -> TextSpan {
             size: size_pt * PT,
             weight: 400,
             italic: false,
+            caps: None,
+            cap_spacing: false,
             extra: Map::new(),
         },
         fill: None,

@@ -431,6 +431,18 @@ pub struct FontSpec {
     pub weight: u16,
     #[serde(default)]
     pub italic: bool,
+    /// Caixa tipográfica (GD-TXT-13, só o desenho; o texto fica como foi
+    /// digitado): `small` (versalete), `allSmall` (todas em versalete) ou
+    /// `all` (todas em maiúsculas); ausente = normal.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub caps: Option<String>,
+    /// Espaçamento de capitais (GD-TXT-13): folga entre maiúsculas seguidas.
+    #[serde(
+        default,
+        rename = "capSpacing",
+        skip_serializing_if = "std::ops::Not::not"
+    )]
+    pub cap_spacing: bool,
     #[serde(flatten)]
     pub extra: Map<String, Value>,
 }
