@@ -270,13 +270,21 @@ pub enum Pass {
 /// Pedido da barra para a janela principal.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Action {
-    Hide { id: String, hidden: bool },
+    Hide {
+        id: String,
+        hidden: bool,
+    },
     Add(String),
     Remove(String),
     Restore,
-    Move { id: String, to: usize },
+    Move {
+        id: String,
+        to: usize,
+    },
     Run(Command),
     Dock(Dock),
+    /// Abrir um painel lateral pela chave (ex.: `alinhar`).
+    Panel(&'static str),
 }
 
 /// Grupo como a barra o mostrou no último quadro.
@@ -335,9 +343,15 @@ pub struct Items<'b> {
     group: &'b str,
     custom: &'b Customs,
     list: Vec<(String, String)>,
+    actions: Vec<Action>,
 }
 
 impl Items<'_> {
+    /// Pedido para a janela (rodar comando, abrir painel).
+    pub fn act(&mut self, a: Action) {
+        self.actions.push(a);
+    }
+
     /// Registra o item e diz se ele aparece (GD-BPR-07).
     pub fn show(&mut self, id: &str, label: &str) -> bool {
         self.list.push((id.to_string(), label.to_string()));
@@ -480,6 +494,7 @@ impl<'a> Bar<'a> {
                 group: id,
                 custom: self.custom,
                 list: Vec::new(),
+                actions: Vec::new(),
             };
             let width = match self.pass {
                 Pass::Inline => {
@@ -526,6 +541,7 @@ impl<'a> Bar<'a> {
             }
             seen.width = width;
             seen.items = items.list;
+            self.actions.extend(items.actions);
         }
         self.now.push(seen);
     }
@@ -824,7 +840,7 @@ pub fn apply(custom: &mut Customs, key: &str, actions: &[Action], current: &[Str
             Action::Remove(c) => custom.remove_command(key, c),
             Action::Restore => custom.restore(key),
             Action::Move { id, to } => custom.move_group(key, current, id, *to),
-            Action::Run(_) | Action::Dock(_) => {}
+            Action::Run(_) | Action::Dock(_) | Action::Panel(_) => {}
         }
     }
 }

@@ -208,6 +208,20 @@ const icons = {
   "print-on": `<path d="M7 9 V3.5 H17 V9"/><rect x="3.5" y="9" width="17" height="7.5" rx="1.5"/><path d="M7 14 H17 V20.5 H7 Z"/>`,
   "print-off": `<path d="M7 9 V3.5 H17 V9"/><rect x="3.5" y="9" width="17" height="7.5" rx="1.5"/><path d="M4 20 L20 4"/>`,
   "lock-on": `<rect x="5" y="10.5" width="14" height="10" rx="1.5"/><path d="M8 10.5 V7.5 a4 4 0 0 1 8 0 V10.5"/>`,
+  // ---- cantos do retângulo e modo da elipse (GD-BPC-04/05) ----
+  // Cantos: o canto de cima à direita de um quadrado, em cada tipo.
+  "corner-round": `<path d="M4 20 V4 H11 a9 9 0 0 1 9 9 V20"/>`,
+  "corner-scallop": `<path d="M4 20 V4 H11 a9 9 0 0 0 9 9 V20"/>`,
+  "corner-chamfer": `<path d="M4 20 V4 H11 L20 13 V20"/>`,
+  // Elipse inteira, fatia (pizza) e arco.
+  "ellipse-whole": `<ellipse cx="12" cy="12" rx="8.5" ry="7"/>`,
+  "ellipse-pie": `<path d="M12 12 L20.5 12 A8.5 7 0 1 1 18 7 Z"/>`,
+  "ellipse-arc": `<path d="M20.5 12 A8.5 7 0 1 1 18 7"/>`,
+  // Passo das setas: tecla com seta; com Shift, seta dupla.
+  "nudge": `<rect x="4" y="4" width="16" height="16" rx="2.5"/><path d="M8 12 H16 M13 9 L16 12 L13 15"/>`,
+  "nudge-big": `<rect x="4" y="4" width="16" height="16" rx="2.5"/><path d="M7 12 H17 M11 9 L14 12 L11 15 M14 9 L17 12 L14 15"/>`,
+  // Escala X/Y em %: quadrado menor dentro do maior com seta diagonal.
+  "scale-xy": `<rect x="3.5" y="10.5" width="10" height="10" rx="1"/><path d="M3.5 7 V3.5 H20.5 V20.5 H17 M11 13 L19 5 M14 5 H19 V10"/>`,
   // ---- barra de propriedades (GD-BPR-06/07/08) ----
   // Alça: duas colunas de três pontos.
   "bar-grip": `${dot(9.5, 6.5, 1.3)}${dot(14.5, 6.5, 1.3)}${dot(9.5, 12, 1.3)}${dot(14.5, 12, 1.3)}${dot(9.5, 17.5, 1.3)}${dot(14.5, 17.5, 1.3)}`,
