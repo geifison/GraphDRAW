@@ -12,7 +12,7 @@
   <Identity Name="{IDENTITY}" Publisher="{PUBLISHER}" Version="{VERSION}" ProcessorArchitecture="x64" />
 
   <Properties>
-    <DisplayName>TraceDraw</DisplayName>
+    <DisplayName>GraphDraw</DisplayName>
     <PublisherDisplayName>{PUBLISHER_NAME}</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
@@ -37,9 +37,9 @@
   </Resources>
 
   <Applications>
-    <Application Id="TraceDraw" Executable="tracedraw.exe" EntryPoint="Windows.FullTrustApplication">
+    <Application Id="GraphDraw" Executable="graphdraw.exe" EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements
-        DisplayName="TraceDraw"
+        DisplayName="GraphDraw"
         Description="Open-source vector editor"
         BackgroundColor="transparent"
         Square150x150Logo="Assets\Square150x150Logo.png"
@@ -48,10 +48,10 @@
       </uap:VisualElements>
       <Extensions>
         <uap:Extension Category="windows.fileTypeAssociation">
-          <uap:FileTypeAssociation Name="tdraw">
-            <uap:DisplayName>TraceDraw Document</uap:DisplayName>
+          <uap:FileTypeAssociation Name="gdr">
+            <uap:DisplayName>GraphDraw Document</uap:DisplayName>
             <uap:SupportedFileTypes>
-              <uap:FileType>.tdraw</uap:FileType>
+              <uap:FileType>.gdr</uap:FileType>
             </uap:SupportedFileTypes>
           </uap:FileTypeAssociation>
         </uap:Extension>
@@ -63,26 +63,26 @@
             </uap:SupportedFileTypes>
           </uap:FileTypeAssociation>
         </uap:Extension>
-        <uap3:Extension Category="windows.appExecutionAlias" Executable="tracedraw.exe" EntryPoint="Windows.FullTrustApplication">
+        <uap3:Extension Category="windows.appExecutionAlias" Executable="graphdraw.exe" EntryPoint="Windows.FullTrustApplication">
           <uap3:AppExecutionAlias>
-            <desktop:ExecutionAlias Alias="tracedraw.exe" />
+            <desktop:ExecutionAlias Alias="graphdraw.exe" />
           </uap3:AppExecutionAlias>
         </uap3:Extension>
       </Extensions>
     </Application>
-    <Application Id="TraceDrawCli" Executable="tracedraw-cli.exe" EntryPoint="Windows.FullTrustApplication"
+    <Application Id="GraphDrawCli" Executable="graphdraw-cli.exe" EntryPoint="Windows.FullTrustApplication"
       desktop4:Subsystem="console" desktop4:SupportsMultipleInstances="true">
       <uap:VisualElements
-        DisplayName="TraceDraw command line"
-        Description="TraceDraw command line"
+        DisplayName="GraphDraw command line"
+        Description="GraphDraw command line"
         BackgroundColor="transparent"
         Square150x150Logo="Assets\Square150x150Logo.png"
         Square44x44Logo="Assets\Square44x44Logo.png"
         AppListEntry="none" />
       <Extensions>
-        <uap5:Extension Category="windows.appExecutionAlias" Executable="tracedraw-cli.exe" EntryPoint="Windows.FullTrustApplication">
+        <uap5:Extension Category="windows.appExecutionAlias" Executable="graphdraw-cli.exe" EntryPoint="Windows.FullTrustApplication">
           <uap5:AppExecutionAlias desktop4:Subsystem="console">
-            <uap5:ExecutionAlias Alias="tracedraw-cli.exe" />
+            <uap5:ExecutionAlias Alias="graphdraw-cli.exe" />
           </uap5:AppExecutionAlias>
         </uap5:Extension>
       </Extensions>

@@ -1,5 +1,5 @@
-; Inno Setup script for TraceDraw. Built by CI on windows-latest.
-; Variables: /DVersion=x.y.z /DSrcDir=<dir with tracedraw.exe and tracedraw-cli.exe>
+; Inno Setup script for GraphDraw. Built by CI on windows-latest.
+; Variables: /DVersion=x.y.z /DSrcDir=<dir with graphdraw.exe and graphdraw-cli.exe>
 
 #ifndef Version
   #define Version "0.0.0"
@@ -9,18 +9,18 @@
 #endif
 
 [Setup]
-AppId={{7E6E3B5C-4C1E-4F7B-9D7A-2B9D5C1A0E11}
-AppName=TraceDraw
+AppId={{97CEE5A7-A69E-4686-9E7F-BC5F50B3EF06}
+AppName=GraphDraw
 AppVersion={#Version}
-AppPublisher=Ighor Toth
-AppCopyright=Copyright (c) 2026 Ighor Toth and the TraceDraw contributors
-AppPublisherURL=https://github.com/igtoth/tracedraw
-DefaultDirName={autopf}\TraceDraw
-DefaultGroupName=TraceDraw
-UninstallDisplayIcon={app}\tracedraw.exe
+AppPublisher=GraphDraw
+AppCopyright=Copyright (c) 2026 Ighor Toth and the TraceDraw contributors and GraphDraw contributors
+AppPublisherURL=https://github.com/geifison/GraphDRAW
+DefaultDirName={autopf}\GraphDraw
+DefaultGroupName=GraphDraw
+UninstallDisplayIcon={app}\graphdraw.exe
 OutputDir=..\..\dist
-OutputBaseFilename=tracedraw-{#Version}-windows-x86_64-setup
-SetupIconFile=..\..\assets\icon\tracedraw.ico
+OutputBaseFilename=graphdraw-{#Version}-windows-x86_64-setup
+SetupIconFile=..\..\assets\icon\graphdraw.ico
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -36,33 +36,33 @@ Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortugue
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
-Name: "addtopath"; Description: "Add tracedraw-cli to PATH"; GroupDescription: "Command line:"
+Name: "addtopath"; Description: "Add graphdraw-cli to PATH"; GroupDescription: "Command line:"
 
 [Files]
-Source: "{#SrcDir}\tracedraw.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#SrcDir}\tracedraw-cli.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SrcDir}\graphdraw.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#SrcDir}\graphdraw-cli.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\LICENSE-MIT"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\LICENSE-APACHE"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\TraceDraw"; Filename: "{app}\tracedraw.exe"
-Name: "{group}\Uninstall TraceDraw"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\TraceDraw"; Filename: "{app}\tracedraw.exe"; Tasks: desktopicon
+Name: "{group}\GraphDraw"; Filename: "{app}\graphdraw.exe"
+Name: "{group}\Uninstall GraphDraw"; Filename: "{uninstallexe}"
+Name: "{autodesktop}\GraphDraw"; Filename: "{app}\graphdraw.exe"; Tasks: desktopicon
 
 [Registry]
-; .tdraw file association
-Root: HKA; Subkey: "Software\Classes\.tdraw"; ValueType: string; ValueName: ""; ValueData: "TraceDraw.Document"; Flags: uninsdeletevalue
-Root: HKA; Subkey: "Software\Classes\TraceDraw.Document"; ValueType: string; ValueName: ""; ValueData: "TraceDraw Document"; Flags: uninsdeletekey
-Root: HKA; Subkey: "Software\Classes\TraceDraw.Document\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\tracedraw.exe,0"
-Root: HKA; Subkey: "Software\Classes\TraceDraw.Document\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\tracedraw.exe"" ""%1"""
-; "Open with TraceDraw" for .cdr, without stealing the default
-Root: HKA; Subkey: "Software\Classes\.cdr\OpenWithProgids"; ValueType: string; ValueName: "TraceDraw.Document"; ValueData: ""; Flags: uninsdeletevalue
+; .gdr file association
+Root: HKA; Subkey: "Software\Classes\.gdr"; ValueType: string; ValueName: ""; ValueData: "GraphDraw.Document"; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\GraphDraw.Document"; ValueType: string; ValueName: ""; ValueData: "GraphDraw Document"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\GraphDraw.Document\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\graphdraw.exe,0"
+Root: HKA; Subkey: "Software\Classes\GraphDraw.Document\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\graphdraw.exe"" ""%1"""
+; "Open with GraphDraw" for .cdr, without stealing the default
+Root: HKA; Subkey: "Software\Classes\.cdr\OpenWithProgids"; ValueType: string; ValueName: "GraphDraw.Document"; ValueData: ""; Flags: uninsdeletevalue
 ; PATH
 Root: HKA; Subkey: "{code:PathRegKey}"; ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{app}"; Tasks: addtopath; Check: NeedsAddPath('{app}')
 
 [Run]
-Filename: "{app}\tracedraw.exe"; Description: "{cm:LaunchProgram,TraceDraw}"; Flags: nowait postinstall skipifsilent shellexec runasoriginaluser
+Filename: "{app}\graphdraw.exe"; Description: "{cm:LaunchProgram,GraphDraw}"; Flags: nowait postinstall skipifsilent shellexec runasoriginaluser
 
 [Code]
 function PathRegKey(Param: string): string;

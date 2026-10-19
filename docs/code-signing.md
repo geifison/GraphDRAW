@@ -28,7 +28,7 @@ SimplySign cloud with a code from a phone app, which is awkward to
 automate). EV certificates no longer skip the SmartScreen reputation
 (since 2024), so they buy nothing over OV for this.
 
-For TraceDraw, a project by one person in the EU, the free routes are the
+For GraphDraw, a project by one person in the EU, the free routes are the
 ones to take: apply to the SignPath Foundation for the installer and the
 portable zip, and publish the MSIX in the Microsoft Store.
 
@@ -44,9 +44,9 @@ time of writing).
 
 ## What gets signed
 
-- `tracedraw.exe` and `tracedraw-cli.exe`, before they are packed (so the
+- `graphdraw.exe` and `graphdraw-cli.exe`, before they are packed (so the
   installer, the portable zip and the MSIX all carry signed programs).
-- The installer, `tracedraw-<version>-windows-x86_64-setup.exe`.
+- The installer, `graphdraw-<version>-windows-x86_64-setup.exe`.
 - Not signed: the uninstaller the installer writes (it is never
   downloaded, so SmartScreen does not check it) and the macOS and Linux
   packages.
@@ -58,7 +58,7 @@ SignPath that means approving every push, so leave it off there.
 ## SignPath Foundation
 
 1. Make sure the project meets the terms at <https://signpath.org/terms>:
-   an OSI license for everything (TraceDraw is MIT or Apache-2.0), no
+   an OSI license for everything (GraphDraw is MIT or Apache-2.0), no
    malware, released, described on its download page, the "Code signing
    policy" section in the README (already there) and multi-factor
    authentication on GitHub and SignPath for everyone in the team roles.
@@ -80,7 +80,7 @@ SignPath that means approving every push, so leave it off there.
    - variable `SIGNPATH_ORGANIZATION_ID`: your organisation id (SignPath >
      Settings);
    - variable `SIGNPATH_PROJECT_SLUG`: the project slug (for example
-     `tracedraw`);
+     `graphdraw`);
    - variable `SIGNPATH_POLICY_SLUG`: the signing policy slug.
 6. Make a release: Actions > build > Run workflow with the version (for
    example `0.3.0`), or push a version tag (`git tag v0.3.0 && git push
@@ -98,15 +98,15 @@ SignPath that means approving every push, so leave it off there.
 1. Register as an individual developer in Partner Center
    (<https://developer.microsoft.com/microsoft-store/register>, no fee for
    individuals).
-2. Create the app and reserve the name "TraceDraw".
+2. Create the app and reserve the name "GraphDraw".
 3. Open the app's Product management > Product identity page and copy
    three values into GitHub variables:
    - `MSIX_IDENTITY_NAME`: Package/Identity/Name (like
-     `12345IghorToth.TraceDraw`);
+     `12345GraphDraw.GraphDraw`);
    - `MSIX_PUBLISHER`: Package/Identity/Publisher (like `CN=1A2B3C4D-...`);
    - `MSIX_PUBLISHER_NAME`: Package/Properties/PublisherDisplayName (your
      name as the Store shows it).
-4. From then on every build attaches `tracedraw-<version>-windows-x86_64.msix`
+4. From then on every build attaches `graphdraw-<version>-windows-x86_64.msix`
    to its release (a release `1.2.3` becomes package version `1.2.3.0`;
    development builds use the run number as the fourth number). Upload the
    one of a version tag in a new submission under Packages; the Store
@@ -115,8 +115,8 @@ SignPath that means approving every push, so leave it off there.
    privacy policy address and the reason for the full-trust capability)
    see [`store-listing.md`](store-listing.md).
 6. The manifest is `packaging/windows/msix/AppxManifest.xml` (the program
-   runs with full trust; `.tdraw` and `.cdr` open with it; `tracedraw` and
-   `tracedraw-cli` work in a terminal); its tiles are in
+   runs with full trust; `.gdr` and `.cdr` open with it; `graphdraw` and
+   `graphdraw-cli` work in a terminal); its tiles are in
    `packaging/windows/msix/Assets/`. Without the variables the build still
    packs a check package with a placeholder identity, so a broken manifest
    shows up in CI, but does not publish it.
@@ -145,7 +145,7 @@ In Windows, right-click the file > Properties > Digital Signatures, or in
 PowerShell:
 
 ```powershell
-Get-AuthenticodeSignature .\tracedraw-0.3.0-windows-x86_64-setup.exe | Format-List
+Get-AuthenticodeSignature .\graphdraw-0.3.0-windows-x86_64-setup.exe | Format-List
 ```
 
 `Status` should be `Valid` and `SignerCertificate` should name the
