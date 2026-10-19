@@ -4,6 +4,10 @@ Versions follow the tags of this repository; every push to `main` also
 publishes a nightly build. [`docs/features.md`](docs/features.md) has the
 full, row-by-row status.
 
+## GraphDraw (fork do TraceDraw)
+
+- Fork do TraceDraw no commit c7f4e9c8b7da4537a9fd7ada075077988a8adee5 (https://github.com/igtoth/tracedraw), com a identidade renomeada para GraphDraw: crates e aplicativos `graphdraw-*`, formato nativo `.gdr` (antes `.tdraw`), variáveis de ambiente `GRAPHDRAW_*`, pasta de configuração GraphDraw, repositório https://github.com/geifison/GraphDRAW. As entradas abaixo são anteriores ao fork e pertencem ao TraceDraw.
+
 ## Unreleased
 
 - VBA macros: the object model they are written against (Application,

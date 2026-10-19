@@ -1,5 +1,7 @@
 # Clean-room record
 
+O histórico e o registro deste arquivo até o commit c7f4e9c8b7da4537a9fd7ada075077988a8adee5 pertencem ao TraceDraw (https://github.com/igtoth/tracedraw). O GraphDraw continua o registro a partir dali.
+
 This file records where TraceDraw's knowledge of each file format comes
 from, so that anyone can check that the format support was written
 independently. The details of each layout, and whether a file confirmed
