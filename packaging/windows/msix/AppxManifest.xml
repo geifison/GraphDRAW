@@ -50,6 +50,7 @@
         <uap:Extension Category="windows.fileTypeAssociation">
           <uap:FileTypeAssociation Name="gdr">
             <uap:DisplayName>GraphDraw Document</uap:DisplayName>
+            <uap:Logo>Assets\GdrFileLogo.png</uap:Logo>
             <uap:SupportedFileTypes>
               <uap:FileType>.gdr</uap:FileType>
             </uap:SupportedFileTypes>

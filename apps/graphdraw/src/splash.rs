@@ -16,7 +16,8 @@ use std::path::Path;
 use web_time::{Duration, Instant};
 
 /// The splash window's size in points.
-pub const SIZE: Vec2 = Vec2::new(640.0, 380.0);
+/// Same aspect ratio as the splash artwork (1376 x 768).
+pub const SIZE: Vec2 = Vec2::new(720.0, 402.0);
 /// The main window's size when none was kept, and its minimum.
 pub const DEFAULT_SIZE: Vec2 = Vec2::new(1600.0, 950.0);
 /// Small enough for a 1280 x 720 screen with a taskbar, at any interface
@@ -47,6 +48,8 @@ pub struct Splash {
     /// True once the last frame (the "opening" status, a full bar) shows.
     last_frame_drawn: bool,
     icon: Option<TextureHandle>,
+    /// The splash artwork; when it fails to decode the drawn splash shows.
+    art: Option<TextureHandle>,
     /// F8 was held while the splash showed: the editor asks whether to
     /// reset every preference.
     pub reset_requested: bool,
@@ -72,6 +75,7 @@ impl Splash {
                 .map(|n| n.to_string_lossy().into_owned()),
             last_frame_drawn: false,
             icon: brand::icon(ctx),
+            art: brand::splash_art(ctx),
             reset_requested: false,
         }
     }
@@ -105,6 +109,7 @@ impl Splash {
             texts.then_some(status.as_str()),
             texts,
             self.icon.as_ref(),
+            self.art.as_ref(),
         );
         if fonts_ready && elapsed >= MIN_TIME {
             if self.last_frame_drawn {
@@ -144,12 +149,29 @@ fn paint(
     status: Option<&str>,
     texts: bool,
     icon: Option<&TextureHandle>,
+    art: Option<&TextureHandle>,
 ) {
     let rect = ui.max_rect();
     let painter = ui.painter_at(rect);
-    brand::gradient(&painter, rect);
     let s = (rect.width() / SIZE.x).min(rect.height() / SIZE.y).max(0.5);
-    brand::curves(&painter, rect, 1.35 * s, &[0.24, 0.62]);
+    if let Some(art) = art {
+        brand::paint_icon(&painter, Some(art), rect);
+    } else {
+        brand::gradient(&painter, rect);
+        brand::curves(&painter, rect, 1.35 * s, &[0.24, 0.62]);
+        paint_name_block(&painter, rect, s, texts, icon);
+    }
+    paint_footer(&painter, rect, s, progress, status, texts, art.is_some());
+}
+
+/// The icon, the name and the tagline of the drawn splash.
+fn paint_name_block(
+    painter: &egui::Painter,
+    rect: Rect,
+    s: f32,
+    texts: bool,
+    icon: Option<&TextureHandle>,
+) {
 
     let pad = 44.0 * s;
     let icon_rect = Rect::from_min_size(rect.min + Vec2::new(pad, 64.0 * s), Vec2::splat(96.0 * s));
@@ -171,6 +193,22 @@ fn paint(
     if let Some(g) = tagline {
         painter.galley(Pos2::new(left + 2.0 * s, y), g, brand::TAGLINE);
     }
+}
+
+/// The strip along the bottom: status, progress bar, copyright and
+/// version, over the artwork or the drawn background. Over the artwork
+/// there is no bar (its fill is only a time estimate): the real loading
+/// status, the copyright line and the version.
+fn paint_footer(
+    painter: &egui::Painter,
+    rect: Rect,
+    s: f32,
+    progress: f32,
+    status: Option<&str>,
+    texts: bool,
+    over_art: bool,
+) {
+    let pad = 44.0 * s;
 
     // A darker strip along the bottom for the status, the progress bar
     // and the footer, over the ends of the curves.
@@ -182,7 +220,7 @@ fn paint(
     painter.rect_filled(
         strip,
         CornerRadius::ZERO,
-        Color32::from_rgba_unmultiplied(0x0A, 0x12, 0x22, 225),
+        Color32::from_rgba_unmultiplied(0x0A, 0x12, 0x22, if over_art { 170 } else { 225 }),
     );
     painter.hline(
         strip.x_range(),
@@ -195,10 +233,12 @@ fn paint(
         Pos2::new(rect.left() + pad, bar_y),
         Pos2::new(rect.right() - pad, bar_y + 3.0 * s),
     );
-    painter.rect_filled(track, CornerRadius::same(2), Color32::from_white_alpha(30));
-    let mut fill = track;
-    fill.set_width(track.width() * progress.clamp(0.0, 1.0));
-    painter.rect_filled(fill, CornerRadius::same(2), brand::CURVE);
+    if !over_art {
+        painter.rect_filled(track, CornerRadius::same(2), Color32::from_white_alpha(30));
+        let mut fill = track;
+        fill.set_width(track.width() * progress.clamp(0.0, 1.0));
+        painter.rect_filled(fill, CornerRadius::same(2), brand::CURVE);
+    }
     if let Some(text) = status {
         let g = painter.layout_no_wrap(
             text.to_string(),

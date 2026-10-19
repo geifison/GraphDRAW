@@ -20,7 +20,7 @@ DefaultGroupName=GraphDraw
 UninstallDisplayIcon={app}\graphdraw.exe
 OutputDir=..\..\dist
 OutputBaseFilename=graphdraw-{#Version}-windows-x86_64-setup
-SetupIconFile=..\..\assets\icon\graphdraw.ico
+SetupIconFile=..\..\assets\brand\app.ico
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -44,6 +44,7 @@ Source: "{#SrcDir}\graphdraw-cli.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\LICENSE-MIT"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\LICENSE-APACHE"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\assets\brand\gdr.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\GraphDraw"; Filename: "{app}\graphdraw.exe"
@@ -54,7 +55,7 @@ Name: "{autodesktop}\GraphDraw"; Filename: "{app}\graphdraw.exe"; Tasks: desktop
 ; .gdr file association
 Root: HKA; Subkey: "Software\Classes\.gdr"; ValueType: string; ValueName: ""; ValueData: "GraphDraw.Document"; Flags: uninsdeletevalue
 Root: HKA; Subkey: "Software\Classes\GraphDraw.Document"; ValueType: string; ValueName: ""; ValueData: "GraphDraw Document"; Flags: uninsdeletekey
-Root: HKA; Subkey: "Software\Classes\GraphDraw.Document\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\graphdraw.exe,0"
+Root: HKA; Subkey: "Software\Classes\GraphDraw.Document\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\gdr.ico"
 Root: HKA; Subkey: "Software\Classes\GraphDraw.Document\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\graphdraw.exe"" ""%1"""
 ; "Open with GraphDraw" for .cdr, without stealing the default
 Root: HKA; Subkey: "Software\Classes\.cdr\OpenWithProgids"; ValueType: string; ValueName: "GraphDraw.Document"; ValueData: ""; Flags: uninsdeletevalue

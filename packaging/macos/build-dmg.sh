@@ -10,13 +10,17 @@ sed "s/__VERSION__/$VERSION/g" "$ROOT/packaging/macos/Info.plist" > "$APP/Conten
 cp "$BIN/graphdraw" "$BIN/graphdraw-cli" "$APP/Contents/MacOS/"
 chmod +x "$APP/Contents/MacOS/"*
 
-# Icon: build .icns from the PNG set.
-ICONSET="$ROOT/dist/graphdraw.iconset"; rm -rf "$ICONSET"; mkdir -p "$ICONSET"
-for s in 16 32 128 256 512; do
-  cp "$ROOT/assets/icon/graphdraw-$s.png" "$ICONSET/icon_${s}x${s}.png"
-  d=$((s*2)); cp "$ROOT/assets/icon/graphdraw-$d.png" "$ICONSET/icon_${s}x${s}@2x.png"
+# Icons: the program icon and the one for .gdr files, as .icns from the PNG set.
+for kind in app gdr; do
+  ICONSET="$ROOT/dist/$kind.iconset"; rm -rf "$ICONSET"; mkdir -p "$ICONSET"
+  for s in 16 32 128 256 512; do
+    cp "$ROOT/assets/brand/$kind-$s.png" "$ICONSET/icon_${s}x${s}.png"
+    d=$((s*2)); cp "$ROOT/assets/brand/$kind-$d.png" "$ICONSET/icon_${s}x${s}@2x.png"
+  done
+  name=graphdraw; [ "$kind" = gdr ] && name=gdr
+  iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/$name.icns"
+  rm -rf "$ICONSET"
 done
-iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/graphdraw.icns"
 
 # Ad-hoc signature so Gatekeeper reports a consistent bundle.
 codesign --force --deep --sign - "$APP"
@@ -26,5 +30,5 @@ rm -f "$DMG"
 STAGE="$ROOT/dist/dmg-stage"; rm -rf "$STAGE"; mkdir -p "$STAGE"
 cp -R "$APP" "$STAGE/"; ln -s /Applications "$STAGE/Applications"
 hdiutil create -volname "GraphDraw" -srcfolder "$STAGE" -ov -format UDZO "$DMG"
-rm -rf "$STAGE" "$ICONSET"
+rm -rf "$STAGE"
 echo "built $DMG"

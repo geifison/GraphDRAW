@@ -22,7 +22,7 @@ const BODY_TOP: f32 = 12.0;
 const BLEED: f32 = 14.0 + crate::ui::chrome::EDGE;
 
 /// The banner across the top of the dialog body.
-fn banner(ui: &mut Ui, icon: Option<&TextureHandle>) {
+fn banner(ui: &mut Ui, icon: Option<&TextureHandle>, art: Option<&TextureHandle>) {
     let (slot, _) = ui.allocate_exact_size(
         Vec2::new(ui.available_width(), BANNER_H - BODY_TOP),
         Sense::hover(),
@@ -32,8 +32,13 @@ fn banner(ui: &mut Ui, icon: Option<&TextureHandle>) {
         Pos2::new(slot.right() + BLEED, slot.bottom()),
     );
     let painter = ui.ctx().layer_painter(ui.layer_id()).with_clip_rect(rect);
-    brand::gradient(&painter, rect);
-    brand::curves(&painter, rect, 1.0, &[0.5]);
+    if let Some(art) = art {
+        // A band of the splash artwork, darkened so the text reads.
+        brand::paint_art_band(&painter, art, rect, 0.30, 0.6, 190);
+    } else {
+        brand::gradient(&painter, rect);
+        brand::curves(&painter, rect, 1.0, &[0.5]);
+    }
 
     let icon_size = 76.0;
     let icon_rect = Rect::from_min_size(
@@ -84,10 +89,11 @@ fn fact(ui: &mut Ui, label: &str, value: impl FnOnce(&mut Ui)) {
 /// Draw the About box; sets `close` when it should close.
 pub fn about_dialog(app: &mut App, ctx: &Context, close: &mut bool) {
     let icon = brand::icon(ctx);
+    let art = brand::splash_art(ctx);
     crate::ui::chrome::window(tr("dialog.about")).show(ctx, |ui| {
         ui.set_width(480.0);
         ui.spacing_mut().item_spacing.y = 4.0;
-        banner(ui, icon.as_ref());
+        banner(ui, icon.as_ref(), art.as_ref());
         ui.add_space(16.0);
         ui.add(
             egui::Label::new(

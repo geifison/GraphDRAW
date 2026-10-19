@@ -17,6 +17,10 @@ pub fn welcome_screen(app: &mut App, ui: &mut Ui) {
     ui.add_space(8.0);
     ui.horizontal(|ui| {
         ui.add_space(24.0);
+        if let Some(logo) = crate::ui::brand::icon(ui.ctx()) {
+            ui.add(egui::Image::new(&logo).fit_to_exact_size(egui::Vec2::splat(40.0)));
+            ui.add_space(8.0);
+        }
         ui.heading(egui::RichText::new("GraphDraw").size(26.0));
         ui.add_space(30.0);
         for (tab, key) in [

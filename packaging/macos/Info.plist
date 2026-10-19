@@ -17,6 +17,7 @@
   <array>
     <dict>
       <key>CFBundleTypeName</key><string>GraphDraw Document</string>
+      <key>CFBundleTypeIconFile</key><string>gdr.icns</string>
       <key>CFBundleTypeExtensions</key><array><string>gdr</string></array>
       <key>CFBundleTypeRole</key><string>Editor</string>
     </dict>

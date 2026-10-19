@@ -204,6 +204,10 @@ fn main() -> eframe::Result<()> {
             .with_maximized(settings.window_maximized && !plain)
             .with_title("GraphDraw")
     };
+    let viewport = match ui::brand::window_icon() {
+        Some(icon) => viewport.with_icon(std::sync::Arc::new(icon)),
+        None => viewport,
+    };
     let options = eframe::NativeOptions {
         viewport,
         centered: splash,

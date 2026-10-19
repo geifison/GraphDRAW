@@ -81,6 +81,6 @@ assets = [
     ["target/release/graphdraw", "usr/bin/", "755"],
     ["target/release/graphdraw-cli", "usr/bin/", "755"],
     ["../../packaging/linux/graphdraw.desktop", "usr/share/applications/", "644"],
-    ["../../assets/icon/graphdraw-256.png", "usr/share/icons/hicolor/256x256/apps/graphdraw.png", "644"],
+    ["../../assets/brand/app-256.png", "usr/share/icons/hicolor/256x256/apps/graphdraw.png", "644"],
     ["../../README.md", "usr/share/doc/graphdraw/README", "644"],
 ]
