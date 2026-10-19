@@ -2175,9 +2175,7 @@ impl CanvasState {
     fn right_during_left(&mut self, doc: &mut DocState, ev: &mut CanvasEvents) {
         let (originals, name) = match &mut self.drag {
             Drag::Move { originals, .. } => (originals, tr("Mover cópia", "Move copy")),
-            Drag::Scale { originals, .. } => {
-                (originals, tr("Redimensionar cópia", "Resize copy"))
-            }
+            Drag::Scale { originals, .. } => (originals, tr("Redimensionar cópia", "Resize copy")),
             Drag::Rotate { originals, .. } => (originals, tr("Girar cópia", "Rotate copy")),
             Drag::Skew { originals, .. } => (originals, tr("Inclinar cópia", "Skew copy")),
             Drag::FreeXf { originals, .. } => (
@@ -2211,7 +2209,8 @@ impl CanvasState {
         }
         doc.selection = copies.iter().map(|(_, o)| o.id.clone()).collect();
         *originals = copies;
-        doc.editor.rename_open(format!("{} {}", name, count(doc.selection.len())));
+        doc.editor
+            .rename_open(format!("{} {}", name, count(doc.selection.len())));
         ev.status = Some(
             tr(
                 "Cópia: o original voltou ao lugar",
@@ -6685,7 +6684,32 @@ impl CanvasState {
                 };
                 apply_live(doc, originals, m);
             }
-            Drag::MoveCenter => self.rot_center = Some(cur),
+            Drag::MoveCenter => {
+                // Ctrl: ímã nos nós, cantos, meios e centro dos objetos
+                // selecionados (GD-SLT-14).
+                let mut at = cur;
+                if mods.ctrl {
+                    let cands: Vec<(Point, SnapKind)> = ops::refs(&doc.editor, &doc.selection)
+                        .into_iter()
+                        .filter_map(|r| {
+                            let o = doc.editor.get(&r)?;
+                            Some(snap::object_points(o, doc.editor.parent_affine(&r)))
+                        })
+                        .flatten()
+                        .collect();
+                    if let Some((q, kind)) = cands
+                        .into_iter()
+                        .map(|(q, k)| (q, k, (q - cur).hypot()))
+                        .filter(|c| c.2 <= radius)
+                        .min_by(|a, b| a.2.total_cmp(&b.2))
+                        .map(|(q, k, _)| (q, k))
+                    {
+                        at = q;
+                        self.snap_hit = Some(Snapped { point: q, kind });
+                    }
+                }
+                self.rot_center = Some(at);
+            }
             Drag::Nodes {
                 start,
                 loc,
@@ -10150,6 +10174,51 @@ mod tests {
         assert_eq!(doc.page().layers[0].objects.len(), 1, "um passo só");
     }
 
+    /// GD-SLT-14: no estado 2, arrastar o pivô com Ctrl gruda no canto do
+    /// objeto; sem Ctrl, fica onde o cursor soltou.
+    #[test]
+    fn gd_slt_14_ctrl_pivot_magnet() {
+        let (ctx, mut cs, mut doc, id, rect, ph) = bdr_setup();
+        doc.selection = vec![id.clone()];
+        cs.rotate_mode = true;
+        canvas_frame(&ctx, &mut cs, &mut doc, Tool::Select, vec![]);
+        // Pivô no centro (60; 110); canto de cima à direita = (70; 120).
+        let off = 2.0 / cs.view.zoom; // 2 px de tela
+        let near = Point::new(70_000.0 - off, 120_000.0 + off);
+        let c = Point::new(60_000.0, 110_000.0);
+        drag_mods(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            rect,
+            ph,
+            c,
+            near,
+            egui::Modifiers::NONE,
+        );
+        let p = cs.rot_center.expect("pivô");
+        assert!(
+            (p - Point::new(70_000.0, 120_000.0)).hypot() > off / 2.0,
+            "sem ímã: {p:?}"
+        );
+        cs.rot_center = None;
+        drag_mods(
+            &ctx,
+            &mut cs,
+            &mut doc,
+            rect,
+            ph,
+            c,
+            near,
+            egui::Modifiers::CTRL,
+        );
+        let p = cs.rot_center.expect("pivô");
+        assert!(
+            (p - Point::new(70_000.0, 120_000.0)).hypot() < 1e-6,
+            "ímã no canto: {p:?}"
+        );
+    }
+
     /// GD-SLT-07: Alt + clique pega o de baixo; de novo volta ao de cima.
     #[test]
     fn gd_slt_07_alt_click_selects_below() {
@@ -12189,7 +12258,10 @@ mod tests {
             vec![button(to, PointerButton::Primary, false)],
         );
         let b = ops::object_bounds(&doc.editor, &doc.editor.find(&id).unwrap(), false).unwrap();
-        assert!((b.width() - 20_000.0).abs() < 1e-6, "original voltou: {b:?}");
+        assert!(
+            (b.width() - 20_000.0).abs() < 1e-6,
+            "original voltou: {b:?}"
+        );
         assert_eq!(doc.page().layers[0].objects.len(), 2, "original + cópia");
         let copy = doc.selection[0].clone();
         assert_ne!(copy, id);
@@ -12509,7 +12581,10 @@ mod tests {
         canvas_frame(&ctx, &mut cs, &mut doc, Tool::Text, vec![btn(c, true)]);
         canvas_frame(&ctx, &mut cs, &mut doc, Tool::Text, vec![btn(c, false)]);
         assert!(cs.text.is_some(), "editando");
-        assert!(!doc.editor.in_transaction(), "cada letra fecha o próprio passo");
+        assert!(
+            !doc.editor.in_transaction(),
+            "cada letra fecha o próprio passo"
+        );
         cs.end_text(&mut doc);
         assert!(doc.page().layers[0].objects.is_empty(), "texto vazio sai");
         // Arrastar um quadro de 60 × 30 mm.

@@ -58,7 +58,7 @@ teclas modificadoras seguradas.
 | Tecla | Dimensionamento (estado 1) | Rotação/inclinação (estado 2) | Seleção |
 |---|---|---|---|
 | **Shift** | Redimensiona a partir do centro (pivô) em vez do canto oposto | Ignorado | Soma/retira o objeto da seleção |
-| **Ctrl** | Espelha o objeto se a alça cruzar o eixo oposto (sem Ctrl, o tamanho para no mínimo e não espelha) | Prende o ângulo em passos de 15° | Seleciona o objeto de dentro de um grupo (GD-SEL-02) |
+| **Ctrl** | Espelha o objeto se a alça cruzar o eixo oposto (sem Ctrl, o tamanho para no mínimo e não espelha) | Prende o ângulo em passos de 15°; arrastando o pivô, liga o ímã nos nós e cantos (GD-SLT-14) | Seleciona o objeto de dentro de um grupo (GD-SEL-02) |
 | **Alt** | Ignora as proporções (transformação livre); sem Alt, o canto é proporcional | Cria uma cópia ao soltar (o original fica onde estava) | Seleciona o objeto de baixo (z menor) sob o cursor; cliques seguidos descem a pilha e voltam ao topo |
 | **Shift + Ctrl** | Centralizado e proporcional garantido (vale também para as alças laterais e com Alt) | — | — |
 
@@ -71,6 +71,14 @@ teclas modificadoras seguradas.
 - **GD-SLT-07** Seleção conforme a coluna 3. *Aceite:* Alt+clique sobre
   dois objetos sobrepostos seleciona o de baixo; outro Alt+clique volta
   ao de cima.
+
+- **GD-SLT-14** (2026-10-18) No estado 2, arrastar o pivô com Ctrl liga um
+  ímã nos pontos do próprio objeto selecionado: nós do contorno (também
+  os cantos de retângulos, vértices de polígonos e quadrantes de elipses,
+  inclusive dentro de grupos) e os cantos, meios e centro da caixa. Dentro
+  do raio de encaixe o pivô gruda no ponto mais próximo e aparece a marca
+  de encaixe com o nome do ponto. *Aceite:* soltar o pivô a 2 px de um
+  canto com Ctrl → pivô exatamente no canto; sem Ctrl → onde soltou.
 
 ## 5. Alinhamento e distribuição
 - **GD-SLT-08 Âncora (objeto-chave).** A seleção guarda a ordem

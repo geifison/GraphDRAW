@@ -4736,6 +4736,7 @@ impl App {
                             (tr("Alt na alça", "Alt on handle"), tr("Redimensionar sem proporção", "Resize without proportion")),
                             (tr("Ctrl na alça", "Ctrl on handle"), tr("Deixar espelhar ao cruzar o lado oposto", "Allow mirroring past the opposite side")),
                             (tr("Ctrl girando", "Ctrl while rotating"), tr("Ângulo em passos de 15°", "Angle in 15° steps")),
+                            (tr("Ctrl movendo o pivô", "Ctrl moving the pivot"), tr("Ímã nos nós e cantos do objeto", "Snap to the object nodes and corners")),
                             (tr("Alt ao soltar a rotação", "Alt on rotate release"), tr("Girar/inclinar uma cópia", "Rotate/skew a copy")),
                             (tr("Ctrl desenhando", "Ctrl while drawing"), tr("Prender o ângulo da linha em passos de 15°", "Lock the line angle to 15° steps")),
                         ] {
