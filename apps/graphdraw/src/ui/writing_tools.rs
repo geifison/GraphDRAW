@@ -1123,7 +1123,7 @@ mod tests {
 
     #[test]
     fn hyphenated_words_give_break_points() {
-        assert_eq!(parse_hyphenated("GraphDraw", "Trace-Draw"), Some(vec![5]));
+        assert_eq!(parse_hyphenated("GraphDraw", "Graph-Draw"), Some(vec![5]));
         assert_eq!(
             parse_hyphenated("hyphenation", "hy-phen-a-tion"),
             Some(vec![2, 6, 7])
@@ -1135,7 +1135,7 @@ mod tests {
     #[test]
     fn custom_hyphens_turn_hyphenation_on_and_break_words() {
         let mut app = App::headless();
-        app.settings.custom_hyphens = vec![("en".into(), "GraphDraw".into(), "Trace-Draw".into())];
+        app.settings.custom_hyphens = vec![("en".into(), "GraphDraw".into(), "Graph-Draw".into())];
         install_custom_hyphens(&app);
         assert_eq!(graphdraw_text::hyphen::break_points("graphdraw"), vec![5]);
         assert_eq!(graphdraw_text::hyphen::break_points("GraphDraw"), vec![5]);

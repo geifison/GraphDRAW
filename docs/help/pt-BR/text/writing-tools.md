@@ -76,7 +76,7 @@ hifenização está ativada.
 
 1. Escolha o [[hyphens.language]] ([[hyphens.all_languages]] lista todos).
 2. Digite a [[hyphens.word]] e a [[hyphens.hyphenated]] com hífens onde ela pode
-   quebrar, como `Trace-Draw`.
+   quebrar, como `Graph-Draw`.
 3. Clique em [[hyphens.add]]. [[hyphens.remove]] remove a definição
    selecionada.
 4. Em [[hyphens.auto_insert]], [[hyphens.when_typing]] e

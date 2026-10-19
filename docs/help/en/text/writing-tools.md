@@ -74,7 +74,7 @@ such as product names. Those words break only there when hyphenation is on.
 1. Choose the [[hyphens.language]] ([[hyphens.all_languages]] lists every
    one).
 2. Type the [[hyphens.word]] and the [[hyphens.hyphenated]] with hyphens where
-   it may break, such as `Trace-Draw`.
+   it may break, such as `Graph-Draw`.
 3. Click [[hyphens.add]]. [[hyphens.remove]] removes the selected
    definition.
 4. Under [[hyphens.auto_insert]], [[hyphens.when_typing]] and

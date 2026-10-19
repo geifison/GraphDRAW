@@ -52,7 +52,7 @@ edited.
 ## Custom Optional Hyphens
 
 Text > Custom Optional Hyphens, and the gear of the Text docker's
-Paragraph section. Words the user hyphenates by hand ("Trace-Draw"),
+Paragraph section. Words the user hyphenates by hand ("Graph-Draw"),
 kept in the preferences with their language, break only there when
 their text is hyphenated (they win over the patterns, capitals or not).
 
