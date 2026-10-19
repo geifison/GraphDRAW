@@ -1283,6 +1283,11 @@ impl App {
             if self.canvas.is_dragging() {
                 return;
             }
+            // Desenho em andamento: desfaz o último nó/ponto, não o documento.
+            if self.canvas.undo_draft(d) {
+                self.status = tr("Desfeito: ponto do desenho", "Undone: drawing point").into();
+                return;
+            }
             if let Some(n) = d.editor.undo() {
                 self.status = format!("{} {n}", tr("Desfeito:", "Undone:"));
             }
@@ -1292,6 +1297,13 @@ impl App {
 
     fn redo(&mut self) {
         if let Some(d) = &mut self.doc {
+            if self.canvas.is_dragging() {
+                return;
+            }
+            if self.canvas.redo_draft(d) {
+                self.status = tr("Refeito: ponto do desenho", "Redone: drawing point").into();
+                return;
+            }
             if let Some(n) = d.editor.redo() {
                 self.status = format!("{} {n}", tr("Refeito:", "Redone:"));
             }
@@ -2582,8 +2594,10 @@ impl App {
         let has_sel = self.doc.as_ref().is_some_and(|d| !d.selection.is_empty());
         let can_save = self.can_save();
         let can_save_as = self.can_save_as();
-        let can_undo = self.doc.as_ref().is_some_and(|d| d.editor.can_undo());
-        let can_redo = self.doc.as_ref().is_some_and(|d| d.editor.can_redo());
+        let can_undo = self.canvas.can_undo_draft()
+            || self.doc.as_ref().is_some_and(|d| d.editor.can_undo());
+        let can_redo = self.canvas.can_redo_draft()
+            || self.doc.as_ref().is_some_and(|d| d.editor.can_redo());
         egui::MenuBar::new().ui(ui, |ui| {
             ui.menu_button(tr("Arquivo", "File"), |ui| {
                 theme::menu_density(ui);
@@ -3447,8 +3461,10 @@ impl App {
         let ctx = ui.ctx().clone();
         let has = self.doc.is_some();
         let can_save = self.can_save();
-        let can_undo = self.doc.as_ref().is_some_and(|d| d.editor.can_undo());
-        let can_redo = self.doc.as_ref().is_some_and(|d| d.editor.can_redo());
+        let can_undo = self.canvas.can_undo_draft()
+            || self.doc.as_ref().is_some_and(|d| d.editor.can_undo());
+        let can_redo = self.canvas.can_redo_draft()
+            || self.doc.as_ref().is_some_and(|d| d.editor.can_redo());
         ui.horizontal(|ui| {
             if icons::button(
                 ui,

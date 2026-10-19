@@ -92,7 +92,7 @@ pub enum Tool {
 }
 
 /// Cota sendo feita: tipo, pontos (página), ligações e segmento medido.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct DimDraft {
     pub pts: Vec<Point>,
     pub links: Vec<Option<graphdraw_core::model::DimLink>>,
@@ -861,14 +861,46 @@ enum Drag {
 }
 
 /// Retângulo/elipse de 3 pontos: base já definida, falta a altura.
+#[derive(Clone, PartialEq)]
 struct ThreeDraft {
     a: Point,
     b: Point,
     prim: Prim,
 }
 
+#[derive(Clone, PartialEq)]
 struct BezierDraft {
     nodes: Vec<Node>,
+}
+
+/// Retrato dos desenhos pela metade (Bézier, polilinha, B-spline, curva e
+/// retângulo de 3 pontos, cota, recorte esperando Enter). Cada nó ou ponto
+/// posto é um passo de desfazer antes de o objeto entrar no documento.
+#[derive(Clone, PartialEq, Default)]
+struct DraftSnap {
+    bezier: Option<BezierDraft>,
+    bspline: Option<Vec<(Point, bool)>>,
+    curve3: Option<(Point, Point)>,
+    three: Option<ThreeDraft>,
+    dim: Option<DimDraft>,
+    crop: Option<kurbo::Rect>,
+}
+
+impl DraftSnap {
+    fn is_empty(&self) -> bool {
+        *self == DraftSnap::default()
+    }
+}
+
+/// Histórico dos passos do desenho em andamento (separado do documento).
+#[derive(Default)]
+struct DraftHistory {
+    undo: Vec<DraftSnap>,
+    redo: Vec<DraftSnap>,
+    /// Último estado visto: a diferença para o atual é um passo novo.
+    last: DraftSnap,
+    /// Revisão do documento quando o refazer ficou guardado.
+    rev: u64,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -1008,6 +1040,8 @@ pub struct CanvasState {
     /// Atributos do próximo objeto, para a prévia de espiral e papel gráfico.
     shape_preview: Defaults,
     three: Option<ThreeDraft>,
+    /// Passos de desfazer do desenho em andamento.
+    drafts: DraftHistory,
 }
 
 impl Default for CanvasState {
@@ -1089,6 +1123,7 @@ impl Default for CanvasState {
             poly_preview: (5, "polygon".into(), 0.5),
             shape_preview: Defaults::default(),
             three: None,
+            drafts: DraftHistory::default(),
         }
     }
 }
@@ -1447,6 +1482,92 @@ impl CanvasState {
 
     pub fn has_draft(&self) -> bool {
         self.bezier.is_some() || self.three.is_some() || self.bspline.is_some()
+    }
+
+    fn draft_snap(&self) -> DraftSnap {
+        DraftSnap {
+            bezier: self.bezier.clone(),
+            bspline: self.bspline.clone(),
+            curve3: self.curve3,
+            three: self.three.clone(),
+            dim: self.dim_draft.clone(),
+            crop: self.crop_pending,
+        }
+    }
+
+    fn set_draft(&mut self, s: DraftSnap) {
+        self.bezier = s.bezier.clone();
+        self.bspline = s.bspline.clone();
+        self.curve3 = s.curve3;
+        self.three = s.three.clone();
+        self.dim_draft = s.dim.clone();
+        self.crop_pending = s.crop;
+        self.drafts.last = s;
+    }
+
+    /// Registra o passo do desenho em andamento, se mudou desde o último
+    /// quadro. Arrastos (alça da Bézier, trecho livre da polilinha) viram um
+    /// passo só ao soltar. Desenho que vira objeto (ou é descartado) zera o
+    /// histórico: dali em diante quem desfaz é o documento.
+    pub fn track_draft(&mut self, doc: &DocState) {
+        if self.is_dragging() {
+            return;
+        }
+        let cur = self.draft_snap();
+        let rev = doc.editor.revision();
+        if cur == self.drafts.last {
+            // Refazer guardado com o desenho vazio perde a vez quando o
+            // documento muda por outro caminho.
+            if cur.is_empty() && rev != self.drafts.rev {
+                self.drafts.redo.clear();
+            }
+            return;
+        }
+        let prev = std::mem::replace(&mut self.drafts.last, cur.clone());
+        self.drafts.redo.clear();
+        if cur.is_empty() {
+            self.drafts.undo.clear();
+        } else {
+            self.drafts.undo.push(prev);
+        }
+        self.drafts.rev = rev;
+    }
+
+    /// Há passo do desenho em andamento para desfazer.
+    pub fn can_undo_draft(&self) -> bool {
+        !self.is_dragging() && !self.drafts.undo.is_empty()
+    }
+
+    pub fn can_redo_draft(&self) -> bool {
+        !self.is_dragging() && !self.drafts.redo.is_empty()
+    }
+
+    /// Desfaz o último nó/ponto do desenho em andamento.
+    pub fn undo_draft(&mut self, doc: &DocState) -> bool {
+        if !self.can_undo_draft() {
+            return false;
+        }
+        let prev = self.drafts.undo.pop().unwrap_or_default();
+        let cur = self.draft_snap();
+        self.drafts.redo.push(cur);
+        self.set_draft(prev);
+        self.drafts.rev = doc.editor.revision();
+        true
+    }
+
+    /// Refaz o nó/ponto desfeito do desenho em andamento.
+    pub fn redo_draft(&mut self, doc: &DocState) -> bool {
+        if !self.can_redo_draft() {
+            return false;
+        }
+        let Some(next) = self.drafts.redo.pop() else {
+            return false;
+        };
+        let cur = self.draft_snap();
+        self.drafts.undo.push(cur);
+        self.set_draft(next);
+        self.drafts.rev = doc.editor.revision();
+        true
     }
 
     /// Guia sob o ponto (até `handle-hit` px), com a referência dela.
@@ -2556,6 +2677,7 @@ impl CanvasState {
         self.bezier = None;
         self.three = None;
         self.bspline = None;
+        self.drafts = DraftHistory::default();
     }
 
     pub fn show(
@@ -2798,6 +2920,7 @@ impl CanvasState {
         {
             self.double_click(tool, doc, to_page(pos), tol, defaults, &mut ev);
         }
+        self.track_draft(doc);
         if (matches!(tool, Tool::Bezier | Tool::Polyline) && self.bezier.is_some()
             || self.curve3.is_some()
             || self.bspline.is_some()
@@ -6023,20 +6146,26 @@ impl CanvasState {
                 let mut end = cur;
                 if let Some(n) = normal {
                     end = *start + *n * (cur - *start).dot(*n);
+                } else if angle_locked(mods) || mods.shift {
+                    // Trava de ângulo: vale mais que a tangente.
+                    end = lock_angle(*start, cur);
                 } else if line_mode == LineMode::Tangent
                     && let Some(q) = outline_tangent(doc, *start, cur, 30.0 / zoom)
                 {
                     end = q;
-                } else if mods.shift {
-                    let d = cur - *start;
-                    let step = 15f64.to_radians();
-                    let a = (d.y.atan2(d.x) / step).round() * step;
-                    end = *start + kurbo::Vec2::new(a.cos(), a.sin()) * d.hypot();
                 }
                 *c = end;
                 return;
             }
-            Drag::Curve3Base { cur: c, .. } | Drag::ConnectorDraw { cur: c, .. } => {
+            Drag::Curve3Base { start, cur: c } => {
+                *c = if angle_locked(mods) {
+                    lock_angle(*start, cur)
+                } else {
+                    cur
+                };
+                return;
+            }
+            Drag::ConnectorDraw { cur: c, .. } => {
                 *c = cur;
                 return;
             }
@@ -6066,7 +6195,12 @@ impl CanvasState {
                 return;
             }
             Drag::Knife { pts, free: false } => {
-                *pts.last_mut().unwrap() = cur;
+                let end = if angle_locked(mods) {
+                    lock_angle(pts[0], cur)
+                } else {
+                    cur
+                };
+                *pts.last_mut().unwrap() = end;
                 return;
             }
             Drag::CropRect { cur: c, .. } => {
@@ -6616,6 +6750,12 @@ impl CanvasState {
                     && let Some(n) = d.nodes.last_mut()
                 {
                     let p = pt(n.p);
+                    // Ctrl: a alça também gira em passos de 15°.
+                    let cur = if angle_locked(mods) {
+                        lock_angle(p, cur)
+                    } else {
+                        cur
+                    };
                     if (cur - p).hypot() * self.view.zoom > 2.0 {
                         n.handle_out = Some([cur.x, cur.y]);
                         let mirror = p + (p - cur);
@@ -7478,15 +7618,30 @@ fn plural_nodes(n: usize) -> String {
 }
 
 /// Retângulo desenhado entre dois pontos; Shift = quadrado, Ctrl = a partir do centro.
-/// Fim da base do modo 3 pontos; Shift prende o ângulo em passos de 15°.
+/// Fim da base do modo 3 pontos; Ctrl (ou Shift) prende o ângulo em passos de 15°.
 fn base_end(a: Point, b: Point, mods: egui::Modifiers) -> Point {
-    if !mods.shift {
-        return b;
+    if mods.shift || angle_locked(mods) {
+        lock_angle(a, b)
+    } else {
+        b
     }
+}
+
+/// Trava de ângulo das ferramentas de desenho: Ctrl segurado (doc 07).
+fn angle_locked(mods: egui::Modifiers) -> bool {
+    mods.ctrl || mods.command
+}
+
+/// `b` levado à direção mais próxima de `a` em passos de 15° (0°, 15°, …,
+/// 90°…), mantendo a distância: retas horizontais, verticais e diagonais exatas.
+fn lock_angle(a: Point, b: Point) -> Point {
     let d = b - a;
     let step = 15f64.to_radians();
     let ang = (d.y.atan2(d.x) / step).round() * step;
-    a + kurbo::Vec2::new(ang.cos(), ang.sin()) * d.hypot()
+    let (s, c) = ang.sin_cos();
+    // Sem resíduo de ponto flutuante nos eixos: 90° dá x exato.
+    let snap0 = |v: f64| if v.abs() < 1e-12 { 0.0 } else { v };
+    a + kurbo::Vec2::new(snap0(c), snap0(s)) * d.hypot()
 }
 
 /// Retângulo de 3 pontos: base `a`→`b` e altura até `c`, medida na
@@ -10186,6 +10341,67 @@ mod tests {
         );
         assert!(active_symmetry(&doc).is_some());
         canvas_frame(&ctx, &mut cs, &mut doc, Tool::Select, vec![]);
+    }
+
+    /// Ctrl+Z no meio do desenho: cada nó da Bézier e cada ponto da B-spline
+    /// é um passo; refazer devolve; desenho concluído volta ao documento.
+    #[test]
+    fn drawing_points_undo_one_by_one() {
+        let (ctx, mut cs, mut doc, _id, rect, ph) = bdr_setup();
+        let click = |cs: &mut CanvasState, doc: &mut DocState, tool: Tool, p: Pos2| {
+            let btn = |pressed| egui::Event::PointerButton {
+                pos: p,
+                button: PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::NONE,
+            };
+            for e in [egui::Event::PointerMoved(p), btn(true), btn(false)] {
+                canvas_frame(&ctx, cs, doc, tool, vec![e]);
+            }
+        };
+        let at = |cs: &CanvasState, x: f64, y: f64| cs.screen(rect, ph, Point::new(x, y));
+        let nodes = |cs: &CanvasState| cs.bezier.as_ref().map_or(0, |b| b.nodes.len());
+        let before = doc.page().layers[0].objects.len();
+        let rev = doc.editor.revision();
+        for (x, y) in [(20_000.0, 20_000.0), (60_000.0, 20_000.0), (60_000.0, 60_000.0)] {
+            let p = at(&cs, x, y);
+            click(&mut cs, &mut doc, Tool::Bezier, p);
+        }
+        assert_eq!(nodes(&cs), 3);
+        assert!(cs.undo_draft(&doc));
+        assert_eq!(nodes(&cs), 2);
+        assert!(cs.redo_draft(&doc));
+        assert_eq!(nodes(&cs), 3);
+        for left in [2, 1, 0] {
+            assert!(cs.undo_draft(&doc));
+            assert_eq!(nodes(&cs), left);
+        }
+        assert!(!cs.has_draft());
+        assert!(!cs.can_undo_draft(), "acabou o desenho, o resto é do documento");
+        assert_eq!(doc.editor.revision(), rev, "documento intocado");
+        // Refazer depois de esvaziar devolve o nó (sobrevive a um quadro).
+        canvas_frame(&ctx, &mut cs, &mut doc, Tool::Bezier, vec![]);
+        assert!(cs.redo_draft(&doc));
+        assert_eq!(nodes(&cs), 1);
+        // Ponto novo descarta o refazer.
+        let p = at(&cs, 90_000.0, 90_000.0);
+        click(&mut cs, &mut doc, Tool::Bezier, p);
+        assert_eq!(nodes(&cs), 2);
+        assert!(!cs.can_redo_draft());
+        // Concluído: vira objeto e o desfazer passa ao documento.
+        cs.finish_bezier(&mut doc, &Defaults::default(), false);
+        canvas_frame(&ctx, &mut cs, &mut doc, Tool::Bezier, vec![]);
+        assert_eq!(doc.page().layers[0].objects.len(), before + 1);
+        assert!(!cs.can_undo_draft());
+        // B-spline: o mesmo, ponto a ponto.
+        for (x, y) in [(20_000.0, 20_000.0), (60_000.0, 20_000.0)] {
+            let p = at(&cs, x, y);
+            click(&mut cs, &mut doc, Tool::BSpline, p);
+        }
+        assert!(cs.undo_draft(&doc));
+        assert_eq!(cs.bspline.as_ref().map(Vec::len), Some(1));
+        assert!(cs.undo_draft(&doc));
+        assert!(cs.bspline.is_none());
     }
 
     /// GD-FER-24/GD-BSP-01 na tela: cliques põem pontos (Ctrl = fixado),
