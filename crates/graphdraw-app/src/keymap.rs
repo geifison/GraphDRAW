@@ -520,6 +520,13 @@ impl Keymap {
                 (ToBack, "Shift+PageDown"),
                 (Forward, "Ctrl+PageUp"),
                 (Backward, "Ctrl+PageDown"),
+                // Alinhamento por uma letra (com seleção; um objeto só: pela página)
+                (AlignLeft, "L"),
+                (AlignRight, "R"),
+                (AlignTop, "T"),
+                (AlignBottom, "B"),
+                (AlignCentersV, "C"),
+                (AlignCentersH, "E"),
                 (CenterOnPage, "P"),
                 (ZoomObjects, "Shift+0"),
                 (ZoomPage, "0"),
@@ -531,11 +538,11 @@ impl Keymap {
                 (ToolShape, "N"),
                 (ToolZoom, "Z"),
                 (ToolPan, "H"),
-                (ToolBezier, "B"),
-                (ToolRect, "R"),
-                (ToolEllipse, "E"),
+                (ToolBezier, "F5"),
+                (ToolRect, "F6"),
+                (ToolEllipse, "F7"),
                 (ToolArtboard, "Shift+P"),
-                (ToolText, "T"),
+                (ToolText, "F8"),
                 (ToolPolygon, "Y"),
                 (ToolInteractiveFill, "G"),
                 (PageNext, "PageDown"),
@@ -1307,7 +1314,20 @@ mod tests {
         };
         assert_eq!(press(&alt, Key::G, win_ctrl, 2), [Command::Group_]);
         let gd = Keymap::graphdraw();
-        assert_eq!(press(&gd, Key::R, none, 0), [Command::ToolRect]);
+        assert_eq!(press(&gd, Key::F6, none, 0), [Command::ToolRect]);
+        // Alinhamento por uma letra só, sem Ctrl, no padrão de fábrica.
+        for (key, cmd) in [
+            (Key::L, Command::AlignLeft),
+            (Key::R, Command::AlignRight),
+            (Key::T, Command::AlignTop),
+            (Key::B, Command::AlignBottom),
+            (Key::C, Command::AlignCentersV),
+            (Key::E, Command::AlignCentersH),
+            (Key::P, Command::CenterOnPage),
+        ] {
+            assert_eq!(press(&gd, key, none, 2), [cmd], "{key:?}");
+        }
+        assert!(press(&gd, Key::L, none, 0).is_empty(), "sem seleção, nada");
         assert_eq!(
             press(&gd, Key::Z, ctrl | Modifiers::SHIFT, 0),
             [Command::Redo]
