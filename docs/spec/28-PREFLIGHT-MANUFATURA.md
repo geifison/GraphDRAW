@@ -6,6 +6,9 @@ Origem: proposta de arquitetura do responsável pelo produto
 
 Fase: **MVP** (entra na 1.0), exceto onde indicado.
 
+A seção Problemas do diálogo Imprimir (doc 16, GD-IMP-30/31) usa as mesmas
+regras; correspondência e conflitos no doc 16 §8.2–8.3.
+
 ## 1. Verificação prévia contínua
 - **GD-PRE-01** A verificação roda sobre a página atual enquanto se edita
   e lista os problemas no painel **Verificação**.
