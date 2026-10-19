@@ -21,6 +21,7 @@
 //! A página mestra (GD-CAM-02, GD-PGT-21) é endereçada pelo índice
 //! especial [`MASTER`]: objetos e camadas dela passam pelo mesmo registro.
 
+use std::cell::Cell;
 use std::collections::BTreeSet;
 
 use crate::model::{Document, Layer, Object, Page};
@@ -149,11 +150,17 @@ pub struct Editor {
     /// Páginas de passos já salvos que foram desfeitos e descartados por uma
     /// ação nova: o documento salvo e o atual diferem nelas.
     discarded: BTreeSet<String>,
+    /// Documento no último salvamento (`None` = recuperado: alterado até
+    /// salvar). Voltar ao mesmo conteúdo à mão também conta como salvo.
+    saved_doc: Option<Document>,
+    /// Última comparação com `saved_doc`: (revisão, alterado?).
+    modified_at: Cell<Option<(u64, bool)>>,
 }
 
 impl Editor {
     pub fn new(mut doc: Document) -> Editor {
         super::textwrap::refresh_doc(&mut doc);
+        let saved = doc.clone();
         Editor {
             doc,
             undo: Vec::new(),
@@ -165,6 +172,8 @@ impl Editor {
             limit: DEFAULT_UNDO_LIMIT,
             revision: 0,
             discarded: BTreeSet::new(),
+            saved_doc: Some(saved),
+            modified_at: Cell::new(None),
         }
     }
 
@@ -651,16 +660,23 @@ impl Editor {
     /// Documento recuperado: conta como alterado até salvar.
     pub fn mark_unsaved(&mut self) {
         self.saved_state = u64::MAX;
+        self.saved_doc = None;
+        self.modified_at.set(None);
     }
 
     pub fn mark_saved(&mut self) {
         self.saved_state = self.state();
         self.discarded.clear();
+        self.saved_doc = Some(self.doc.clone());
+        self.modified_at.set(None);
     }
 
     /// IDs das páginas (e `MASTER_KEY`) em que o documento atual difere do
     /// último salvo (GD-PGT-05).
     pub fn dirty_pages(&self) -> BTreeSet<String> {
+        if !self.is_modified() {
+            return BTreeSet::new();
+        }
         let saved = self.saved_state;
         let mut out = self.discarded.clone();
         for t in self.undo.iter().filter(|t| t.id > saved) {
@@ -672,8 +688,23 @@ impl Editor {
         out
     }
 
+    /// Alterado se a posição na pilha difere da salva e o conteúdo também
+    /// (desfazer até o ponto salvo ou voltar à mão ao mesmo conteúdo = salvo).
     pub fn is_modified(&self) -> bool {
-        self.state() != self.saved_state
+        if self.state() == self.saved_state {
+            return false;
+        }
+        let Some(saved) = &self.saved_doc else {
+            return true;
+        };
+        if let Some((rev, m)) = self.modified_at.get() {
+            if rev == self.revision {
+                return m;
+            }
+        }
+        let m = *saved != self.doc;
+        self.modified_at.set(Some((self.revision, m)));
+        m
     }
 }
 
@@ -802,6 +833,25 @@ mod tests {
         assert!(ed.is_modified());
         ed.redo();
         assert!(!ed.is_modified());
+    }
+
+    #[test]
+    fn gd_und_07_back_to_saved_content_by_hand() {
+        let mut ed = Editor::new(doc());
+        let orig = rect(0.0);
+        ed.insert_object(at(0), orig.clone());
+        ed.mark_saved();
+        let mut moved = orig.clone();
+        moved.transform = Transform::translate(5.0, 0.0);
+        ed.replace_object(at(0), moved);
+        assert!(ed.is_modified());
+        assert!(!ed.dirty_pages().is_empty());
+        ed.replace_object(at(0), orig);
+        assert!(!ed.is_modified(), "mesmo conteúdo do salvo");
+        assert!(ed.dirty_pages().is_empty());
+        // Recuperado: alterado até salvar, mesmo sem mudar nada.
+        ed.mark_unsaved();
+        assert!(ed.is_modified());
     }
 
     #[test]

@@ -6,6 +6,6 @@
 - **GD-UND-04** Painel de histórico: lista de transações, clicar volta a qualquer ponto.
 - **GD-UND-05** Transações aninhadas: comandos compostos (ex.: script) agrupam subtransações em um único passo.
 - **GD-UND-06** Seleção não entra no histórico; zoom/rolagem não entram.
-- **GD-UND-07** Documento marcado "modificado" se a posição na pilha difere da do último salvamento.
+- **GD-UND-07** Documento marcado "modificado" se a posição na pilha difere da do último salvamento e o conteúdo também difere: voltar ao estado salvo, desfazendo ou à mão, desmarca. Sem alterações (ou sem nenhum objeto), Salvar fica inativo; Salvar como exige ao menos um objeto.
 - **GD-UND-08** Implementação recomendada: comandos reversíveis ou snapshots de estrutura imutável (persistent data structures) — escolha do Time B.
 - Aceite: criar 3 objetos, mover 1, desfazer 2× → só os 3 objetos na posição original de criação, documento "modificado"; refazer 1× → objeto movido de novo.
