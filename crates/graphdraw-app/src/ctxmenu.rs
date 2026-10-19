@@ -242,7 +242,8 @@ pub fn object_entries(doc: &DocState, clicked: &str, focus: bool) -> Vec<Entry> 
             Cmd::ImageFrame,
         ));
     }
-    if n == 2 && texts.len() == 1 {
+    // Um texto (e a forma, ou só ele: o clique seguinte escolhe a forma).
+    if (n == 2 || n == 1) && texts.len() == 1 {
         text.push(item(
             tr("Colocar texto no caminho", "Put text on path"),
             Cmd::Run(Command::FitTextToPath),

@@ -614,16 +614,21 @@ bolinha verde vazada com a seta dupla **troca de lado** no clique (cursor
 de mão); e a bolinha `accent-primary` com setas para os lados, no fim do
 texto, muda o **espaçamento entre letras** (cursor de redimensionar na
 horizontal). Sobre qualquer alça aparece, ao lado do cursor, o nome da ação
-num balão escuro. O intervalo útil do caminho fica só na barra (De/até).
+num balão escuro.
 No caminho fechado, os arrastos não saltam ao passar pelo começo do
 caminho. A ferramenta Texto, perto de uma curva, troca o selo do
-cursor para `text-path`. A barra traz tudo em botões de ícone com dica, nesta ordem e separados
+cursor para `text-path`. Ajustar texto ao caminho com só o texto selecionado
+mostra o cursor `cur-pick-path` (seta cheia para a direita; a ponta é o
+clique) e contorna o objeto sob ela em `accent-success` (serve) ou
+`accent-danger` (não serve), com `focus-width` × 1,5; o clique que não
+serve abre a janela "Tentar de novo | Cancelar". A barra traz tudo em botões de ícone com dica, nesta ordem e separados
 por grupo: orientação (`tp-rotate`, `tp-upright`, `tp-skew-v`,
 `tp-skew-h`, `tp-warp`), linha sobre o traço (`tpv-baseline`,
 `tpv-descender`, `tpv-xheight`, `tpv-cap`, `tpv-center`), alinhamento
 (`text-left`, `text-center`, `text-right`, `text-justify`), X
 (`tp-offset-x`) e Y (`tp-offset-y`) com o ícone arrastável, espelhar
-(`tp-reverse`, `tp-flip-side`), intervalo (`tp-range` + De/até %),
+(`tp-reverse` inverte a leitura no mesmo lugar, `tp-flip-side` troca de
+lado),
 cantos (`tp-corner-jump`, `tp-corner-wrap`, `tp-corner-split`),
 Anticolisão (`tp-relax`), Selo (`tp-badge`, só em caminho fechado),
 Construção (`tp-construction`), Desvincular (`tp-unlink`) e Endireitar

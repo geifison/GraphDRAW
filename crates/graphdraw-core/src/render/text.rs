@@ -66,12 +66,11 @@ pub struct TextLayout {
 }
 
 /// Trecho do caminho ocupado pelo texto (comprimentos, no sentido de
-/// leitura): início e fim do texto, intervalo útil e comprimento total.
+/// leitura): início e fim do texto e comprimento total do caminho.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PathSpan {
     pub start: f64,
     pub end: f64,
-    pub range: (f64, f64),
     pub total: f64,
 }
 
@@ -1018,11 +1017,10 @@ impl Track {
     /// `offset` que põe no comprimento `s` o começo do texto (início,
     /// justificar), o meio (centro) ou o fim.
     pub fn offset_for(&self, tp: &crate::model::TextPath, s: f64) -> f64 {
-        let (r0, r1) = path_range(tp, self.total());
         match tp.align.as_str() {
-            "center" => s - (r0 + r1) / 2.0,
-            "end" => s - r1,
-            _ => s - r0,
+            "center" => s - self.total() / 2.0,
+            "end" => s - self.total(),
+            _ => s,
         }
     }
 
@@ -1056,16 +1054,9 @@ pub fn path_track(tp: &crate::model::TextPath, size: f64) -> Option<Track> {
     Track::new(&path, (size / 400.0).max(0.5))
 }
 
-/// Intervalo útil do caminho em comprimento (batentes, GD-TXT-09).
-pub fn path_range(tp: &crate::model::TextPath, total: f64) -> (f64, f64) {
-    let [a, b] = tp.range.unwrap_or([0.0, 1.0]);
-    let (a, b) = (a.clamp(0.0, 1.0), b.clamp(0.0, 1.0));
-    (a.min(b) * total, a.max(b) * total)
-}
-
 /// Deslocamento da linha do caminho em relação à linha de base, pela
 /// linha tipográfica escolhida (no sentido "para cima" do glifo).
-fn vertical_shift(vertical: &str, size: f64) -> f64 {
+pub fn vertical_shift(vertical: &str, size: f64) -> f64 {
     match vertical {
         "descender" => 0.21 * size,
         "x-height" => -0.5 * size,
@@ -1076,8 +1067,8 @@ fn vertical_shift(vertical: &str, size: f64) -> f64 {
 }
 
 /// Texto em caminho (GD-TXT-09): cada glifo vai para o ponto do caminho
-/// pelo comprimento de arco, com a orientação pedida, dentro do intervalo
-/// útil e alinhado nele; nos côncavos o espaço abre para os topos não se
+/// pelo comprimento de arco, com a orientação pedida, alinhado no caminho;
+/// nos côncavos o espaço abre para os topos não se
 /// tocarem; os cantos vivos seguem a regra escolhida. Linhas seguintes
 /// ficam paralelas (concêntricas), afastadas pela entrelinha.
 fn place_on_path(out: &mut TextLayout, tp: &crate::model::TextPath) {
@@ -1086,8 +1077,8 @@ fn place_on_path(out: &mut TextLayout, tp: &crate::model::TextPath) {
         return;
     };
     let total = track.total();
-    let (r0, r1) = path_range(tp, total);
-    let avail = (r1 - r0).max(0.0);
+    let (r0, r1) = (0.0, total);
+    let avail = total;
     let b0 = out.lines.first().map_or(0.0, |l| l.baseline);
     let mut span: Option<(f64, f64)> = None;
     for line in &mut out.lines {
@@ -1249,7 +1240,6 @@ fn place_on_path(out: &mut TextLayout, tp: &crate::model::TextPath) {
     out.path_span = span.map(|(a, b)| PathSpan {
         start: a,
         end: b,
-        range: (r0, r1),
         total,
     });
 }
@@ -1374,8 +1364,8 @@ mod tests {
         assert!(tight < n);
     }
 
-    /// GD-TXT-09: alinhamentos dentro do intervalo, justificar, batentes e
-    /// a volta no caminho fechado.
+    /// GD-TXT-09: alinhamentos no caminho, justificar e a volta no caminho
+    /// fechado.
     #[test]
     fn on_path_alignment_range_and_closed_wrap() {
         if !has_font() {
@@ -1395,14 +1385,6 @@ mod tests {
             .path_span
             .unwrap();
         assert!(j.start.abs() < 1.0 && j.end > 190_000.0, "{j:?}");
-        // Batentes: só a metade de cima do intervalo.
-        let r = on_path("ABC", line(200_000.0), |p| {
-            p.align = "center".into();
-            p.range = Some([0.5, 1.0]);
-        })
-        .path_span
-        .unwrap();
-        assert!(((r.start + r.end) / 2.0 - 150_000.0).abs() < 500.0, "{r:?}");
         // Caminho fechado: começar perto do fim dá a volta (glifos no início).
         let w = on_path("ABCDEF", circle(50_000.0), |p| p.offset = 300_000.0);
         let b = kurbo::Shape::bounding_box(&w.lines[0].runs[0].outline);

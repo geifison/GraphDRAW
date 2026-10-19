@@ -3943,7 +3943,8 @@ fn path_text_bar(ui: &mut egui::Ui, doc: &mut DocState, targets: &[String]) {
     ];
     // Grupos empilhados em duas linhas (a unidade dentro dos campos deixa
     // a barra estreita): orientação sobre a linha tipográfica; alinhamento
-    // sobre espelhar; X e Y sobre o intervalo; cantos sobre anticolisão.
+    // sobre espelhar; X e Y sobre cantos e anticolisão.
+    let mut reverse = false;
     widgets::stack(ui, |ui, row| {
         if row == 0 {
             pick(ui, &mut next.orientation, &orient);
@@ -3956,22 +3957,30 @@ fn path_text_bar(ui: &mut egui::Ui, doc: &mut DocState, targets: &[String]) {
         if row == 0 {
             pick(ui, &mut next.align, &align);
         } else {
-            if icons::button(
+            reverse = icons::button(
                 ui,
                 "tp-reverse",
                 tr(
-                    "Espelhar na horizontal: percorre o caminho ao contrário",
-                    "Mirror horizontally: runs the path backwards",
+                    "Espelhar na horizontal: inverte o sentido de leitura sem tirar o texto do lugar (põe de pé o texto de cabeça para baixo, como na base de um círculo)",
+                    "Mirror horizontally: reverses the reading direction keeping the text in place (rights upside-down text, as at the bottom of a circle)",
                 ),
-                next.mirror,
+                false,
+                true,
+            )
+            .clicked();
+            let below = next.side == "below";
+            if icons::button(
+                ui,
+                "tp-flip-side",
+                tr(
+                    "Espelhar na vertical: o texto passa para o outro lado do traço, sem inverter a leitura",
+                    "Mirror vertically: the text moves to the other side of the stroke, keeping the reading direction",
+                ),
+                below,
                 true,
             )
             .clicked()
             {
-                next.mirror = !next.mirror;
-            }
-            let below = next.side == "below";
-            if icons::button(ui, "tp-flip-side", tr("Espelhar na vertical: o texto passa para o outro lado do traço, sem inverter a leitura", "Mirror vertically: the text moves to the other side of the stroke, keeping the reading direction"), below, true).clicked() {
                 next.side = if below { "above" } else { "below" }.into();
             }
         }
@@ -4004,38 +4013,35 @@ fn path_text_bar(ui: &mut egui::Ui, doc: &mut DocState, targets: &[String]) {
                 next.distance = v;
             }
         } else {
-            let [mut r0, mut r1] = next.range.unwrap_or([0.0, 1.0]).map(|v| v * 100.0);
-            let range_tip = tr(
-                "Trecho do caminho onde o texto corre (também pelos batentes [ ] na tela)",
-                "Stretch of the path where the text runs (also with the [ ] stops on the canvas)",
-            );
-            ui.add(
-                egui::Image::new(icons::get("tp-range"))
-                    .tint(theme::palette(ui).fg_muted)
-                    .fit_to_exact_size(Vec2::splat(theme::ICON_MICRO)),
+            pick(ui, &mut next.corners, &corners);
+            if icons::button(
+                ui,
+                "tp-relax",
+                tr(
+                    "Anticolisão: nas curvas fechadas, abre o espaço para os topos das letras não se tocarem",
+                    "Anti-collision: on tight curves, opens the spacing so letter tops do not touch",
+                ),
+                next.relax,
+                true,
             )
-            .on_hover_text(range_tip);
-            let c0 = ui
-                .add(egui::DragValue::new(&mut r0).range(0.0..=100.0).suffix("%"))
-                .on_hover_text(range_tip)
-                .changed();
-            let c1 = ui
-                .add(egui::DragValue::new(&mut r1).range(0.0..=100.0).suffix("%"))
-                .on_hover_text(range_tip)
-                .changed();
-            if c0 || c1 {
-                next.range = ((r0, r1) != (0.0, 100.0)).then_some([r0 / 100.0, r1 / 100.0]);
+            .clicked()
+            {
+                next.relax = !next.relax;
             }
         }
     });
-    ui.separator();
-    widgets::stack(ui, |ui, row| {
-        if row == 0 {
-            pick(ui, &mut next.corners, &corners);
-        } else if icons::button(ui, "tp-relax", tr("Anticolisão: nas curvas fechadas, abre o espaço para os topos das letras não se tocarem", "Anti-collision: on tight curves, opens the spacing so letter tops do not touch"), next.relax, true).clicked() {
-            next.relax = !next.relax;
-        }
-    });
+    if reverse {
+        ops::modify(
+            &mut doc.editor,
+            std::slice::from_ref(&id),
+            tr("Espelhar na horizontal", "Mirror horizontally"),
+            |o| match &mut o.kind {
+                ObjectKind::Text(t) => textpath::reverse_reading(t),
+                _ => false,
+            },
+        );
+        return;
+    }
     if next != tp {
         let ids = vec![id.clone()];
         ops::edit_text_path(&mut doc.editor, &ids, move |p| *p = next.clone());

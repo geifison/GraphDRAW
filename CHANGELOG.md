@@ -47,6 +47,12 @@ entre parênteses são os requisitos de `docs/spec/`.
   cores, suavizar e inverter; seletor de cor com roda de matiz, canais,
   hexadecimal, paletas com busca e conta-gotas na janela; amostra original
   × nova; F11 e Shift+F11.
+- Ajustar texto ao caminho com só o texto selecionado: o cursor vira uma
+  seta para a direita e o clique escolhe a forma-guia (contorno verde se
+  serve, vermelho se não); se não servir, pergunta se tenta de novo.
+- Texto no caminho: Espelhar na horizontal inverte a leitura no mesmo
+  lugar e na mesma faixa (o texto da base do círculo fica de pé, da
+  esquerda para a direita); sai o trecho De/até do caminho.
 - Espaçamento num texto justificado no caminho: passa a "início" com o
   mesmo espaçamento (a mesma aparência) e então aperta ou abre — antes a
   justificação desfazia o aperto.

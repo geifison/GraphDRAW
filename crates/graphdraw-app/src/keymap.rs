@@ -184,7 +184,7 @@ commands! {
     BehindOf = "obj.behind", "Atrás de…", "Behind…", Object, Selection, true;
     FocusMode = "view.focus", "Modo foco", "Focus mode", View, NotText, true;
     ExportSelection = "file.export_selection", "Exportar seleção…", "Export selection…", File, Selection, true;
-    FitTextToPath = "text.fit_to_path", "Ajustar texto ao caminho", "Fit text to path", Object, Multi, true;
+    FitTextToPath = "text.fit_to_path", "Ajustar texto ao caminho", "Fit text to path", Object, Selection, true;
     DetachTextPath = "text.detach_path", "Separar texto do caminho", "Detach text from path", Object, Selection, true;
     ReattachTextPath = "text.reattach_path", "Reativar caminho de origem", "Reactivate source path", Object, Selection, true;
     ConvertTextKind = "text.convert_kind", "Converter texto artístico/parágrafo", "Convert artistic/paragraph text", Object, Selection, true;

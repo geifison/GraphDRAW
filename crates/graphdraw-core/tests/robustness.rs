@@ -210,7 +210,6 @@ fn gdr_round_trip_with_new_fields() {
             detached: false,
             align: "start".into(),
             vertical: "baseline".into(),
-            range: None,
             corners: "jump".into(),
             relax: true,
             extra: Default::default(),

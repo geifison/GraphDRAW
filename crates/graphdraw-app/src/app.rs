@@ -208,6 +208,9 @@ pub struct App {
     fonts_dlg: Option<crate::fontsui::MissingFontsDialog>,
     spell_dlg: Option<crate::spellui::SpellDialog>,
     print_dlg: Option<crate::printui::PrintDialog>,
+    /// Ajustar texto ao caminho: o clique não caiu num objeto que sirva de
+    /// guia; pergunta se tenta de novo (o texto).
+    path_retry: Option<String>,
     /// Opções da última impressão por documento, nesta sessão (GD-PRT-05).
     print_settings: std::collections::HashMap<String, graphdraw_core::print::PrintSettings>,
     nest_opts: graphdraw_core::edit::nest::NestOptions,
@@ -300,6 +303,7 @@ impl App {
             fonts_dlg: None,
             spell_dlg: None,
             print_dlg: None,
+            path_retry: None,
             print_settings: Default::default(),
             nest_opts: Default::default(),
             color_dlg: None,
@@ -2096,8 +2100,10 @@ impl App {
                 }
             }
             C::FitTextToPath => {
-                // GD-TXT-09: um texto e um objeto com contorno selecionados.
+                // GD-TXT-09: texto e forma selecionados ajustam direto; só o
+                // texto, o próximo clique escolhe a forma (cursor de seta).
                 if let Some(d) = &mut self.doc {
+                    let editing = self.canvas.text.as_ref().map(|t| t.id.clone());
                     self.canvas.end_text(d);
                     let is_text = |d: &crate::doc::DocState, id: &str| {
                         d.editor
@@ -2106,24 +2112,27 @@ impl App {
                             .is_some_and(|o| matches!(o.kind, ObjectKind::Text(_)))
                     };
                     let sel = d.selection.clone();
-                    let text = sel.iter().find(|id| is_text(d, id)).cloned();
+                    let text = sel.iter().find(|id| is_text(d, id)).cloned().or(editing);
                     let path = sel.iter().find(|id| !is_text(d, id)).cloned();
-                    let ok = match (text, path) {
-                        (Some(t), Some(p)) if sel.len() == 2 => {
-                            let ok = ops::fit_text_to_path(&mut d.editor, &t, &p);
-                            if ok {
-                                d.selection = vec![t];
-                            }
-                            ok
+                    match (text, path) {
+                        (Some(t), Some(p))
+                            if sel.len() == 2 && ops::fit_text_to_path(&mut d.editor, &t, &p) =>
+                        {
+                            d.selection = vec![t];
                         }
-                        _ => false,
-                    };
-                    if !ok {
-                        self.status = tr(
-                            "Selecione um texto e um objeto com contorno",
-                            "Select a text and an object with an outline",
-                        )
-                        .into();
+                        (Some(t), _) => {
+                            d.selection = vec![t.clone()];
+                            self.canvas.start_pick_path(t);
+                            self.status = tr(
+                                "Clique no objeto em que o texto vai correr (Esc cancela)",
+                                "Click the object the text will run along (Esc cancels)",
+                            )
+                            .into();
+                        }
+                        _ => {
+                            self.status =
+                                tr("Selecione um texto primeiro", "Select a text first").into();
+                        }
                     }
                 }
             }
@@ -3007,7 +3016,6 @@ impl App {
             ui.menu_button(tr("Texto", "Text"), |ui| {
                 theme::menu_density(ui);
                 let has_text = !self.text_targets().is_empty();
-                let two = self.doc.as_ref().is_some_and(|d| d.selection.len() == 2);
                 let item = |ui: &mut egui::Ui, label: &str, cmd: Command, on: bool| {
                     ui.add_enabled(on, crate::keymap::item(ui, label, cmd)).clicked()
                 };
@@ -3047,7 +3055,7 @@ impl App {
                         Command::ConvertTextKind,
                         has_text,
                     ),
-                    (tr("Ajustar texto ao caminho", "Fit text to path"), Command::FitTextToPath, two),
+                    (tr("Ajustar texto ao caminho", "Fit text to path"), Command::FitTextToPath, has_text),
                     (tr("Separar texto do caminho", "Detach text from path"), Command::DetachTextPath, has_text),
                     (tr("Converter texto em curvas", "Convert text to curves"), Command::TextToCurves, has_text),
                 ] {
@@ -3702,6 +3710,40 @@ impl App {
     }
 
     fn dialogs(&mut self, ctx: &egui::Context) {
+        if let Some(text) = self.path_retry.clone() {
+            let mut close = None;
+            crate::widgets::modal(ctx, egui::Id::unique("ajustar-caminho-falhou")).show(ctx, |ui| {
+                ui.set_width(theme::SPELL_DIALOG_WIDTH);
+                ui.heading(tr("Ajustar texto ao caminho", "Fit text to path"));
+                ui.add_space(theme::SPACE_200);
+                ui.label(tr(
+                    "Esse ponto não tem um objeto que possa guiar o texto. Clique sobre o contorno de uma curva, linha ou forma (retângulo, elipse, polígono…); texto, grupo e imagem não servem.",
+                    "There is no object here that can guide the text. Click on the outline of a curve, line or shape (rectangle, ellipse, polygon…); text, groups and images do not work.",
+                ));
+                ui.add_space(theme::SPACE_300);
+                crate::widgets::footer(ui, |ui| {
+                    if ui.add(crate::widgets::primary_button(tr("Tentar de novo", "Try again"))).clicked() {
+                        close = Some(true);
+                    }
+                    if ui.add(crate::widgets::secondary_button(tr("Cancelar", "Cancel"))).clicked() {
+                        close = Some(false);
+                    }
+                });
+            });
+            if let Some(again) = close {
+                self.path_retry = None;
+                if again {
+                    self.canvas.start_pick_path(text);
+                    self.status = tr(
+                        "Clique no objeto em que o texto vai correr (Esc cancela)",
+                        "Click the object the text will run along (Esc cancels)",
+                    )
+                    .into();
+                } else {
+                    self.status = tr("Cancelado", "Cancelled").into();
+                }
+            }
+        }
         if let (Some(dlg), Some(doc)) = (&mut self.print_dlg, &self.doc)
             && dlg.show(ctx, doc)
         {
@@ -4735,6 +4777,9 @@ impl App {
                 }
                 if let Some(n) = ev.decimals {
                     self.ws.decimals = n.min(6);
+                }
+                if let Some(t) = ev.path_pick_failed {
+                    self.path_retry = Some(t);
                 }
                 if let Some(c) = ev.command {
                     pending_cmd = Some(c);

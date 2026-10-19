@@ -493,7 +493,6 @@
                   "orientation": { "enum": ["rotate", "skew-v", "skew-h", "upright", "warp"] },
                   "align": { "enum": ["start", "center", "end", "justify"] },
                   "vertical": { "enum": ["baseline", "descender", "x-height", "cap", "center"] },
-                  "range": { "type": "array", "items": { "type": "number", "minimum": 0, "maximum": 1 }, "minItems": 2, "maxItems": 2 },
                   "corners": { "enum": ["jump", "wrap", "split"] },
                   "relax": { "type": "boolean" },
                   "mirror": { "type": "boolean" },

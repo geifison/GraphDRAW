@@ -93,7 +93,7 @@ pub fn unjustify(t: &mut crate::model::TextData) -> bool {
     let mut n = t.clone();
     if let Some(p) = &mut n.path {
         p.align = "start".into();
-        p.offset = span.start - span.range.0;
+        p.offset = span.start;
     }
     let Some(nat) = crate::render::text::layout_text(&n).path_span else {
         return false;
@@ -102,6 +102,43 @@ pub fn unjustify(t: &mut crate::model::TextData) -> bool {
         n.tracking += ((span.end - span.start) - (nat.end - nat.start)) / (glyphs as f64 * size);
     }
     *t = n;
+    true
+}
+
+/// Espelhar na horizontal: inverte o sentido de leitura sem tirar o texto
+/// do lugar nem da faixa em que está junto ao traço. É o que põe de pé o
+/// texto da base de um círculo que saiu de cabeça para baixo (lendo da
+/// direita para a esquerda). Devolve se mudou.
+pub fn reverse_reading(t: &mut crate::model::TextData) -> bool {
+    use crate::render::text::{layout_text, vertical_shift};
+    let Some(tp) = t.path.clone() else {
+        return false;
+    };
+    let Some(span) = layout_text(t).path_span else {
+        return false;
+    };
+    let size = t
+        .paragraphs
+        .first()
+        .and_then(|p| p.spans.first())
+        .map_or(10_000.0, |s| s.font.size);
+    let below = |side: &str| if side == "below" { -0.72 * size } else { 0.0 };
+    // Faixa das letras: da linha de base (off) até a altura das maiúsculas,
+    // no sentido "para cima" do glifo. Invertido o sentido, o "para cima"
+    // troca de lado: a mesma faixa começa em −(off + maiúsculas).
+    let off = tp.distance + vertical_shift(&tp.vertical, size) + below(&tp.side);
+    let mut n = tp.clone();
+    n.mirror = !tp.mirror;
+    n.distance = -(off + 0.72 * size) - vertical_shift(&n.vertical, size) - below(&n.side);
+    // O meio do texto fica onde estava (no caminho invertido, total − s).
+    let w = span.end - span.start;
+    let mid = span.total - (span.start + span.end) / 2.0;
+    n.offset = match n.align.as_str() {
+        "center" => mid - span.total / 2.0,
+        "end" => mid + w / 2.0 - span.total,
+        _ => mid - w / 2.0,
+    };
+    t.path = Some(n);
     true
 }
 
@@ -194,7 +231,6 @@ pub fn split_badge(ed: &mut Editor, id: &str, bottom_text: &str) -> Option<Strin
     top.align = "center".into();
     top.vertical = "baseline".into();
     top.side = "above".into();
-    top.range = None;
     let track = crate::render::text::path_track(&top, size)?;
     if !track.closed {
         return None;
@@ -205,7 +241,6 @@ pub fn split_badge(ed: &mut Editor, id: &str, bottom_text: &str) -> Option<Strin
     bottom.align = "center".into();
     bottom.vertical = "cap".into();
     bottom.side = "above".into();
-    bottom.range = None;
     let track = crate::render::text::path_track(&bottom, size)?;
     bottom.offset = track.extreme(false) - track.total() / 2.0;
     let mut twin = o.clone();
@@ -337,6 +372,45 @@ mod tests {
         t.tracking -= 0.05;
         let tight = crate::render::text::layout_text(&t).path_span.unwrap();
         assert!(tight.end - tight.start < after.end - after.start - 1_000.0);
+    }
+
+    /// Base do círculo de cabeça para baixo: espelhar na horizontal põe de pé
+    /// no mesmo lugar (o meio do texto quase não sai do lugar).
+    #[test]
+    fn reverse_reading_keeps_place() {
+        let (ed, tid, _cid) = setup();
+        let mut t = match &ed.get(&ed.find(&tid).unwrap()).unwrap().kind {
+            ObjectKind::Text(t) => t.clone(),
+            _ => panic!(),
+        };
+        // Leva o texto para a base do círculo (de cabeça para baixo).
+        if let Some(p) = &mut t.path {
+            p.offset += std::f64::consts::PI * 50_000.0;
+            // Sem o anticolisão: de pé, os topos apontam para o centro e ele
+            // abriria o espaço (aqui só a posição importa).
+            p.relax = false;
+        }
+        let bounds = |t: &crate::model::TextData| {
+            let l = crate::render::text::layout_text(t);
+            l.lines
+                .iter()
+                .flat_map(|l| &l.runs)
+                .map(|r| kurbo::Shape::bounding_box(&r.outline))
+                .reduce(|a, b| a.union(b))
+                .unwrap()
+        };
+        let before = bounds(&t);
+        let mirror = t.path.as_ref().unwrap().mirror;
+        assert!(reverse_reading(&mut t));
+        let after = bounds(&t);
+        assert_ne!(t.path.as_ref().unwrap().mirror, mirror);
+        assert!(
+            (after.center() - before.center()).hypot() < 3_000.0,
+            "{before:?} {after:?}"
+        );
+        // Duas vezes volta ao começo.
+        assert!(reverse_reading(&mut t));
+        assert!((bounds(&t).center() - before.center()).hypot() < 3_000.0);
     }
 
     #[test]

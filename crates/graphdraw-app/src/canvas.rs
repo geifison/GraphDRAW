@@ -955,6 +955,9 @@ pub struct CanvasState {
     /// "À frente de…" (`true`) / "Atrás de…" esperando o clique na
     /// referência (GD-BDR-41).
     pub pick_reference: Option<bool>,
+    /// "Ajustar texto ao caminho" sem a forma selecionada: o próximo clique
+    /// escolhe o objeto que guia este texto.
+    pub pick_path: Option<String>,
     /// Páginas vizinhas lado a lado (GD-PAG-04): a anterior à esquerda e a
     /// seguinte à direita, só para ver; clicar numa delas vai para ela.
     pub spread: bool,
@@ -1060,6 +1063,7 @@ impl Default for CanvasState {
             pixels: None,
             focus: None,
             pick_reference: None,
+            pick_path: None,
             spread: false,
             spread_tex: Vec::new(),
             spread_rects: Vec::new(),
@@ -1133,6 +1137,9 @@ pub struct CanvasEvents {
     pub open_solid_fill: bool,
     /// Casas decimais escolhidas no menu da régua (preferência, GD-UI-16).
     pub decimals: Option<usize>,
+    /// O clique de "Ajustar texto ao caminho" caiu fora de um objeto que
+    /// sirva de guia (o App pergunta se tenta de novo).
+    pub path_pick_failed: Option<String>,
 }
 
 impl CanvasState {
@@ -1687,6 +1694,11 @@ impl CanvasState {
         self.rendered = None;
     }
 
+    /// Espera o clique no objeto que vai guiar o texto `text`.
+    pub fn start_pick_path(&mut self, text: String) {
+        self.pick_path = Some(text);
+    }
+
     /// Espera o clique no objeto de referência de "À frente de…/Atrás de…".
     pub fn start_pick_reference(&mut self, above: bool) {
         self.pick_reference = Some(above);
@@ -2028,7 +2040,7 @@ impl CanvasState {
             self.right = None;
             return true;
         }
-        if self.pick_reference.take().is_some() {
+        if self.pick_reference.take().is_some() || self.pick_path.take().is_some() {
             return true;
         }
         if self.curve3.take().is_some() || self.dim_draft.take().is_some() {
@@ -3256,6 +3268,9 @@ impl CanvasState {
             name,
             hotspot: (hx, hy),
         };
+        if self.pick_path.is_some() {
+            return icon("cur-pick-path", 22.0, 12.0);
+        }
         if matches!(tool, Tool::Select | Tool::Text)
             && let Some(k) = self.text_path_handle_at(doc, rect, ph, pos)
         {
@@ -3637,6 +3652,34 @@ impl CanvasState {
         }
         if tool.effect_kind().is_some() {
             self.paint_effect(painter, doc, rect, ph, tool);
+        }
+        if let Some(text) = &self.pick_path
+            && let Some(pos) = ui.input(|i| i.pointer.hover_pos())
+            && let Some(id) = pick(
+                doc,
+                self.page_of(rect, ph, pos),
+                5.0 / self.view.zoom,
+                false,
+            )
+            .filter(|id| id != text)
+            && let Some(r) = doc.editor.find(&id)
+            && let Some(o) = doc.editor.get(&r)
+            && let Some(mut path) = query::local_outline(o)
+        {
+            path.apply_affine(doc.editor.parent_affine(&r) * o.transform.affine());
+            let ok = can_guide(doc, &id);
+            let color = if ok {
+                theme::ACCENT_SUCCESS
+            } else {
+                theme::ACCENT_DANGER
+            };
+            self.stroke_bez(
+                painter,
+                rect,
+                ph,
+                &path,
+                EStroke::new(theme::FOCUS_WIDTH * 1.5, color),
+            );
         }
         if matches!(tool, Tool::Select | Tool::Text) {
             let hover = ui.input(|i| i.pointer.hover_pos());
@@ -6435,12 +6478,12 @@ impl CanvasState {
                 if let Some(h) = path_text_handles_of(doc, r, original) {
                     let s = h.unwrap_s(h.s_at(cur), *grab);
                     let mut d = s - *grab;
-                    // Ímã: início, meio e fim do intervalo (8 px).
+                    // Ímã: início, meio e fim do caminho (8 px).
                     let w = h.span.end - h.span.start;
                     let snap = 8.0 / self.view.zoom;
                     let new_start = h.span.start + d;
-                    let (r0, r1) = h.span.range;
-                    for target in [r0, (r0 + r1) / 2.0 - w / 2.0, r1 - w] {
+                    let total = h.span.total;
+                    for target in [0.0, total / 2.0 - w / 2.0, total - w] {
                         if (new_start - target).abs() <= snap {
                             d = target - h.span.start;
                         }
@@ -6927,6 +6970,29 @@ impl CanvasState {
         ev: &mut CanvasEvents,
     ) {
         let ph = doc.page_size().1;
+        // Ajustar texto ao caminho: este clique escolhe o objeto-guia. Se não
+        // servir, o App pergunta se quer tentar de novo.
+        if let Some(text) = self.pick_path.take() {
+            match pick(doc, p, tol, false).filter(|id| *id != text && can_guide(doc, id)) {
+                Some(curve) => {
+                    doc.editor
+                        .begin(tr("Ajustar texto ao caminho", "Fit text to path"));
+                    if ops::fit_text_to_path(&mut doc.editor, &text, &curve) {
+                        if let Some(s) = path_s_at(doc, &text, p) {
+                            ops::edit_text_path(
+                                &mut doc.editor,
+                                std::slice::from_ref(&text),
+                                |tp| tp.offset = s,
+                            );
+                        }
+                        doc.selection = vec![text];
+                    }
+                    doc.editor.commit();
+                }
+                None => ev.path_pick_failed = Some(text),
+            }
+            return;
+        }
         // "À frente de…/Atrás de…": este clique escolhe a referência; área
         // vazia cancela (GD-BDR-41).
         if let Some(above) = self.pick_reference.take() {
@@ -8024,6 +8090,19 @@ fn curve_near(doc: &DocState, p: Point, tol: f64) -> Option<String> {
     (best <= tol * 1.5).then_some(id)
 }
 
+/// `id` tem contorno e pode guiar um texto (não é texto, grupo nem imagem).
+fn can_guide(doc: &DocState, id: &str) -> bool {
+    doc.editor
+        .find(id)
+        .and_then(|r| doc.editor.get(&r))
+        .is_some_and(|o| {
+            !matches!(
+                o.kind,
+                ObjectKind::Text(_) | ObjectKind::Group(_) | ObjectKind::Image(_)
+            ) && query::local_outline(o).is_some()
+        })
+}
+
 /// Texto selecionado sozinho e `over` com contorno: dá para ajustar.
 fn text_can_go_on(doc: &DocState, over: &str) -> bool {
     let is_text = doc.selection.len() == 1
@@ -8447,6 +8526,62 @@ mod tests {
         // Os outros seguem: o segundo vértice externo continua no raio.
         let v = graphdraw_core::render::scene::polygon_vertices(&p)[0][2];
         assert!(((v.x.hypot(v.y)) - p.rx).abs() < 1.0);
+    }
+
+    /// Ajustar texto ao caminho só com o texto selecionado: o clique na forma
+    /// ajusta; no vazio, não ajusta e o modo acaba (o App pergunta).
+    #[test]
+    fn fit_to_path_by_click() {
+        let (ctx, mut cs, mut doc, rid, rect, ph) = bdr_setup();
+        let mut t =
+            graphdraw_core::edit::text::new_text(10_000.0, 200_000.0, None, "Arial", 5_000.0);
+        if let ObjectKind::Text(td) = &mut t.kind {
+            graphdraw_core::edit::text::insert(td, 0, "ABC");
+        }
+        let tid = ops::add_object(&mut doc.editor, 0, 0, t, "t");
+        let has_path = |doc: &DocState| match &doc
+            .editor
+            .get(&doc.editor.find(&tid).unwrap())
+            .unwrap()
+            .kind
+        {
+            ObjectKind::Text(t) => t.path.as_ref().and_then(|p| p.guide.clone()),
+            _ => None,
+        };
+        let click = |cs: &mut CanvasState, doc: &mut DocState, at: Pos2| {
+            canvas_frame(
+                &ctx,
+                cs,
+                doc,
+                Tool::Select,
+                vec![egui::Event::PointerMoved(at)],
+            );
+            canvas_frame(
+                &ctx,
+                cs,
+                doc,
+                Tool::Select,
+                vec![button(at, PointerButton::Primary, true)],
+            );
+            canvas_frame(
+                &ctx,
+                cs,
+                doc,
+                Tool::Select,
+                vec![button(at, PointerButton::Primary, false)],
+            );
+        };
+        // Vazio: não ajusta e sai do modo.
+        cs.start_pick_path(tid.clone());
+        let empty = cs.screen(rect, ph, Point::new(150_000.0, 30_000.0));
+        click(&mut cs, &mut doc, empty);
+        assert!(has_path(&doc).is_none() && cs.pick_path.is_none());
+        // Na borda do retângulo: ajusta ao retângulo.
+        cs.start_pick_path(tid.clone());
+        let edge = cs.screen(rect, ph, Point::new(50_000.0, 110_000.0));
+        click(&mut cs, &mut doc, edge);
+        assert_eq!(has_path(&doc).as_deref(), Some(rid.as_str()));
+        assert_eq!(doc.selection, vec![tid.clone()]);
     }
 
     /// GD-TXT-09 na tela: a ferramenta Texto clicando na borda de uma forma

@@ -535,8 +535,8 @@ pub struct TextWrap {
 /// `skew-v`/`skew-h` (perspectiva: inclina mantendo as verticais ou as
 /// horizontais), `upright` (de pé) ou `warp` (deformação plena: a base
 /// segue o traço e o topo o arco externo); `mirror` percorre o caminho ao
-/// contrário. `align` = `start`, `center`, `end` ou `justify` dentro do
-/// intervalo `range` [início, fim] (frações do comprimento); `vertical` =
+/// contrário. `align` = `start`, `center`, `end` ou `justify` no caminho;
+/// `vertical` =
 /// linha que casa com o traço (`baseline`, `descender`, `x-height`,
 /// `cap`, `center`); `corners` = nos cantos vivos, `jump` (o glifo
 /// pula para a face seguinte), `wrap` (o glifo dobra) ou `split` (cada
@@ -567,8 +567,6 @@ pub struct TextPath {
     pub align: String,
     #[serde(default = "tp_baseline", skip_serializing_if = "tp_is_baseline")]
     pub vertical: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub range: Option<[f64; 2]>,
     #[serde(default = "tp_jump", skip_serializing_if = "tp_is_jump")]
     pub corners: String,
     #[serde(default = "tp_yes", skip_serializing_if = "tp_is_yes")]
@@ -591,7 +589,6 @@ impl TextPath {
             detached: false,
             align: "start".into(),
             vertical: "baseline".into(),
-            range: None,
             corners: "jump".into(),
             relax: true,
             extra: Map::new(),

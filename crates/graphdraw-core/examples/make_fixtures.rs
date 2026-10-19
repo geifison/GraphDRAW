@@ -1656,7 +1656,6 @@ fn appearance() -> Document {
                 detached: true,
                 align: "start".into(),
                 vertical: "baseline".into(),
-                range: None,
                 corners: "jump".into(),
                 relax: true,
                 extra: Map::new(),

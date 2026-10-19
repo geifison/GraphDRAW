@@ -97,7 +97,6 @@ const icons = {
   "tp-offset-y": `<path d="M3 20 Q12 10 21 20" stroke-dasharray="1.6 1.6"/><path d="M12 14.5 V3.5 M9.5 6 L12 3.5 L14.5 6 M9.5 12 L12 14.5 L14.5 12"/>`,
   "tp-reverse": `<path d="M3 19 Q12 5 21 19" stroke-dasharray="1.6 1.6"/><path d="M17 9.5 Q12 6.5 7 9.5"/><path d="M9.6 7.3 L7 9.5 L10.2 10.6"/>`,
   "tp-flip-side": `<path d="M3 12 Q12 4 21 12" stroke-dasharray="1.6 1.6"/><rect x="6.4" y="3.9" width="3.2" height="4.8" rx="0.4" transform="rotate(-30 8 6.3)"/><rect x="14.4" y="3.9" width="3.2" height="4.8" rx="0.4" transform="rotate(30 16 6.3)"/><path d="M12 12.5 V20.5 M10 18.5 L12 20.5 L14 18.5" />`,
-  "tp-range": `<path d="M3 19 Q12 5 21 19" stroke-dasharray="1.6 1.6"/><path d="M5.5 10 H4 V17 H5.5 M18.5 10 H20 V17 H18.5"/>`,
   "tp-corner-jump": `<path d="M3.5 20.5 H19.5 V3.5" stroke-dasharray="1.6 1.6"/><rect x="11" y="15" width="3.5" height="4" rx="0.4"/><rect x="14.8" y="10" width="4" height="3.5" rx="0.4"/><path d="M15 18.5 Q18 18 18 15" />`,
   "tp-corner-wrap": `<path d="M3.5 20.5 H19.5 V3.5" stroke-dasharray="1.6 1.6"/><path d="M13.5 19.5 V16 H19 V10.5 H15.5 V16"/>`,
   "tp-corner-split": `<path d="M3.5 20.5 H19.5 V3.5" stroke-dasharray="1.6 1.6"/><rect x="5" y="16" width="3" height="3.5" rx="0.4"/><rect x="11" y="16" width="3" height="3.5" rx="0.4"/><rect x="15" y="12" width="3.5" height="3" rx="0.4"/><rect x="15" y="5.5" width="3.5" height="3" rx="0.4"/>`,
@@ -230,6 +229,8 @@ const icons = {
   // ---- cursores (desenhados sobre o canvas no lugar do cursor do sistema) ----
   // Cursor Forma: o mesmo desenho; a ponta da seta (1,973; 0) é o ponto do clique.
   "cur-shape": `<path d="M5.451 22.923C5.451 22.923 9.168 13.577 20.896 15.136" stroke-width="1.5"/><path d="M11.772 16.973L13.517 16.564L13.109 14.82L11.364 15.228Z" fill="#fff" stroke="none"/><path d="M4.783 24L6.528 23.592L6.12 21.847L4.375 22.255Z" fill="#fff" stroke="none"/><path d="M7.411 18.115L17.395 13.357" stroke-width="0.9"/><path d="M20.282 16.444L22.027 16.036L21.619 14.291L19.874 14.7Z" fill="#fff" stroke="none"/><path d="M7.789 18.026C7.74 17.818 7.531 17.688 7.323 17.737C7.114 17.786 6.984 17.995 7.033 18.203C7.082 18.412 7.291 18.542 7.5 18.493C7.708 18.444 7.838 18.235 7.789 18.026Z" fill="#fff" stroke="none"/><path d="M17.773 13.269C17.724 13.06 17.515 12.931 17.307 12.979C17.098 13.028 16.968 13.237 17.017 13.446C17.066 13.654 17.275 13.784 17.484 13.735C17.692 13.686 17.822 13.477 17.773 13.269Z" fill="#fff" stroke="none"/><path d="M1.973 0L3.161 18.942L8.518 11.731L17.783 10.5L1.973 0Z" fill="#fff" stroke="none"/>`,
+  // Escolher o caminho do texto (Ajustar texto ao caminho): seta para a direita.
+  "cur-pick-path": `<path d="M2.5 9 H13.5 V4.5 L22 12 L13.5 19.5 V15 H2.5 Z" fill="#fff"/>`,
   "cur-move": `<path d="M12 3 V21 M3 12 H21 M9.5 5.5 L12 3 L14.5 5.5 M9.5 18.5 L12 21 L14.5 18.5 M5.5 9.5 L3 12 L5.5 14.5 M18.5 9.5 L21 12 L18.5 14.5"/>`,
   "cur-grab": `<path d="M7.5 11 V9.5 a1.5 1.5 0 0 1 3 0 V11 M10.5 9.5 a1.5 1.5 0 0 1 3 0 V11 M13.5 10 a1.5 1.5 0 0 1 3 0 V12.5 M7.5 11.5 a1.5 1.5 0 0 0 -2.5 1 L6.5 17 a5 5 0 0 0 4.5 3 H13 a4 4 0 0 0 4 -4 V12.5"/>`,
   "cur-rotate": `<path d="M18.5 12 a6.5 6.5 0 1 1 -2 -4.7"/><path d="M17 3.5 V7.5 H13"/>`,
