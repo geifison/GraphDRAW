@@ -160,13 +160,21 @@ fn drag_amount(ui: &mut egui::Ui, resp: egui::Response, step: f64) -> Option<f64
     (dx != 0.0).then_some(dx * step * k)
 }
 
-/// Campo de texto que aceita expressões; devolve o valor ao confirmar
-/// (Enter ou perder o foco) se mudou. Valor em `type-numeric`.
+/// Passo das setas ↑/↓ nos campos (GD-BPR-03, D-31-11): 1 mm nos
+/// comprimentos, 1 nos números (°, %, pt); Shift = 10 passos.
+const LENGTH_ARROW_STEP: f64 = 1_000.0;
+const NUMBER_ARROW_STEP: f64 = 1.0;
+
+/// Campo de texto que aceita expressões (GD-BPR-03): devolve o valor ao
+/// confirmar (Enter, Tab ou perder o foco) se mudou; `Esc` desiste e volta
+/// ao valor; ↑/↓ somam `step` (Shift ×10) e aplicam na hora. Texto vazio
+/// mostra `hint` (campo "vários", GD-BPR-02). Valor em `type-numeric`.
 fn expr_field(
     ui: &mut egui::Ui,
     id: egui::Id,
     shown: String,
     width: f32,
+    step: f64,
     parse: impl Fn(&str) -> Option<f64>,
 ) -> Option<f64> {
     let mut text: String = ui
@@ -177,14 +185,38 @@ fn expr_field(
             .id(id.with("te"))
             .font(egui::TextStyle::Monospace)
             .align(egui::Align2::LEFT_CENTER)
+            .hint_text(tr("vários", "various"))
             .desired_width(width),
     );
     let mut out = None;
-    if resp.has_focus() {
+    // Seta pressionada neste quadro: +1 ou −1 passo, ×10 com Shift.
+    let arrow = ui.input(|i| {
+        i.events.iter().find_map(|e| match e {
+            egui::Event::Key {
+                key,
+                pressed: true,
+                modifiers,
+                ..
+            } if matches!(key, egui::Key::ArrowUp | egui::Key::ArrowDown) => {
+                let k = if modifiers.shift { 10.0 } else { 1.0 };
+                Some(if *key == egui::Key::ArrowUp { k } else { -k })
+            }
+            _ => None,
+        })
+    });
+    let esc = ui.input(|i| i.key_pressed(egui::Key::Escape));
+    if resp.has_focus()
+        && let Some(n) = arrow
+    {
+        // O texto em edição vira o valor + passo; o campo segue com foco e
+        // mostra o valor novo no próximo quadro.
+        ui.data_mut(|d| d.remove::<String>(id));
+        out = parse(&text).map(|v| v + n * step);
+    } else if resp.has_focus() {
         ui.data_mut(|d| d.insert_temp(id, text.clone()));
     } else if resp.lost_focus() {
         ui.data_mut(|d| d.remove::<String>(id));
-        if text != shown {
+        if !esc && text != shown {
             match parse(&text) {
                 Some(v) => out = Some(v),
                 None => {
@@ -208,7 +240,7 @@ pub fn length_field(
     value_um: f64,
     reference_um: Option<f64>,
 ) -> Option<f64> {
-    length_field_in(ui, id, value_um, reference_um, false)
+    length_field_in(ui, id, Some(value_um), reference_um, false)
 }
 
 /// Como [`length_field`], em medida do mundo (escala de desenho, GD-DOC-03):
@@ -219,30 +251,30 @@ pub fn world_length_field(
     value_um: f64,
     reference_um: Option<f64>,
 ) -> Option<f64> {
-    length_field_in(ui, id, value_um, reference_um, true)
+    length_field_in(ui, id, Some(value_um), reference_um, true)
 }
 
+/// `value_um` = `None`: valor diferente entre os objetos (campo vazio).
 fn length_field_in(
     ui: &mut egui::Ui,
     id: &str,
-    value_um: f64,
+    value_um: Option<f64>,
     reference_um: Option<f64>,
     world: bool,
 ) -> Option<f64> {
     let disp = display();
     let id = ui.scope_id().with(id);
-    let base = reference_um.unwrap_or(value_um);
+    let base = reference_um.or(value_um);
     // A unidade vai dentro do campo; o campo aceita digitar com ou sem ela.
     expr_field(
         ui,
         id,
-        format!(
-            "{} {}",
-            localize(disp.format(value_um, world)),
-            disp.unit.name()
-        ),
+        mixed_text(value_um, |v| {
+            format!("{} {}", localize(disp.format(v, world)), disp.unit.name())
+        }),
         LENGTH_WIDTH,
-        |t| disp.parse(t, Some(base), world),
+        LENGTH_ARROW_STEP,
+        |t| disp.parse(t, base, world),
     )
 }
 
@@ -272,10 +304,42 @@ pub fn labeled_world_length(
     r.or(d.map(|d| value_um + d))
 }
 
+/// Texto do campo com valor talvez misto (GD-BPR-02): vazio = "vários".
+pub fn mixed_text(value: Option<f64>, fmt: impl Fn(f64) -> String) -> String {
+    value.map(fmt).unwrap_or_default()
+}
+
+/// Comprimento que pode diferir entre os objetos (GD-BPR-02): `None`
+/// mostra o campo vazio com a dica "vários"; o valor digitado vale para
+/// todos.
+pub fn mixed_length_field(ui: &mut egui::Ui, id: &str, value_um: Option<f64>) -> Option<f64> {
+    length_field_in(ui, id, value_um, None, false)
+}
+
+/// Como [`labeled_length`], com valor talvez misto (GD-BPR-02): sem valor
+/// comum o campo fica vazio e o arrasto do rótulo não age.
+pub fn labeled_mixed_length(
+    ui: &mut egui::Ui,
+    label: &str,
+    id: &str,
+    value_um: Option<f64>,
+) -> Option<f64> {
+    let d = drag_handle(ui, label, LENGTH_DRAG_STEP);
+    let r = mixed_length_field(ui, id, value_um);
+    r.or(d.and_then(|d| value_um.map(|v| v + d)))
+}
+
 pub fn number_field(ui: &mut egui::Ui, id: &str, value: f64, suffix: &str) -> Option<f64> {
     let id = ui.scope_id().with(id);
     if suffix.is_empty() {
-        return expr_field(ui, id, fmt_num(value, 2), NUMBER_WIDTH, units::parse_number);
+        return expr_field(
+            ui,
+            id,
+            fmt_num(value, 2),
+            NUMBER_WIDTH,
+            NUMBER_ARROW_STEP,
+            units::parse_number,
+        );
     }
     // O sufixo (°, %, pt…) vai dentro do campo; digitar com ou sem ele.
     let sfx = suffix.trim().to_string();
@@ -284,6 +348,7 @@ pub fn number_field(ui: &mut egui::Ui, id: &str, value: f64, suffix: &str) -> Op
         id,
         format!("{}{}", fmt_num(value, 2), suffix),
         NUMBER_UNIT_WIDTH,
+        NUMBER_ARROW_STEP,
         move |t| {
             let t = t.trim();
             units::parse_number(t.strip_suffix(sfx.as_str()).unwrap_or(t).trim())
@@ -367,7 +432,16 @@ pub fn footer<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
 /// Painel da barra de propriedades: altura fixa de `bar-property-height`,
 /// qualquer que seja o contexto (DESIGN-SYSTEM 4.6).
 pub fn property_panel(ctx: &egui::Context) -> egui::Panel {
-    egui::Panel::top("propriedades")
+    property_panel_at(ctx, crate::propbar::Dock::Top)
+}
+
+/// Como [`property_panel`], no lado escolhido (GD-BPR-06).
+pub fn property_panel_at(ctx: &egui::Context, dock: crate::propbar::Dock) -> egui::Panel {
+    let panel = match dock {
+        crate::propbar::Dock::Top => egui::Panel::top("propriedades"),
+        crate::propbar::Dock::Bottom => egui::Panel::bottom("propriedades-embaixo"),
+    };
+    panel
         .resizable(false)
         .exact_size(theme::BAR_PROPERTY_HEIGHT)
         .frame(
@@ -376,55 +450,6 @@ pub fn property_panel(ctx: &egui::Context) -> egui::Panel {
                 theme::SPACE_150 as i8,
             )),
         )
-}
-
-/// Conteúdo de barra em uma linha só (DESIGN-SYSTEM 4.6): nada quebra
-/// linha; o que não cabe rola na horizontal (roda do mouse ou arrasto, sem
-/// barra de rolagem) e um degradê na borda avisa que há mais.
-pub fn single_line_bar(ui: &mut egui::Ui, id: &str, add: impl FnOnce(&mut egui::Ui)) {
-    let out = egui::ScrollArea::horizontal()
-        .id_salt(id)
-        .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
-        .show(ui, |ui| {
-            let dy = ui.input(|i| i.smooth_scroll_delta.y);
-            if dy != 0.0 && ui.rect_contains_pointer(ui.clip_rect()) {
-                ui.scroll_with_delta(Vec2::new(dy, 0.0));
-            }
-            ui.horizontal_centered(add);
-        });
-    let view = out.inner_rect;
-    let x = out.state.clamped_offset().x;
-    let fade = theme::SPACE_600;
-    if x > 0.5 {
-        fade_edge(
-            ui,
-            egui::Rect::from_min_size(view.min, Vec2::new(fade, view.height())),
-            true,
-        );
-    }
-    if out.content_size.x - x > view.width() + 0.5 {
-        let min = egui::pos2(view.max.x - fade, view.min.y);
-        fade_edge(
-            ui,
-            egui::Rect::from_min_size(min, Vec2::new(fade, view.height())),
-            false,
-        );
-    }
-}
-
-/// Degradê do fundo do painel até transparente, na borda esquerda ou direita.
-fn fade_edge(ui: &egui::Ui, r: egui::Rect, left: bool) {
-    let c = ui.visuals().panel_fill;
-    let t = Color32::TRANSPARENT;
-    let (a, b) = if left { (c, t) } else { (t, c) };
-    let mut mesh = egui::Mesh::default();
-    mesh.colored_vertex(r.left_top(), a);
-    mesh.colored_vertex(r.right_top(), b);
-    mesh.colored_vertex(r.right_bottom(), b);
-    mesh.colored_vertex(r.left_bottom(), a);
-    mesh.add_triangle(0, 1, 2);
-    mesh.add_triangle(0, 2, 3);
-    ui.painter().add(mesh);
 }
 
 /// Texto de ajuda numa linha, cortado com reticências; o texto completo
@@ -718,6 +743,122 @@ mod tests {
         h
     }
 
+    fn key(key: egui::Key, shift: bool) -> egui::Event {
+        egui::Event::Key {
+            key,
+            physical_key: None,
+            pressed: true,
+            repeat: false,
+            modifiers: egui::Modifiers {
+                shift,
+                ..Default::default()
+            },
+        }
+    }
+
+    /// Campo `id` com foco no quadro 0 e, se `typed`, esse texto digitado;
+    /// depois um quadro por lista de eventos. Devolve o que `draw` deu em
+    /// cada quadro de eventos e se o texto em edição sobrou na memória.
+    fn drive(
+        id: &str,
+        typed: Option<&str>,
+        frames: Vec<Vec<egui::Event>>,
+        mut draw: impl FnMut(&mut egui::Ui) -> Option<f64>,
+    ) -> (Vec<Option<f64>>, bool) {
+        let ctx = crate::theme::test_ctx();
+        let mut out = Vec::new();
+        let mut field = egui::Id::NULL;
+        for (n, events) in std::iter::once(Vec::new()).chain(frames).enumerate() {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    Vec2::new(800.0, 600.0),
+                )),
+                events,
+                ..Default::default()
+            };
+            let mut o = ctx.run_ui(input, |ui| {
+                field = ui.scope_id().with(id);
+                if n == 0 {
+                    ui.memory_mut(|m| m.request_focus(field.with("te")));
+                    if let Some(t) = typed {
+                        ui.data_mut(|d| d.insert_temp(field, t.to_string()));
+                    }
+                }
+                let r = draw(ui);
+                if n > 0 {
+                    out.push(r);
+                }
+            });
+            o.textures_delta.clear();
+        }
+        let pending = ctx.data(|d| d.get_temp::<String>(field)).is_some();
+        (out, pending)
+    }
+
+    /// GD-BPR-03: Enter aplica o valor digitado.
+    #[test]
+    fn enter_applies_typed_value() {
+        let (r, _) = drive(
+            "t",
+            Some("25"),
+            vec![vec![key(egui::Key::Enter, false)]],
+            |ui| number_field(ui, "t", 10.0, "°"),
+        );
+        assert_eq!(r, [Some(25.0)]);
+    }
+
+    /// GD-BPR-03: Esc desiste do que foi digitado e volta ao valor.
+    #[test]
+    fn escape_restores_value() {
+        let (r, pending) = drive(
+            "t",
+            Some("25"),
+            vec![vec![key(egui::Key::Escape, false)], vec![]],
+            |ui| number_field(ui, "t", 10.0, "°"),
+        );
+        assert_eq!(r, [None, None], "nada aplicado");
+        assert!(!pending, "o texto digitado é descartado");
+    }
+
+    /// GD-BPR-03 / D-31-11: ↑/↓ somam o passo (1 nos números, 1 mm nos
+    /// comprimentos); Shift = 10 passos. Cada toque aplica.
+    #[test]
+    fn arrows_step_the_value() {
+        let (r, _) = drive(
+            "t",
+            None,
+            vec![
+                vec![key(egui::Key::ArrowUp, false)],
+                vec![key(egui::Key::ArrowDown, true)],
+            ],
+            |ui| number_field(ui, "t", 10.0, "°"),
+        );
+        assert_eq!(r, [Some(11.0), Some(0.0)]);
+        let (r, _) = drive(
+            "c",
+            None,
+            vec![vec![key(egui::Key::ArrowUp, false)]],
+            |ui| length_field(ui, "c", 10_000.0, None),
+        );
+        assert_eq!(r, [Some(11_000.0)]);
+    }
+
+    /// GD-BPR-02: valor diferente entre objetos = campo vazio ("vários");
+    /// digitar aplica o valor a todos.
+    #[test]
+    fn mixed_field_is_empty_and_applies_typed_value() {
+        assert_eq!(mixed_text(None, |v| fmt_num(v, 2)), "");
+        assert_eq!(mixed_text(Some(2.0), |v| fmt_num(v, 2)), fmt_num(2.0, 2));
+        let (r, _) = drive(
+            "m",
+            Some("3 mm"),
+            vec![vec![key(egui::Key::Enter, false)]],
+            |ui| mixed_length_field(ui, "m", None),
+        );
+        assert_eq!(r, [Some(3_000.0)]);
+    }
+
     /// DESIGN-SYSTEM 4.6: a barra tem sempre 36 px, com pouco ou muito
     /// conteúdo, dica longa ou campos que não cabem.
     #[test]
@@ -727,11 +868,16 @@ mod tests {
         });
         let hint = bar_height(|ui| hint_line(ui, &"dica muito longa · ".repeat(80)));
         let crowded = bar_height(|ui| {
-            single_line_bar(ui, "teste", |ui| {
-                for i in 0..60 {
+            // Campos demais: os grupos que não cabem vão para o » (GD-BPR-08).
+            let c = crate::propbar::Customs::default();
+            let mut bar =
+                crate::propbar::Bar::begin(ui, "t".into(), &c, crate::propbar::Pass::Inline, false);
+            for i in 0..60 {
+                bar.group(ui, &format!("g{i}"), "g", false, |ui, _| {
                     let _ = labeled_length(ui, "W", &format!("c{i}"), 148_000.0, None);
-                }
-            })
+                });
+            }
+            bar.end(ui, None);
         });
         assert_eq!(empty, theme::BAR_PROPERTY_HEIGHT);
         assert_eq!(hint, theme::BAR_PROPERTY_HEIGHT);

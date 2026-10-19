@@ -129,3 +129,99 @@ oferece trocar pela mais parecida, converter os textos em curvas ou manter.
 **Resposta (2026-10-17):** não; o conta-gotas fica só dentro da janela do
 programa (GD-CTG-04 fora da 1.0). A regra do Alt segue a decisão
 provisória.
+
+## P-13 — Espiral e grade sem bloco de transformação (doc 31, GD-BPC-08/09)
+**Contexto:** todos os objetos da Seleção começam com B-TRF (posição,
+tamanho, escala, ângulo, espelhar), menos Espiral e Grade, que também
+trazem "fechar ☐" (a grade já é fechada) e B-SET (setas) na espiral.
+**Decisão provisória (D-31-03):** os dois começam com B-TRF; "fechar" fica
+só na espiral.
+**Pergunta:** confirmar que foi omissão da transcrição.
+
+## P-14 — Barra de propriedades nas laterais (doc 31, GD-BPR-06)
+**Contexto:** a barra tem altura fixa de 72 px com controles empilhados em
+duas linhas; numa lateral ela teria de virar uma coluna de ~200 px ou
+quebrar os grupos, o que o GD-BPR-08 proíbe.
+**Decisão provisória (D-31-06):** em cima (padrão) ou embaixo, e Bloquear
+barras. Laterais e flutuante aguardam desenho.
+**Pergunta:** as laterais são necessárias na 1.0? Se sim, com que desenho?
+
+## P-15 — PostScript vetorial (doc 16, GD-IMP-04/18)
+**Contexto:** o GraphDraw não tem gerador de PostScript; transparência e
+mesclagem não existem no PS e exigiriam achatamento.
+**Decisão provisória (D-16-06):** PS rasterizado por folha nesta fase.
+**Pergunta:** algum cliente exige PS vetorial (RIP antigo sem PDF)? Se sim,
+entra como item próprio pós-Beta.
+
+## P-16 — Fase da impressão no M3 (doc 16 §8.3 C-01)
+**Contexto:** o doc 16 põe GD-IMP-01..05 no M3; o `MVP.md` da origem,
+GD-IMP-01..03; o pedido de implementação de 2026-10-19, GD-IMP-01..07. O
+doc 29 (inteiro MVP) já inclui N-up, separações, marcas e posição, cujos
+pares no doc 16 (GD-IMP-20, 08/12, 11, 07) estão na Beta.
+**Pergunta:** o que entra no M3? Sugestão para decidir: doc 29 inteiro +
+GD-IMP-01..07 (com estilos e posição por página); o restante do 16 na Beta.
+
+## P-17 — Envio à impressora: sempre rasterizado ou vetorial? (C-02)
+**Contexto:** GD-PRT-02 rasteriza toda folha (até 600 ppp) e envia em
+faixas. GD-IMP-05 faz da rasterização uma opção de emergência, o que supõe
+envio vetorial ao driver como padrão.
+**Pergunta:** o padrão continua rasterizado (como hoje no app) e GD-IMP-05
+só escolhe a resolução, ou o envio passa a ser vetorial?
+
+## P-18 — PDF de "Imprimir em arquivo": padrão e negativo (C-03)
+**Contexto:** GD-PRT-03 sai em PDF/X-1a e não aplica negativo (avisa).
+GD-IMP-18b tem padrão *Acrobat DC* (PDF 1.7) e não fala de negativo.
+**Pergunta:** qual compatibilidade padrão na impressão para arquivo? O
+negativo continua fora do PDF?
+
+## P-19 — Marcas de corte e barra de cores (C-04, C-05)
+**Contexto:**
+- Corte: GD-PRT-30 = traço de 5 mm a 2 mm além da sangria impressa;
+  GD-IMP-11 = distância padrão 3 mm da página; GD-IMP-11b = 3,8 mm da
+  linha de corte e 8,5 mm de comprimento (1,3/2,8 mm entre peças).
+- Marcas que não cabem: GD-PRT-32 omite; o doc 16 só avisa.
+- Barra de cores: GD-PRT-30 = C, M, Y, K, CM, CY, MY + K 10–100 %;
+  GD-IMP-11 = CMYK + spots 0–100 % em passos de 10, escala de cinza de 7
+  degraus e uma escala por tinta na composta (GD-IMP-11c).
+**Pergunta:** vale a tabela do GD-IMP-11b (e o "3 mm" do GD-IMP-11 é outra
+coisa, ou sai)? Marcas que não cabem são omitidas ou cortadas? A barra de
+cores segue o doc 16 (com ou sem as sobreposições CM/CY/MY)?
+
+## P-20 — Valores padrão divergentes (C-06)
+**Contexto:** sobreposição do mosaico 10 mm (GD-PRT-23) × 0 (GD-IMP-70);
+sangria de saída igual à do documento (GD-PRT-31, GD-IMP-10) × desligada
+com 3 mm (GD-IMP-70); separações com as 4 chapas de processo sempre
+(GD-PRT-42) × chapas vazias ocultas (GD-IMP-12/70).
+**Pergunta:** valem os padrões do GD-IMP-70? E o valor inicial da sangria
+de saída é o do documento ou 3 mm fixos?
+
+## P-21 — Limites e rótulos (C-07)
+**Contexto:** cópias até 999 (GD-PRT-12) × 9999 (GD-IMP-72); rótulo
+*Agrupar* (GD-PRT-12, já no app) × *Intercalar* (GD-IMP-01); escala
+1–1000 % (GD-PRT-20) × sem limite no GD-IMP-72. "Tamanho do ladrilho (%
+da folha)" vai de 0 a 25 % (GD-IMP-72), o que seria um ladrilho minúsculo.
+**Decisão provisória (D-16-02):** p % da largura e da altura da área
+imprimível.
+**Pergunta:** quais limites e qual rótulo? O campo de 0–25 % é o tamanho
+do ladrilho ou a sobreposição em %?
+
+## P-22 — Verificação: limiar de linha fina e onde ficam as regras (C-08)
+**Contexto:** linha fina mínima 0,25 pt (GD-PRE-02) × 0,1 mm ≈ 0,28 pt
+(GD-IMP-30b). Limites no documento (GD-PRE-02) × regras e limiares por
+perfil independente do documento (GD-IMP-31).
+**Decisão provisória (D-16-05):** um só motor de regras para o painel e
+para a seção Problemas.
+**Pergunta:** qual limiar? Limites ficam no documento, no perfil, ou o
+perfil sobrepõe o documento?
+
+## P-23 — Sub-modos da Imposição: 4 ou 6 (C-10)
+**Contexto:** GD-IMP-32 lista 4 (grade, ordem, calhas e acabamento,
+margens); o doc 28 da origem (§9, doc 31 aqui) fala em 6.
+**Decisão provisória (D-16-10):** os 4 do GD-IMP-32.
+**Pergunta:** faltam 2? Quais?
+
+## P-24 — Onde ficam as opções de impressão (C-09)
+**Contexto:** GD-PRT-05 guarda as opções por documento só na sessão e a
+impressora entre sessões. GD-IMP-06 grava o último estilo usado no `.gdr`.
+**Pergunta:** passa a valer o GD-IMP-06 (estilo no `.gdr`, o que muda o
+formato, doc 13)? A impressora escolhida continua entre sessões?

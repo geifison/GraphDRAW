@@ -9,10 +9,10 @@ Meta: **abrir `.cdr` legado, editar o básico, salvar `.gdr`, exportar PDF/SVG/P
 | M0 — Visualizador | Abre `.cdr` (via libcdr) e `.gdr`, renderiza, zoom/pan, exporta SVG/PDF/PNG | 13, 14, 15 (exportação básica), 02 (leitura) |
 | M1 — Editor básico | Seleção, mover/escalar/girar, retângulo, elipse, Bézier, edição de nós, preenchimento uniforme, contorno, desfazer, salvar `.gdr` | 02, 03 (GEO-01..05, NOD-01..05, PRI-01..02), 04 (FIL-01..02, OUT-01..04), 07 (FER-01, 04, 05, 10, 22, 30, 31), 08 (TRF-01, ALI-01, SNP-01), 12 |
 | M2 — Produção | Texto artístico/parágrafo básico, booleanas, offset, linha de corte, exportação PLT/DXF, PDF CMYK | 05 (COR-01..03, CMS-01..02), 06 (TXT-01, 02, 04, 05), 09 (BOO-01..03, 10; CMB-01..03, 06; OFS-01; CNV-01..02), 17 |
-| M3 — Polimento MVP | Paletas, guias, réguas, gradiente linear/radial, alinhar/distribuir, polígono/estrela, camadas completas | restante dos docs 02–09 marcados MVP |
+| M3 — Polimento MVP | Paletas, guias, réguas, gradiente linear/radial, alinhar/distribuir, polígono/estrela, camadas completas | restante dos docs 02–09 marcados MVP; impressão (29 inteiro; 16: GD-IMP-01..05 — fase em aberto, P-16); verificação prévia (28: GD-PRE-01..21); barra de propriedades (31: GD-BPR-01..10 e contextos das ferramentas existentes, D-31-05) |
 
 ## Fora do MVP
-Doc 10 (efeitos), 11 (estilos/símbolos), 16 (imposição/separações avançadas), 18 (automação), 19 (comentários); preenchimentos malha/textura/hachura; mídia artística; vetorização de bitmap; ferramentas de pincel de distorção (GD-FER-11..15).
+Doc 10 (efeitos), 11 (estilos/símbolos), 16 (exceto GD-IMP-01..05: imposição, separações avançadas, marcas da gráfica, empacotar), 18 (automação), 19 (comentários); preenchimentos malha/textura/hachura; mídia artística; vetorização de bitmap; ferramentas de pincel de distorção (GD-FER-11..15).
 
 ## Definição de pronto (cada requisito)
 1. Critério de aceitação do requisito passa em teste automatizado.

@@ -8,6 +8,9 @@ aberto ou consultado (doc 00).
 
 Fase: **MVP** (entra na 1.0). Só Windows (decisão de 2026-10-17).
 
+O doc 16 (v6) estende este; correspondência item a item e conflitos em
+aberto no doc 16 §8.
+
 Unidades internas em µm; a folha tem a origem no canto de baixo à esquerda
 e Y para cima, como a página.
 

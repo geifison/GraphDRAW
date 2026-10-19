@@ -109,6 +109,14 @@ pub struct Workspace {
     pub printer: String,
     /// Casas decimais dos comprimentos (0–6, GD-UI-16).
     pub decimals: usize,
+    /// Barra de propriedades visível (GD-BPR-09).
+    pub bar_visible: bool,
+    /// Lado da barra de propriedades (GD-BPR-06, D-31-06).
+    pub bar_dock: crate::propbar::Dock,
+    /// *Bloquear barras*: a alça não move a barra (GD-BPR-06).
+    pub bars_locked: bool,
+    /// Personalização da barra por contexto (GD-BPR-07, D-31-07).
+    pub bar_custom: crate::propbar::Customs,
 }
 
 impl Default for Workspace {
@@ -126,6 +134,10 @@ impl Default for Workspace {
             color_policy: "ask".into(),
             printer: String::new(),
             decimals: 3,
+            bar_visible: true,
+            bar_dock: Default::default(),
+            bars_locked: false,
+            bar_custom: Default::default(),
         }
     }
 }
@@ -253,6 +265,15 @@ mod tests {
             working_color: Some(Default::default()),
             color_policy: "convert".into(),
             printer: "Impressora X".into(),
+            // GD-BPR-06/07/09: lado, bloqueio, visibilidade e personalização.
+            bar_visible: false,
+            bar_dock: crate::propbar::Dock::Bottom,
+            bars_locked: true,
+            bar_custom: {
+                let mut c = crate::propbar::Customs::default();
+                c.set_hidden("main/select/rect", "B-TRF/angle", true);
+                c
+            },
         };
         let back = Workspace::from_json(&w.to_json()).unwrap();
         assert_eq!(back, w);
@@ -266,6 +287,10 @@ mod tests {
             {"tab": "alinhar", "pos": [9,9], "size": [1,1]}]}"#;
         let w = Workspace::from_json(odd).unwrap();
         assert!(w.panels && !w.collapsed);
+        // Arquivo sem os campos da barra: visível, em cima, solta.
+        assert!(w.bar_visible && !w.bars_locked);
+        assert_eq!(w.bar_dock, crate::propbar::Dock::Top);
+        assert_eq!(w.bar_custom, Default::default());
         assert_eq!(w.floating.len(), 1);
         assert_eq!(w.width, crate::theme::PANEL_MAX_WIDTH);
         assert!(Workspace::from_json("lixo").is_none());

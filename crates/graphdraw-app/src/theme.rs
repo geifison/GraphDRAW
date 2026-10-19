@@ -268,6 +268,9 @@ pub const BUTTON_MIN_WIDTH: f32 = 80.0;
 /// Botão pressionado desce meio pixel.
 pub const PRESS_OFFSET: f32 = 0.5;
 pub const MENU_ITEM_HEIGHT: f32 = 26.0;
+/// Lista longa num menu (ex.: *Adicionar comando…* da barra, 4.6): 12 itens
+/// visíveis, o resto rola.
+pub const MENU_SCROLL_HEIGHT: f32 = 12.0 * MENU_ITEM_HEIGHT;
 /// Altura fixa da barra de propriedades (4.6).
 pub const BAR_PROPERTY_HEIGHT: f32 = 2.0 * (BUTTON_COMPACT + 2.0 * SPACE_150);
 /// Espaço entre as duas linhas de controles empilhados na barra (4.6).

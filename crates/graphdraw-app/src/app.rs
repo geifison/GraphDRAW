@@ -54,6 +54,8 @@ pub(crate) struct OffsetDialog {
 pub(crate) enum DefaultAsk {
     Fill(Option<graphdraw_core::model::Fill>),
     Stroke(Option<graphdraw_core::model::Color>),
+    /// Espessura do contorno pela barra, sem seleção (GD-BPR-05).
+    StrokeWidth(f64),
 }
 
 /// Opções de "Converter em bitmap" (GD-CNV-03).
@@ -3497,6 +3499,7 @@ impl App {
                     }
                 });
             });
+            ui.menu_button(tr("Janela", "Window"), |ui| self.window_menu(ui));
             ui.menu_button(tr("Ajuda", "Help"), |ui| {
                 theme::menu_density(ui);
                 if ui
@@ -4359,6 +4362,102 @@ impl App {
         });
     }
 
+    /// Espessura do contorno mudada na barra com ferramenta de criação e
+    /// nada selecionado (GD-BPR-05): pergunta antes de virar padrão.
+    pub(crate) fn bar_default_stroke_width(&mut self, w: f64) {
+        let ask = DefaultAsk::StrokeWidth(w.max(0.0));
+        if self.ws.default_color_no_ask {
+            self.apply_default(ask);
+        } else {
+            self.ask_default = Some(ask);
+        }
+    }
+
+    /// Resposta à pergunta do padrão: `yes` aplica; `never` = não
+    /// perguntar de novo (vale para cor e atributos, D-31-08).
+    pub(crate) fn answer_default(&mut self, yes: bool, never: bool) {
+        let Some(ask) = self.ask_default.take() else {
+            return;
+        };
+        if yes {
+            if never {
+                self.ws.default_color_no_ask = true;
+            }
+            self.apply_default(ask);
+        }
+    }
+
+    fn apply_default(&mut self, ask: DefaultAsk) {
+        let stroke = |d: &crate::canvas::Defaults| {
+            d.stroke.clone().unwrap_or_else(crate::doc::default_stroke)
+        };
+        match ask {
+            DefaultAsk::Fill(f) => self.defaults.fill = f,
+            DefaultAsk::Stroke(c) => {
+                self.defaults.stroke = c.map(|c| {
+                    let mut s = stroke(&self.defaults);
+                    s.color = c;
+                    s
+                })
+            }
+            DefaultAsk::StrokeWidth(w) => {
+                let mut s = stroke(&self.defaults);
+                s.width = w;
+                self.defaults.stroke = Some(s);
+            }
+        }
+    }
+
+    /// Menu Janela › Barras (GD-BPR-06/09): mostrar a barra de
+    /// propriedades, em cima ou embaixo, e bloquear as barras.
+    fn window_menu(&mut self, ui: &mut egui::Ui) {
+        theme::menu_density(ui);
+        ui.menu_button(tr("Barras", "Bars"), |ui| {
+            ui.checkbox(
+                &mut self.ws.bar_visible,
+                tr("Barra de propriedades", "Property bar"),
+            );
+            ui.add_enabled_ui(self.ws.bar_visible && !self.ws.bars_locked, |ui| {
+                use crate::propbar::Dock;
+                for (d, label) in [
+                    (Dock::Top, tr("Em cima", "Top")),
+                    (Dock::Bottom, tr("Embaixo", "Bottom")),
+                ] {
+                    if ui.radio(self.ws.bar_dock == d, label).clicked() {
+                        self.ws.bar_dock = d;
+                    }
+                }
+            });
+            ui.separator();
+            ui.checkbox(&mut self.ws.bars_locked, tr("Bloquear barras", "Lock bars"));
+        });
+    }
+
+    /// Lado da barra de propriedades; `None` = oculta (GD-BPR-06/09).
+    pub(crate) fn property_dock(&self) -> Option<crate::propbar::Dock> {
+        self.ws.bar_visible.then_some(self.ws.bar_dock)
+    }
+
+    /// Pedidos da barra: personalização, comandos e lado (GD-BPR-06/07).
+    pub(crate) fn bar_actions(
+        &mut self,
+        actions: Vec<crate::propbar::Action>,
+        ctx: &egui::Context,
+    ) {
+        use crate::propbar::Action;
+        let seen = crate::propbar::seen(ctx);
+        let current: Vec<String> = seen.groups.iter().map(|g| g.id.clone()).collect();
+        let current = self.ws.bar_custom.ordered(&seen.key, &current);
+        crate::propbar::apply(&mut self.ws.bar_custom, &seen.key, &actions, &current);
+        for a in actions {
+            match a {
+                Action::Run(c) => self.run_command(c, ctx),
+                Action::Dock(d) if !self.ws.bars_locked => self.ws.bar_dock = d,
+                _ => {}
+            }
+        }
+    }
+
     /// Pergunta da cor sem seleção (GD-BDR-10): vira padrão dos novos
     /// objetos? Com "não perguntar de novo", passa a aplicar direto.
     fn default_color_window(&mut self, ctx: &egui::Context) {
@@ -4378,6 +4477,10 @@ impl App {
                 DefaultAsk::Stroke(_) => tr(
                     "Usar esta cor como contorno dos próximos objetos?",
                     "Use this color as the outline of the next objects?",
+                ),
+                DefaultAsk::StrokeWidth(_) => tr(
+                    "Usar esta espessura de contorno nos próximos objetos?",
+                    "Use this outline width for the next objects?",
                 ),
             });
             ui.checkbox(&mut never, tr("Não perguntar de novo", "Don't ask again"));
@@ -4402,27 +4505,8 @@ impl App {
                 }
             });
         });
-        if yes {
-            self.ask_default = None;
-            if never {
-                self.ws.default_color_no_ask = true;
-            }
-            match ask {
-                DefaultAsk::Fill(f) => self.defaults.fill = f,
-                DefaultAsk::Stroke(c) => {
-                    self.defaults.stroke = c.map(|c| {
-                        let mut s = self
-                            .defaults
-                            .stroke
-                            .clone()
-                            .unwrap_or_else(crate::doc::default_stroke);
-                        s.color = c;
-                        s
-                    })
-                }
-            }
-        } else if no {
-            self.ask_default = None;
+        if yes || no {
+            self.answer_default(yes, never);
         }
     }
 
@@ -4944,7 +5028,12 @@ impl App {
 
         egui::Panel::top("menu").show(ui, |ui| self.menu(ui));
         egui::Panel::top("padrao").show(ui, |ui| self.standard_toolbar(ui));
-        crate::widgets::property_panel(&ctx).show(ui, |ui| self.property_bar(ui));
+        // Barra de propriedades em cima, embaixo (acima da paleta) ou oculta
+        // (GD-BPR-06/09); oculta, atalhos e painéis seguem valendo.
+        let dock = self.property_dock();
+        if dock == Some(crate::propbar::Dock::Top) {
+            crate::widgets::property_panel(&ctx).show(ui, |ui| self.property_bar(ui));
+        }
         // Barra de status em `bg-surface-0`.
         egui::Panel::bottom("status")
             .frame(
@@ -4953,6 +5042,10 @@ impl App {
             )
             .show(ui, |ui| self.status_bar(ui));
         egui::Panel::bottom("paleta").show(ui, |ui| self.palette_bar(ui));
+        if dock == Some(crate::propbar::Dock::Bottom) {
+            crate::widgets::property_panel_at(&ctx, crate::propbar::Dock::Bottom)
+                .show(ui, |ui| self.property_bar(ui));
+        }
         egui::Panel::left("ferramentas")
             .resizable(false)
             .exact_size(theme::BUTTON_COMPACT + 2.0 * theme::SPACE_200)
@@ -5685,6 +5778,181 @@ mod tests {
         assert!(stroke(&app).is_none());
         app.doc.as_mut().unwrap().editor.undo();
         assert_eq!(stroke(&app).unwrap().width, 352.8);
+    }
+
+    /// Desenha a barra de propriedades do app (1366 × 768) e devolve o que
+    /// ela mostrou.
+    fn bar_seen(app: &mut App, ctx: &egui::Context) -> crate::propbar::Seen {
+        for _ in 0..3 {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1366.0, 768.0),
+                )),
+                ..Default::default()
+            };
+            let mut out = ctx.run_ui(input, |ui| {
+                let c = ui.ctx().clone();
+                crate::widgets::property_panel(&c).show(ui, |ui| app.property_bar(ui));
+            });
+            out.textures_delta.clear();
+        }
+        crate::propbar::seen(ctx)
+    }
+
+    fn add_rect(app: &mut App) -> String {
+        let d = app.doc.as_mut().unwrap();
+        let o = graphdraw_core::model::Object::new(ObjectKind::Rectangle(
+            graphdraw_core::model::RectData {
+                width: 10_000.0,
+                height: 10_000.0,
+                corners: None,
+                extra: Default::default(),
+            },
+        ));
+        ops::add_object(&mut d.editor, 0, 0, o, "r")
+    }
+
+    fn items(s: &crate::propbar::Seen, group: &str) -> Vec<String> {
+        s.groups
+            .iter()
+            .find(|g| g.id == group)
+            .map(|g| g.items.iter().map(|i| i.0.clone()).collect())
+            .unwrap_or_default()
+    }
+
+    /// Capturas da barra (revisão visual): larga, estreita com o » aberto e
+    /// com a ferramenta Texto.
+    #[test]
+    #[ignore]
+    fn shot_property_bar() {
+        for (name, w, tool, open) in [
+            ("barra-larga", 1366.0, Tool::Select, false),
+            ("barra-estreita", 760.0, Tool::Select, true),
+            ("barra-texto", 1366.0, Tool::Text, false),
+        ] {
+            let ctx = crate::theme::test_ctx();
+            let mut app = App::with_ctx(&ctx, None);
+            let a = add_rect(&mut app);
+            app.doc.as_mut().unwrap().selection = vec![a];
+            app.tool = tool;
+            let mut shot = crate::uishot::Shot::default();
+            for k in 0..6 {
+                if open && k == 3 {
+                    crate::propbar::open_overflow(&ctx, egui::pos2(w - 8.0, 70.0));
+                }
+                let input = egui::RawInput {
+                    screen_rect: Some(egui::Rect::from_min_size(
+                        egui::Pos2::ZERO,
+                        egui::vec2(w, 500.0),
+                    )),
+                    ..Default::default()
+                };
+                let mut out = ctx.run_ui(input, |ui| {
+                    let c = ui.ctx().clone();
+                    crate::widgets::property_panel(&c).show(ui, |ui| app.property_bar(ui));
+                });
+                if k == 5 {
+                    shot.save(&ctx, out, name);
+                } else {
+                    shot.textures(&mut out);
+                }
+            }
+        }
+    }
+
+    /// GD-BPR-01 (aceite): Seleção com retângulo → X/Y/L/A; clicar no vazio
+    /// → controles de página; ativar Texto → controles tipográficos.
+    #[test]
+    fn gd_bpr_01_bar_follows_tool_and_selection() {
+        let ctx = crate::theme::test_ctx();
+        let mut app = App::with_ctx(&ctx, None);
+        let id = add_rect(&mut app);
+        app.doc.as_mut().unwrap().selection = vec![id];
+        let s = bar_seen(&mut app, &ctx);
+        assert_eq!(s.key, "main/select/rect");
+        let trf = items(&s, "B-TRF");
+        assert!(
+            trf.contains(&"pos".into()) && trf.contains(&"size".into()),
+            "{trf:?}"
+        );
+        app.doc.as_mut().unwrap().selection.clear();
+        let s = bar_seen(&mut app, &ctx);
+        assert_eq!(s.key, "main/select/none");
+        assert!(s.groups.iter().any(|g| g.id == "PAG"));
+        app.tool = Tool::Text;
+        let s = bar_seen(&mut app, &ctx);
+        assert_eq!(s.key, "main/text/none");
+        assert!(s.groups.iter().any(|g| g.id == "B-FON"));
+    }
+
+    /// GD-BPR-07 (aceite): ocultar "Rotação" na barra da Seleção → some só
+    /// ali; ativar Retângulo → barra do Retângulo inalterada.
+    #[test]
+    fn gd_bpr_07_hide_rotation_only_in_select() {
+        let ctx = crate::theme::test_ctx();
+        let mut app = App::with_ctx(&ctx, None);
+        let id = add_rect(&mut app);
+        app.doc.as_mut().unwrap().selection = vec![id];
+        let width =
+            |s: &crate::propbar::Seen| s.groups.iter().find(|g| g.id == "B-TRF").unwrap().width;
+        let full = width(&bar_seen(&mut app, &ctx));
+        app.tool = Tool::Rect;
+        let rect_before = bar_seen(&mut app, &ctx);
+        app.tool = Tool::Select;
+        app.ws
+            .bar_custom
+            .set_hidden("main/select/rect", "B-TRF/angle", true);
+        let hidden = width(&bar_seen(&mut app, &ctx));
+        assert!(hidden < full - 20.0, "o ângulo saiu: {hidden} × {full}");
+        app.tool = Tool::Rect;
+        assert_eq!(bar_seen(&mut app, &ctx), rect_before);
+    }
+
+    /// GD-BPR-05 / D-31-08: com ferramenta de criação e nada selecionado,
+    /// mudar o contorno pergunta antes de virar padrão; "não perguntar de
+    /// novo" (o mesmo da cor) aplica direto.
+    #[test]
+    fn gd_bpr_05_tool_default_asks_first_time() {
+        let ctx = crate::theme::test_ctx();
+        let mut app = App::with_ctx(&ctx, None);
+        app.tool = Tool::Rect;
+        let s = bar_seen(&mut app, &ctx);
+        assert!(
+            s.groups.iter().any(|g| g.id == "B-CTN"),
+            "contorno padrão na barra"
+        );
+        let before = app.defaults.stroke.clone();
+        app.bar_default_stroke_width(2_000.0);
+        assert!(matches!(app.ask_default, Some(DefaultAsk::StrokeWidth(_))));
+        assert_eq!(app.defaults.stroke, before, "ainda não aplicou");
+        app.answer_default(true, false);
+        assert_eq!(app.defaults.stroke.as_ref().unwrap().width, 2_000.0);
+        app.ws.default_color_no_ask = true;
+        app.bar_default_stroke_width(3_000.0);
+        assert!(app.ask_default.is_none());
+        assert_eq!(app.defaults.stroke.as_ref().unwrap().width, 3_000.0);
+    }
+
+    /// GD-BPR-06/09: a alça leva a barra para baixo (não com barras
+    /// bloqueadas); oculta, a barra some.
+    #[test]
+    fn gd_bpr_06_09_dock_lock_and_hide() {
+        use crate::propbar::{Action, Dock};
+        let ctx = crate::theme::test_ctx();
+        let mut app = App::with_ctx(&ctx, None);
+        assert_eq!(app.property_dock(), Some(Dock::Top));
+        app.bar_actions(vec![Action::Dock(Dock::Bottom)], &ctx);
+        assert_eq!(app.property_dock(), Some(Dock::Bottom));
+        app.ws.bars_locked = true;
+        app.bar_actions(vec![Action::Dock(Dock::Top)], &ctx);
+        assert_eq!(
+            app.property_dock(),
+            Some(Dock::Bottom),
+            "bloqueada não move"
+        );
+        app.ws.bar_visible = false;
+        assert_eq!(app.property_dock(), None);
     }
 
     /// Menu Texto: negrito liga e desliga; converter em curvas tira o texto.
