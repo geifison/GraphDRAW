@@ -253,10 +253,21 @@ fn paint_footer(
         );
     }
 
-    // The footer: copyright on the left, version on the right.
+    // The footer: the two copyright lines on the left (the original
+    // project's above GraphDraw's), version on the right.
     let foot_y = rect.bottom() - 34.0 * s;
     let small = FontId::proportional(11.5 * s);
     if texts {
+        let o = painter.layout_no_wrap(
+            brand::ORIGINAL_COPYRIGHT.to_string(),
+            small.clone(),
+            brand::FOOTNOTE,
+        );
+        painter.galley(
+            Pos2::new(track.left(), foot_y - 15.0 * s),
+            o,
+            brand::FOOTNOTE,
+        );
         let g = painter.layout_no_wrap(
             trf(
                 "dialog.about_copyright",

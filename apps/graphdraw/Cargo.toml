@@ -3,8 +3,9 @@ name = "graphdraw"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-# The About box and splash print this as "Copyright 2026 {authors} and the GraphDraw contributors".
-authors = ["Ighor Toth"]
+# The About box and splash print this as "Copyright 2026 {authors} and the GraphDraw contributors",
+# under the original line kept from TraceDraw (ui::brand::ORIGINAL_COPYRIGHT).
+authors = ["Geifison Queiroz Oliveira"]
 repository.workspace = true
 homepage.workspace = true
 description = "GraphDraw: an open-source vector illustration editor"
@@ -70,8 +71,8 @@ graphdraw-core = { workspace = true, features = ["test-profiles"] }
 
 [package.metadata.deb]
 name = "graphdraw"
-maintainer = "GraphDraw contributors <noreply@graphdraw.dev>"
-copyright = "2026, Ighor Toth and the TraceDraw contributors and GraphDraw contributors"
+maintainer = "Geifison Queiroz Oliveira <diretor@gsite.com.br>"
+copyright = "2026, Ighor Toth and the TraceDraw contributors; 2026, Geifison Queiroz Oliveira and the GraphDraw contributors"
 license-file = ["../../LICENSE-MIT", "0"]
 extended-description = "Open-source vector illustration editor with a classic desktop workflow and a .cdr reader."
 section = "graphics"

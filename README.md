@@ -446,7 +446,8 @@ pages) in your browser only when you choose to. The full policy is in
 
 GraphDraw is dual-licensed under [MIT](LICENSE-MIT) or
 [Apache-2.0](LICENSE-APACHE), at your option.
-Copyright &copy; 2026 Ighor Toth and the TraceDraw contributors and GraphDraw contributors.
+Copyright &copy; 2026 Ighor Toth and the TraceDraw contributors.  
+Copyright &copy; 2026 Geifison Queiroz Oliveira and the GraphDraw contributors.
 
 Written by Ighor Toth with Claude Code, Anthropic's AI coding assistant,
 as co-author: commits it helped write carry a `Co-Authored-By` line, and

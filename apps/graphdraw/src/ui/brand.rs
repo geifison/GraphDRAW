@@ -1,5 +1,5 @@
 //! The GraphDraw look shared by the About box and the splash screen: a
-//! deep blue gradient, faint light blue curves with selected nodes (a path
+//! deep green gradient, faint green curves with selected nodes (a path
 //! being edited), the application icon and the name in two colours.
 
 use egui::epaint::CubicBezierShape;
@@ -14,6 +14,12 @@ pub const NAME_ACCENT: Color32 = Color32::from_rgb(0x9B, 0xE8, 0xB0);
 pub const TAGLINE: Color32 = Color32::from_rgb(0xC4, 0xE6, 0xD2);
 #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 pub const FOOTNOTE: Color32 = Color32::from_rgb(0x8C, 0xB0, 0xA0);
+
+/// The copyright of the project GraphDraw derives from, shown above the
+/// GraphDraw line in the About box and the splash. A legal notice: never
+/// translated.
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+pub const ORIGINAL_COPYRIGHT: &str = "Copyright \u{a9} 2026 Ighor Toth and the TraceDraw contributors";
 
 /// The 256 px application icon, decoded once per session.
 pub fn icon(ctx: &Context) -> Option<TextureHandle> {
@@ -201,8 +207,8 @@ pub fn curves(painter: &Painter, r: Rect, scale: f32, nodes: &[f32]) {
     }
 }
 
-/// "GraphDraw" laid out in the bold face at `size`: "Trace" in white,
-/// "Draw" in the light blue accent.
+/// "GraphDraw" laid out in the bold face at `size`: "Graph" in white,
+/// "Draw" in the light green accent.
 pub fn name_galley(painter: &Painter, size: f32) -> Arc<egui::Galley> {
     let mut job = egui::text::LayoutJob::default();
     let font = crate::theme::bold(size);

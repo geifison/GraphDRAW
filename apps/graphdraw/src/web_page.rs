@@ -51,7 +51,8 @@ mod tests {
             "#5caeff",
             "Graph<tspan fill=\"#7fc3ff\">Draw</tspan>",
             "Vector illustration editor",
-            "Ighor Toth and the TraceDraw contributors and GraphDraw contributors",
+            "Ighor Toth and the TraceDraw contributors</text>",
+            "Geifison Queiroz Oliveira and the GraphDraw contributors</text>",
             "v@VERSION@",
             // What it is, how ready it is, what it is made of and its terms.
             "open-source vector editor that opens .cdr files",

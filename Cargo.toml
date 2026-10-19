@@ -15,7 +15,7 @@ members = [
 [workspace.package]
 version = "0.9.4"
 edition = "2021"
-authors = ["Ighor Toth", "GraphDraw contributors"]
+authors = ["Ighor Toth", "Geifison Queiroz Oliveira"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/geifison/GraphDRAW"
 homepage = "https://github.com/geifison/GraphDRAW"

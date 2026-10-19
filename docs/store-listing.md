@@ -98,7 +98,8 @@ of [`CHANGELOG.md`](../CHANGELOG.md) for the version submitted.
 drawing, graphic design, print, cdr
 
 **Copyright and trademark info**: Copyright (c) 2026 Ighor Toth and the
-TraceDraw contributors and GraphDraw contributors. MIT or Apache-2.0.
+TraceDraw contributors; Copyright (c) 2026 Geifison Queiroz Oliveira and
+the GraphDraw contributors. MIT or Apache-2.0.
 
 **Screenshots** [PNG, 1366 x 768 or larger, up to 10]: the README pictures
 in `docs/images/` saved as PNG (1600 x 950): the poster (`hero`), curves,

@@ -134,6 +134,11 @@ pub fn about_dialog(app: &mut App, ctx: &Context, close: &mut bool) {
             });
         ui.add_space(14.0);
         ui.label(
+            RichText::new(crate::ui::brand::ORIGINAL_COPYRIGHT)
+                .size(12.0)
+                .color(Tokens::text_dim()),
+        );
+        ui.label(
             RichText::new(trf(
                 "dialog.about_copyright",
                 &[("name", env!("CARGO_PKG_AUTHORS"))],
