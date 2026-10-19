@@ -6,7 +6,7 @@ members = ["crates/graphdraw-core", "crates/graphdraw-cli", "crates/graphdraw-ap
 version = "0.1.0"
 edition = "2024"
 license = "MPL-2.0"
-repository = "https://example.invalid/graphdraw"
+repository = "https://github.com/geifison/GraphDRAW"
 
 
 [profile.dev.package."*"]

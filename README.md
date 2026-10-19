@@ -8,6 +8,12 @@ Editor de ilustração vetorial **open source** para gráficas rápidas, comunic
 
 > Status: M0, M1 e M2 concluídos; **M3 — polimento do MVP** em andamento. O que falta para a versão 1.0 está em [docs/PRODUCAO.md](docs/PRODUCAO.md). Ver também a [arquitetura](docs/ARCHITECTURE.md).
 
+![Editor do GraphDraw com um desenho aberto](docs/screenshots/editor.png)
+
+| Seleção e barra de propriedades | Novo documento |
+|---|---|
+| ![Objetos selecionados, com posição, tamanho, contorno e operações na barra de propriedades](docs/screenshots/selecao.png) | ![Janela Novo documento com a biblioteca de formatos](docs/screenshots/novo-documento.png) |
+
 ## Editor
 
 ```bash
