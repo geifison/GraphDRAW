@@ -3,7 +3,8 @@ name = "graphdraw"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-authors.workspace = true
+# The About box and splash print this as "Copyright 2026 {authors} and the GraphDraw contributors".
+authors = ["Ighor Toth"]
 repository.workspace = true
 homepage.workspace = true
 description = "GraphDraw: an open-source vector illustration editor"
