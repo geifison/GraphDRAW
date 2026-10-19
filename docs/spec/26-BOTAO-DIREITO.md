@@ -77,10 +77,10 @@ Complementa GD-NOD-*.
 - **GD-BDR-64** Texto + caminho selecionados: Colocar texto no caminho (GD-TXT-09) — MVP (M2).
 
 ## 6. Botão direito durante ação em curso — MVP
-- **GD-BDR-70** Durante **mover** com botão esquerdo (ferramenta Seleção): toque direito deposita uma cópia da seleção na posição atual; o arrasto continua com o original. Cada toque = uma cópia. Ao soltar o esquerdo, tudo vira **uma** transação ("Mover e copiar N").
-  - Aceite: arrastar retângulo 30 mm, tocar direito, continuar até 60 mm, soltar → 2 retângulos (30 mm e 60 mm do início); desfazer 1× → 1 retângulo na posição original.
-- **GD-BDR-71** Durante qualquer outra ação com botão esquerdo — desenhar com Bézier/caneta, arrastar guia, girar, escalar, inclinar, retângulo de seleção, mover nó — toque direito **cancela**: estado volta ao de antes de pressionar o esquerdo, nada entra no histórico. Soltar o esquerdo depois do cancelamento não faz nada.
-  - Aceite: girar objeto 45° com esquerdo, tocar direito → ângulo 0°, histórico inalterado.
+- **GD-BDR-70** Durante **mover, escalar, girar, inclinar ou transformação livre** com botão esquerdo (ferramenta Seleção/Transformação livre): toque direito cria uma cópia e é **a cópia** que segue a manipulação até soltar o esquerdo; o **original volta na hora** ao estado e lugar de antes de pressionar o esquerdo. Só o primeiro toque conta. Ao soltar, tudo vira **uma** transação ("Mover cópia", "Girar cópia" etc.); a cópia fica selecionada.
+  - Aceite: arrastar retângulo 30 mm, tocar direito, continuar até 60 mm, soltar → 2 retângulos (original no lugar de início, cópia a 60 mm); desfazer 1× → 1 retângulo na posição original. Escalar com toque direito → original com tamanho de antes, cópia com tamanho novo.
+- **GD-BDR-71** Durante qualquer outra ação com botão esquerdo — desenhar com Bézier/caneta, arrastar guia, retângulo de seleção, mover nó — toque direito **cancela**: estado volta ao de antes de pressionar o esquerdo, nada entra no histórico. Soltar o esquerdo depois do cancelamento não faz nada.
+  - Aceite: mover nó com esquerdo, tocar direito → nó no lugar de antes, histórico inalterado.
 - **GD-BDR-72** Esc tem o mesmo efeito de cancelamento de GD-BDR-71, inclusive durante mover.
 
 ## 7. Produção
@@ -90,7 +90,7 @@ Complementa GD-NOD-*.
   - Aceite: entrar em foco com 1 de 10 objetos, salvar, reabrir → 10 objetos visíveis.
 
 ## Decisões tomadas (revisar)
-1. Conflito entre "duplicar em voo" e "cancelar em voo": resolvido por tipo de ação — só **mover** duplica (GD-BDR-70); todo o resto cancela (GD-BDR-71).
+1. Conflito entre "duplicar em voo" e "cancelar em voo": resolvido por tipo de ação — só **mover/escalar/girar/inclinar/transformação livre** duplicam (GD-BDR-70); todo o resto cancela (GD-BDR-71).
 2. Toque longo × arrasto direito: limiares de 500 ms / 4 px (GD-BDR-01).
 3. Ferramenta Zoom mantém botão direito = afastar (GD-BDR-03).
 4. Menu de contexto não aparece com botão esquerdo pressionado (GD-BDR-02).
@@ -99,5 +99,5 @@ Complementa GD-NOD-*.
 ## Perguntas em aberto
 - P1. Sem seleção, clique em amostra: perguntar (como acima) ou aplicar silenciosamente ao padrão?
 - P2. Soltar sobre alvo que pertence a grupo: alvo = objeto interno ou o grupo inteiro? Proposta: grupo; modificador (GD-SEL-02) mira o interno.
-- P3. GD-BDR-70 também para rotação/escala (carimbar cópias girando)? Proposta: não no MVP.
+- P3. ~~GD-BDR-70 também para rotação/escala?~~ Resolvido (2026-10-18): sim, vale para todas as transformações.
 - P4. Mac/trackpad: equivalente ao botão direito (Ctrl+clique, dois dedos) e toque longo — precisa de mapeamento.

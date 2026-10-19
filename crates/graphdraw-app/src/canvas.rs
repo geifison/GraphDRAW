@@ -935,8 +935,9 @@ pub struct CanvasState {
     menu: Option<Menu>,
     /// Tipo do nó e se há dois extremos escolhidos (menu de nó).
     menu_node: Option<(NodeKind, bool)>,
-    /// Cópias deixadas no mover atual (GD-BDR-70).
-    stamped: usize,
+    /// Direito já tocado na transformação atual: a cópia é que segue o
+    /// cursor e o original voltou ao lugar (GD-BDR-70).
+    copy_taken: bool,
     /// Há o que colar (a área de transferência fica no App).
     pub can_paste: bool,
     /// Preenchimento inteligente cria também o contorno padrão.
@@ -1070,7 +1071,7 @@ impl Default for CanvasState {
             right: None,
             menu: None,
             menu_node: None,
-            stamped: 0,
+            copy_taken: false,
             can_paste: false,
             separation: None,
             smart_outline: false,
@@ -2105,28 +2106,57 @@ impl CanvasState {
         }
     }
 
-    /// Botão direito durante ação com o esquerdo: mover carimba cópia
-    /// (GD-BDR-70); o resto cancela (GD-BDR-71).
+    /// Botão direito durante ação com o esquerdo: mover, redimensionar,
+    /// girar, inclinar e transformação livre passam a agir numa cópia, e o
+    /// original volta ao estado de antes (GD-BDR-70); o resto cancela
+    /// (GD-BDR-71).
     fn right_during_left(&mut self, doc: &mut DocState, ev: &mut CanvasEvents) {
-        match &self.drag {
-            Drag::Move { .. } => {
-                let sel = doc.selection.clone();
-                ops::transform_copies(&mut doc.editor, &sel, Affine::IDENTITY, 1);
-                self.stamped += 1;
-                doc.editor.rename_open(format!(
-                    "{} {}",
-                    tr("Mover e copiar", "Move and copy"),
-                    self.stamped
-                ));
-                ev.status = Some(format!(
-                    "{} {}",
-                    self.stamped,
-                    tr("cópia(s) deixada(s)", "copy(ies) left")
-                ));
+        let (originals, name) = match &mut self.drag {
+            Drag::Move { originals, .. } => (originals, tr("Mover cópia", "Move copy")),
+            Drag::Scale { originals, .. } => {
+                (originals, tr("Redimensionar cópia", "Resize copy"))
             }
-            Drag::None => {}
-            _ => self.cancel_action(doc),
+            Drag::Rotate { originals, .. } => (originals, tr("Girar cópia", "Rotate copy")),
+            Drag::Skew { originals, .. } => (originals, tr("Inclinar cópia", "Skew copy")),
+            Drag::FreeXf { originals, .. } => (
+                originals,
+                tr("Transformação livre em cópia", "Free transform copy"),
+            ),
+            Drag::None => return,
+            _ => return self.cancel_action(doc),
+        };
+        if self.copy_taken {
+            return;
         }
+        self.copy_taken = true;
+        // A cópia nasce no estado atual, no topo do mesmo contêiner (os
+        // índices dos originais não mudam); o original volta ao que era.
+        let mut copies = Vec::with_capacity(originals.len());
+        for (r, o) in originals.iter() {
+            let Some(mut copy) = doc.editor.get(r).cloned() else {
+                continue;
+            };
+            ops::renew_ids(&mut copy);
+            let c = r.container();
+            let at = doc.editor.container_len(&c);
+            doc.editor.insert_at(&c, at, copy.clone());
+            doc.editor.replace_at(r, o.clone());
+            if let Some(cr) = doc.editor.find(&copy.id) {
+                // Base do arrasto: a cópia com a transformação de antes.
+                copy.transform = o.transform.clone();
+                copies.push((cr, copy));
+            }
+        }
+        doc.selection = copies.iter().map(|(_, o)| o.id.clone()).collect();
+        *originals = copies;
+        doc.editor.rename_open(format!("{} {}", name, count(doc.selection.len())));
+        ev.status = Some(
+            tr(
+                "Cópia: o original voltou ao lugar",
+                "Copy: the original went back",
+            )
+            .to_string(),
+        );
     }
 
     /// Cancela a ação em curso (GD-BDR-71/72): volta ao estado de antes de
@@ -2147,6 +2177,7 @@ impl CanvasState {
             doc.editor.cancel();
         }
         self.drag = Drag::None;
+        self.copy_taken = false;
         self.smart_lines.clear();
         self.snap_hit = None;
     }
@@ -5906,7 +5937,6 @@ impl CanvasState {
                     graphdraw_core::edit::smart::targets(doc.page(), &doc.selection),
                 ));
                 self.smart_lines.clear();
-                self.stamped = 0;
                 self.drag = Drag::Move {
                     grab,
                     start: p,
@@ -6790,6 +6820,7 @@ impl CanvasState {
         ph: f64,
         defaults: &Defaults,
     ) {
+        self.copy_taken = false;
         let drag = std::mem::replace(&mut self.drag, Drag::None);
         let cur = match drag {
             Drag::DrawRect { .. } => self.draw_end(cur),
@@ -11271,10 +11302,11 @@ mod tests {
         assert!((moved - 50_000.0).abs() < 200.0, "50 mm: {moved}");
     }
 
-    /// GD-BDR-70: mover com o esquerdo, tocar o direito no meio deixa uma
-    /// cópia; tudo é um passo de desfazer.
+    /// GD-BDR-70: mover com o esquerdo, tocar o direito no meio: a cópia vai
+    /// para onde o arrasto termina e o original volta ao lugar; tudo é um
+    /// passo de desfazer.
     #[test]
-    fn gd_bdr_70_stamp_copy_while_moving() {
+    fn gd_bdr_70_right_copies_while_moving() {
         let (ctx, mut cs, mut doc, id, rect, ph) = bdr_setup();
         doc.selection = vec![id.clone()];
         let p = |x: f64| cs.screen(rect, ph, Point::new(x, 110_000.0));
@@ -11347,22 +11379,25 @@ mod tests {
         assert_eq!(xs.len(), 2, "original + 1 cópia");
         let tol = 3.0 / cs.view.zoom;
         assert!(
-            xs.iter().any(|x| (x - 80_000.0).abs() < tol),
-            "cópia a 30 mm: {xs:?}"
+            (x_of(&doc, &id) - 50_000.0).abs() < 1e-6,
+            "original no lugar: {xs:?}"
         );
         assert!(
             xs.iter().any(|x| (x - 110_000.0).abs() < tol),
-            "original a 60 mm: {xs:?}"
+            "cópia a 60 mm: {xs:?}"
         );
+        assert_eq!(doc.selection.len(), 1);
+        assert_ne!(doc.selection[0], id, "a cópia fica selecionada");
         assert_eq!(doc.editor.undo_len(), undo0 + 1, "uma transação");
         doc.editor.undo();
         assert_eq!(doc.page().layers[0].objects.len(), 1);
         assert!((x_of(&doc, &id) - 50_000.0).abs() < 1e-6);
     }
 
-    /// GD-BDR-71: durante outra ação (escalar), tocar o direito cancela tudo.
+    /// GD-BDR-70: escalando, tocar o direito: a cópia fica com o tamanho
+    /// novo e o original volta ao de antes.
     #[test]
-    fn gd_bdr_71_right_cancels_other_actions() {
+    fn gd_bdr_70_right_copies_while_scaling() {
         let (ctx, mut cs, mut doc, id, rect, ph) = bdr_setup();
         doc.selection = vec![id.clone()];
         for _ in 0..2 {
@@ -11420,8 +11455,13 @@ mod tests {
             vec![button(to, PointerButton::Primary, false)],
         );
         let b = ops::object_bounds(&doc.editor, &doc.editor.find(&id).unwrap(), false).unwrap();
-        assert!((b.width() - 20_000.0).abs() < 1e-6, "voltou: {b:?}");
-        assert_eq!(doc.editor.undo_len(), undo0, "histórico inalterado");
+        assert!((b.width() - 20_000.0).abs() < 1e-6, "original voltou: {b:?}");
+        assert_eq!(doc.page().layers[0].objects.len(), 2, "original + cópia");
+        let copy = doc.selection[0].clone();
+        assert_ne!(copy, id);
+        let b = ops::object_bounds(&doc.editor, &doc.editor.find(&copy).unwrap(), false).unwrap();
+        assert!(b.width() > 25_000.0, "cópia escalada: {b:?}");
+        assert_eq!(doc.editor.undo_len(), undo0 + 1, "uma transação");
         assert!(cs.menu.is_none(), "GD-BDR-02: sem menu");
     }
 
