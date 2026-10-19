@@ -148,6 +148,8 @@ pub struct App {
     pub(crate) show_right: bool,
     /// Arrasto em rótulo de campo numérico em andamento (transação aberta).
     field_drag: bool,
+    /// Campo de texto com foco já ajustado para desfazer letra a letra.
+    field_focus: Option<egui::Id>,
     /// Tema já enviado para a barra de título do sistema.
     window_theme: Option<egui::ThemePreference>,
     pub(crate) xf: TransformUi,
@@ -265,6 +267,7 @@ impl App {
             ws_saved: Default::default(),
             show_right: true,
             field_drag: false,
+            field_focus: None,
             window_theme: None,
             xf: TransformUi::default(),
             align: AlignUi::default(),
@@ -1279,36 +1282,83 @@ impl App {
     // ---- comandos de edição -------------------------------------------------
 
     fn undo(&mut self) {
-        if let Some(d) = &mut self.doc {
-            if self.canvas.is_dragging() {
-                return;
-            }
-            // Desenho em andamento: desfaz o último nó/ponto, não o documento.
-            if self.canvas.undo_draft(d) {
-                self.status = tr("Desfeito: ponto do desenho", "Undone: drawing point").into();
-                return;
-            }
-            if let Some(n) = d.editor.undo() {
-                self.status = format!("{} {n}", tr("Desfeito:", "Undone:"));
-            }
-            d.prune_selection();
-        }
+        self.history_step(true);
     }
 
     fn redo(&mut self) {
-        if let Some(d) = &mut self.doc {
-            if self.canvas.is_dragging() {
-                return;
-            }
-            if self.canvas.redo_draft(d) {
-                self.status = tr("Refeito: ponto do desenho", "Redone: drawing point").into();
-                return;
-            }
-            if let Some(n) = d.editor.redo() {
-                self.status = format!("{} {n}", tr("Refeito:", "Redone:"));
-            }
-            d.prune_selection();
+        self.history_step(false);
+    }
+
+    /// Desfazer/refazer de tudo (GD-UND-01): primeiro o desenho em andamento
+    /// (nó a nó), depois o documento — inclusive letra a letra durante a
+    /// digitação, sem sair da edição do texto.
+    fn history_step(&mut self, undo: bool) {
+        let Some(d) = &mut self.doc else { return };
+        if self.canvas.is_dragging() || self.field_drag {
+            return;
         }
+        let done = if undo {
+            self.canvas.undo_draft(d)
+        } else {
+            self.canvas.redo_draft(d)
+        };
+        if done {
+            self.status = if undo {
+                tr("Desfeito: ponto do desenho", "Undone: drawing point")
+            } else {
+                tr("Refeito: ponto do desenho", "Redone: drawing point")
+            }
+            .into();
+            return;
+        }
+        // Passo aberto entre quadros (balão de cor do gradiente): fecha antes,
+        // para que o desfazer o alcance.
+        self.canvas.close_stop_popup(d);
+        if d.editor.in_transaction() {
+            d.editor.commit();
+        }
+        let before = self.canvas.text.as_ref().map(|t| t.plain(d));
+        let step = if undo { d.editor.undo() } else { d.editor.redo() };
+        if let Some(n) = step {
+            self.status = if undo {
+                format!("{} {n}", tr("Desfeito:", "Undone:"))
+            } else {
+                format!("{} {n}", tr("Refeito:", "Redone:"))
+            };
+        }
+        if let (Some(before), Some(te)) = (before, &mut self.canvas.text)
+            && !te.after_history(d, &before)
+        {
+            // O texto em edição deixou de existir (criação desfeita).
+            self.canvas.text = None;
+        }
+        d.prune_selection();
+    }
+
+    /// Campos de texto (nomes, buscas, valores digitados): o desfazer próprio
+    /// do campo guarda cada letra, não grupos separados por pausas de 1 s.
+    fn letter_undo_in_fields(&mut self, ctx: &egui::Context) {
+        let focus = ctx.memory(|m| m.focused());
+        if focus == self.field_focus {
+            return;
+        }
+        let Some(id) = focus else {
+            self.field_focus = None;
+            return;
+        };
+        // O estado do campo nasce no quadro em que ele é desenhado com foco.
+        let Some(mut st) = egui::text_edit::TextEditState::load(ctx, id) else {
+            return;
+        };
+        st.set_undoer(egui::util::undoer::Undoer::with_settings(
+            egui::util::undoer::Settings {
+                max_undos: 1000,
+                stable_time: 0.0,
+                auto_save_interval: 0.0,
+            },
+        ));
+        st.store(ctx, id);
+        self.field_focus = Some(id);
     }
 
     fn delete(&mut self) {
@@ -1877,7 +1927,9 @@ impl App {
         if self.canvas.text.is_some()
             && !matches!(
                 c,
-                C::TextAlignLeft
+                C::Undo
+                    | C::Redo
+                    | C::TextAlignLeft
                     | C::TextAlignCenter
                     | C::TextAlignRight
                     | C::TextJustify
@@ -4986,6 +5038,7 @@ impl App {
                 self.field_drag = false;
             }
         }
+        self.letter_undo_in_fields(&ctx);
         self.floating_panels(&ctx);
         self.dialogs(&ctx);
         self.save_workspace(&ctx);
@@ -5004,6 +5057,100 @@ mod tests {
             repeat: false,
             modifiers: mods,
         }
+    }
+
+    /// Ctrl+Z digitando: desfaz uma letra por vez e a edição continua;
+    /// Ctrl+Y devolve.
+    #[test]
+    fn ctrl_z_while_typing_undoes_one_letter() {
+        use graphdraw_core::edit::text::new_text;
+        let ctx = crate::theme::test_ctx();
+        let mut app = App::with_ctx(&ctx, None);
+        let id = {
+            let d = app.doc.as_mut().unwrap();
+            let o = new_text(10_000.0, 10_000.0, None, "Arial", 5_000.0);
+            ops::add_object(&mut d.editor, 0, 0, o, "t")
+        };
+        let d = app.doc.as_mut().unwrap();
+        app.canvas.edit_text(d, id.clone(), None);
+        app.tool = Tool::Text;
+        let send = |app: &mut App, mut events: Vec<egui::Event>| {
+            let m = match events.first() {
+                Some(egui::Event::Key { modifiers, .. }) => *modifiers,
+                _ => egui::Modifiers::NONE,
+            };
+            events.insert(0, egui::Event::ModifiersChanged(m));
+            let mut out = ctx.run_ui(
+                egui::RawInput {
+                    events,
+                    ..Default::default()
+                },
+                |ui| app.shortcuts(ui.ctx()),
+            );
+            out.textures_delta.clear();
+        };
+        let text = |app: &App| {
+            let d = app.doc.as_ref().unwrap();
+            match &d.editor.get(&d.editor.find(&id).unwrap()).unwrap().kind {
+                ObjectKind::Text(t) => graphdraw_core::render::text::plain_text(t),
+                _ => unreachable!(),
+            }
+        };
+        for c in ["a", "b", "c"] {
+            send(&mut app, vec![egui::Event::Text(c.into())]);
+        }
+        assert_eq!(text(&app), "abc");
+        let ctrl = egui::Modifiers::CTRL | egui::Modifiers::COMMAND;
+        send(&mut app, vec![key(Key::Z, ctrl)]);
+        assert_eq!(text(&app), "ab");
+        assert!(app.canvas.text.is_some(), "continua editando");
+        assert_eq!(app.canvas.text.as_ref().unwrap().caret, 2);
+        send(&mut app, vec![key(Key::Z, ctrl)]);
+        assert_eq!(text(&app), "a");
+        send(&mut app, vec![key(Key::Y, ctrl)]);
+        assert_eq!(text(&app), "ab");
+        send(&mut app, vec![egui::Event::Text("x".into())]);
+        assert_eq!(text(&app), "abx");
+    }
+
+    /// Campo de texto de painel: Ctrl+Z desfaz a última letra do campo (não
+    /// o documento, nem um grupo de letras).
+    #[test]
+    fn ctrl_z_in_field_undoes_one_letter() {
+        let ctx = crate::theme::test_ctx();
+        let mut app = App::with_ctx(&ctx, None);
+        let steps = app.doc.as_ref().unwrap().editor.undo_len();
+        let mut buf = String::new();
+        let ctrl = egui::Modifiers::CTRL | egui::Modifiers::COMMAND;
+        let frames: Vec<Vec<egui::Event>> = vec![
+            vec![],
+            vec![egui::Event::Text("a".into())],
+            vec![egui::Event::Text("b".into())],
+            vec![egui::Event::Text("c".into())],
+            vec![],
+            vec![egui::Event::ModifiersChanged(ctrl), key(Key::Z, ctrl)],
+            vec![egui::Event::ModifiersChanged(egui::Modifiers::NONE)],
+        ];
+        for (i, mut events) in frames.into_iter().enumerate() {
+            let mut out = ctx.run_ui(
+                egui::RawInput {
+                    time: Some(i as f64 * 0.1),
+                    events: std::mem::take(&mut events),
+                    ..Default::default()
+                },
+                |ui| {
+                    app.shortcuts(ui.ctx());
+                    let r = ui.add(egui::TextEdit::singleline(&mut buf).id(egui::Id::unique("campo")));
+                    if i == 0 {
+                        r.request_focus();
+                    }
+                    app.letter_undo_in_fields(ui.ctx());
+                },
+            );
+            out.textures_delta.clear();
+        }
+        assert_eq!(buf, "ab");
+        assert_eq!(app.doc.as_ref().unwrap().editor.undo_len(), steps, "documento intocado");
     }
 
     /// GD-CNV-03 / DS 4.4: a janela "Converter em bitmap" cabe em 1366 × 768.

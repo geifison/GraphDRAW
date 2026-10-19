@@ -624,6 +624,27 @@ impl Editor {
         Some(name)
     }
 
+    /// Marca para [`discard_since`](Self::discard_since): o próximo passo a
+    /// entrar na pilha terá este número ou maior.
+    pub fn next_step(&self) -> u64 {
+        self.next_id
+    }
+
+    /// Desfaz e apaga do histórico (sem refazer) os passos desde `mark`:
+    /// sessão que não deixou nada (ex.: texto novo que ficou vazio).
+    pub fn discard_since(&mut self, mark: u64) {
+        if self.depth > 0 {
+            self.cancel();
+        }
+        while self.undo.last().is_some_and(|t| t.id >= mark) {
+            let t = self.undo.pop().unwrap();
+            for c in t.changes.iter().rev() {
+                self.apply_inverse(c);
+            }
+        }
+        self.redo.retain(|t| t.id < mark);
+    }
+
     pub fn can_undo(&self) -> bool {
         !self.undo.is_empty()
     }

@@ -1743,15 +1743,16 @@ impl CanvasState {
 
     /// Texto novo já no caminho `curve`, começando no ponto clicado.
     fn new_text_on_path(&mut self, doc: &mut DocState, at: Point, curve: &str) {
+        // Criar e pôr no caminho: um passo só.
+        doc.editor.begin(tr("Texto em caminho", "Text on path"));
         self.new_text(doc, at, None);
-        let Some(id) = self.text.as_ref().map(|t| t.id.clone()) else {
-            return;
-        };
-        if ops::fit_text_to_path(&mut doc.editor, &id, curve)
+        if let Some(id) = self.text.as_ref().map(|t| t.id.clone())
+            && ops::fit_text_to_path(&mut doc.editor, &id, curve)
             && let Some(s) = path_s_at(doc, &id, at)
         {
             ops::edit_text_path(&mut doc.editor, std::slice::from_ref(&id), |p| p.offset = s);
         }
+        doc.editor.commit();
     }
 
     /// Descarta o retângulo/elipse de 3 pontos pela metade.
@@ -11734,7 +11735,7 @@ mod tests {
         canvas_frame(&ctx, &mut cs, &mut doc, Tool::Text, vec![btn(c, true)]);
         canvas_frame(&ctx, &mut cs, &mut doc, Tool::Text, vec![btn(c, false)]);
         assert!(cs.text.is_some(), "editando");
-        assert!(doc.editor.in_transaction());
+        assert!(!doc.editor.in_transaction(), "cada letra fecha o próprio passo");
         cs.end_text(&mut doc);
         assert!(doc.page().layers[0].objects.is_empty(), "texto vazio sai");
         // Arrastar um quadro de 60 × 30 mm.

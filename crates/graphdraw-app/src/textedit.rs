@@ -1,6 +1,7 @@
 //! Edição de texto no canvas (GD-TXT-01/02): cursor, seleção, digitação,
-//! apagar, setas, parágrafos com Enter. A sessão inteira é um passo do
-//! histórico; texto que fica vazio sai do documento.
+//! apagar, setas, parágrafos com Enter. Cada letra digitada, cada apagar e
+//! cada colar é um passo do histórico; Ctrl+Z desfaz letra por letra sem
+//! sair da edição. Texto novo que fica vazio sai sem deixar rastro.
 
 use eframe::egui::{self, Event, Key, Pos2};
 use graphdraw_core::edit::text as tedit;
@@ -38,6 +39,8 @@ pub struct TextEditing {
     pub anchor: usize,
     /// O objeto foi criado nesta sessão (vazio no fim = desfaz a criação).
     created: bool,
+    /// Primeiro passo do histórico desta sessão (o da criação, se houve).
+    mark: u64,
 }
 
 /// Texto do objeto e matriz local → página.
@@ -55,11 +58,12 @@ fn text_of(doc: &DocState, id: &str) -> Option<(TextData, Affine)> {
 
 impl TextEditing {
     /// Começa a editar o texto `id` com o cursor em `caret`. `created` =
-    /// o objeto acabou de ser inserido numa transação já aberta.
+    /// o objeto acabou de ser inserido numa transação já aberta, que fecha
+    /// aqui como o passo "Criar texto".
     pub fn start(doc: &mut DocState, id: String, caret: usize, created: bool) -> TextEditing {
-        if !created {
-            doc.editor
-                .begin(crate::i18n::tr("Editar texto", "Edit text"));
+        let mark = doc.editor.next_step();
+        if created {
+            doc.editor.commit();
         }
         doc.selection = vec![id.clone()];
         TextEditing {
@@ -67,26 +71,61 @@ impl TextEditing {
             caret,
             anchor: caret,
             created,
+            mark,
         }
     }
 
-    /// Encerra a sessão: um passo no histórico, ou nenhum se nada mudou ou
-    /// se o texto novo ficou vazio.
+    /// Encerra a sessão. Texto novo que ficou vazio some junto com todos os
+    /// passos da sessão; texto antigo esvaziado sai do documento (um passo).
     pub fn finish(self, doc: &mut DocState) {
-        let empty = text_of(doc, &self.id).is_none_or(|(t, _)| tedit::is_empty(&t));
-        if empty && self.created {
-            doc.editor.cancel();
-            doc.selection.clear();
+        let Some((t, _)) = text_of(doc, &self.id) else {
+            // Desfeito até antes da criação: nada a fazer.
+            return;
+        };
+        if !tedit::is_empty(&t) {
             return;
         }
-        if empty && let Some(r) = doc.editor.find(&self.id) {
-            doc.editor.remove_at(&r);
-            doc.selection.clear();
+        if self.created {
+            doc.editor.discard_since(self.mark);
+        } else if let Some(r) = doc.editor.find(&self.id) {
+            doc.editor
+                .transaction(crate::i18n::tr("Excluir texto", "Delete text"), |ed| {
+                    ed.remove_at(&r)
+                });
         }
-        doc.editor.commit();
+        doc.selection.clear();
     }
 
-    fn edit(&self, doc: &mut DocState, f: impl FnOnce(&mut TextData)) {
+    /// Texto corrido atual (base de [`after_history`](Self::after_history)).
+    pub fn plain(&self, doc: &DocState) -> String {
+        text_of(doc, &self.id).map_or_else(String::new, |(t, _)| {
+            graphdraw_core::render::text::plain_text(&t)
+        })
+    }
+
+    /// Depois de desfazer/refazer: o cursor vai para onde o texto mudou.
+    /// `false` se o objeto não existe mais (a edição termina).
+    pub fn after_history(&mut self, doc: &DocState, before: &str) -> bool {
+        if text_of(doc, &self.id).is_none() {
+            return false;
+        }
+        let b: Vec<char> = before.chars().collect();
+        let a: Vec<char> = self.plain(doc).chars().collect();
+        let pre = b.iter().zip(&a).take_while(|(x, y)| x == y).count();
+        let suf = b
+            .iter()
+            .rev()
+            .zip(a.iter().rev())
+            .take(b.len().min(a.len()) - pre)
+            .take_while(|(x, y)| x == y)
+            .count();
+        self.caret = a.len() - suf;
+        self.anchor = self.caret;
+        true
+    }
+
+    /// Cada alteração é um passo próprio do histórico.
+    fn edit(&self, doc: &mut DocState, name: String, f: impl FnOnce(&mut TextData)) {
         let Some(r) = doc.editor.find(&self.id) else {
             return;
         };
@@ -94,8 +133,11 @@ impl TextEditing {
             return;
         };
         if let ObjectKind::Text(t) = &mut o.kind {
+            let before = t.clone();
             f(t);
-            doc.editor.replace_at(&r, o);
+            if *t != before {
+                doc.editor.transaction(name, |ed| ed.replace_at(&r, o));
+            }
         }
     }
 
@@ -106,7 +148,14 @@ impl TextEditing {
     fn insert(&mut self, doc: &mut DocState, s: &str) {
         let (a, b) = self.range();
         let mut at = a;
-        self.edit(doc, |t| {
+        let name = match s {
+            "\n" => crate::i18n::tr("Nova linha", "New line").to_string(),
+            s if s.chars().count() == 1 => {
+                format!("{} \u{201c}{s}\u{201d}", crate::i18n::tr("Digitar", "Type"))
+            }
+            _ => crate::i18n::tr("Inserir texto", "Insert text").to_string(),
+        };
+        self.edit(doc, name, |t| {
             tedit::delete(t, a, b);
             at = tedit::insert(t, a, s);
         });
@@ -126,7 +175,12 @@ impl TextEditing {
         let events = ctx.input(|i| i.events.clone());
         for e in events {
             match e {
-                Event::Text(s) => self.insert(doc, &s),
+                // Letra por letra: cada caractere é um passo de desfazer.
+                Event::Text(s) => {
+                    for c in s.chars() {
+                        self.insert(doc, c.encode_utf8(&mut [0; 4]));
+                    }
+                }
                 Event::Paste(s) => self.insert(doc, &s.replace("\r\n", "\n")),
                 Event::Key {
                     key,
@@ -152,14 +206,14 @@ impl TextEditing {
                             } else {
                                 (a, b)
                             };
-                            self.edit(doc, |t| tedit::delete(t, a, b));
+                            self.edit(doc, crate::i18n::tr("Apagar", "Delete").into(), |t| tedit::delete(t, a, b));
                             self.caret = a;
                             self.anchor = a;
                         }
                         Key::Delete => {
                             let (a, b) = self.range();
                             let (a, b) = if a == b { (a, (b + 1).min(n)) } else { (a, b) };
-                            self.edit(doc, |t| tedit::delete(t, a, b));
+                            self.edit(doc, crate::i18n::tr("Apagar", "Delete").into(), |t| tedit::delete(t, a, b));
                             self.caret = a;
                             self.anchor = a;
                         }
@@ -374,12 +428,7 @@ mod tests {
             .unwrap_or_default()
     }
 
-    /// Digitar, Enter, apagar e selecionar com Shift; a sessão é um passo
-    /// do histórico e texto novo vazio não fica no documento.
-    #[test]
-    fn typing_session_is_one_undo_step() {
-        let ctx = crate::theme::test_ctx();
-        let mut doc = DocState::new_blank();
+    fn new_obj(doc: &mut DocState) -> String {
         let o = tedit::new_text(10_000.0, 100_000.0, None, "Arial", tedit::DEFAULT_SIZE);
         let id = o.id.clone();
         doc.editor.begin("Criar texto");
@@ -391,7 +440,18 @@ mod tests {
             },
             o,
         );
+        id
+    }
+
+    /// Digitar, Enter, apagar e selecionar com Shift; cada letra é um passo
+    /// do histórico e texto novo vazio não fica no documento.
+    #[test]
+    fn typing_is_undone_letter_by_letter() {
+        let ctx = crate::theme::test_ctx();
+        let mut doc = DocState::new_blank();
+        let id = new_obj(&mut doc);
         let mut ed = TextEditing::start(&mut doc, id.clone(), 0, true);
+        assert!(!doc.editor.in_transaction(), "nada fica aberto durante a digitação");
         run(
             &ctx,
             &mut ed,
@@ -403,6 +463,8 @@ mod tests {
             ],
         );
         assert_eq!(plain(&doc, &id), "Oi\nmundo");
+        // Criar + O + i + Enter + m,u,n,d,o.
+        assert_eq!(doc.editor.undo_len(), 9);
         run(
             &ctx,
             &mut ed,
@@ -416,28 +478,52 @@ mod tests {
         assert_eq!((ed.caret, ed.anchor), (5, 7));
         run(&ctx, &mut ed, &mut doc, vec![Event::Text("X".into())]);
         assert_eq!(plain(&doc, &id), "Oi\nmuX");
+        // Desfazer durante a edição: uma letra/ação por vez, cursor no lugar.
+        let before = ed.plain(&doc);
+        doc.editor.undo();
+        assert!(ed.after_history(&doc, &before));
+        assert_eq!(plain(&doc, &id), "Oi\nmund");
+        assert_eq!(ed.caret, 7, "cursor depois do trecho devolvido");
+        let before = ed.plain(&doc);
+        doc.editor.undo();
+        assert!(ed.after_history(&doc, &before));
+        assert_eq!(plain(&doc, &id), "Oi\nmundo");
+        assert_eq!(ed.caret, 8);
+        let before = ed.plain(&doc);
+        doc.editor.undo();
+        assert!(ed.after_history(&doc, &before));
+        assert_eq!(plain(&doc, &id), "Oi\nmund");
+        let before = ed.plain(&doc);
+        doc.editor.redo();
+        assert!(ed.after_history(&doc, &before));
+        assert_eq!(plain(&doc, &id), "Oi\nmundo");
+        // Backspace sem nada para apagar não vira passo.
+        let n = doc.editor.undo_len();
+        ed.caret = 0;
+        ed.anchor = 0;
+        run(&ctx, &mut ed, &mut doc, vec![key(Key::Backspace, false)]);
+        assert_eq!(doc.editor.undo_len(), n);
         assert!(!run(&ctx, &mut ed, &mut doc, vec![key(Key::Escape, false)]));
         ed.finish(&mut doc);
         assert_eq!(doc.page().layers[0].objects.len(), 1);
-        doc.editor.undo();
-        assert!(
-            doc.page().layers[0].objects.is_empty(),
-            "um passo: criar e digitar"
-        );
-        // Texto novo deixado vazio não entra no histórico.
-        let o = tedit::new_text(0.0, 0.0, None, "Arial", tedit::DEFAULT_SIZE);
-        let id = o.id.clone();
-        doc.editor.begin("Criar texto");
-        doc.editor.insert_object(
-            ObjLoc {
-                page: 0,
-                layer: 0,
-                index: 0,
-            },
-            o,
-        );
-        TextEditing::start(&mut doc, id, 0, true).finish(&mut doc);
+        doc.editor.goto(0);
         assert!(doc.page().layers[0].objects.is_empty());
+        doc.editor.goto(doc.editor.history().len());
+        // Texto novo deixado vazio (mesmo depois de digitar e apagar) não
+        // deixa rastro no histórico.
+        let steps = doc.editor.undo_len();
+        let id = new_obj(&mut doc);
+        let mut ed = TextEditing::start(&mut doc, id, 0, true);
+        run(
+            &ctx,
+            &mut ed,
+            &mut doc,
+            vec![Event::Text("ab".into()), key(Key::Backspace, false), key(Key::Backspace, false)],
+        );
+        ed.finish(&mut doc);
+        assert_eq!(doc.page().layers[0].objects.len(), 1);
+        assert_eq!(doc.editor.undo_len(), steps);
+        assert!(!doc.editor.can_redo());
         assert!(!doc.editor.in_transaction());
     }
 }

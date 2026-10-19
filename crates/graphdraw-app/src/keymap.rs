@@ -125,8 +125,8 @@ commands! {
     NextDoc = "doc.next", "Próximo documento", "Next document", Pages, Always, true;
     PrevDoc = "doc.prev", "Documento anterior", "Previous document", Pages, Always, true;
 
-    Undo = "edit.undo", "Desfazer", "Undo", Edit, NotText, true;
-    Redo = "edit.redo", "Refazer", "Redo", Edit, NotText, true;
+    Undo = "edit.undo", "Desfazer", "Undo", Edit, Always, true;
+    Redo = "edit.redo", "Refazer", "Redo", Edit, Always, true;
     Copy = "edit.copy", "Copiar", "Copy", Edit, Selection, true;
     Cut = "edit.cut", "Recortar", "Cut", Edit, Selection, true;
     Paste = "edit.paste", "Colar", "Paste", Edit, NotText, true;
@@ -708,6 +708,11 @@ impl Keymap {
                 continue;
             }
             if typing && !b.chord.ctrl && !b.chord.alt {
+                continue;
+            }
+            // Digitando num campo: Ctrl+Z/Ctrl+Y desfazem a digitação do
+            // próprio campo, não o documento.
+            if typing && matches!(b.command, Command::Undo | Command::Redo) {
                 continue;
             }
             let m = b.chord.modifiers();
