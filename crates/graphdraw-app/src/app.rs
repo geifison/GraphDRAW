@@ -673,6 +673,16 @@ impl App {
         d.is_some_and(|d| d.editor.is_modified())
     }
 
+    /// Salvar: há alterações e ao menos um objeto no documento.
+    fn can_save(&self) -> bool {
+        self.doc.as_ref().is_some_and(|d| d.editor.is_modified() && has_objects(d))
+    }
+
+    /// Salvar como: o documento tem ao menos um objeto.
+    fn can_save_as(&self) -> bool {
+        self.doc.as_ref().is_some_and(has_objects)
+    }
+
     // ---- abas de documento --------------------------------------------------
 
     /// Troca o documento ativo.
@@ -1840,12 +1850,14 @@ impl App {
             C::New => self.request(Pending::New, ctx),
             C::Open => self.request(Pending::Open(None), ctx),
             C::Save => {
-                if self.doc.as_ref().is_some_and(|d| d.editor.is_modified()) {
+                if self.can_save() {
                     self.save(false);
                 }
             }
             C::SaveAs => {
-                self.save(true);
+                if self.can_save_as() {
+                    self.save(true);
+                }
             }
             C::Import => self.import(),
             C::Export => {
@@ -2458,7 +2470,8 @@ impl App {
         let ctx = ui.ctx().clone();
         let has = self.doc.is_some();
         let has_sel = self.doc.as_ref().is_some_and(|d| !d.selection.is_empty());
-        let can_save = self.doc.as_ref().is_some_and(|d| d.editor.is_modified());
+        let can_save = self.can_save();
+        let can_save_as = self.can_save_as();
         let can_undo = self.doc.as_ref().is_some_and(|d| d.editor.can_undo());
         let can_redo = self.doc.as_ref().is_some_and(|d| d.editor.can_redo());
         egui::MenuBar::new().ui(ui, |ui| {
@@ -2491,7 +2504,7 @@ impl App {
                 }
                 if ui
                     .add_enabled(
-                        has,
+                        can_save_as,
                         crate::keymap::item(ui, tr("Salvar como…", "Save as…"),
                             crate::keymap::Command::SaveAs,),
                     )
@@ -3304,7 +3317,7 @@ impl App {
     fn standard_toolbar(&mut self, ui: &mut egui::Ui) {
         let ctx = ui.ctx().clone();
         let has = self.doc.is_some();
-        let can_save = self.doc.as_ref().is_some_and(|d| d.editor.is_modified());
+        let can_save = self.can_save();
         let can_undo = self.doc.as_ref().is_some_and(|d| d.editor.can_undo());
         let can_redo = self.doc.as_ref().is_some_and(|d| d.editor.can_redo());
         ui.horizontal(|ui| {
@@ -4588,6 +4601,11 @@ impl App {
     }
 }
 
+/// Alguma página do documento tem objeto? Sem objeto não há o que salvar.
+fn has_objects(d: &DocState) -> bool {
+    d.doc().data.pages.iter().any(|p| p.object_count() > 0)
+}
+
 /// Posição do cursor na barra de status em largura fixa: fonte numérica,
 /// sempre duas casas e cada número alinhado à direita numa célula do tamanho
 /// de "-0000,00". Assim o resto da barra não treme quando o mouse anda, nem
@@ -4943,6 +4961,27 @@ mod tests {
         );
         assert!(!app.doc.as_ref().unwrap().editor.is_modified());
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn save_needs_changes_and_objects() {
+        let ctx = crate::theme::test_ctx();
+        let mut app = App::with_ctx(&ctx, None);
+        app.doc = Some(DocState::new_blank());
+        assert!(!app.can_save() && !app.can_save_as(), "vazio: nada a salvar");
+        let o = graphdraw_core::model::Object::new(ObjectKind::Rectangle(
+            graphdraw_core::model::RectData {
+                width: 10_000.0,
+                height: 10_000.0,
+                corners: None,
+                extra: Default::default(),
+            },
+        ));
+        ops::add_object(&mut app.doc.as_mut().unwrap().editor, 0, 0, o, "r");
+        assert!(app.can_save() && app.can_save_as());
+        app.doc.as_mut().unwrap().editor.mark_saved();
+        assert!(!app.can_save(), "sem alterações");
+        assert!(app.can_save_as());
     }
 
     #[test]
