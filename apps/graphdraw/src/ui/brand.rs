@@ -15,7 +15,7 @@ pub const TAGLINE: Color32 = Color32::from_rgb(0xC9, 0xD7, 0xEC);
 #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 pub const FOOTNOTE: Color32 = Color32::from_rgb(0x8F, 0xA3, 0xC0);
 
-/// The 128 px application icon, decoded once per session.
+/// The 256 px application icon, decoded once per session.
 pub fn icon(ctx: &Context) -> Option<TextureHandle> {
     let id = egui::Id::new("brand_icon_texture");
     if let Some(t) = ctx.data(|d| d.get_temp::<TextureHandle>(id)) {
@@ -27,15 +27,26 @@ pub fn icon(ctx: &Context) -> Option<TextureHandle> {
     Some(tex)
 }
 
-/// The embedded 128 px icon as an egui image.
+/// The embedded 256 px icon as an egui image.
 pub(crate) fn icon_image() -> Option<egui::ColorImage> {
-    let bytes = include_bytes!("../../../../assets/icon/graphdraw-128.png");
+    let bytes = include_bytes!("../../../../assets/brand/app-256.png");
     let img = image::load_from_memory(bytes).ok()?.to_rgba8();
     let (w, h) = (img.width() as usize, img.height() as usize);
     Some(egui::ColorImage::from_rgba_unmultiplied(
         [w, h],
         img.as_raw(),
     ))
+}
+
+/// The window (title bar and task bar) icon.
+pub fn window_icon() -> Option<egui::IconData> {
+    let bytes = include_bytes!("../../../../assets/brand/app-256.png");
+    let img = image::load_from_memory(bytes).ok()?.to_rgba8();
+    Some(egui::IconData {
+        width: img.width(),
+        height: img.height(),
+        rgba: img.into_raw(),
+    })
 }
 
 /// Paint the icon texture into `rect`.
@@ -181,7 +192,7 @@ mod tests {
     #[test]
     fn the_embedded_icon_decodes() {
         let img = icon_image().expect("icon decodes");
-        assert_eq!(img.size, [128, 128]);
+        assert_eq!(img.size, [256, 256]);
     }
 
     #[test]

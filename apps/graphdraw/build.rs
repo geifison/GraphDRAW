@@ -2,10 +2,10 @@
 // the fonts bundled into the browser build.
 fn main() {
     web_fonts();
-    println!("cargo:rerun-if-changed=../../assets/icon/graphdraw.ico");
+    println!("cargo:rerun-if-changed=../../assets/brand/app.ico");
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
         let mut res = winresource::WindowsResource::new();
-        res.set_icon("../../assets/icon/graphdraw.ico");
+        res.set_icon("../../assets/brand/app.ico");
         res.set("ProductName", "GraphDraw");
         res.set("FileDescription", "GraphDraw vector editor");
         res.set("CompanyName", "GraphDraw");
