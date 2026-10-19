@@ -683,7 +683,9 @@ impl App {
 
     /// Salvar: há alterações e ao menos um objeto no documento.
     fn can_save(&self) -> bool {
-        self.doc.as_ref().is_some_and(|d| d.editor.is_modified() && has_objects(d))
+        self.doc
+            .as_ref()
+            .is_some_and(|d| d.editor.is_modified() && has_objects(d))
     }
 
     /// Salvar como: o documento tem ao menos um objeto.
@@ -1318,7 +1320,11 @@ impl App {
             d.editor.commit();
         }
         let before = self.canvas.text.as_ref().map(|t| t.plain(d));
-        let step = if undo { d.editor.undo() } else { d.editor.redo() };
+        let step = if undo {
+            d.editor.undo()
+        } else {
+            d.editor.redo()
+        };
         if let Some(n) = step {
             self.status = if undo {
                 format!("{} {n}", tr("Desfeito:", "Undone:"))
@@ -2646,10 +2652,10 @@ impl App {
         let has_sel = self.doc.as_ref().is_some_and(|d| !d.selection.is_empty());
         let can_save = self.can_save();
         let can_save_as = self.can_save_as();
-        let can_undo = self.canvas.can_undo_draft()
-            || self.doc.as_ref().is_some_and(|d| d.editor.can_undo());
-        let can_redo = self.canvas.can_redo_draft()
-            || self.doc.as_ref().is_some_and(|d| d.editor.can_redo());
+        let can_undo =
+            self.canvas.can_undo_draft() || self.doc.as_ref().is_some_and(|d| d.editor.can_undo());
+        let can_redo =
+            self.canvas.can_redo_draft() || self.doc.as_ref().is_some_and(|d| d.editor.can_redo());
         egui::MenuBar::new().ui(ui, |ui| {
             ui.menu_button(tr("Arquivo", "File"), |ui| {
                 theme::menu_density(ui);
@@ -3513,10 +3519,10 @@ impl App {
         let ctx = ui.ctx().clone();
         let has = self.doc.is_some();
         let can_save = self.can_save();
-        let can_undo = self.canvas.can_undo_draft()
-            || self.doc.as_ref().is_some_and(|d| d.editor.can_undo());
-        let can_redo = self.canvas.can_redo_draft()
-            || self.doc.as_ref().is_some_and(|d| d.editor.can_redo());
+        let can_undo =
+            self.canvas.can_undo_draft() || self.doc.as_ref().is_some_and(|d| d.editor.can_undo());
+        let can_redo =
+            self.canvas.can_redo_draft() || self.doc.as_ref().is_some_and(|d| d.editor.can_redo());
         ui.horizontal(|ui| {
             if icons::button(
                 ui,
@@ -5148,7 +5154,8 @@ mod tests {
                 },
                 |ui| {
                     app.shortcuts(ui.ctx());
-                    let r = ui.add(egui::TextEdit::singleline(&mut buf).id(egui::Id::unique("campo")));
+                    let r =
+                        ui.add(egui::TextEdit::singleline(&mut buf).id(egui::Id::unique("campo")));
                     if i == 0 {
                         r.request_focus();
                     }
@@ -5158,7 +5165,11 @@ mod tests {
             out.textures_delta.clear();
         }
         assert_eq!(buf, "ab");
-        assert_eq!(app.doc.as_ref().unwrap().editor.undo_len(), steps, "documento intocado");
+        assert_eq!(
+            app.doc.as_ref().unwrap().editor.undo_len(),
+            steps,
+            "documento intocado"
+        );
     }
 
     /// GD-CNV-03 / DS 4.4: a janela "Converter em bitmap" cabe em 1366 × 768.
@@ -5270,7 +5281,10 @@ mod tests {
         let ctx = crate::theme::test_ctx();
         let mut app = App::with_ctx(&ctx, None);
         app.doc = Some(DocState::new_blank());
-        assert!(!app.can_save() && !app.can_save_as(), "vazio: nada a salvar");
+        assert!(
+            !app.can_save() && !app.can_save_as(),
+            "vazio: nada a salvar"
+        );
         let o = graphdraw_core::model::Object::new(ObjectKind::Rectangle(
             graphdraw_core::model::RectData {
                 width: 10_000.0,

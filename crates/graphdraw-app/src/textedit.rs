@@ -206,14 +206,18 @@ impl TextEditing {
                             } else {
                                 (a, b)
                             };
-                            self.edit(doc, crate::i18n::tr("Apagar", "Delete").into(), |t| tedit::delete(t, a, b));
+                            self.edit(doc, crate::i18n::tr("Apagar", "Delete").into(), |t| {
+                                tedit::delete(t, a, b)
+                            });
                             self.caret = a;
                             self.anchor = a;
                         }
                         Key::Delete => {
                             let (a, b) = self.range();
                             let (a, b) = if a == b { (a, (b + 1).min(n)) } else { (a, b) };
-                            self.edit(doc, crate::i18n::tr("Apagar", "Delete").into(), |t| tedit::delete(t, a, b));
+                            self.edit(doc, crate::i18n::tr("Apagar", "Delete").into(), |t| {
+                                tedit::delete(t, a, b)
+                            });
                             self.caret = a;
                             self.anchor = a;
                         }
@@ -451,7 +455,10 @@ mod tests {
         let mut doc = DocState::new_blank();
         let id = new_obj(&mut doc);
         let mut ed = TextEditing::start(&mut doc, id.clone(), 0, true);
-        assert!(!doc.editor.in_transaction(), "nada fica aberto durante a digitação");
+        assert!(
+            !doc.editor.in_transaction(),
+            "nada fica aberto durante a digitação"
+        );
         run(
             &ctx,
             &mut ed,
@@ -518,7 +525,11 @@ mod tests {
             &ctx,
             &mut ed,
             &mut doc,
-            vec![Event::Text("ab".into()), key(Key::Backspace, false), key(Key::Backspace, false)],
+            vec![
+                Event::Text("ab".into()),
+                key(Key::Backspace, false),
+                key(Key::Backspace, false),
+            ],
         );
         ed.finish(&mut doc);
         assert_eq!(doc.page().layers[0].objects.len(), 1);

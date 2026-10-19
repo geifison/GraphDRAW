@@ -2175,9 +2175,7 @@ impl CanvasState {
     fn right_during_left(&mut self, doc: &mut DocState, ev: &mut CanvasEvents) {
         let (originals, name) = match &mut self.drag {
             Drag::Move { originals, .. } => (originals, tr("Mover cópia", "Move copy")),
-            Drag::Scale { originals, .. } => {
-                (originals, tr("Redimensionar cópia", "Resize copy"))
-            }
+            Drag::Scale { originals, .. } => (originals, tr("Redimensionar cópia", "Resize copy")),
             Drag::Rotate { originals, .. } => (originals, tr("Girar cópia", "Rotate copy")),
             Drag::Skew { originals, .. } => (originals, tr("Inclinar cópia", "Skew copy")),
             Drag::FreeXf { originals, .. } => (
@@ -2211,7 +2209,8 @@ impl CanvasState {
         }
         doc.selection = copies.iter().map(|(_, o)| o.id.clone()).collect();
         *originals = copies;
-        doc.editor.rename_open(format!("{} {}", name, count(doc.selection.len())));
+        doc.editor
+            .rename_open(format!("{} {}", name, count(doc.selection.len())));
         ev.status = Some(
             tr(
                 "Cópia: o original voltou ao lugar",
@@ -12189,7 +12188,10 @@ mod tests {
             vec![button(to, PointerButton::Primary, false)],
         );
         let b = ops::object_bounds(&doc.editor, &doc.editor.find(&id).unwrap(), false).unwrap();
-        assert!((b.width() - 20_000.0).abs() < 1e-6, "original voltou: {b:?}");
+        assert!(
+            (b.width() - 20_000.0).abs() < 1e-6,
+            "original voltou: {b:?}"
+        );
         assert_eq!(doc.page().layers[0].objects.len(), 2, "original + cópia");
         let copy = doc.selection[0].clone();
         assert_ne!(copy, id);
@@ -12509,7 +12511,10 @@ mod tests {
         canvas_frame(&ctx, &mut cs, &mut doc, Tool::Text, vec![btn(c, true)]);
         canvas_frame(&ctx, &mut cs, &mut doc, Tool::Text, vec![btn(c, false)]);
         assert!(cs.text.is_some(), "editando");
-        assert!(!doc.editor.in_transaction(), "cada letra fecha o próprio passo");
+        assert!(
+            !doc.editor.in_transaction(),
+            "cada letra fecha o próprio passo"
+        );
         cs.end_text(&mut doc);
         assert!(doc.page().layers[0].objects.is_empty(), "texto vazio sai");
         // Arrastar um quadro de 60 × 30 mm.
