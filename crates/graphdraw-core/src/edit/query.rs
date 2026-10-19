@@ -338,6 +338,182 @@ pub fn objects_in_lasso(page: &Page, lasso: &[Point]) -> Vec<Hit> {
         .collect()
 }
 
+/// Contorno achatado em polilinhas (uma por subcaminho), em coordenadas da
+/// página. Sem contorno, usa a borda da caixa.
+fn outline_polylines(o: &Object, parent: Affine, out: &mut Vec<Vec<Point>>) {
+    let m = parent * o.transform.affine();
+    if let ObjectKind::Group(g) = &o.kind {
+        for c in &g.children {
+            outline_polylines(c, m, out);
+        }
+        return;
+    }
+    match local_outline(o).filter(|p| !p.elements().is_empty()) {
+        Some(mut path) => {
+            path.apply_affine(m);
+            let tol = (path.bounding_box().size().max_side() / 200.0).max(1e-3);
+            kurbo::flatten(path, tol, |el| match el {
+                kurbo::PathEl::MoveTo(q) => out.push(vec![q]),
+                kurbo::PathEl::LineTo(q) => match out.last_mut() {
+                    Some(l) => l.push(q),
+                    None => out.push(vec![q]),
+                },
+                kurbo::PathEl::ClosePath => {
+                    if let Some(l) = out.last_mut()
+                        && let Some(&f) = l.first()
+                    {
+                        l.push(f);
+                    }
+                }
+                _ => {}
+            });
+        }
+        None => {
+            if let Some(b) = bounds(o, parent, false) {
+                out.push(vec![
+                    Point::new(b.x0, b.y0),
+                    Point::new(b.x1, b.y0),
+                    Point::new(b.x1, b.y1),
+                    Point::new(b.x0, b.y1),
+                    Point::new(b.x0, b.y0),
+                ]);
+            }
+        }
+    }
+}
+
+/// Os segmentos `a-b` e `c-d` se cruzam (ou se tocam)?
+fn segments_cross(a: Point, b: Point, c: Point, d: Point) -> bool {
+    let orient = |p: Point, q: Point, r: Point| (q - p).cross(r - p);
+    let (o1, o2) = (orient(a, b, c), orient(a, b, d));
+    let (o3, o4) = (orient(c, d, a), orient(c, d, b));
+    if o1 * o2 < 0.0 && o3 * o4 < 0.0 {
+        return true;
+    }
+    let on = |p: Point, q: Point, r: Point, o: f64| {
+        o == 0.0
+            && r.x >= p.x.min(q.x)
+            && r.x <= p.x.max(q.x)
+            && r.y >= p.y.min(q.y)
+            && r.y <= p.y.max(q.y)
+    };
+    on(a, b, c, o1) || on(a, b, d, o2) || on(c, d, a, o3) || on(c, d, b, o4)
+}
+
+/// O objeto toca a região fechada `region` (polígono na página, com a caixa
+/// `area`)? Toca quando algum ponto do contorno cai dentro, quando o contorno
+/// cruza a borda da região, ou quando a região inteira fica dentro do
+/// preenchimento do objeto.
+fn touches_region(o: &Object, region: &[Point], area: Rect) -> bool {
+    let Some(b) = bounds(o, Affine::IDENTITY, false) else {
+        return false;
+    };
+    // Caixas separadas (linhas retas têm caixa de área zero: compara bordas).
+    if b.x1 < area.x0 || b.x0 > area.x1 || b.y1 < area.y0 || b.y0 > area.y1 {
+        return false;
+    }
+    let mut poly = BezPath::new();
+    poly.move_to(region[0]);
+    for q in &region[1..] {
+        poly.line_to(*q);
+    }
+    poly.close_path();
+    let mut lines = Vec::new();
+    outline_polylines(o, Affine::IDENTITY, &mut lines);
+    let edges: Vec<(Point, Point)> = region
+        .iter()
+        .zip(region.iter().cycle().skip(1))
+        .map(|(a, b)| (*a, *b))
+        .collect();
+    for l in &lines {
+        if l.iter().any(|q| poly.contains(*q)) {
+            return true;
+        }
+        for w in l.windows(2) {
+            if edges
+                .iter()
+                .any(|(c, d)| segments_cross(w[0], w[1], *c, *d))
+            {
+                return true;
+            }
+        }
+    }
+    // Região inteira dentro do objeto (ex.: retângulo pequeno sobre um
+    // retângulo preenchido grande).
+    hits(o, Affine::IDENTITY, region[0], 0.0)
+}
+
+/// Seleção por toque (GD-SLT-04, Alt + arrastar): objetos que cruzam o
+/// retângulo ou ficam dentro dele.
+pub fn objects_touching_rect(page: &Page, r: Rect) -> Vec<Hit> {
+    let region = [
+        Point::new(r.x0, r.y0),
+        Point::new(r.x1, r.y0),
+        Point::new(r.x1, r.y1),
+        Point::new(r.x0, r.y1),
+    ];
+    selectable(page)
+        .into_iter()
+        .filter(|h| touches_region(&page.layers[h.layer].objects[h.index], &region, r))
+        .collect()
+}
+
+/// Laço por toque (GD-SLT-04, Ctrl + Alt + arrastar): objetos que cruzam o
+/// laço ou ficam dentro dele.
+pub fn objects_touching_lasso(page: &Page, lasso: &[Point]) -> Vec<Hit> {
+    if lasso.len() < 3 {
+        return Vec::new();
+    }
+    let area = lasso
+        .iter()
+        .fold(Rect::from_points(lasso[0], lasso[0]), |a, q| a.union_pt(*q));
+    selectable(page)
+        .into_iter()
+        .filter(|h| touches_region(&page.layers[h.layer].objects[h.index], lasso, area))
+        .collect()
+}
+
+/// Pilha sob o ponto, da frente para o fundo (GD-SLT-07, Alt+clique pega o
+/// de baixo). Sem `deep`, os objetos de primeiro nível; com, os objetos de
+/// dentro dos grupos (GD-SEL-02). Devolve os IDs.
+pub fn stack_at(page: &Page, p: Point, tol: f64, deep: bool) -> Vec<String> {
+    fn leaves(o: &Object, parent: Affine, p: Point, tol: f64, out: &mut Vec<String>) {
+        if !o.visible || o.locked {
+            return;
+        }
+        match &o.kind {
+            ObjectKind::Group(g) if g.boolean.is_none() && g.effect.is_none() => {
+                let m = parent * o.transform.affine();
+                for c in g.children.iter().rev() {
+                    leaves(c, m, p, tol, out);
+                }
+            }
+            _ => {
+                if hits(o, parent, p, tol) {
+                    out.push(o.id.clone());
+                }
+            }
+        }
+    }
+    let mut out = Vec::new();
+    for layer in page.layers.iter().rev() {
+        if !layer.visible || layer.locked {
+            continue;
+        }
+        for o in layer.objects.iter().rev() {
+            if o.locked || !o.visible {
+                continue;
+            }
+            if deep {
+                leaves(o, Affine::IDENTITY, p, tol, &mut out);
+            } else if hits(o, Affine::IDENTITY, p, tol) {
+                out.push(o.id.clone());
+            }
+        }
+    }
+    out
+}
+
 /// Critério de "selecionar semelhantes" (GD-SEL-03).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Similar {
@@ -566,6 +742,59 @@ mod tests {
             Point::new(5.0, 30.0),
         ];
         assert!(objects_in_lasso(&page, &small).is_empty());
+    }
+
+    /// GD-SLT-04: o retângulo comum só pega o objeto inteiro dentro; por
+    /// toque pega o que cruza a borda, o que fica dentro e o objeto que
+    /// contém o retângulo inteiro; o que está longe fica fora.
+    #[test]
+    fn gd_slt_04_touch_rect_and_lasso() {
+        let mut page = Page::new(200.0, 200.0);
+        let half = rect(0.0, 0.0, 20.0, 20.0); // metade dentro de r
+        let inside = rect(30.0, 5.0, 5.0, 5.0);
+        let far = rect(150.0, 150.0, 10.0, 10.0);
+        let big = rect(60.0, 0.0, 80.0, 80.0); // contém r2
+        page.layers[0].objects = vec![half, inside, far, big];
+        let r = Rect::new(10.0, 0.0, 50.0, 20.0);
+        let idx = |v: Vec<Hit>| v.into_iter().map(|h| h.index).collect::<Vec<_>>();
+        assert_eq!(idx(objects_in_rect(&page, r)), vec![1]);
+        assert_eq!(idx(objects_touching_rect(&page, r)), vec![0, 1]);
+        let r2 = Rect::new(90.0, 30.0, 100.0, 40.0);
+        assert!(objects_in_rect(&page, r2).is_empty());
+        assert_eq!(idx(objects_touching_rect(&page, r2)), vec![3]);
+        // Laço triangular que corta só a ponta do primeiro.
+        let tri = [
+            Point::new(15.0, -5.0),
+            Point::new(40.0, -5.0),
+            Point::new(15.0, 30.0),
+        ];
+        assert_eq!(idx(objects_touching_lasso(&page, &tri)), vec![0, 1]);
+        assert!(objects_in_lasso(&page, &tri).is_empty());
+    }
+
+    /// GD-SLT-07: a pilha sob o ponto vem da frente para o fundo; com
+    /// `deep`, entra nos grupos.
+    #[test]
+    fn gd_slt_07_stack_front_to_back() {
+        let mut page = Page::new(100.0, 100.0);
+        let a = rect(0.0, 0.0, 30.0, 30.0);
+        let b = rect(10.0, 10.0, 30.0, 30.0);
+        let inner = rect(15.0, 15.0, 5.0, 5.0);
+        let g = Object::new(ObjectKind::Group(GroupData {
+            children: vec![inner.clone()],
+            boolean: None,
+            symmetry: None,
+            effect: None,
+            symbol: None,
+            extra: Map::new(),
+        }));
+        page.layers[0].objects = vec![a.clone(), b.clone(), g.clone()];
+        let p = Point::new(17.0, 17.0);
+        assert_eq!(
+            stack_at(&page, p, 0.1, false),
+            vec![g.id, b.id.clone(), a.id.clone()]
+        );
+        assert_eq!(stack_at(&page, p, 0.1, true), vec![inner.id, b.id, a.id]);
     }
 
     #[test]

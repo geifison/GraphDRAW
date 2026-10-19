@@ -2409,6 +2409,24 @@ mod tests {
         assert_eq!(order(&ed, 1), vec![1]);
     }
 
+    /// GD-SLT-10: com vãos desiguais e a seleção fora de ordem, os objetos
+    /// de menor e maior X ficam parados e todos os vãos ficam iguais a
+    /// (extensão − soma das larguras) / (n − 1).
+    #[test]
+    fn gd_slt_10_equal_gaps_keep_extremes() {
+        // setup(): x = 10 (w 10), 50 (w 20), 100 (w 30); extensão 10..130.
+        let (mut ed, ids) = setup();
+        translate(&mut ed, &ids[1..2], Vec2::new(-30.0, 0.0)); // 20..40
+        let scrambled = vec![ids[2].clone(), ids[0].clone(), ids[1].clone()];
+        distribute(&mut ed, &scrambled, Distribute::SpaceH, None, None, false);
+        let bx: Vec<Rect> = ids.iter().map(|i| b(&ed, i)).collect();
+        assert_eq!(bx[0].x0, 10.0, "menor X parado");
+        assert_eq!(bx[2].x1, 130.0, "maior X parado");
+        let gap = (120.0 - 60.0) / 2.0;
+        assert!((bx[1].x0 - bx[0].x1 - gap).abs() < 1e-9);
+        assert!((bx[2].x0 - bx[1].x1 - gap).abs() < 1e-9);
+    }
+
     /// GD-ALI-03: distribuir por bordas, centros, vãos iguais e espaçamento
     /// fixo, na extensão da seleção ou da página.
     #[test]

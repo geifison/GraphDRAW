@@ -43,6 +43,11 @@ pub const SPACING_TICK: f32 = 4.0;
 /// Sobreposições de seleção sobre a arte (5.1).
 pub const SELECTION_OBJECT: Color32 = Color32::from_rgba_unmultiplied_const(0x63, 0x66, 0xF1, 110);
 pub const SELECTION_FILL: Color32 = Color32::from_rgba_unmultiplied_const(0x63, 0x66, 0xF1, 26);
+/// Pré-seleção (GD-SLT-01): contorno do objeto sob o cursor, acento a 30%.
+pub const SELECTION_HOVER: Color32 = Color32::from_rgba_unmultiplied_const(0x63, 0x66, 0xF1, 77);
+/// Seleção por toque (GD-SLT-04): fundo do retângulo/laço, verde a 10%.
+pub const SELECTION_TOUCH_FILL: Color32 =
+    Color32::from_rgba_unmultiplied_const(0x10, 0xB9, 0x81, 26);
 pub const GRID_LINE: Color32 = Color32::from_rgba_unmultiplied_const(0x63, 0x66, 0xF1, 40);
 /// Grade em pontos (GD-GRD-01): raio e cor.
 pub const GRID_DOT: f32 = 1.0;
@@ -439,6 +444,24 @@ pub const SNAP_MARK: f32 = 6.0;
 /// Centro de rotação: círculo e braços da mira.
 pub const ROTATION_CENTER: f32 = 6.0;
 pub const ROTATION_CENTER_ARM: f32 = 9.0;
+/// Pivô do estado 2 (GD-SLT-03): ponto no meio do círculo.
+pub const PIVOT_DOT: f32 = 1.5;
+/// "X" do centro no estado 1 (GD-SLT-02): meio-braço.
+pub const CENTER_MARK: f32 = 4.0;
+/// Setas do estado 2 (GD-SLT-03): raio do arco dos cantos, meio-comprimento
+/// da seta reta das arestas e tamanho da ponta.
+pub const ROTATE_ARROW_RADIUS: f32 = 8.0;
+pub const SKEW_ARROW_HALF: f32 = 7.0;
+pub const ARROW_HEAD: f32 = 3.0;
+/// Objeto-chave (GD-SLT-08): caixa com linha contínua mais grossa.
+pub const KEY_OBJECT_WIDTH: f32 = 2.0;
+/// Retângulo elástico (GD-SLT-04): traço e vão das formigas e velocidade
+/// da marcha (px de tela por segundo).
+pub const MARQUEE_DASH: f32 = 4.0;
+pub const MARQUEE_GAP: f32 = 4.0;
+pub const MARQUEE_SPEED: f32 = 16.0;
+/// Fantasma do arrasto (GD-SLT-13): opacidade do resultado.
+pub const GHOST_OPACITY: f64 = 0.5;
 /// Sangria na tela (5.3): contorno tracejado e marcas de corte nos cantos.
 pub const BLEED_DASH: f32 = 4.0;
 pub const BLEED_GAP: f32 = 3.0;

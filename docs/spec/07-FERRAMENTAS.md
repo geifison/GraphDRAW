@@ -5,7 +5,7 @@ Cada ferramenta: cursor próprio, barra de propriedades contextual, atalho de te
 ## Seleção e navegação
 | ID | Ferramenta | Comportamento |
 |---|---|---|
-| GD-FER-01 | Seleção | clique, retângulo, laço (modificador), Shift soma/subtrai; arrastar move; alças de escala; segundo clique alterna para alças de rotação/inclinação com centro móvel; seta do teclado = deslocamento (nudge) configurável, Shift = super-deslocamento |
+| GD-FER-01 | Seleção | clique, retângulo (Alt: por toque), laço (Ctrl+Alt), Shift soma/subtrai, Alt+clique pega o de baixo; arrastar move; alças de escala; segundo clique alterna para alças de rotação/inclinação com centro móvel (detalhes no doc 30); seta do teclado = deslocamento (nudge) configurável, Shift = super-deslocamento |
 | GD-FER-02 | Seleção livre | laço à mão livre |
 | GD-FER-03 | Transformação livre | girar, refletir, escalar, inclinar livremente em torno de ponto |
 | GD-FER-04 | Zoom | clique aproxima, botão direito afasta, retângulo; roda do mouse; zoom para seleção/página/tudo |

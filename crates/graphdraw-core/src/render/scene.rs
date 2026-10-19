@@ -179,7 +179,42 @@ pub struct Scene {
     pub item_bounds: OnceLock<Vec<kurbo::Rect>>,
 }
 
+impl Paint {
+    fn fade(&mut self, k: f64) {
+        match self {
+            Paint::Solid { alpha, .. }
+            | Paint::Gradient { alpha, .. }
+            | Paint::Pattern { alpha, .. } => *alpha *= k,
+        }
+    }
+}
+
+impl ShapeItem {
+    fn fade(&mut self, k: f64) {
+        if let Some(f) = &mut self.fill {
+            f.fade(k);
+        }
+        if let Some(s) = &mut self.stroke {
+            s.paint.fade(k);
+        }
+    }
+}
+
 impl Item {
+    /// Multiplica a opacidade do item por `k` (fantasma do arrasto, GD-SLT-13).
+    pub fn fade(&mut self, k: f64) {
+        match self {
+            Item::Shape(s) => s.fade(k),
+            Item::Image(i) => i.opacity *= k,
+            Item::Text(t) => {
+                t.alpha *= k;
+                for s in &mut t.outlines {
+                    s.fade(k);
+                }
+            }
+        }
+    }
+
     pub fn object_id(&self) -> &str {
         match self {
             Item::Shape(s) => &s.object_id,

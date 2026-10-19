@@ -934,6 +934,11 @@ Tamanho constante em pixels de tela, qualquer que seja o zoom.
 | Nó de curva suave | círculo | 6 px de diâmetro, borda 1,5 px `accent-primary`; linha da alça 1 px `accent-primary` |
 | Alça de ângulo | ○—○ | comprimento livre; Shift prende a cada 15° |
 | Caixa de seleção | retângulo | linha sólida 1 px `accent-primary`, alças nos cantos e meios |
+| Centro (estado 1) | × | meio-braço `center-mark` = 4 px, 1 px `accent-primary` sobre halo branco; arrastar move (GD-SLT-02) |
+| Rotação (estado 2, cantos) | ↶↷ | arco de raio `rotate-arrow-radius` = 8 px em volta do canto, virado para fora, com ponta de `arrow-head` = 3 px nos dois lados; 1,5 px `accent-primary` sobre halo branco (GD-SLT-03) |
+| Inclinação (estado 2, arestas) | ↔ | seta reta paralela à aresta, meio-comprimento `skew-arrow-half` = 7 px, pontas `arrow-head`; mesmo traço |
+| Pivô (estado 2) | ◎ | círculo de `rotation-center` = 6 px, 1 px `accent-primary`, com ponto de `pivot-dot` = 1,5 px no meio; arrastável |
+| Objeto-chave | retângulo | com 2+ objetos, a caixa do último selecionado em linha sólida `key-object-width` = 2 px `accent-primary` (GD-SLT-08) |
 | Balão da parada | clique numa parada ou na ponta do eixo | `shadow-popover`, largura `stop-popup-width` = 240 px: “Parada N · posição”, editor de cor no modelo da cor, opacidade %, OK; clique fora ou Esc fecha; o que muda enquanto aberto é um passo de desfazer |
 | Eixo do gradiente | ■—●—■ | linha 1 px `accent-primary` sobre 2,5 px branco; início/fim em quadrado de 8 px (`handle-size` + 2); paradas em círculo de `gradient-mark` (10 px) com a cor da parada; parada escolhida com anel `focus-width` `accent-primary` |
 
@@ -944,7 +949,24 @@ Nós não selecionados têm fundo `#FFFFFF`; selecionados, fundo
 |---|---|---|
 | `selection-object` | `accent-primary` 43% | Contorno de cada objeto da seleção |
 | `selection-fill` | `accent-primary` 10% | Fundo do retângulo elástico |
+| `selection-hover` | `accent-primary` 30% | Pré-seleção: contorno de 1 px do objeto livre sob o cursor (GD-SLT-01) |
+| `selection-touch-fill` | `accent-success` 10% | Fundo do retângulo/laço por toque (Alt) |
 | `grid-line` | `accent-primary` 16% | Linhas da grade |
+
+**Retângulo elástico** (GD-SLT-04): formigas marchando — traço de
+1 px, `marquee-dash` = 4 px e `marquee-gap` = 4 px, andando
+`marquee-speed` = 16 px/s — em `accent-primary` (envolvimento) ou
+`accent-success` (toque, com Alt; laço com Ctrl+Alt), sobre
+`selection-fill` ou `selection-touch-fill`.
+
+**Cursores da Seleção:** seta (`cur-select`) no vazio; sobre objeto livre,
+`cur-select-pick` (seta com a caixa de alças); sobre objeto selecionado e
+ao arrastar, `cur-move`. Enquanto o arrasto está grudado num encaixe ou
+numa guia inteligente, a tinta do cursor passa a `guide-object` (GD-SLT-12).
+
+**Fantasma** (GD-SLT-13): ao mover, redimensionar, girar ou inclinar, o
+resultado aparece a `ghost-opacity` = 50% por cima e o original fica
+sólido no lugar até soltar.
 
 **Arrasto com o botão direito** (GD-BDR-20): a seleção não se move; um
 fantasma em `selection-object` segue o cursor e o objeto sob ele ganha
