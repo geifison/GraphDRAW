@@ -163,7 +163,14 @@ fn q(r: Rect, x: f32, y: f32) -> Pos2 {
     r.min + Vec2::new(x, y) * (r.width() / 16.0)
 }
 
+/// Draw `pic` into `r`: its SVG when it has one, else the painted one
+/// (see [`crate::ui::svg_icons::paint`]).
 pub fn draw_pic(painter: &Painter, r: Rect, pic: Pic, color: Color32) {
+    crate::ui::svg_icons::paint(painter, r, crate::ui::svg_icons::IconRef::Pic(pic), color);
+}
+
+/// The picture painted in code, the fallback for pictures without an SVG.
+pub(crate) fn draw_pic_painted(painter: &Painter, r: Rect, pic: Pic, color: Color32) {
     let k = r.width() / 16.0;
     let s = Stroke::new(1.1 * k, color);
     let thin = Stroke::new(0.85 * k, color);

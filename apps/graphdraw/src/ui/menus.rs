@@ -350,10 +350,8 @@ fn item_text_tip(
     };
     if let Some(a) = icon {
         crate::ui::icons::draw_action(ui.painter(), ir, a, color);
-    } else if let Some(p) = menu_pic(id) {
-        crate::ui::propbar::draw_pic(ui.painter(), ir.expand(2.0), p, color);
-    } else if let Some(g) = crate::ui::menu_glyphs::for_key(id) {
-        crate::ui::menu_glyphs::draw(ui.painter(), ir, g, color);
+    } else {
+        draw_menu_picture(ui.painter(), ir, id, color);
     }
     if r.clicked() {
         ui.close();
@@ -441,17 +439,35 @@ pub(crate) fn draw_menu_picture(
     key: &str,
     color: egui::Color32,
 ) -> bool {
+    use crate::ui::svg_icons::{paint, IconRef};
+    let Some(icon) = menu_icon_ref(key) else {
+        return false;
+    };
+    // The painted property bar pictures carry their own margin, so they
+    // get a slightly larger box; SVG icons share the 16 px of the others.
+    let r = match icon {
+        IconRef::Pic(_) if !crate::ui::svg_icons::has_svg(icon) => r.expand(2.0),
+        _ => r,
+    };
+    paint(painter, r, icon, color);
+    true
+}
+
+/// What the menu row of `key` shows in its gutter: the toolbar action,
+/// property bar picture or menu picture of the same command, or an icon
+/// of the row alone.
+pub(crate) fn menu_icon_ref(key: &str) -> Option<crate::ui::svg_icons::IconRef<'_>> {
+    use crate::ui::svg_icons::IconRef;
     if let Some(a) = menu_icon(key) {
-        crate::ui::icons::draw_action(painter, r, a, color);
-        true
+        Some(IconRef::Action(a))
     } else if let Some(p) = menu_pic(key) {
-        crate::ui::propbar::draw_pic(painter, r.expand(2.0), p, color);
-        true
+        Some(IconRef::Pic(p))
     } else if let Some(g) = crate::ui::menu_glyphs::for_key(key) {
-        crate::ui::menu_glyphs::draw(painter, r, g, color);
-        true
+        Some(IconRef::Glyph(g))
+    } else if crate::ui::svg_icons::has_svg(IconRef::Key(key)) {
+        Some(IconRef::Key(key))
     } else {
-        false
+        None
     }
 }
 

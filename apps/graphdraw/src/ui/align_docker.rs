@@ -178,7 +178,41 @@ fn distribute_picture(pen: &Pen, kind: u8) {
     }
 }
 
+/// The Object menu's picture of the same command, so the docker's buttons
+/// show the icon the menu rows show.
+fn menu_glyph(icon: Icon) -> Option<crate::ui::menu_glyphs::Glyph> {
+    use crate::ui::menu_glyphs::Glyph;
+    Some(match icon {
+        Icon::Align(a) => match a {
+            Align::Left => Glyph::AlignLeft,
+            Align::Right => Glyph::AlignRight,
+            Align::Top => Glyph::AlignTop,
+            Align::Bottom => Glyph::AlignBottom,
+            Align::CenterH => Glyph::AlignCenterH,
+            Align::CenterV => Glyph::AlignCenterV,
+            Align::CenterPage => Glyph::CenterPage,
+        },
+        Icon::Distribute(d) => match d {
+            Distribute::Left => Glyph::DistLeft,
+            Distribute::CentersH => Glyph::DistCenterH,
+            Distribute::Right => Glyph::DistRight,
+            Distribute::SpacingH => Glyph::DistSpaceH,
+            Distribute::Top => Glyph::DistTop,
+            Distribute::CentersV => Glyph::DistCenterV,
+            Distribute::Bottom => Glyph::DistBottom,
+            Distribute::SpacingV => Glyph::DistSpaceV,
+        },
+        _ => return None,
+    })
+}
+
 fn paint(p: &Painter, r: Rect, icon: Icon, color: Color32) {
+    if let Some(g) = menu_glyph(icon) {
+        let svg = crate::ui::svg_icons::IconRef::Glyph(g);
+        if crate::ui::svg_icons::paint_svg(p, r, svg, color) {
+            return;
+        }
+    }
     let pen = |swap: bool| Pen { p, r, swap, color };
     match icon {
         Icon::Align(a) => match a {
