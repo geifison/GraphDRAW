@@ -166,3 +166,7 @@ Ver doc 16 GD-IMP-32 (Seleção, Imposição com 4 sub-modos — D-16-10, provis
 - **D-31-07 Personalização (GD-BPR-07).** Guardada na área de trabalho (`workspace.json`), por chave de contexto: itens ocultos, comandos adicionados e ordem. Reordenar: arrastar com `Alt` dentro do menu **⋯**.
 - **D-31-08 Padrão sem seleção (GD-BPR-05).** Usa a mesma pergunta do GD-BDR-10 (cor), com "não perguntar de novo" valendo para todos os atributos.
 - **D-31-09 Chave de contexto.** Texto estável `janela/ferramenta/seleção[/tarefa]`, ex.: `main/select/rect`, `main/select/none`, `main/zoom`, `preview/imposition/grid`. É a chave da personalização e dos testes.
+- **D-31-10 Ordem (GD-BPR-07).** Alt + arrastar no menu **⋯** reordena **grupos** (blocos); os itens dentro de um grupo mantêm a ordem, porque vários são pares empilhados (X/Y, L/A). Grupo que aparece depois (ex.: setas com curva aberta) entra logo após o que o precede na ordem padrão.
+- **D-31-11 Passo das setas (GD-BPR-03).** ↑/↓ no campo somam 1 mm nos comprimentos e 1 nos números (°, %, pt); Shift = 10 passos. Cada toque aplica e é uma entrada de desfazer. `Esc` desiste do que foi digitado.
+- **D-31-12 Grupos vazios e dica (GD-BPR-08).** Grupo que não se aplica à seleção não ocupa lugar nem vai para o **»**. A dica da ferramenta ocupa o espaço que sobra, cortada com reticências, e nunca vai para o **»**. Alça à esquerda (GD-BPR-06), **»** e **⋯** à direita. Desmarcar no **⋯** um comando acrescentado o retira.
+- **D-31-13 Tarefa na chave.** Edição de texto acrescenta `/texto` à chave (`main/text/text/texto`).

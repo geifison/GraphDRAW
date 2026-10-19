@@ -1,7 +1,7 @@
 //! Barra de propriedades contextual (GD-UI-01) e painéis: Transformação,
 //! Alinhar, Camadas, Histórico, Páginas e Relatório de importação (GD-UI-02).
 
-use eframe::egui::{self, Vec2};
+use eframe::egui::{self, Key, Vec2};
 use graphdraw_core::edit::nodes::{self, NodeRef};
 use graphdraw_core::edit::ops::{self, Align, AlignTo, Anchor, Order};
 use graphdraw_core::geometry::SegRef;
@@ -14,6 +14,7 @@ use crate::canvas::{Tool, single_path};
 use crate::doc::DocState;
 use crate::i18n::tr;
 use crate::icons;
+use crate::propbar::{self, Bar, Pass};
 use crate::theme;
 use crate::widgets::{self, fmt_mm, labeled_length, length_field, number_field, swatch};
 
@@ -60,42 +61,102 @@ pub fn anchor_picker(ui: &mut egui::Ui, anchor: &mut Anchor) {
 }
 
 impl App {
-    /// Barra de propriedades: muda conforme a ferramenta e a seleção.
+    /// Barra de propriedades: muda conforme a ferramenta e a seleção
+    /// (GD-BPR-01). Desenha a linha da barra e, com o » aberto, o popup dos
+    /// grupos que não couberam (GD-BPR-08).
     pub fn property_bar(&mut self, ui: &mut egui::Ui) {
+        let actions = self.property_bar_pass(ui, Pass::Inline);
+        let ctx = ui.ctx().clone();
+        let mut more = Vec::new();
+        if let Some(at) = propbar::overflow_anchor(&ctx) {
+            let area = egui::Area::new(egui::Id::unique("barra-propriedades-mais"))
+                .order(egui::Order::Foreground)
+                .pivot(egui::Align2::RIGHT_TOP)
+                .fixed_pos(at)
+                .show(&ctx, |ui| {
+                    egui::Frame::popup(ui.style()).show(ui, |ui| {
+                        ui.vertical(|ui| more = self.property_bar_pass(ui, Pass::Overflow));
+                    });
+                });
+            let outside = ctx.input(|i| i.pointer.any_pressed())
+                && !area.response.contains_pointer()
+                && !ui.rect_contains_pointer(ui.max_rect());
+            if outside || ctx.input(|i| i.key_pressed(Key::Escape)) {
+                propbar::close_overflow(&ctx);
+            }
+        }
+        let all: Vec<_> = actions.into_iter().chain(more).collect();
+        if !all.is_empty() {
+            self.bar_actions(all, &ctx);
+        }
+    }
+
+    /// Chave do contexto atual (GD-BPR-01, D-31-09).
+    fn bar_key(&self, doc: &DocState) -> String {
+        let objs = doc.selected_objects();
+        let task = self.canvas.text.is_some().then_some("texto");
+        propbar::context_key(
+            propbar::MAIN,
+            propbar::tool_key(self.tool.info().0),
+            propbar::selection_kind(&objs),
+            task,
+        )
+    }
+
+    fn property_bar_pass(&mut self, ui: &mut egui::Ui, pass: Pass) -> Vec<propbar::Action> {
         let text_targets = self.text_targets();
         let text_at = self.text_style_index();
+        let Some(doc) = self.doc.as_ref() else {
+            if pass == Pass::Inline {
+                ui.label(tr("Nenhum documento aberto", "No document open"));
+            }
+            return Vec::new();
+        };
+        let key = self.bar_key(doc);
         let picker = &mut self.font_picker;
         let defaults = &mut self.defaults;
-        let Some(doc) = self.doc.as_mut() else {
-            ui.label(tr("Nenhum documento aberto", "No document open"));
-            return;
-        };
+        let doc = self.doc.as_mut().expect("documento aberto");
+        let mut bar = Bar::begin(ui, key, &self.ws.bar_custom, pass, self.ws.bars_locked);
         let mut refit = false;
         let mut pending_style = None;
-        // Altura fixa e uma linha só (DESIGN-SYSTEM 4.6): dicas longas são
-        // cortadas; controles que não cabem rolam na horizontal.
-        let hint = |ui: &mut egui::Ui, t: &str| widgets::hint_line(ui, t);
-        match self.tool {
-            Tool::Shape => widgets::single_line_bar(ui, "barra-forma", |ui| shape_bar(ui, doc)),
+        let mut hint: Option<&str> = None;
+        let mut stroke_default = None;
+        let tool = self.tool;
+        let label = tool_name(tool);
+        // Ferramenta de criação sem seleção: o contorno mexe no padrão da
+        // ferramenta (GD-BPR-05).
+        let creates = matches!(
+            tool,
+            Tool::Rect
+                | Tool::Ellipse
+                | Tool::Polygon
+                | Tool::Bezier
+                | Tool::Freehand
+                | Tool::Polyline
+                | Tool::Line2
+                | Tool::Curve3
+                | Tool::BSpline
+                | Tool::SmartDraw
+        );
+        match tool {
+            Tool::Shape => bar.group(ui, "T-NOS", label, true, |ui, _| shape_bar(ui, doc)),
             Tool::FxContour | Tool::FxBlend | Tool::FxShadow | Tool::FxBlock | Tool::FxEnvelope => {
-                let t = self.tool;
-                widgets::single_line_bar(ui, "barra-efeito", |ui| fx_tool_bar(ui, doc, t));
+                bar.group(ui, "T-EFX", label, true, |ui, _| fx_tool_bar(ui, doc, tool));
             }
-            Tool::SolidFill => hint(
-                ui,
-                tr(
+            Tool::SolidFill => {
+                hint = Some(tr(
                     "Clique num objeto para escolher a cor sólida do preenchimento",
                     "Click an object to choose its solid fill color",
-                ),
-            ),
+                ))
+            }
             Tool::Freehand | Tool::Polyline => {
-                widgets::single_line_bar(ui, "barra-mao-livre", |ui| {
+                bar.group(ui, "B-CUR", tr("Opções de curva", "Curve options"), true, |ui, _| {
                     ui.label(tr("Suavização", "Smoothing"));
                     ui.add(
                         egui::Slider::new(&mut self.canvas.freehand_smooth, 0.0..=100.0)
                             .show_value(true),
                     );
-                    if self.tool == Tool::Freehand {
+                    if tool == Tool::Freehand {
                         ui.separator();
                         ui.checkbox(&mut self.canvas.sketch, tr("Esboço contínuo", "Continuous sketch"))
                             .on_hover_text(tr(
@@ -118,340 +179,267 @@ impl App {
                             .on_hover_text(tr("Distância para emendar", "Distance to join"));
                         });
                     }
-                    ui.separator();
-                    widgets::hint_line(
-                        ui,
-                        if self.tool == Tool::Polyline {
-                            tr(
-                                "Cliques fazem retas, arrastar faz trecho livre · Enter ou duplo clique termina · clique no primeiro nó fecha",
-                                "Clicks make lines, dragging a free stretch · Enter or double-click ends · click the first node to close",
-                            )
-                        } else {
-                            tr(
-                                "Arraste para desenhar; volte ao início para fechar",
-                                "Drag to draw; return to the start to close",
-                            )
-                        },
-                    );
-                })
-            }
-            Tool::SmartDraw => widgets::single_line_bar(ui, "barra-desenho-inteligente", |ui| {
-                ui.label(tr("Reconhecimento", "Recognition"));
-                let mut v = self.canvas.smart_level * 100.0;
-                if ui
-                    .add(egui::Slider::new(&mut v, 0.0..=100.0).suffix(" %"))
-                    .on_hover_text(tr(
-                        "Baixo: só traços quase perfeitos viram forma; alto: aceita traços tortos",
-                        "Low: only near-perfect strokes become shapes; high: accepts crooked strokes",
-                    ))
-                    .changed()
-                {
-                    self.canvas.smart_level = v / 100.0;
-                }
-                ui.separator();
-                widgets::hint_line(
-                    ui,
+                });
+                hint = Some(if tool == Tool::Polyline {
                     tr(
-                        "Desenhe à mão: retângulo, elipse, triângulo, reta ou seta (a ponta em V no fim); o resto fica à mão livre",
-                        "Draw by hand: rectangle, ellipse, triangle, line or arrow (the V tip at the end); anything else stays freehand",
-                    ),
-                );
-            }),
-            Tool::Width => widgets::single_line_bar(ui, "barra-largura", |ui| {
-                let sel = doc.selection.clone();
-                let cur = sel
-                    .first()
-                    .and_then(|id| doc.editor.find(id))
-                    .and_then(|r| doc.editor.get(&r))
-                    .and_then(|o| o.stroke.as_ref())
-                    .map(|s| s.widths.clone());
-                let mut pick: Option<Vec<graphdraw_core::model::WidthNode>> = None;
-                ui.add_enabled_ui(cur.is_some(), |ui| {
+                        "Cliques fazem retas, arrastar faz trecho livre · Enter ou duplo clique termina · clique no primeiro nó fecha",
+                        "Clicks make lines, dragging a free stretch · Enter or double-click ends · click the first node to close",
+                    )
+                } else {
+                    tr(
+                        "Arraste para desenhar; volte ao início para fechar",
+                        "Drag to draw; return to the start to close",
+                    )
+                });
+            }
+            Tool::SmartDraw => {
+                bar.group(ui, "T-RECON", tr("Reconhecimento", "Recognition"), true, |ui, _| {
+                    ui.label(tr("Reconhecimento", "Recognition"));
+                    let mut v = self.canvas.smart_level * 100.0;
                     if ui
-                        .selectable_label(
-                            cur.as_ref().is_some_and(|w| w.is_empty()),
-                            tr("Uniforme", "Uniform"),
-                        )
-                        .clicked()
+                        .add(egui::Slider::new(&mut v, 0.0..=100.0).suffix(" %"))
+                        .on_hover_text(tr(
+                            "Baixo: só traços quase perfeitos viram forma; alto: aceita traços tortos",
+                            "Low: only near-perfect strokes become shapes; high: accepts crooked strokes",
+                        ))
+                        .changed()
                     {
-                        pick = Some(Vec::new());
+                        self.canvas.smart_level = v / 100.0;
                     }
-                    for name in graphdraw_core::render::varwidth::PRESETS {
-                        let nodes = graphdraw_core::render::varwidth::preset(name);
-                        if ui
-                            .selectable_label(
-                                cur.as_ref() == Some(&nodes),
-                                crate::dialogs::width_label(name),
-                            )
+                });
+                hint = Some(tr(
+                    "Desenhe à mão: retângulo, elipse, triângulo, reta ou seta (a ponta em V no fim); o resto fica à mão livre",
+                    "Draw by hand: rectangle, ellipse, triangle, line or arrow (the V tip at the end); anything else stays freehand",
+                ));
+            }
+            Tool::Width => {
+                bar.group(
+                    ui,
+                    "B-CTV",
+                    tr("Contorno variável", "Variable outline"),
+                    true,
+                    |ui, _| width_bar(ui, doc),
+                );
+                hint = Some(tr(
+                    "Arraste no contorno: longe da linha engrossa, perto afina · os nós ficam marcados",
+                    "Drag on the outline: away from the line thickens, close thins · nodes are marked",
+                ));
+            }
+            Tool::BSpline => {
+                hint = Some(tr(
+                    "Cliques põem pontos de controle · Ctrl+clique = fixado (a curva passa por ele) · Enter ou duplo clique termina · clique no primeiro fecha · na ferramenta Formato, arraste os pontos e duplo clique fixa/solta",
+                    "Clicks place control points · Ctrl+click = fixed (the curve goes through it) · Enter or double-click ends · click the first to close · with the Shape tool, drag the points and double-click to fix/release",
+                ))
+            }
+            Tool::Connector => bar.group(ui, "T-CON", label, true, |ui, _| {
+                connector_bar(ui, doc, &mut self.canvas)
+            }),
+            Tool::SmartFill => {
+                bar.group(ui, "T-PINT", label, true, |ui, _| {
+                    ui.checkbox(
+                        &mut self.canvas.smart_outline,
+                        tr("Com contorno", "With outline"),
+                    );
+                });
+                hint = Some(tr(
+                    "Clique numa área cercada; o objeto novo usa o preenchimento padrão",
+                    "Click an enclosed area; the new object uses the default fill",
+                ));
+            }
+            Tool::Dimension => bar.group(ui, "T-COT", label, true, |ui, _| {
+                dimension_bar(ui, doc, &mut self.canvas)
+            }),
+            Tool::FreeTransform => {
+                bar.group(ui, "T-MODO", tr("Modo", "Mode"), true, |ui, _| {
+                    use graphdraw_core::edit::freexf::Mode;
+                    for (m, icon, label) in [
+                        (Mode::Rotate, "rotate-ccw", tr("Girar", "Rotate")),
+                        (Mode::Reflect, "mirror-h", tr("Refletir", "Reflect")),
+                        (Mode::Scale, "fit-selection", tr("Escalar", "Scale")),
+                        (Mode::Skew, "clear-transform", tr("Inclinar", "Skew")),
+                    ] {
+                        if icons::button(ui, icon, label, self.canvas.free_mode == m, true)
                             .clicked()
                         {
-                            pick = Some(nodes);
+                            self.canvas.free_mode = m;
                         }
                     }
                 });
-                if let Some(nodes) = pick {
-                    ops::modify(
-                        &mut doc.editor,
-                        &sel,
-                        tr("Largura variável", "Variable width"),
-                        |o| {
-                            if let Some(s) = &mut o.stroke {
-                                s.widths = nodes.clone();
-                                return true;
-                            }
-                            false
-                        },
-                    );
-                }
-                ui.separator();
-                widgets::hint_line(
-                    ui,
-                    tr(
-                        "Arraste no contorno: longe da linha engrossa, perto afina · os nós ficam marcados",
-                        "Drag on the outline: away from the line thickens, close thins · nodes are marked",
-                    ),
-                );
-            }),
-            Tool::BSpline => widgets::single_line_bar(ui, "barra-bspline", |ui| {
-                widgets::hint_line(
-                    ui,
-                    tr(
-                        "Cliques põem pontos de controle · Ctrl+clique = fixado (a curva passa por ele) · Enter ou duplo clique termina · clique no primeiro fecha · na ferramenta Formato, arraste os pontos e duplo clique fixa/solta",
-                        "Clicks place control points · Ctrl+click = fixed (the curve goes through it) · Enter or double-click ends · click the first to close · with the Shape tool, drag the points and double-click to fix/release",
-                    ),
-                );
-            }),
-            Tool::Connector => widgets::single_line_bar(ui, "barra-conector", |ui| {
-                connector_bar(ui, doc, &mut self.canvas)
-            }),
-            Tool::SmartFill => widgets::single_line_bar(ui, "barra-preench-intel", |ui| {
-                ui.checkbox(
-                    &mut self.canvas.smart_outline,
-                    tr("Com contorno", "With outline"),
-                );
-                ui.separator();
-                widgets::hint_line(
-                    ui,
-                    tr(
-                        "Clique numa área cercada; o objeto novo usa o preenchimento padrão",
-                        "Click an enclosed area; the new object uses the default fill",
-                    ),
-                );
-            }),
-            Tool::Dimension => widgets::single_line_bar(ui, "barra-cota", |ui| {
-                dimension_bar(ui, doc, &mut self.canvas)
-            }),
-            Tool::FreeTransform => widgets::single_line_bar(ui, "barra-transf-livre", |ui| {
-                use graphdraw_core::edit::freexf::Mode;
-                for (m, icon, label) in [
-                    (Mode::Rotate, "rotate-ccw", tr("Girar", "Rotate")),
-                    (Mode::Reflect, "mirror-h", tr("Refletir", "Reflect")),
-                    (Mode::Scale, "fit-selection", tr("Escalar", "Scale")),
-                    (Mode::Skew, "clear-transform", tr("Inclinar", "Skew")),
-                ] {
-                    if icons::button(ui, icon, label, self.canvas.free_mode == m, true).clicked() {
-                        self.canvas.free_mode = m;
-                    }
-                }
-                ui.separator();
-                widgets::hint_line(
-                    ui,
-                    tr(
-                        "Arraste a partir do pivô · Shift: 15° (girar/refletir) ou x e y separados (escalar) · Esc cancela",
-                        "Drag from the pivot · Shift: 15° (rotate/reflect) or separate x and y (scale) · Esc cancels",
-                    ),
-                );
-            }),
-            Tool::Line2 => widgets::single_line_bar(ui, "barra-linha2", |ui| {
-                use crate::canvas::LineMode;
-                for (m, label, tip) in [
-                    (
-                        LineMode::Free,
-                        tr("Livre", "Free"),
-                        tr("Shift prende a 15°", "Shift locks to 15°"),
-                    ),
-                    (
-                        LineMode::Tangent,
-                        tr("Tangente", "Tangent"),
-                        tr(
-                            "O fim encosta tangente no objeto sob o cursor",
-                            "The end touches the object under the cursor tangentially",
+                hint = Some(tr(
+                    "Arraste a partir do pivô · Shift: 15° (girar/refletir) ou x e y separados (escalar) · Esc cancela",
+                    "Drag from the pivot · Shift: 15° (rotate/reflect) or separate x and y (scale) · Esc cancels",
+                ));
+            }
+            Tool::Line2 => {
+                bar.group(ui, "T-MODO", tr("Modo", "Mode"), true, |ui, _| {
+                    use crate::canvas::LineMode;
+                    for (m, label, tip) in [
+                        (
+                            LineMode::Free,
+                            tr("Livre", "Free"),
+                            tr("Shift prende a 15°", "Shift locks to 15°"),
                         ),
-                    ),
-                    (
-                        LineMode::Perpendicular,
-                        tr("Perpendicular", "Perpendicular"),
-                        tr(
-                            "Começando num contorno, sai perpendicular a ele",
-                            "Starting on an outline, leaves perpendicular to it",
+                        (
+                            LineMode::Tangent,
+                            tr("Tangente", "Tangent"),
+                            tr(
+                                "O fim encosta tangente no objeto sob o cursor",
+                                "The end touches the object under the cursor tangentially",
+                            ),
                         ),
-                    ),
-                ] {
-                    if ui
-                        .selectable_label(self.canvas.line_mode == m, label)
-                        .on_hover_text(tip)
-                        .clicked()
-                    {
-                        self.canvas.line_mode = m;
+                        (
+                            LineMode::Perpendicular,
+                            tr("Perpendicular", "Perpendicular"),
+                            tr(
+                                "Começando num contorno, sai perpendicular a ele",
+                                "Starting on an outline, leaves perpendicular to it",
+                            ),
+                        ),
+                    ] {
+                        if ui
+                            .selectable_label(self.canvas.line_mode == m, label)
+                            .on_hover_text(tip)
+                            .clicked()
+                        {
+                            self.canvas.line_mode = m;
+                        }
                     }
-                }
-                ui.separator();
-                widgets::hint_line(
-                    ui,
-                    tr(
-                        "Arraste de um ponto ao outro",
-                        "Drag from one point to the other",
-                    ),
-                );
-            }),
-            Tool::Curve3 => hint(
-                ui,
-                tr(
+                });
+                hint = Some(tr(
+                    "Arraste de um ponto ao outro",
+                    "Drag from one point to the other",
+                ));
+            }
+            Tool::Curve3 => {
+                hint = Some(tr(
                     "Arraste do início ao fim; depois clique onde a curva deve passar (Esc cancela)",
                     "Drag from start to end; then click where the curve should pass (Esc cancels)",
-                ),
-            ),
-            Tool::Knife => widgets::single_line_bar(ui, "barra-faca", |ui| {
-                ui.label(tr("Lacuna", "Gap"));
-                if let Some(v) =
-                    widgets::length_field(ui, "faca-lacuna", self.canvas.knife_gap, None)
-                {
-                    self.canvas.knife_gap = v.max(0.0);
-                }
-                ui.separator();
-                widgets::hint_line(
-                    ui,
-                    tr(
-                        "Arraste através dos objetos (com seleção, só ela) · Alt: à mão livre",
-                        "Drag across objects (with a selection, only it) · Alt: freehand",
-                    ),
-                );
-            }),
-            Tool::Eraser => widgets::single_line_bar(ui, "barra-borracha", |ui| {
-                ui.label(tr("Largura", "Width"));
-                if let Some(v) =
-                    widgets::length_field(ui, "borracha-largura", self.canvas.eraser_width, None)
-                {
-                    self.canvas.eraser_width = v.max(100.0);
-                }
-                ui.separator();
-                widgets::hint_line(
-                    ui,
-                    tr(
-                        "Arraste para apagar (com seleção, só nela)",
-                        "Drag to erase (with a selection, only in it)",
-                    ),
-                );
-            }),
-            Tool::Crop => widgets::single_line_bar(ui, "barra-recorte", |ui| {
-                let pending = self.canvas.crop_pending.is_some();
-                if ui
-                    .add_enabled(pending, egui::Button::new(tr("Recortar", "Crop")))
-                    .clicked()
-                {
-                    self.canvas.apply_crop(doc);
-                }
-                if ui
-                    .add_enabled(pending, egui::Button::new(tr("Cancelar", "Cancel")))
-                    .clicked()
-                {
-                    self.canvas.crop_pending = None;
-                }
-                ui.separator();
-                widgets::hint_line(
-                    ui,
-                    tr(
-                        "Arraste o retângulo; Enter ou duplo clique apaga o que está fora",
-                        "Drag the rectangle; Enter or double-click removes what is outside",
-                    ),
-                );
-            }),
-            Tool::VirtualDelete => hint(
-                ui,
-                tr(
+                ))
+            }
+            Tool::Knife => {
+                bar.group(ui, "T-LACUNA", tr("Lacuna", "Gap"), true, |ui, _| {
+                    ui.label(tr("Lacuna", "Gap"));
+                    if let Some(v) =
+                        widgets::length_field(ui, "faca-lacuna", self.canvas.knife_gap, None)
+                    {
+                        self.canvas.knife_gap = v.max(0.0);
+                    }
+                });
+                hint = Some(tr(
+                    "Arraste através dos objetos (com seleção, só ela) · Alt: à mão livre",
+                    "Drag across objects (with a selection, only it) · Alt: freehand",
+                ));
+            }
+            Tool::Eraser => {
+                bar.group(ui, "T-LARGURA", tr("Largura", "Width"), true, |ui, _| {
+                    ui.label(tr("Largura", "Width"));
+                    if let Some(v) = widgets::length_field(
+                        ui,
+                        "borracha-largura",
+                        self.canvas.eraser_width,
+                        None,
+                    ) {
+                        self.canvas.eraser_width = v.max(100.0);
+                    }
+                });
+                hint = Some(tr(
+                    "Arraste para apagar (com seleção, só nela)",
+                    "Drag to erase (with a selection, only in it)",
+                ));
+            }
+            Tool::Crop => {
+                bar.group(ui, "T-RECORTE", label, true, |ui, _| {
+                    let pending = self.canvas.crop_pending.is_some();
+                    if ui
+                        .add_enabled(pending, egui::Button::new(tr("Recortar", "Crop")))
+                        .clicked()
+                    {
+                        self.canvas.apply_crop(doc);
+                    }
+                    if ui
+                        .add_enabled(pending, egui::Button::new(tr("Cancelar", "Cancel")))
+                        .clicked()
+                    {
+                        self.canvas.crop_pending = None;
+                    }
+                });
+                hint = Some(tr(
+                    "Arraste o retângulo; Enter ou duplo clique apaga o que está fora",
+                    "Drag the rectangle; Enter or double-click removes what is outside",
+                ));
+            }
+            Tool::VirtualDelete => {
+                hint = Some(tr(
                     "Clique no trecho entre cruzamentos para apagá-lo; sem cruzamento, sai o segmento",
                     "Click the stretch between crossings to delete it; without crossings, the segment goes",
-                ),
-            ),
-            Tool::Eyedropper => widgets::single_line_bar(ui, "barra-conta-gotas", |ui| {
+                ))
+            }
+            Tool::Eyedropper => bar.group(ui, "T-CTG", label, true, |ui, _| {
                 eyedrop_bar(ui, &mut self.canvas.eyedrop)
             }),
-            Tool::Gradient => {
-                widgets::single_line_bar(ui, "barra-gradiente", |ui| gradient_bar(ui, doc))
-            }
+            Tool::Gradient => bar.group(ui, "T-GRAD", label, true, |ui, _| gradient_bar(ui, doc)),
             Tool::Bezier => {
-                hint(
-                    ui,
-                    tr(
-                        "Clique = nó de canto · clique e arraste = nó suave · clique no primeiro nó fecha · Enter/duplo clique termina · Backspace desfaz o último nó · Esc cancela",
-                        "Click = corner node · click-drag = smooth node · click first node to close · Enter/double-click finishes · Backspace removes last · Esc cancels",
-                    ),
-                );
+                hint = Some(tr(
+                    "Clique = nó de canto · clique e arraste = nó suave · clique no primeiro nó fecha · Enter/duplo clique termina · Backspace desfaz o último nó · Esc cancela",
+                    "Click = corner node · click-drag = smooth node · click first node to close · Enter/double-click finishes · Backspace removes last · Esc cancels",
+                ))
             }
             Tool::Rect | Tool::Ellipse => {
                 // Modo de cada ferramenta (o mesmo da gaveta da caixa).
-                let tool = self.tool;
-                let mut on = self.defaults.three_point(tool);
-                let three = &mut on;
-                widgets::single_line_bar(ui, "barra-forma-basica", |ui| {
-                    // Modo de desenho (GD-FER-30/31): 2 pontos (caixa) ou 3 pontos
-                    // (base em qualquer ângulo + altura).
-                    if ui
-                        .selectable_label(!*three, tr("2 pontos", "2 points"))
-                        .clicked()
-                    {
-                        *three = false;
-                    }
-                    if ui
-                        .selectable_label(*three, tr("3 pontos", "3 points"))
-                        .clicked()
-                    {
-                        *three = true;
-                    }
-                    ui.separator();
-                    widgets::hint_line(
-                        ui,
-                        if *three {
-                            tr(
-                                "Arraste a base · mova para a altura e clique · Shift = ângulo em 15° · Esc cancela",
-                                "Drag the base · move for height and click · Shift = 15° steps · Esc cancels",
-                            )
-                        } else {
-                            tr(
-                                "Arraste para desenhar · Shift = proporcional · Ctrl = a partir do centro",
-                                "Drag to draw · Shift = proportional · Ctrl = from center",
-                            )
-                        },
-                    );
+                let mut on = defaults.three_point(tool);
+                bar.group(
+                    ui,
+                    "T-MODO",
+                    tr("Modo de desenho", "Drawing mode"),
+                    true,
+                    |ui, _| {
+                        // Modo de desenho (GD-FER-30/31): 2 pontos (caixa) ou 3
+                        // pontos (base em qualquer ângulo + altura).
+                        if ui
+                            .selectable_label(!on, tr("2 pontos", "2 points"))
+                            .clicked()
+                        {
+                            on = false;
+                        }
+                        if ui
+                            .selectable_label(on, tr("3 pontos", "3 points"))
+                            .clicked()
+                        {
+                            on = true;
+                        }
+                    },
+                );
+                hint = Some(if on {
+                    tr(
+                        "Arraste a base · mova para a altura e clique · Shift = ângulo em 15° · Esc cancela",
+                        "Drag the base · move for height and click · Shift = 15° steps · Esc cancels",
+                    )
+                } else {
+                    tr(
+                        "Arraste para desenhar · Shift = proporcional · Ctrl = a partir do centro",
+                        "Drag to draw · Shift = proportional · Ctrl = from center",
+                    )
                 });
-                if on != self.defaults.three_point(tool) {
-                    self.defaults.set_three_point(tool, on);
+                if on != defaults.three_point(tool) {
+                    defaults.set_three_point(tool, on);
                     self.canvas.three_point = on;
                     self.canvas.drop_three();
                 }
             }
             Tool::Zoom => {
-                hint(
-                    ui,
-                    tr(
-                        "Clique aproxima · botão direito afasta · arraste um retângulo para enquadrar",
-                        "Click zooms in · right-click zooms out · drag a rectangle to frame it",
-                    ),
-                );
+                hint = Some(tr(
+                    "Clique aproxima · botão direito afasta · arraste um retângulo para enquadrar",
+                    "Click zooms in · right-click zooms out · drag a rectangle to frame it",
+                ))
             }
             Tool::Pan => {
-                hint(
-                    ui,
-                    tr(
-                        "Arraste para mover a vista (espaço ativa temporariamente)",
-                        "Drag to pan (hold space for temporary hand)",
-                    ),
-                );
+                hint = Some(tr(
+                    "Arraste para mover a vista (espaço ativa temporariamente)",
+                    "Drag to pan (hold space for temporary hand)",
+                ))
             }
-            // Prancheta: dados da página; arrastar as alças muda o tamanho
-            // (GD-DIM-23). Vale para todas as páginas (GD-PAG-01).
             Tool::Polygon => {
-                widgets::single_line_bar(ui, "barra-poligono", |ui| {
+                bar.group(ui, "T-FORMA", label, true, |ui, _| {
                     // A família (polígono/estrelas, espiral, papel gráfico) é
                     // escolhida na gaveta da caixa de ferramentas (DS 4.8).
                     match defaults.shape_family.as_str() {
@@ -482,76 +470,102 @@ impl App {
                             }
                         }
                     }
-                    ui.separator();
-                    widgets::hint_line(
-                        ui,
-                        tr(
-                            "Arraste para desenhar · Shift = proporcional · Ctrl = a partir do centro",
-                            "Drag to draw · Shift = proportional · Ctrl = from center",
-                        ),
-                    );
                 });
+                hint = Some(tr(
+                    "Arraste para desenhar · Shift = proporcional · Ctrl = a partir do centro",
+                    "Drag to draw · Shift = proportional · Ctrl = from center",
+                ));
             }
             Tool::Text => {
-                widgets::single_line_bar(ui, "barra-texto", |ui| {
+                bar.group(ui, "B-FON", tr("Fonte", "Font"), true, |ui, _| {
                     if let Some(st) = text_bar(ui, doc, &text_targets, text_at, picker) {
                         pending_style = Some(st);
                     }
-                    tracking_bar(ui, doc, &text_targets);
-                    path_text_bar(ui, doc, &text_targets);
-                    hyphen_bar(ui, doc, &text_targets);
                 });
+                text_groups(ui, &mut bar, doc, &text_targets);
             }
+            // Prancheta: dados da página; arrastar as alças muda o tamanho
+            // (GD-DIM-23). Vale para todas as páginas (GD-PAG-01).
             Tool::Artboard => {
-                widgets::single_line_bar(ui, "barra-prancheta", |ui| {
+                bar.group(ui, "PAG", tr("Página", "Page"), true, |ui, _| {
                     refit = page_bar_props(ui, doc);
-                    widgets::hint_line(
-                        ui,
-                        tr(
-                            "Arraste as alças da página · gruda nos formatos ISO · Alt solta o encaixe",
-                            "Drag the page handles · snaps to ISO formats · Alt disables snapping",
-                        ),
-                    );
                 });
+                hint = Some(tr(
+                    "Arraste as alças da página · gruda nos formatos ISO · Alt solta o encaixe",
+                    "Drag the page handles · snaps to ISO formats · Alt disables snapping",
+                ));
             }
             Tool::Select => {
                 let texts = &text_targets;
-                widgets::single_line_bar(ui, "barra-selecao", |ui| {
-                    // Só textos selecionados: os controles de texto entram como
-                    // parâmetros do objeto (grupo 2 da ordem fixa, DS 4.6).
-                    let only_texts = !texts.is_empty() && texts.len() == doc.selection.len();
-                    let mut text_params = |ui: &mut egui::Ui, doc: &mut DocState| {
-                        if only_texts {
-                            ui.separator();
-                            if let Some(st) = text_bar(ui, doc, texts, None, picker) {
-                                pending_style = Some(st);
-                            }
-                            tracking_bar(ui, doc, texts);
-                            path_text_bar(ui, doc, texts);
-                            hyphen_bar(ui, doc, texts);
-                        }
-                    };
-                    refit = select_bar(
+                // Só textos selecionados: os controles de texto entram como
+                // parâmetros do objeto (grupo 2 da ordem fixa, DS 4.6).
+                let only_texts = !texts.is_empty() && texts.len() == doc.selection.len();
+                let mut text_params = |ui: &mut egui::Ui, doc: &mut DocState| {
+                    if only_texts && let Some(st) = text_bar(ui, doc, texts, None, picker) {
+                        pending_style = Some(st);
+                    }
+                };
+                let (r, done) = select_bar(
+                    ui,
+                    &mut bar,
+                    doc,
+                    &mut self.anchor,
+                    &mut self.lock_ratio,
+                    &mut self.corners_sel,
+                    &mut text_params,
+                );
+                refit = r;
+                if !done {
+                    if only_texts {
+                        text_groups(ui, &mut bar, doc, texts);
+                    }
+                    bar.group(ui, "SIM", tr("Simetria", "Symmetry"), false, |ui, _| {
+                        symmetry_bar(ui, doc)
+                    });
+                    bar.group(
                         ui,
-                        doc,
-                        &mut self.anchor,
-                        &mut self.lock_ratio,
-                        &mut self.corners_sel,
-                        &mut text_params,
+                        "B-ORG",
+                        tr("Contornar texto", "Wrap text"),
+                        false,
+                        |ui, _| wrap_bar(ui, doc),
                     );
-                    symmetry_bar(ui, doc);
-                    wrap_bar(ui, doc);
-                    live_boolean_bar(ui, doc);
-                    effect_params(ui, doc, true);
-                });
+                    bar.group(
+                        ui,
+                        "BOOL-VIVA",
+                        tr("Booleana", "Boolean"),
+                        false,
+                        |ui, _| live_boolean_bar(ui, doc),
+                    );
+                    bar.group(ui, "B-EFX", tr("Efeito", "Effect"), false, |ui, _| {
+                        effect_params(ui, doc, false);
+                    });
+                }
             }
         }
+        if creates && doc.selection.is_empty() {
+            let width = defaults.stroke.as_ref().map(|s| s.width);
+            bar.group(ui, "B-CTN", tr("Contorno", "Outline"), false, |ui, it| {
+                if it.show("width", tr("Espessura", "Width")) {
+                    stroke_default = widgets::labeled_mixed_length(
+                        ui,
+                        tr("Contorno", "Outline"),
+                        "contorno-padrao",
+                        width,
+                    );
+                }
+            });
+        }
+        let actions = bar.end(ui, hint);
         if refit {
             self.canvas.fit_pending = true;
         }
         if let Some(st) = pending_style {
             self.text_style(st);
         }
+        if let Some(w) = stroke_default {
+            self.bar_default_stroke_width(w);
+        }
+        actions
     }
 
     pub fn right_panel(&mut self, ui: &mut egui::Ui) {
@@ -1720,84 +1734,141 @@ pub fn set_corners(corners: &mut Option<Vec<Corner>>, sel: &[bool; 4], kind: &st
     *corners = Some(cs);
 }
 
+/// Nome curto da ferramenta (a dica sem a explicação nem o atalho):
+/// rótulo do grupo no menu ⋯.
+fn tool_name(t: Tool) -> &'static str {
+    let tip = t.info().1;
+    let tip = tip.split(" — ").next().unwrap_or(tip);
+    tip.split(" (").next().unwrap_or(tip).trim()
+}
+
+/// Barra da Seleção (DS 4.6, doc 31 seção 2): com objetos, os grupos na
+/// ordem fixa; sem seleção, a página (GD-BPC-01). Devolve (reajustar a
+/// vista, a seleção mudou — os grupos seguintes não valem mais).
 fn select_bar(
     ui: &mut egui::Ui,
+    bar: &mut Bar,
     doc: &mut DocState,
     anchor: &mut Anchor,
     lock: &mut bool,
     corners_sel: &mut [bool; 4],
     object_params: &mut dyn FnMut(&mut egui::Ui, &mut DocState),
-) -> bool {
+) -> (bool, bool) {
     let sel = doc.selection.clone();
     let Some(b) = ops::selection_bounds(&doc.editor, &sel, false) else {
-        return page_bar_props(ui, doc);
+        let mut refit = false;
+        bar.group(ui, "PAG", tr("Página", "Page"), true, |ui, _| {
+            refit = page_bar_props(ui, doc);
+        });
+        return (refit, false);
     };
-    anchor_picker(ui, anchor);
-    let p = anchor.point(b);
-    let (mut nx, mut ny) = (None, None);
-    widgets::stack(ui, |ui, row| {
-        if row == 0 {
-            nx = widgets::labeled_world_length(ui, "X", "x", p.x, None);
-        } else {
-            ny = widgets::labeled_world_length(ui, "Y", "y", p.y, None);
-        }
-    });
+    let mut p = anchor.point(b);
+    let (mut nx, mut ny, mut nw, mut nh) = (None, None, None, None);
+    let current = selection_angle(doc, &sel);
+    let mut angle = None;
+    let mut mirror = None;
+    bar.group(
+        ui,
+        "B-TRF",
+        tr("Transformação", "Transform"),
+        true,
+        |ui, it| {
+            if it.show("anchor", tr("Ponto de referência", "Reference point")) {
+                anchor_picker(ui, anchor);
+                p = anchor.point(b);
+            }
+            if it.show("pos", tr("Posição X/Y", "Position X/Y")) {
+                widgets::stack(ui, |ui, row| {
+                    if row == 0 {
+                        nx = widgets::labeled_world_length(ui, "X", "x", p.x, None);
+                    } else {
+                        ny = widgets::labeled_world_length(ui, "Y", "y", p.y, None);
+                    }
+                });
+                ui.separator();
+            }
+            if it.show("size", tr("Tamanho L/A", "Size W/H")) {
+                widgets::stack(ui, |ui, row| {
+                    if row == 0 {
+                        nw = widgets::labeled_world_length(ui, tr("L", "W"), "w", b.width(), None);
+                    } else {
+                        nh = widgets::labeled_world_length(ui, tr("A", "H"), "h", b.height(), None);
+                    }
+                });
+            }
+            if it.show("lock", tr("Manter proporção", "Keep proportions")) {
+                // Cadeado fechado = proporção travada; aberto = livres.
+                let (icon, tip) = if *lock {
+                    (
+                        "lock-on",
+                        tr(
+                            "Proporção mantida (clique para destravar)",
+                            "Proportions kept (click to unlock)",
+                        ),
+                    )
+                } else {
+                    (
+                        "lock-off",
+                        tr(
+                            "Proporção livre (clique para manter)",
+                            "Proportions free (click to keep)",
+                        ),
+                    )
+                };
+                if icons::button(ui, icon, tip, *lock, true).clicked() {
+                    *lock = !*lock;
+                }
+            }
+            if it.show("angle", tr("Ângulo de rotação", "Rotation angle")) {
+                ui.separator();
+                // Ângulo atual do (primeiro) objeto; digitar gira até o valor.
+                angle = widgets::icon_number(
+                    ui,
+                    "rotate-ccw",
+                    tr(
+                        "Ângulo de rotação (arraste o ícone ou digite)",
+                        "Rotation angle (drag the icon or type)",
+                    ),
+                    "angulo",
+                    current,
+                    "°",
+                );
+            }
+            if it.show("mirror", tr("Espelhar", "Mirror")) {
+                widgets::stack(ui, |ui, row| {
+                    let (icon, tip, h) = if row == 0 {
+                        (
+                            "mirror-h",
+                            tr("Espelhar na horizontal", "Mirror horizontally"),
+                            true,
+                        )
+                    } else {
+                        (
+                            "mirror-v",
+                            tr("Espelhar na vertical", "Mirror vertically"),
+                            false,
+                        )
+                    };
+                    if icons::button(ui, icon, tip, false, true).clicked() {
+                        mirror = Some(h);
+                    }
+                });
+            }
+        },
+    );
     if let Some(x) = nx {
         ops::set_position(&mut doc.editor, &sel, *anchor, Point::new(x, p.y));
     }
     if let Some(y) = ny {
         ops::set_position(&mut doc.editor, &sel, *anchor, Point::new(p.x, y));
     }
-    ui.separator();
-    let (mut nw, mut nh) = (None, None);
-    widgets::stack(ui, |ui, row| {
-        if row == 0 {
-            nw = widgets::labeled_world_length(ui, tr("L", "W"), "w", b.width(), None);
-        } else {
-            nh = widgets::labeled_world_length(ui, tr("A", "H"), "h", b.height(), None);
-        }
-    });
     if let Some(w) = nw {
         ops::set_size(&mut doc.editor, &sel, *anchor, Some(w), None, *lock);
     }
     if let Some(h) = nh {
         ops::set_size(&mut doc.editor, &sel, *anchor, None, Some(h), *lock);
     }
-    // Cadeado fechado = proporção travada; aberto = largura e altura livres.
-    let (icon, tip) = if *lock {
-        (
-            "lock-on",
-            tr(
-                "Proporção mantida (clique para destravar)",
-                "Proportions kept (click to unlock)",
-            ),
-        )
-    } else {
-        (
-            "lock-off",
-            tr(
-                "Proporção livre (clique para manter)",
-                "Proportions free (click to keep)",
-            ),
-        )
-    };
-    if icons::button(ui, icon, tip, *lock, true).clicked() {
-        *lock = !*lock;
-    }
-    ui.separator();
-    // Ângulo atual do (primeiro) objeto; digitar gira até o valor.
-    let current = selection_angle(doc, &sel);
-    if let Some(a) = widgets::icon_number(
-        ui,
-        "rotate-ccw",
-        tr(
-            "Ângulo de rotação (arraste o ícone ou digite)",
-            "Rotation angle (drag the icon or type)",
-        ),
-        "angulo",
-        current,
-        "°",
-    ) {
+    if let Some(a) = angle {
         let delta = a - current;
         if delta.abs() > 1e-9 {
             ops::transform(
@@ -1808,34 +1879,6 @@ fn select_bar(
             );
         }
     }
-    let mut mirror = None;
-    widgets::stack(ui, |ui, row| {
-        if row == 0 {
-            if icons::button(
-                ui,
-                "mirror-h",
-                tr("Espelhar na horizontal", "Mirror horizontally"),
-                false,
-                true,
-            )
-            .clicked()
-            {
-                mirror = Some(true);
-            };
-        } else {
-            if icons::button(
-                ui,
-                "mirror-v",
-                tr("Espelhar na vertical", "Mirror vertically"),
-                false,
-                true,
-            )
-            .clicked()
-            {
-                mirror = Some(false);
-            };
-        }
-    });
     if let Some(h) = mirror {
         ops::transform(
             &mut doc.editor,
@@ -1845,7 +1888,135 @@ fn select_bar(
         );
     }
     // ---- depois do ângulo: grupos do contexto (DESIGN-SYSTEM 4.6) ----
-    // 1. Parâmetros do objeto (primitivas).
+    // 1. Parâmetros do objeto (primitivas e texto).
+    bar.group(
+        ui,
+        "OBJ",
+        tr("Parâmetros do objeto", "Object parameters"),
+        false,
+        |ui, _| object_group(ui, doc, &sel, corners_sel, object_params),
+    );
+    // 2. Contorno (edição rápida).
+    stroke_bar(ui, bar, doc, &sel);
+    // 3. Combinar/Separar e booleanas. Com um objeto só Separar faz
+    // sentido; as booleanas pedem dois ou mais (doc 09): alvo = último
+    // selecionado.
+    let mut changed = None;
+    bar.group(
+        ui,
+        "CMB",
+        tr("Combinar e booleanas", "Combine and booleans"),
+        false,
+        |ui, _| changed = combine_group(ui, doc, &sel),
+    );
+    if let Some(n) = changed {
+        doc.selection = n;
+        return (false, true);
+    }
+    // 4. Ordem e agrupar.
+    let mut reorder = None;
+    bar.group(ui, "ORD", tr("Ordem", "Order"), false, |ui, _| {
+        let order_buttons = [
+            (
+                "order-front",
+                crate::keymap::hint(
+                    tr("Trazer para frente", "Bring to front"),
+                    crate::keymap::Command::ToFront,
+                ),
+                Order::ToFront,
+            ),
+            (
+                "order-forward",
+                crate::keymap::hint(
+                    tr("Um passo à frente", "Bring forward"),
+                    crate::keymap::Command::Forward,
+                ),
+                Order::Forward,
+            ),
+            (
+                "order-backward",
+                crate::keymap::hint(
+                    tr("Um passo atrás", "Send backward"),
+                    crate::keymap::Command::Backward,
+                ),
+                Order::Backward,
+            ),
+            (
+                "order-back",
+                crate::keymap::hint(
+                    tr("Enviar para trás", "Send to back"),
+                    crate::keymap::Command::ToBack,
+                ),
+                Order::ToBack,
+            ),
+        ];
+        widgets::stack(ui, |ui, row| {
+            let items = if row == 0 {
+                &order_buttons[..2]
+            } else {
+                &order_buttons[2..]
+            };
+            for (icon, tip, order) in items {
+                if icons::button(ui, icon, tip, false, true).clicked() {
+                    reorder = Some(*order);
+                }
+            }
+        });
+    });
+    if let Some(o) = reorder {
+        ops::reorder(&mut doc.editor, &sel, o);
+    }
+    let any_group = doc
+        .selected_objects()
+        .iter()
+        .any(|o| matches!(o.kind, ObjectKind::Group(_)));
+    let (mut do_group, mut do_ungroup) = (false, false);
+    bar.group(ui, "GRP", tr("Agrupar", "Group"), false, |ui, _| {
+        widgets::stack(ui, |ui, row| {
+            if row == 0 {
+                do_group = icons::button(
+                    ui,
+                    "group",
+                    crate::keymap::hint(tr("Agrupar", "Group"), crate::keymap::Command::Group_),
+                    false,
+                    sel.len() > 1,
+                )
+                .clicked();
+            } else {
+                do_ungroup = icons::button(
+                    ui,
+                    "ungroup",
+                    crate::keymap::hint(
+                        tr("Desagrupar", "Ungroup"),
+                        crate::keymap::Command::Ungroup,
+                    ),
+                    false,
+                    any_group,
+                )
+                .clicked();
+            }
+        });
+    });
+    if do_group && let Some(id) = ops::group(&mut doc.editor, &sel) {
+        doc.selection = vec![id];
+        return (false, true);
+    }
+    if do_ungroup {
+        doc.selection = ops::ungroup(&mut doc.editor, &sel);
+        return (false, true);
+    }
+    (false, false)
+}
+
+/// Parâmetros do objeto (DS 4.6, grupo 2): converter em curvas, cantos do
+/// retângulo, polígono/estrela, espiral, elipse e os do texto.
+fn object_group(
+    ui: &mut egui::Ui,
+    doc: &mut DocState,
+    sel: &[String],
+    corners_sel: &mut [bool; 4],
+    object_params: &mut dyn FnMut(&mut egui::Ui, &mut DocState),
+) {
     // Primitivas (GD-PRI-01/02): parâmetros editáveis até converter em curvas.
     let objs = doc.selected_objects();
     let has_primitive = objs.iter().any(|o| {
@@ -1871,7 +2042,7 @@ fn select_bar(
         )
         .clicked()
     {
-        ops::convert_to_curves(&mut doc.editor, &sel);
+        ops::convert_to_curves(&mut doc.editor, sel);
     }
     if let Some(o) = single {
         match &o.kind {
@@ -1927,7 +2098,7 @@ fn select_bar(
                     let which = *corners_sel;
                     ops::modify(
                         &mut doc.editor,
-                        &sel,
+                        sel,
                         tr("Alterar cantos", "Change corners"),
                         |o| {
                             if let ObjectKind::Rectangle(r) = &mut o.kind {
@@ -1980,7 +2151,7 @@ fn select_bar(
                     next.free_nodes.retain(|f| f.index < count);
                     ops::modify(
                         &mut doc.editor,
-                        &sel,
+                        sel,
                         tr("Alterar polígono", "Change polygon"),
                         |o| {
                             if let ObjectKind::Polygon(p) = &mut o.kind {
@@ -2008,7 +2179,7 @@ fn select_bar(
                     let ribbon_on = n.ribbon.is_some() && sd.ribbon.is_none();
                     ops::modify(
                         &mut doc.editor,
-                        &sel,
+                        sel,
                         tr("Alterar espiral", "Change spiral"),
                         |o| {
                             if let ObjectKind::Spiral(s) = &mut o.kind {
@@ -2050,7 +2221,7 @@ fn select_bar(
                 if mode != e.mode || start.is_some() || end.is_some() {
                     ops::modify(
                         &mut doc.editor,
-                        &sel,
+                        sel,
                         tr("Alterar elipse", "Change ellipse"),
                         |o| {
                             if let ObjectKind::Ellipse(e) = &mut o.kind {
@@ -2072,264 +2243,160 @@ fn select_bar(
         }
     }
     object_params(ui, doc);
-    // 2. Contorno (edição rápida).
-    if stroke_bar(ui, doc, &sel) {
-        return false;
-    }
-    // 3. Combinar/Separar e booleanas.
-    // Com um objeto só Separar faz sentido; as booleanas pedem dois ou mais
-    // (doc 09): alvo = último selecionado.
+}
+
+/// Combinar, Separar e as booleanas. Devolve a seleção nova quando uma
+/// operação a troca.
+fn combine_group(ui: &mut egui::Ui, doc: &mut DocState, sel: &[String]) -> Option<Vec<String>> {
     if sel.len() == 1 {
-        ui.separator();
         let tip = crate::keymap::hint(
             tr("Separar", "Break apart"),
             crate::keymap::Command::BreakApart,
         );
         if icons::button(ui, "break-apart", tip, false, true).clicked() {
-            if let Some(n) = graphdraw_core::edit::breakapart::break_apart(&mut doc.editor, &sel) {
-                doc.selection = n;
-                return false;
-            }
+            return graphdraw_core::edit::breakapart::break_apart(&mut doc.editor, sel);
         }
+        return None;
     }
-    if sel.len() >= 2 {
-        ui.separator();
-        use crate::keymap::{Command as K, hint};
-        use graphdraw_core::edit::shapeops::{self, BoolOp, ShapeOp};
-        #[derive(Clone, Copy)]
-        enum B {
-            Combine,
-            BreakApart,
-            Bool(BoolOp),
-            Shape(ShapeOp),
-        }
-        let buttons = [
-            (
-                "combine",
-                hint(tr("Combinar", "Combine"), K::Combine),
-                B::Combine,
-            ),
-            (
-                "break-apart",
-                hint(tr("Separar", "Break apart"), K::BreakApart),
-                B::BreakApart,
-            ),
-            (
-                "bool-weld",
-                hint(tr("Soldar", "Weld"), K::Weld),
-                B::Bool(BoolOp::Weld),
-            ),
-            (
-                "bool-trim",
-                hint(
-                    tr(
-                        "Aparar: o último selecionado perde a área dos outros",
-                        "Trim: the last selected loses the others' area",
-                    ),
-                    K::Trim,
-                ),
-                B::Bool(BoolOp::Trim),
-            ),
-            (
-                "bool-intersect",
-                hint(
-                    tr(
-                        "Interseção: novo objeto com a área comum",
-                        "Intersect: new object with the common area",
-                    ),
-                    K::Intersect,
-                ),
-                B::Bool(BoolOp::Intersect),
-            ),
-            (
-                "bool-simplify",
-                hint(
-                    tr(
-                        "Simplificar: cada objeto fica só com a área visível",
-                        "Simplify: each object keeps only its visible area",
-                    ),
-                    K::Simplify,
-                ),
-                B::Shape(ShapeOp::Simplify),
-            ),
-            (
-                "bool-exclude",
-                hint(
-                    tr(
-                        "Excluir: só a área sem sobreposição",
-                        "Exclude: only the non-overlapping area",
-                    ),
-                    K::Exclude,
-                ),
-                B::Shape(ShapeOp::Exclude),
-            ),
-            (
-                "bool-front-minus",
-                hint(
-                    tr(
-                        "Frente menos trás: o da frente perde a área dos demais",
-                        "Front minus back: the front object loses the others' area",
-                    ),
-                    K::FrontMinusBack,
-                ),
-                B::Shape(ShapeOp::FrontMinusBack),
-            ),
-            (
-                "bool-back-minus",
-                hint(
-                    tr(
-                        "Trás menos frente: o de trás perde a área dos demais",
-                        "Back minus front: the back object loses the others' area",
-                    ),
-                    K::BackMinusFront,
-                ),
-                B::Shape(ShapeOp::BackMinusFront),
-            ),
-            (
-                "bool-divide",
-                hint(
-                    tr(
-                        "Dividir: cada região de sobreposição vira um objeto",
-                        "Divide: each overlap region becomes an object",
-                    ),
-                    K::Divide,
-                ),
-                B::Shape(ShapeOp::Divide),
-            ),
-            (
-                "bool-boundary",
-                hint(
-                    tr(
-                        "Limite: novo contorno em volta da seleção",
-                        "Boundary: new outline around the selection",
-                    ),
-                    K::Boundary,
-                ),
-                B::Shape(ShapeOp::Boundary),
-            ),
-        ];
-        let mut picked = None;
-        widgets::stack(ui, |ui, row| {
-            let range = if row == 0 { 0..6 } else { 6..buttons.len() };
-            for (icon, tip, op) in &buttons[range] {
-                if icons::button(ui, icon, tip, false, true).clicked() {
-                    picked = Some(*op);
-                }
-            }
-        });
-        let result = match picked {
-            Some(B::Combine) => shapeops::combine(&mut doc.editor, &sel).map(|id| vec![id]),
-            Some(B::BreakApart) => {
-                graphdraw_core::edit::breakapart::break_apart(&mut doc.editor, &sel)
-            }
-            Some(B::Bool(op)) => shapeops::boolean(&mut doc.editor, &sel, op, op.default_options()),
-            Some(B::Shape(op)) => shapeops::shape_op(&mut doc.editor, &sel, op),
-            None => None,
-        };
-        if let Some(n) = result {
-            doc.selection = n;
-            return false;
-        }
+    if sel.len() < 2 {
+        return None;
     }
-    // 4. Ordem e agrupar.
-    ui.separator();
-    let mut order_buttons = Vec::new();
-    for (icon, tip, order) in [
-        (
-            "order-front",
-            crate::keymap::hint(
-                tr("Trazer para frente", "Bring to front"),
-                crate::keymap::Command::ToFront,
-            ),
-            Order::ToFront,
-        ),
-        (
-            "order-forward",
-            crate::keymap::hint(
-                tr("Um passo à frente", "Bring forward"),
-                crate::keymap::Command::Forward,
-            ),
-            Order::Forward,
-        ),
-        (
-            "order-backward",
-            crate::keymap::hint(
-                tr("Um passo atrás", "Send backward"),
-                crate::keymap::Command::Backward,
-            ),
-            Order::Backward,
-        ),
-        (
-            "order-back",
-            crate::keymap::hint(
-                tr("Enviar para trás", "Send to back"),
-                crate::keymap::Command::ToBack,
-            ),
-            Order::ToBack,
-        ),
-    ] {
-        order_buttons.push((icon, tip, order));
+    use crate::keymap::{Command as K, hint};
+    use graphdraw_core::edit::shapeops::{self, BoolOp, ShapeOp};
+    #[derive(Clone, Copy)]
+    enum B {
+        Combine,
+        BreakApart,
+        Bool(BoolOp),
+        Shape(ShapeOp),
     }
-    let mut reorder = None;
-    let mut buttons = |ui: &mut egui::Ui, items: &[(&str, &str, Order)]| {
-        for (icon, tip, order) in items {
+    let buttons = [
+        (
+            "combine",
+            hint(tr("Combinar", "Combine"), K::Combine),
+            B::Combine,
+        ),
+        (
+            "break-apart",
+            hint(tr("Separar", "Break apart"), K::BreakApart),
+            B::BreakApart,
+        ),
+        (
+            "bool-weld",
+            hint(tr("Soldar", "Weld"), K::Weld),
+            B::Bool(BoolOp::Weld),
+        ),
+        (
+            "bool-trim",
+            hint(
+                tr(
+                    "Aparar: o último selecionado perde a área dos outros",
+                    "Trim: the last selected loses the others' area",
+                ),
+                K::Trim,
+            ),
+            B::Bool(BoolOp::Trim),
+        ),
+        (
+            "bool-intersect",
+            hint(
+                tr(
+                    "Interseção: novo objeto com a área comum",
+                    "Intersect: new object with the common area",
+                ),
+                K::Intersect,
+            ),
+            B::Bool(BoolOp::Intersect),
+        ),
+        (
+            "bool-simplify",
+            hint(
+                tr(
+                    "Simplificar: cada objeto fica só com a área visível",
+                    "Simplify: each object keeps only its visible area",
+                ),
+                K::Simplify,
+            ),
+            B::Shape(ShapeOp::Simplify),
+        ),
+        (
+            "bool-exclude",
+            hint(
+                tr(
+                    "Excluir: só a área sem sobreposição",
+                    "Exclude: only the non-overlapping area",
+                ),
+                K::Exclude,
+            ),
+            B::Shape(ShapeOp::Exclude),
+        ),
+        (
+            "bool-front-minus",
+            hint(
+                tr(
+                    "Frente menos trás: o da frente perde a área dos demais",
+                    "Front minus back: the front object loses the others' area",
+                ),
+                K::FrontMinusBack,
+            ),
+            B::Shape(ShapeOp::FrontMinusBack),
+        ),
+        (
+            "bool-back-minus",
+            hint(
+                tr(
+                    "Trás menos frente: o de trás perde a área dos demais",
+                    "Back minus front: the back object loses the others' area",
+                ),
+                K::BackMinusFront,
+            ),
+            B::Shape(ShapeOp::BackMinusFront),
+        ),
+        (
+            "bool-divide",
+            hint(
+                tr(
+                    "Dividir: cada região de sobreposição vira um objeto",
+                    "Divide: each overlap region becomes an object",
+                ),
+                K::Divide,
+            ),
+            B::Shape(ShapeOp::Divide),
+        ),
+        (
+            "bool-boundary",
+            hint(
+                tr(
+                    "Limite: novo contorno em volta da seleção",
+                    "Boundary: new outline around the selection",
+                ),
+                K::Boundary,
+            ),
+            B::Shape(ShapeOp::Boundary),
+        ),
+    ];
+    let mut picked = None;
+    widgets::stack(ui, |ui, row| {
+        let range = if row == 0 { 0..6 } else { 6..buttons.len() };
+        for (icon, tip, op) in &buttons[range] {
             if icons::button(ui, icon, tip, false, true).clicked() {
-                reorder = Some(*order);
+                picked = Some(*op);
             }
         }
-    };
-    widgets::stack(ui, |ui, row| {
-        if row == 0 {
-            buttons(ui, &order_buttons[..2]);
-        } else {
-            buttons(ui, &order_buttons[2..]);
-        }
     });
-    if let Some(o) = reorder {
-        ops::reorder(&mut doc.editor, &sel, o);
+    match picked? {
+        B::Combine => shapeops::combine(&mut doc.editor, sel).map(|id| vec![id]),
+        B::BreakApart => graphdraw_core::edit::breakapart::break_apart(&mut doc.editor, sel),
+        B::Bool(op) => shapeops::boolean(&mut doc.editor, sel, op, op.default_options()),
+        B::Shape(op) => shapeops::shape_op(&mut doc.editor, sel, op),
     }
-    ui.separator();
-    let any_group = doc
-        .selected_objects()
-        .iter()
-        .any(|o| matches!(o.kind, ObjectKind::Group(_)));
-    let (mut do_group, mut do_ungroup) = (false, false);
-    widgets::stack(ui, |ui, row| {
-        if row == 0 {
-            do_group = icons::button(
-                ui,
-                "group",
-                crate::keymap::hint(tr("Agrupar", "Group"), crate::keymap::Command::Group_),
-                false,
-                sel.len() > 1,
-            )
-            .clicked();
-        } else {
-            do_ungroup = icons::button(
-                ui,
-                "ungroup",
-                crate::keymap::hint(tr("Desagrupar", "Ungroup"), crate::keymap::Command::Ungroup),
-                false,
-                any_group,
-            )
-            .clicked();
-        }
-    });
-    if do_group && let Some(id) = ops::group(&mut doc.editor, &sel) {
-        doc.selection = vec![id];
-    }
-    if do_ungroup {
-        doc.selection = ops::ungroup(&mut doc.editor, &sel);
-    }
-
-    false
 }
 
 /// Contorno na barra de propriedades (edição rápida; a janela de contorno
-/// fica para o ajuste fino): espessura, estilo de linha e, quando cabe,
-/// pontas de seta (curvas abertas) e caneta caligráfica. Devolve `true` se
-/// a seleção mudou.
-fn stroke_bar(ui: &mut egui::Ui, doc: &mut DocState, sel: &[String]) -> bool {
+/// fica para o ajuste fino): B-CTN (espessura e estilo de linha), B-SET
+/// (pontas de seta, só com curva aberta) e a caneta caligráfica. A
+/// espessura que difere entre os objetos fica vazia (GD-BPR-02).
+fn stroke_bar(ui: &mut egui::Ui, bar: &mut Bar, doc: &mut DocState, sel: &[String]) {
     use crate::dialogs::{DASHES, arrow_label, dash_for, detect_dash};
     use graphdraw_core::model::{Arrow, Stroke};
     let objs = doc.selected_objects();
@@ -2338,9 +2405,14 @@ fn stroke_bar(ui: &mut egui::Ui, doc: &mut DocState, sel: &[String]) -> bool {
         .filter(|o| !matches!(o.kind, ObjectKind::Image(_)))
         .collect();
     if eligible.is_empty() {
-        return false;
+        return;
     }
     let current: Option<Stroke> = eligible.iter().find_map(|o| o.stroke.clone());
+    let width = crate::propbar::Mixed::of(
+        eligible
+            .iter()
+            .map(|o| o.stroke.as_ref().map_or(0.0, |s| s.width)),
+    );
     let open_path = eligible.iter().any(|o| match &o.kind {
         ObjectKind::Path(p) => p.subpaths.iter().any(|s| !s.closed),
         _ => false,
@@ -2349,151 +2421,236 @@ fn stroke_bar(ui: &mut egui::Ui, doc: &mut DocState, sel: &[String]) -> bool {
     type Edit = Box<dyn Fn(&mut Stroke)>;
     let mut edit: Option<(&str, Edit)> = None;
     let mut remove = false;
-    let width = current.as_ref().map_or(0.0, |s| s.width);
-    ui.separator();
-    widgets::stack(ui, |ui, row| {
-        if row == 0 {
-            if let Some(v) = widgets::labeled_length(
-                ui,
-                tr("Contorno", "Outline"),
-                "contorno-espessura",
-                width,
-                None,
-            ) {
-                let v = v.max(0.0);
-                edit = Some((
-                    tr("Espessura do contorno", "Outline width"),
-                    Box::new(move |s| s.width = v),
-                ));
-            }
-        } else {
-            let preset = current.as_ref().map_or(0, detect_dash);
-            let text = if current.is_none() {
-                tr("Sem contorno", "No outline")
-            } else {
-                DASHES
-                    .get(preset)
-                    .map_or(tr("Personalizado", "Custom"), |d| tr(d.0, d.1))
-            };
-            egui::ComboBox::from_id_salt("contorno-estilo")
-                .selected_text(text)
-                .width(theme::ARROW_COMBO_WIDTH)
-                .show_ui(ui, |ui| {
-                    if ui
-                        .selectable_label(current.is_none(), tr("Sem contorno", "No outline"))
-                        .clicked()
-                    {
-                        remove = true;
-                    }
-                    for (i, d) in DASHES.iter().enumerate() {
+    bar.group(ui, "B-CTN", tr("Contorno", "Outline"), false, |ui, it| {
+        let show_width = it.show("width", tr("Espessura", "Width"));
+        let show_style = it.show("style", tr("Estilo de linha", "Line style"));
+        widgets::stack(ui, |ui, row| {
+            if row == 0 && show_width {
+                if let Some(v) = widgets::labeled_mixed_length(
+                    ui,
+                    tr("Contorno", "Outline"),
+                    "contorno-espessura",
+                    width.value().copied(),
+                ) {
+                    let v = v.max(0.0);
+                    edit = Some((
+                        tr("Espessura do contorno", "Outline width"),
+                        Box::new(move |s| s.width = v),
+                    ));
+                }
+            } else if row == 1 && show_style {
+                let preset = current.as_ref().map_or(0, detect_dash);
+                let text = if current.is_none() {
+                    tr("Sem contorno", "No outline")
+                } else {
+                    DASHES
+                        .get(preset)
+                        .map_or(tr("Personalizado", "Custom"), |d| tr(d.0, d.1))
+                };
+                egui::ComboBox::from_id_salt("contorno-estilo")
+                    .selected_text(text)
+                    .width(theme::ARROW_COMBO_WIDTH)
+                    .show_ui(ui, |ui| {
                         if ui
-                            .selectable_label(current.is_some() && preset == i, tr(d.0, d.1))
+                            .selectable_label(current.is_none(), tr("Sem contorno", "No outline"))
                             .clicked()
                         {
-                            edit = Some((
-                                tr("Estilo do contorno", "Outline style"),
-                                Box::new(move |s| s.dash = dash_for(i, s.width)),
-                            ));
+                            remove = true;
                         }
-                    }
-                });
-        }
+                        for (i, d) in DASHES.iter().enumerate() {
+                            if ui
+                                .selectable_label(current.is_some() && preset == i, tr(d.0, d.1))
+                                .clicked()
+                            {
+                                edit = Some((
+                                    tr("Estilo do contorno", "Outline style"),
+                                    Box::new(move |s| s.dash = dash_for(i, s.width)),
+                                ));
+                            }
+                        }
+                    });
+            }
+        });
     });
     // Pontas de seta: só com curva aberta.
     if open_path {
         let (start, end) = current.as_ref().map_or((None, None), |s| {
             (s.start_arrow.clone(), s.end_arrow.clone())
         });
-        widgets::stack(ui, |ui, row| {
-            let (label, id, cur, is_start) = if row == 0 {
-                (tr("Início", "Start"), "barra-seta-inicio", &start, true)
-            } else {
-                (tr("Fim", "End"), "barra-seta-fim", &end, false)
-            };
-            ui.label(label);
-            let text = cur
-                .as_ref()
-                .map_or(tr("Nenhuma", "None"), |a| arrow_label(&a.shape));
-            egui::ComboBox::from_id_salt(id)
-                .selected_text(text)
-                .width(theme::ARROW_COMBO_WIDTH)
-                .show_ui(ui, |ui| {
-                    let mut pick = |shape: Option<&'static str>| {
-                        let f: Edit = Box::new(move |s| {
-                            let a = shape.map(Arrow::new);
-                            if is_start {
-                                s.start_arrow = a;
-                            } else {
-                                s.end_arrow = a;
-                            }
-                        });
-                        edit = Some((tr("Ponta de seta", "Arrowhead"), f));
-                    };
-                    if ui
-                        .selectable_label(cur.is_none(), tr("Nenhuma", "None"))
-                        .clicked()
-                    {
-                        pick(None);
-                    }
-                    for shape in graphdraw_core::render::arrows::SHAPES {
-                        let on = cur.as_ref().is_some_and(|a| a.shape == shape);
-                        if ui.selectable_label(on, arrow_label(shape)).clicked() {
-                            pick(Some(shape));
+        bar.group(ui, "B-SET", tr("Setas", "Arrows"), false, |ui, _| {
+            widgets::stack(ui, |ui, row| {
+                let (label, id, cur, is_start) = if row == 0 {
+                    (tr("Início", "Start"), "barra-seta-inicio", &start, true)
+                } else {
+                    (tr("Fim", "End"), "barra-seta-fim", &end, false)
+                };
+                ui.label(label);
+                let text = cur
+                    .as_ref()
+                    .map_or(tr("Nenhuma", "None"), |a| arrow_label(&a.shape));
+                egui::ComboBox::from_id_salt(id)
+                    .selected_text(text)
+                    .width(theme::ARROW_COMBO_WIDTH)
+                    .show_ui(ui, |ui| {
+                        let mut pick = |shape: Option<&'static str>| {
+                            let f: Edit = Box::new(move |s| {
+                                let a = shape.map(Arrow::new);
+                                if is_start {
+                                    s.start_arrow = a;
+                                } else {
+                                    s.end_arrow = a;
+                                }
+                            });
+                            edit = Some((tr("Ponta de seta", "Arrowhead"), f));
+                        };
+                        if ui
+                            .selectable_label(cur.is_none(), tr("Nenhuma", "None"))
+                            .clicked()
+                        {
+                            pick(None);
                         }
-                    }
-                });
+                        for shape in graphdraw_core::render::arrows::SHAPES {
+                            let on = cur.as_ref().is_some_and(|a| a.shape == shape);
+                            if ui.selectable_label(on, arrow_label(shape)).clicked() {
+                                pick(Some(shape));
+                            }
+                        }
+                    });
+            });
         });
     }
     // Caneta caligráfica: com contorno.
     if let Some(s) = &current {
         let mut pct = (s.nib_stretch * 100.0).round();
         let mut angle = s.nib_angle;
-        widgets::stack(ui, |ui, row| {
-            if row == 0 {
-                ui.label(tr("Bico", "Nib"));
-                if ui
-                    .add(
-                        egui::DragValue::new(&mut pct)
-                            .range(1.0..=100.0)
-                            .suffix("%"),
-                    )
-                    .on_hover_text(tr(
-                        "Caneta caligráfica: largura do bico (100% = redondo)",
-                        "Calligraphic pen: nib width (100% = round)",
-                    ))
-                    .changed()
-                {
-                    let v = pct / 100.0;
-                    edit = Some((
-                        tr("Caneta caligráfica", "Calligraphic pen"),
-                        Box::new(move |s| s.nib_stretch = v),
-                    ));
-                }
-            } else {
-                ui.label(tr("Âng.", "Ang."));
-                if ui
-                    .add_enabled(
-                        s.nib_stretch < 0.999,
-                        egui::DragValue::new(&mut angle)
-                            .range(-360.0..=360.0)
-                            .suffix("°"),
-                    )
-                    .changed()
-                {
-                    edit = Some((
-                        tr("Caneta caligráfica", "Calligraphic pen"),
-                        Box::new(move |s| s.nib_angle = angle),
-                    ));
-                }
-            }
-        });
+        bar.group(
+            ui,
+            "CANETA",
+            tr("Caneta caligráfica", "Calligraphic pen"),
+            false,
+            |ui, _| {
+                widgets::stack(ui, |ui, row| {
+                    if row == 0 {
+                        ui.label(tr("Bico", "Nib"));
+                        if ui
+                            .add(
+                                egui::DragValue::new(&mut pct)
+                                    .range(1.0..=100.0)
+                                    .suffix("%"),
+                            )
+                            .on_hover_text(tr(
+                                "Caneta caligráfica: largura do bico (100% = redondo)",
+                                "Calligraphic pen: nib width (100% = round)",
+                            ))
+                            .changed()
+                        {
+                            let v = pct / 100.0;
+                            edit = Some((
+                                tr("Caneta caligráfica", "Calligraphic pen"),
+                                Box::new(move |s| s.nib_stretch = v),
+                            ));
+                        }
+                    } else {
+                        ui.label(tr("Âng.", "Ang."));
+                        if ui
+                            .add_enabled(
+                                s.nib_stretch < 0.999,
+                                egui::DragValue::new(&mut angle)
+                                    .range(-360.0..=360.0)
+                                    .suffix("°"),
+                            )
+                            .changed()
+                        {
+                            edit = Some((
+                                tr("Caneta caligráfica", "Calligraphic pen"),
+                                Box::new(move |s| s.nib_angle = angle),
+                            ));
+                        }
+                    }
+                });
+            },
+        );
     }
     if remove {
         ops::set_stroke(&mut doc.editor, sel, None);
     } else if let Some((_, f)) = edit {
         ops::edit_stroke(&mut doc.editor, sel, f);
     }
-    false
+}
+
+/// Grupos de texto depois da fonte: espaçamento entre letras, texto em
+/// caminho e hifenização.
+fn text_groups(ui: &mut egui::Ui, bar: &mut Bar, doc: &mut DocState, targets: &[String]) {
+    bar.group(
+        ui,
+        "TXT-ESP",
+        tr("Espaçamento", "Spacing"),
+        false,
+        |ui, _| tracking_bar(ui, doc, targets),
+    );
+    bar.group(
+        ui,
+        "TXT-CAM",
+        tr("Texto em caminho", "Text on path"),
+        false,
+        |ui, _| path_text_bar(ui, doc, targets),
+    );
+    bar.group(
+        ui,
+        "TXT-HIF",
+        tr("Hifenização", "Hyphenation"),
+        false,
+        |ui, _| hyphen_bar(ui, doc, targets),
+    );
+}
+
+/// Ferramenta Largura: perfil da largura variável do contorno.
+fn width_bar(ui: &mut egui::Ui, doc: &mut DocState) {
+    let sel = doc.selection.clone();
+    let cur = sel
+        .first()
+        .and_then(|id| doc.editor.find(id))
+        .and_then(|r| doc.editor.get(&r))
+        .and_then(|o| o.stroke.as_ref())
+        .map(|s| s.widths.clone());
+    let mut pick: Option<Vec<graphdraw_core::model::WidthNode>> = None;
+    ui.add_enabled_ui(cur.is_some(), |ui| {
+        if ui
+            .selectable_label(
+                cur.as_ref().is_some_and(|w| w.is_empty()),
+                tr("Uniforme", "Uniform"),
+            )
+            .clicked()
+        {
+            pick = Some(Vec::new());
+        }
+        for name in graphdraw_core::render::varwidth::PRESETS {
+            let nodes = graphdraw_core::render::varwidth::preset(name);
+            if ui
+                .selectable_label(
+                    cur.as_ref() == Some(&nodes),
+                    crate::dialogs::width_label(name),
+                )
+                .clicked()
+            {
+                pick = Some(nodes);
+            }
+        }
+    });
+    if let Some(nodes) = pick {
+        ops::modify(
+            &mut doc.editor,
+            &sel,
+            tr("Largura variável", "Variable width"),
+            |o| {
+                if let Some(s) = &mut o.stroke {
+                    s.widths = nodes.clone();
+                    return true;
+                }
+                false
+            },
+        );
+    }
 }
 
 fn corner_label(k: &str) -> &'static str {
@@ -3773,7 +3930,6 @@ fn hyphen_bar(ui: &mut egui::Ui, doc: &mut DocState, targets: &[String]) {
     else {
         return;
     };
-    ui.separator();
     let (mut h, mut l) = (on, lang.clone());
     ui.checkbox(&mut h, tr("Hifenizar", "Hyphenate")).on_hover_text(tr(
         "Parte as palavras no fim da linha pelas regras do idioma (ou pelo dicionário em %APPDATA%\\GraphDraw\\hifenizacao)",
@@ -3822,7 +3978,6 @@ fn tracking_bar(ui: &mut egui::Ui, doc: &mut DocState, targets: &[String]) {
     else {
         return;
     };
-    ui.separator();
     if let Some(v) = widgets::icon_number(
         ui,
         "tp-tracking",
@@ -3877,7 +4032,6 @@ fn path_text_bar(ui: &mut egui::Ui, doc: &mut DocState, targets: &[String]) {
     else {
         return;
     };
-    ui.separator();
     let mut next = tp.clone();
     // Cada edição é um botão de ícone com dica (GD-TXT-09, DS 4.6.12).
     let pick = |ui: &mut egui::Ui, cur: &mut String, opts: &[(&str, &str, &str)]| {
@@ -5056,7 +5210,6 @@ fn live_boolean_bar(ui: &mut egui::Ui, doc: &mut DocState) {
     let Some(cur) = g.boolean.clone() else {
         return;
     };
-    ui.separator();
     let mut next = cur.clone();
     for (k, label) in [
         ("weld", tr("Soldar", "Weld")),
@@ -5113,7 +5266,6 @@ fn wrap_bar(ui: &mut egui::Ui, doc: &mut DocState) {
     };
     let cur = first.wrap.clone();
     let mut next = cur.clone();
-    ui.separator();
     ui.menu_button(tr("Contornar texto", "Wrap text"), |ui| {
         let style = next.as_ref().map(|w| w.style.clone());
         for (k, label) in [
@@ -5181,7 +5333,6 @@ fn symmetry_bar(ui: &mut egui::Ui, doc: &mut DocState) {
         return;
     };
     let mut s = s0.clone();
-    ui.separator();
     for (k, label) in [
         ("mirror", tr("Espelho", "Mirror")),
         ("radial", tr("Radial", "Radial")),
@@ -5635,7 +5786,7 @@ mod tests {
                 let c = ui.ctx().clone();
                 panel = widgets::property_panel(&c)
                     .show(ui, |ui| {
-                        widgets::single_line_bar(ui, "t", |ui| {
+                        ui.horizontal_centered(|ui| {
                             f(ui, doc);
                             content = ui.min_rect();
                         });
@@ -5688,7 +5839,18 @@ mod tests {
         let rev = doc.editor.revision();
         let select = |ui: &mut egui::Ui, d: &mut DocState| {
             let (mut a, mut l) = (Anchor::Center, true);
-            select_bar(ui, d, &mut a, &mut l, &mut [true; 4], &mut |_, _| {});
+            let c = propbar::Customs::default();
+            let mut bar = Bar::begin(ui, "t".into(), &c, Pass::Inline, false);
+            select_bar(
+                ui,
+                &mut bar,
+                d,
+                &mut a,
+                &mut l,
+                &mut [true; 4],
+                &mut |_, _| {},
+            );
+            bar.end(ui, None);
         };
         let _ = bar(&mut doc, select);
         assert_eq!(doc.editor.revision(), rev, "nada mudou");
@@ -5753,7 +5915,18 @@ mod tests {
         doc.selection = vec![id.clone()];
         let select = |ui: &mut egui::Ui, d: &mut DocState| {
             let (mut a, mut l) = (Anchor::Center, true);
-            select_bar(ui, d, &mut a, &mut l, &mut [true; 4], &mut |_, _| {});
+            let c = propbar::Customs::default();
+            let mut bar = Bar::begin(ui, "t".into(), &c, Pass::Inline, false);
+            select_bar(
+                ui,
+                &mut bar,
+                d,
+                &mut a,
+                &mut l,
+                &mut [true; 4],
+                &mut |_, _| {},
+            );
+            bar.end(ui, None);
         };
         fits(bar(&mut doc, select), "seleção");
         // Todos os grupos de uma vez: dois caminhos abertos com contorno

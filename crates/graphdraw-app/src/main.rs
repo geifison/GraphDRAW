@@ -30,6 +30,7 @@ mod paletteui;
 mod panels;
 mod printer;
 mod printui;
+mod propbar;
 mod recovery;
 mod rulers;
 mod spell;

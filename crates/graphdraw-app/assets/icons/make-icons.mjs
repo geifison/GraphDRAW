@@ -208,6 +208,13 @@ const icons = {
   "print-on": `<path d="M7 9 V3.5 H17 V9"/><rect x="3.5" y="9" width="17" height="7.5" rx="1.5"/><path d="M7 14 H17 V20.5 H7 Z"/>`,
   "print-off": `<path d="M7 9 V3.5 H17 V9"/><rect x="3.5" y="9" width="17" height="7.5" rx="1.5"/><path d="M4 20 L20 4"/>`,
   "lock-on": `<rect x="5" y="10.5" width="14" height="10" rx="1.5"/><path d="M8 10.5 V7.5 a4 4 0 0 1 8 0 V10.5"/>`,
+  // ---- barra de propriedades (GD-BPR-06/07/08) ----
+  // Alça: duas colunas de três pontos.
+  "bar-grip": `${dot(9.5, 6.5, 1.3)}${dot(14.5, 6.5, 1.3)}${dot(9.5, 12, 1.3)}${dot(14.5, 12, 1.3)}${dot(9.5, 17.5, 1.3)}${dot(14.5, 17.5, 1.3)}`,
+  // Mais controles (transbordo): duas setas para a direita.
+  "bar-overflow": `<path d="M6 7 L11 12 L6 17 M13 7 L18 12 L13 17"/>`,
+  // Personalizar: três pontos na horizontal.
+  "bar-more": `${dot(6, 12, 1.6)}${dot(12, 12, 1.6)}${dot(18, 12, 1.6)}`,
   "lock-off": `<rect x="5" y="10.5" width="14" height="10" rx="1.5"/><path d="M8 10.5 V7.5 a4 4 0 0 1 7.7 -1.5"/>`,
   wireframe: `<path d="M12 4 L20.5 18.5 H3.5 Z" stroke-dasharray="2 2"/><circle cx="12" cy="13.5" r="2.2"/>`,
   // ---- contorno: junção, terminação, posição, opções ----

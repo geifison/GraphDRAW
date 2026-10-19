@@ -415,11 +415,20 @@ a seleção; o comando escolhido vale para o objeto bloqueado.
   `text-all-small-caps` em cima, `text-all-caps` e `text-cap-spacing`
   embaixo, no estado "ligado" quando valem —, alinhamentos 2 × 2). Controles soltos ficam centrados
   na altura.
-- **Sem quebra de linha:** nada quebra linha. Se os controles não cabem na
-  largura, a barra rola na horizontal (roda do mouse ou arrasto; barra de
-  rolagem oculta) e um degradê na borda indica que há mais conteúdo.
-- Textos de ajuda longos (dicas da ferramenta) são cortados com reticências
-  em uma linha; o texto completo aparece na dica (`tooltip-delay`).
+- **Sem quebra de linha:** nada quebra linha. Os controles vêm em
+  **grupos** (blocos do doc 31); grupo que não cabe na largura vai para o
+  botão **»** (`bar-overflow`), cortando da direita para a esquerda e os
+  essenciais por último (GD-BPR-08). O **»** abre um popup com um grupo por
+  linha, separados por divisor. Não há rolagem horizontal.
+- **Moldura da barra:** alça (`bar-grip`, arrastar leva a barra para cima
+  ou para baixo; bloqueada com *Janela › Barras › Bloquear barras*) à
+  esquerda; **»** e **⋯** (`bar-more`, personalizar o contexto: mostrar e
+  ocultar grupos e itens, Alt + arrastar para reordenar, *Adicionar
+  comando…* com lista de no máximo `menu-scroll-height` = 12 itens,
+  *Restaurar padrão deste contexto*) à direita. Ver doc 31, GD-BPR-06..08.
+- Textos de ajuda longos (dicas da ferramenta) ocupam o espaço que sobra
+  depois dos grupos, cortados com reticências em uma linha; o texto
+  completo aparece na dica (`tooltip-delay`).
 - Controles da barra em tamanho Compact; grupos separados por divisor
   vertical, com `space-200` entre irmãos. Controle composto (ex.: seletor
   de âncora 3 × 3) também cabe em 24 px de altura: não usar grade de
