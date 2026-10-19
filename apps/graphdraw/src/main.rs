@@ -72,6 +72,7 @@ mod interaction;
 mod interaction2;
 mod kind_nodes;
 mod knife;
+mod length_input;
 mod lens;
 mod live_guides;
 #[cfg(not(target_arch = "wasm32"))]
@@ -83,8 +84,10 @@ mod mcp_link;
 mod media;
 mod mesh_tool;
 mod multipage;
+mod measure_field;
 mod net;
 mod new_document;
+mod new_document_window;
 mod node_edit;
 mod ops;
 mod ops2;

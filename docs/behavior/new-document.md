@@ -7,6 +7,35 @@ again" ticked (or Options > General > Show New Document dialog box
 cleared) these commands create the drawing at once with the settings last
 used in the dialog. Every new drawing opens in its own tab.
 
+## New Document window
+
+These commands now open the New Document window
+(`new_document_window.rs`) while Options > General > Show New Document
+dialog box is on; otherwise the drawing is created at once with the
+settings last used. The Create a New Document dialog described further
+down stays in the code, and its settings are what both build drawings
+from.
+
+Left: a search field ("/" focuses it; words match the format names, in
+the interface language or in English, and sizes such as `1080` or
+`210x297`), the filters All, Print, Screens/UI, Social and Custom, and a
+card per format with its sheet to scale, name, size, dpi and colour mode.
+The formats are `graphdraw_core::page_presets::PRESETS` (A0 to A6, B4,
+B5, Letter, Legal, Tabloid, cards, DL envelope, a 1 x 2 m banner, screens
+and social media formats at 96 dpi RGB). Picking one sets size,
+resolution, colour mode and unit (px for screen formats, mm for print).
+
+Right: the page to scale with its bleed (dashed), a badge with how many
+times it fits on A4 and A3, then Name (empty: the next `Untitled-N`),
+Unit (mm, cm, in, px, pt), Width and Height, Orientation, Bleed (off; on
+starts at 3 mm), Resolution (72 to 2400 dpi) and CMYK or RGB. Length
+fields show the unit inside (`210 mm`) and take sums, other units,
+fractions and changes of the value (`8.5 in`, `100+10 mm`, `21 cm`,
+`3 1/8 in`, `+15`, `50%`); Enter or leaving the field applies, Esc
+restores, the arrows add 1 (Shift: 10). Create document (Ctrl+Enter)
+opens one page with those settings, sets the bleed and the drawing unit;
+Cancel or Esc closes the window.
+
 ## Layout
 
 | Section | Control | Default |

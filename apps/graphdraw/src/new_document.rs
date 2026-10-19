@@ -8,6 +8,11 @@
 //! resolution) and a collapsed Color settings section (profiles and
 //! rendering intent). Under them a help button, "Do not show this dialog
 //! again", OK and Cancel.
+//!
+//! File > New now opens the New Document window
+//! ([`crate::new_document_window`]); this dialog stays in the tree and
+//! its settings type is what both build drawings from.
+#![allow(dead_code)]
 
 use crate::app::{App, Units};
 use crate::i18n::tr;
@@ -220,7 +225,7 @@ impl NewDocSettings {
     }
 
     /// After an edit: the preset still applies only if every value matches.
-    fn refresh_preset(&mut self) {
+    pub(crate) fn refresh_preset(&mut self) {
         if self.preset_values(&self.preset).as_ref() != Some(&self.values) {
             self.preset = CUSTOM.into();
         }
@@ -799,7 +804,7 @@ fn length(ui: &mut Ui, id: &str, rect: egui::Rect, mm: &mut f64, units: Units) -
 
 /// Portrait or landscape button: a small page outline, framed when it is
 /// the page's orientation.
-fn orientation_button(
+pub(crate) fn orientation_button(
     ui: &mut Ui,
     rect: egui::Rect,
     landscape: bool,
