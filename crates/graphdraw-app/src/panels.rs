@@ -2076,18 +2076,44 @@ fn select_bar(
     if stroke_bar(ui, doc, &sel) {
         return false;
     }
-    // 3. Combinar: booleanas (2 ou mais objetos).
-    // Booleanas com dois ou mais objetos (doc 09): alvo = último selecionado.
+    // 3. Combinar/Separar e booleanas.
+    // Com um objeto só Separar faz sentido; as booleanas pedem dois ou mais
+    // (doc 09): alvo = último selecionado.
+    if sel.len() == 1 {
+        ui.separator();
+        let tip = crate::keymap::hint(
+            tr("Separar", "Break apart"),
+            crate::keymap::Command::BreakApart,
+        );
+        if icons::button(ui, "break-apart", tip, false, true).clicked() {
+            if let Some(n) = graphdraw_core::edit::breakapart::break_apart(&mut doc.editor, &sel) {
+                doc.selection = n;
+                return false;
+            }
+        }
+    }
     if sel.len() >= 2 {
         ui.separator();
         use crate::keymap::{Command as K, hint};
         use graphdraw_core::edit::shapeops::{self, BoolOp, ShapeOp};
         #[derive(Clone, Copy)]
         enum B {
+            Combine,
+            BreakApart,
             Bool(BoolOp),
             Shape(ShapeOp),
         }
         let buttons = [
+            (
+                "combine",
+                hint(tr("Combinar", "Combine"), K::Combine),
+                B::Combine,
+            ),
+            (
+                "break-apart",
+                hint(tr("Separar", "Break apart"), K::BreakApart),
+                B::BreakApart,
+            ),
             (
                 "bool-weld",
                 hint(tr("Soldar", "Weld"), K::Weld),
@@ -2184,7 +2210,7 @@ fn select_bar(
         ];
         let mut picked = None;
         widgets::stack(ui, |ui, row| {
-            let range = if row == 0 { 0..5 } else { 5..buttons.len() };
+            let range = if row == 0 { 0..6 } else { 6..buttons.len() };
             for (icon, tip, op) in &buttons[range] {
                 if icons::button(ui, icon, tip, false, true).clicked() {
                     picked = Some(*op);
@@ -2192,6 +2218,10 @@ fn select_bar(
             }
         });
         let result = match picked {
+            Some(B::Combine) => shapeops::combine(&mut doc.editor, &sel).map(|id| vec![id]),
+            Some(B::BreakApart) => {
+                graphdraw_core::edit::breakapart::break_apart(&mut doc.editor, &sel)
+            }
             Some(B::Bool(op)) => shapeops::boolean(&mut doc.editor, &sel, op, op.default_options()),
             Some(B::Shape(op)) => shapeops::shape_op(&mut doc.editor, &sel, op),
             None => None,

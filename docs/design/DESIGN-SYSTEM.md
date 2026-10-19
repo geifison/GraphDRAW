@@ -441,7 +441,8 @@ posição e nada entra antes dele nem no meio dele:
    3. **contorno**: espessura e estilo de linha (ou "Sem contorno"); pontas
       de seta início/fim quando há curva aberta; caneta caligráfica (bico
       % e ângulo) quando há contorno;
-   4. **combinar** (2 ou mais objetos): as 9 booleanas;
+   4. **combinar**: Combinar e Separar à frente das 9 booleanas (2 ou mais
+      objetos); com 1 objeto, só Separar;
    5. **ordem** e **agrupar/desagrupar**.
 
 Recurso novo na barra entra em um desses grupos (ou num grupo novo depois
@@ -464,7 +465,7 @@ barra (no máximo os 2–4 controles mais usados) e o que fica só na janela.
 | Polígono/estrela | modo, lados/pontas, nitidez | — |
 | Elipse | elipse/arco/fatia, ângulos | — |
 | Texto | fonte, estilo, corpo, negrito, itálico, caixa tipográfica (versalete, todas em versalete, todas em maiúsculas, espaçamento de capitais), alinhamento; texto em caminho: início, distância, lado, orientação, espelho | Mudar caixa (menu Texto, menu de contexto, Shift+F3) |
-| Booleanas | as 9 (2 ou mais objetos) | — |
+| Combinar e booleanas | Combinar, Separar e as 9 (2 ou mais objetos); Separar com 1 objeto | — |
 | Aparência | — | painel Camadas: opacidade, mesclagem, dados do objeto |
 | Gradiente (ferramenta G) | linear/radial na barra da ferramenta | paradas: cor e opacidade no balão da parada |
 
