@@ -26,6 +26,8 @@ graphdraw-vba.workspace = true
 graphdraw-vba-project.workspace = true
 kurbo.workspace = true
 tiny-skia.workspace = true
+# Interface icons: the monochrome SVGs in assets/icons, rasterised per size.
+resvg = { version = "0.48", default-features = false }
 serde.workspace = true
 serde_json.workspace = true
 boa_engine = "0.20"
