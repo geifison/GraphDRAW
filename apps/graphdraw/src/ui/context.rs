@@ -92,7 +92,7 @@ fn guide_menu(app: &mut App, ui: &mut Ui, close: &mut bool) {
         close,
         "menu.edit.undo",
         "Ctrl+Z",
-        app.engine.undo_label().is_some(),
+        app.can_undo(),
     ) {
         app.undo();
     }

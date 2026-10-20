@@ -89,8 +89,7 @@ impl App {
         layout_of_text_shape(&s, Affine::IDENTITY)
     }
 
-    /// Replace the spans of the text being edited. Keystrokes collapse
-    /// into one undo step per text object.
+    /// Replace the spans of the text being edited, as one undo step.
     pub fn set_edit_spans(&mut self, spans: Vec<TextSpan>) {
         let Some(te) = self.text_edit.clone() else {
             return;
@@ -124,9 +123,8 @@ impl App {
             para,
             on_path,
         };
-        if self.engine.undo_label() == Some("Edit Text") {
-            let _ = self.engine.undo();
-        }
+        // Every keystroke is an undo step of its own: Ctrl+Z takes the
+        // typing back letter by letter (GD-UND-01).
         let _ = self.engine.run_with_label(
             &Command::SetShapeKind {
                 shape: te.shape,
@@ -138,6 +136,33 @@ impl App {
             self.reflow_chain(te.shape);
         }
         self.sync_text_defaults_from(te.shape);
+    }
+
+    /// After an undo or redo while typing: the caret goes where the text
+    /// changed (`before` is the text before the step). A text whose
+    /// creation was undone is no longer edited.
+    pub fn text_after_history(&mut self, before: &str) {
+        let Some(id) = self.text_edit.as_ref().map(|t| t.shape) else {
+            return;
+        };
+        if self.doc().find_shape(id).is_none() {
+            self.text_edit = None;
+            return;
+        }
+        let b: Vec<char> = before.chars().collect();
+        let a: Vec<char> = self.edit_text().chars().collect();
+        let pre = b.iter().zip(&a).take_while(|(x, y)| x == y).count();
+        let suf = b
+            .iter()
+            .rev()
+            .zip(a.iter().rev())
+            .take(b.len().min(a.len()) - pre)
+            .take_while(|(x, y)| x == y)
+            .count();
+        self.set_caret(a.len() - suf, false);
+        if let Some(te) = self.text_edit.as_mut() {
+            te.goal_x = None;
+        }
     }
 
     /// Place the caret at a character index (a click); Shift extends.
@@ -192,6 +217,9 @@ impl App {
                     let shift = modifiers.shift;
                     let ctrl = modifiers.command;
                     match key {
+                        // Letter by letter, without leaving the text.
+                        Key::Z if ctrl && shift => self.redo(),
+                        Key::Z if ctrl => self.undo(),
                         Key::Num8 if ctrl => self.step_text_size(true),
                         Key::Num2 if ctrl => self.step_text_size(false),
                         Key::Backspace => self.text_delete_backward(),
@@ -665,9 +693,33 @@ mod tests {
         // Typing at the caret inserts in the middle.
         app.text_insert("X");
         assert_eq!(app.edit_text(), "ello Xther");
-        // One undo step undoes the whole typing session.
+        // Undo takes the typing back one keystroke at a time, still
+        // editing, with the caret where the text changed (GD-UND-01).
+        app.undo();
+        assert_eq!(app.edit_text(), "ello ther");
+        assert!(app.text_edit.is_some());
+        assert_eq!(app.text_edit.as_ref().map(|t| t.caret), Some(5));
+        app.undo();
+        assert_eq!(app.edit_text(), "ello there");
+        app.redo();
+        assert_eq!(app.edit_text(), "ello ther");
         app.finish_text();
         assert_eq!(app.engine.undo_label(), Some("Edit Text"));
+    }
+
+    #[test]
+    fn undoing_the_text_creation_ends_the_editing() {
+        let mut app = App::headless();
+        app.settings.autocorrect.enabled = false;
+        app.start_text(Point::new(10.0, 10.0), None);
+        for c in ["a", "b"] {
+            app.text_insert(c);
+        }
+        app.undo();
+        assert_eq!(app.edit_text(), "a");
+        app.undo();
+        app.undo();
+        assert!(app.text_edit.is_none(), "the text is gone");
     }
 
     #[test]

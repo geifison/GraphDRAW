@@ -253,7 +253,15 @@ pub fn standard_toolbar(app: &mut App, ui: &mut Ui) {
                     }
                 }
             });
-        if std_button(ui, icons::Action::Save, &tip("toolbar.save"), doc, false).clicked() {
+        if std_button(
+            ui,
+            icons::Action::Save,
+            &tip("toolbar.save"),
+            app.can_save(),
+            false,
+        )
+        .clicked()
+        {
             app.save(false);
         }
         // The drawing's Git repository: open a file from it, or save the
@@ -320,7 +328,7 @@ pub fn standard_toolbar(app: &mut App, ui: &mut Ui) {
             ui,
             icons::Action::Undo,
             &tip("toolbar.undo"),
-            !undo_steps.is_empty(),
+            app.can_undo(),
             false,
         )
         .clicked()
@@ -344,7 +352,7 @@ pub fn standard_toolbar(app: &mut App, ui: &mut Ui) {
             ui,
             icons::Action::Redo,
             &tip("toolbar.redo"),
-            !redo_steps.is_empty(),
+            app.can_redo(),
             false,
         )
         .clicked()

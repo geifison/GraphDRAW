@@ -1634,10 +1634,10 @@ fn file_menu(app: &mut App, ui: &mut Ui) {
         app.close_all_documents();
     }
     sep(ui);
-    if item(ui, "menu.file.save", "Ctrl+S", doc) {
+    if item(ui, "menu.file.save", "Ctrl+S", app.can_save()) {
         app.save(false);
     }
-    if item(ui, "menu.file.save_as", "Ctrl+Shift+S", doc) {
+    if item(ui, "menu.file.save_as", "Ctrl+Shift+S", app.can_save_as()) {
         app.save(true);
     }
     if item(ui, "menu.file.save_as_template", "", doc) {
@@ -1737,7 +1737,7 @@ fn edit_menu(app: &mut App, ui: &mut Ui) {
         ui,
         &undo,
         "Ctrl+Z",
-        app.engine.undo_label().is_some(),
+        app.can_undo(),
         Some(crate::ui::icons::Action::Undo),
         "menu.edit.undo",
     ) {
@@ -1747,7 +1747,7 @@ fn edit_menu(app: &mut App, ui: &mut Ui) {
         ui,
         &redo,
         "Ctrl+Shift+Z",
-        app.engine.redo_label().is_some(),
+        app.can_redo(),
         Some(crate::ui::icons::Action::Redo),
         "menu.edit.redo",
     ) {

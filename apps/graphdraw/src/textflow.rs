@@ -226,7 +226,8 @@ impl App {
             });
         }
         if !cmds.is_empty() {
-            let _ = self.engine.run_batch("Text Flow", &cmds);
+            // Part of the change that moved the text: the same undo step.
+            let _ = self.engine.amend_batch("Text Flow", &cmds);
         }
     }
 

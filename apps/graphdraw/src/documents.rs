@@ -100,6 +100,28 @@ impl App {
         !self.docs.is_empty()
     }
 
+    /// The active drawing has at least one object (on a page or a master
+    /// layer).
+    pub fn has_objects(&self) -> bool {
+        let doc = self.doc();
+        doc.pages
+            .iter()
+            .flat_map(|p| &p.layers)
+            .chain(&doc.master)
+            .any(|l| !l.shapes.is_empty())
+    }
+
+    /// Save: there are unsaved changes and at least one object
+    /// (GD-UND-07).
+    pub fn can_save(&self) -> bool {
+        self.has_document() && self.engine.is_dirty() && self.has_objects()
+    }
+
+    /// Save As: the drawing has at least one object (GD-UND-07).
+    pub fn can_save_as(&self) -> bool {
+        self.has_document() && self.has_objects()
+    }
+
     /// Swap the window part of the active fields with slot `i`.
     fn swap_window(&mut self, i: usize) {
         let Some(slot) = self.docs.get_mut(i) else {
@@ -232,6 +254,7 @@ impl App {
         }
         self.drag = Drag::None;
         self.curve = None;
+        self.drafts = Default::default();
         self.text_edit = None;
         self.table_edit = None;
         self.three_point_base = None;
@@ -553,6 +576,23 @@ mod tests {
             corners: None,
         })
         .expect("a layer")
+    }
+
+    /// GD-UND-07: Save needs changes and an object, Save As an object;
+    /// undoing back to the saved drawing leaves nothing to save.
+    #[test]
+    fn save_needs_changes_and_objects() {
+        let mut app = App::headless();
+        assert!(!app.can_save() && !app.can_save_as(), "empty: nothing to save");
+        add_rect(&mut app);
+        assert!(app.can_save() && app.can_save_as());
+        app.engine.mark_saved();
+        assert!(!app.can_save(), "no changes");
+        assert!(app.can_save_as());
+        add_rect(&mut app);
+        assert!(app.can_save());
+        app.undo();
+        assert!(!app.can_save(), "undone back to the saved drawing");
     }
 
     #[test]

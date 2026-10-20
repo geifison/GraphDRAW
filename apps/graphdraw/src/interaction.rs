@@ -2161,10 +2161,11 @@ impl App {
         if pressed(Key::Z, cmd | Modifiers::SHIFT) {
             self.redo();
         }
-        if pressed(Key::S, cmd) {
+        // Save and Save As follow the File menu rules (GD-UND-07).
+        if pressed(Key::S, cmd) && self.can_save() {
             self.save(false);
         }
-        if pressed(Key::S, cmd | Modifiers::SHIFT) {
+        if pressed(Key::S, cmd | Modifiers::SHIFT) && self.can_save_as() {
             self.save(true);
         }
         if pressed(Key::S, Modifiers::ALT) && !self.selection.is_empty() {

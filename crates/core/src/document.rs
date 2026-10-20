@@ -3236,6 +3236,43 @@ impl Document {
         self.ids = ids;
     }
 
+    /// The same drawing, leaving out what stays as it is when changes are
+    /// undone (the id counter and the Time Tracker records).
+    pub fn same_content(&self, other: &Document) -> bool {
+        let Document {
+            title,
+            pages,
+            ids: _,
+            master,
+            object_styles,
+            defaults,
+            color_styles,
+            symbols,
+            metadata,
+            palette,
+            time_tracker: _,
+            selection_groups,
+            fonts,
+            cmyk_profile,
+            inks,
+            comments,
+        } = self;
+        *title == other.title
+            && *pages == other.pages
+            && *master == other.master
+            && *object_styles == other.object_styles
+            && *defaults == other.defaults
+            && *color_styles == other.color_styles
+            && *symbols == other.symbols
+            && *metadata == other.metadata
+            && *palette == other.palette
+            && *selection_groups == other.selection_groups
+            && *fonts == other.fonts
+            && *cmyk_profile == other.cmyk_profile
+            && *inks == other.inks
+            && *comments == other.comments
+    }
+
     pub fn page(&self, id: PageId) -> Result<&Page> {
         self.pages
             .iter()

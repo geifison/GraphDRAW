@@ -580,7 +580,7 @@ pub enum Drag {
 }
 
 /// Bezier / polyline tool in progress.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct CurveInProgress {
     /// Nodes placed so far with their outgoing handle (dragged with the
     /// Bezier/Pen tool); the incoming handle mirrors the previous node's.
@@ -842,6 +842,10 @@ pub struct App {
     pub media_width: f64,
     pub media_angle: f64,
     pub dimension_points: Vec<Point>,
+    /// Steps of the drawing in progress (see `draft_history.rs`).
+    pub drafts: crate::draft_history::DraftHistory,
+    /// The text field that got letter-by-letter undo (see `ui::letter_undo_in_fields`).
+    pub field_focus: Option<egui::Id>,
     pub blend_steps: u32,
     /// The Blend docker's options for the next blend (and the shown one).
     pub blend_options: graphdraw_core::live::BlendOptions,
@@ -1769,6 +1773,8 @@ impl App {
             media_width: 3.0,
             media_angle: 45.0,
             dimension_points: Vec::new(),
+            drafts: Default::default(),
+            field_focus: None,
             blend_steps: 5,
             blend_options: Default::default(),
             blend_spacing_mm: 5.0,
@@ -3892,22 +3898,56 @@ impl App {
     }
 
     pub fn undo(&mut self) {
-        self.finish_text();
-        match self.engine.undo() {
-            Ok(l) => self.status = crate::i18n::trf("status.undo_n", &[("l", l)]),
+        self.history_step(true);
+    }
+
+    pub fn redo(&mut self) {
+        self.history_step(false);
+    }
+
+    /// Undo or redo of everything (GD-UND-01): first the drawing in
+    /// progress, node by node; then the drawing, letter by letter while a
+    /// text is typed, without leaving the text.
+    fn history_step(&mut self, undo: bool) {
+        let draft = if undo {
+            self.undo_draft()
+        } else {
+            self.redo_draft()
+        };
+        if draft {
+            self.status = crate::i18n::tr(if undo {
+                "status.undo_draft"
+            } else {
+                "status.redo_draft"
+            });
+            return;
+        }
+        self.ime_preedit.clear();
+        let before = self.text_edit.as_ref().map(|_| self.edit_text());
+        let step = if undo {
+            self.engine.undo()
+        } else {
+            self.engine.redo()
+        };
+        match step {
+            Ok(l) if undo => self.status = crate::i18n::trf("status.undo_n", &[("l", l)]),
+            Ok(l) => self.status = crate::i18n::trf("status.redo_n", &[("l", l)]),
             Err(e) => self.status = e.to_string(),
+        }
+        if let Some(before) = before {
+            self.text_after_history(&before);
         }
         self.selection
             .retain(|id| self.engine.document().find_shape(*id).is_some());
     }
 
-    pub fn redo(&mut self) {
-        match self.engine.redo() {
-            Ok(l) => self.status = crate::i18n::trf("status.redo_n", &[("l", l)]),
-            Err(e) => self.status = e.to_string(),
-        }
-        self.selection
-            .retain(|id| self.engine.document().find_shape(*id).is_some());
+    /// Something to undo: a node of the drawing in progress or a step.
+    pub fn can_undo(&self) -> bool {
+        self.can_undo_draft() || self.engine.undo_label().is_some()
+    }
+
+    pub fn can_redo(&self) -> bool {
+        self.can_redo_draft() || self.engine.redo_label().is_some()
     }
 
     // ----- files -------------------------------------------------------------

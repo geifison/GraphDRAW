@@ -43,6 +43,7 @@ mod dimensions;
 mod distort_tool;
 mod doc_stats;
 mod documents;
+mod draft_history;
 mod drawing_scale;
 mod drop_menu;
 mod effects_ui;
@@ -325,6 +326,9 @@ impl eframe::App for Shell {
                 .request_repaint_after(std::time::Duration::from_millis(100));
         }
         ui::root(app, ui);
+        // The drawing in progress, node by node, for Ctrl+Z.
+        app.track_draft();
+        ui::letter_undo_in_fields(app, ui.ctx());
         // Dimensions moved or scaled this frame show their new values.
         app.bake_dimensions();
         // Bitmap effects on vector objects follow what changed them.

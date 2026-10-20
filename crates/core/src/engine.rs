@@ -25,6 +25,14 @@ pub struct Engine {
     revision: u64,
     /// Revision at the last save, to know whether the document is dirty.
     saved_revision: u64,
+    /// The drawing at the last save (`None`: recovered, unsaved until the
+    /// next save). Undoing back to it, or editing back to the same content
+    /// by hand, counts as saved (GD-UND-07).
+    saved_doc: Option<Document>,
+    /// Changed outside the history since the last save (`mark_changed`).
+    changed_outside: bool,
+    /// Last comparison with `saved_doc`: (revision, dirty?).
+    dirty_at: std::cell::Cell<Option<(u64, bool)>>,
     /// Revision right after the last recorded step, so a side effect can
     /// join that step only while nothing happened since.
     step_revision: u64,
@@ -58,12 +66,16 @@ impl Engine {
             redo: Vec::new(),
             revision: 0,
             saved_revision: 0,
+            saved_doc: None,
+            changed_outside: false,
+            dirty_at: std::cell::Cell::new(None),
             step_revision: u64::MAX,
             max_history: 200,
             uid_state: fresh_seed(),
         };
         e.doc.assign_uids(&mut e.uid_state);
         e.doc.refresh_text_flow();
+        e.saved_doc = Some(e.doc.clone());
         e
     }
 
@@ -75,18 +87,42 @@ impl Engine {
         self.revision
     }
 
+    /// Unsaved changes: the drawing differs from the one last saved.
+    /// Undoing back to the saved state, or editing back to the same content
+    /// by hand, is no change (GD-UND-07).
     pub fn is_dirty(&self) -> bool {
-        self.revision != self.saved_revision
+        if self.revision == self.saved_revision {
+            return false;
+        }
+        if self.changed_outside {
+            return true;
+        }
+        let Some(saved) = &self.saved_doc else {
+            return true;
+        };
+        if let Some((rev, dirty)) = self.dirty_at.get() {
+            if rev == self.revision {
+                return dirty;
+            }
+        }
+        let dirty = !saved.same_content(&self.doc);
+        self.dirty_at.set(Some((self.revision, dirty)));
+        dirty
     }
 
     pub fn mark_saved(&mut self) {
         self.saved_revision = self.revision;
+        self.saved_doc = Some(self.doc.clone());
+        self.changed_outside = false;
+        self.dirty_at.set(None);
     }
 
     /// Unsaved changes whatever the history holds (a drawing recovered
     /// from a backup), until the next save.
     pub fn mark_unsaved(&mut self) {
         self.saved_revision = u64::MAX;
+        self.saved_doc = None;
+        self.dirty_at.set(None);
     }
 
     /// Replace the document (open file, new document). Clears history.
@@ -98,6 +134,9 @@ impl Engine {
         self.redo.clear();
         self.revision += 1;
         self.saved_revision = self.revision;
+        self.saved_doc = Some(self.doc.clone());
+        self.changed_outside = false;
+        self.dirty_at.set(None);
         self.step_revision = u64::MAX;
     }
 
@@ -223,6 +262,7 @@ impl Engine {
     /// outside the history, which should still be saved).
     pub fn mark_changed(&mut self) {
         self.revision += 1;
+        self.changed_outside = true;
     }
 
     pub fn undo(&mut self) -> Result<&'static str> {
@@ -333,6 +373,48 @@ mod tests {
         assert!(eng.is_dirty());
         eng.mark_saved();
         assert!(!eng.is_dirty());
+    }
+
+    fn add_ellipse(eng: &mut Engine) -> ShapeId {
+        let layer = eng.document().pages[0].layers[0].id;
+        let id = eng.new_shape_id();
+        let shape = Shape::new(
+            id,
+            ShapeKind::Ellipse {
+                rect: Rect::new(0.0, 0.0, 10.0, 10.0),
+                arc: None,
+            },
+        );
+        eng.run(&Command::AddShape { layer, shape }).unwrap();
+        id
+    }
+
+    #[test]
+    fn gd_und_07_undo_back_to_the_saved_state_is_no_change() {
+        let mut eng = Engine::default();
+        add_ellipse(&mut eng);
+        eng.mark_saved();
+        assert!(!eng.is_dirty());
+        add_ellipse(&mut eng);
+        assert!(eng.is_dirty());
+        eng.undo().unwrap();
+        assert!(!eng.is_dirty(), "back at the saved state");
+        eng.undo().unwrap();
+        assert!(eng.is_dirty(), "before the saved state");
+        eng.redo().unwrap();
+        assert!(!eng.is_dirty());
+    }
+
+    #[test]
+    fn gd_und_07_same_content_by_hand_is_no_change() {
+        let mut eng = Engine::default();
+        eng.mark_saved();
+        let id = add_ellipse(&mut eng);
+        assert!(eng.is_dirty());
+        eng.run(&Command::DeleteShapes { shapes: vec![id] }).unwrap();
+        assert!(!eng.is_dirty(), "deleted again: the saved drawing");
+        eng.mark_unsaved();
+        assert!(eng.is_dirty(), "recovered: changed until saved");
     }
 
     #[test]

@@ -199,6 +199,32 @@ fn set_window_title(ctx: &egui::Context, title: String) {
     crate::web::set_title(&title);
 }
 
+/// Text fields (names, searches, typed values): the field's own undo keeps
+/// every letter, not groups split by one-second pauses (GD-UND-01).
+pub fn letter_undo_in_fields(app: &mut App, ctx: &egui::Context) {
+    let focus = ctx.memory(|m| m.focused());
+    if focus == app.field_focus {
+        return;
+    }
+    let Some(id) = focus else {
+        app.field_focus = None;
+        return;
+    };
+    // The field's state is born in the frame it is drawn with the focus.
+    let Some(mut st) = egui::text_edit::TextEditState::load(ctx, id) else {
+        return;
+    };
+    st.set_undoer(egui::util::undoer::Undoer::with_settings(
+        egui::util::undoer::Settings {
+            max_undos: 1000,
+            stable_time: 0.0,
+            auto_save_interval: 0.0,
+        },
+    ));
+    st.store(ctx, id);
+    app.field_focus = Some(id);
+}
+
 pub fn root(app: &mut App, ui: &mut Ui) {
     // Dockers set their canvas previews again each frame they are shown;
     // the document palette says where it is when it is drawn.
