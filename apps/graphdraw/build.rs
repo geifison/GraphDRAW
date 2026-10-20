@@ -11,7 +11,7 @@ fn main() {
         res.set("CompanyName", "GraphDraw");
         res.set(
             "LegalCopyright",
-            "Copyright \u{a9} 2026 Ighor Toth and the TraceDraw contributors; Copyright {a9} 2026 Geifison Queiroz Oliveira and the GraphDraw contributors",
+            "Copyright \u{a9} 2026 Ighor Toth and the TraceDraw contributors; Copyright \u{a9} 2026 Geifison Queiroz Oliveira and the GraphDraw contributors",
         );
         if let Err(e) = res.compile() {
             println!("cargo:warning=could not embed Windows resources: {e}");
