@@ -426,7 +426,9 @@ mod tests {
     fn dialog_topics_in_source() -> Vec<String> {
         let src =
             std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/help.rs"))
-                .unwrap();
+                .unwrap()
+                // A Windows checkout ends its lines with CR LF.
+                .replace("\r\n", "\n");
         let start = src.find("pub fn dialog_topic").unwrap();
         let end = src[start..].find("\n}\n").unwrap() + start;
         let body = &src[start..end];

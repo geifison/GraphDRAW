@@ -164,6 +164,10 @@ pub fn trf(key: &str, args: &[(&str, &str)]) -> String {
 /// Pick the language from the system locale (`LANG`, `LC_ALL`, or the
 /// platform API later), returning a shipped code.
 pub fn system_language() -> &'static str {
+    // Tests check English texts whatever the machine's locale.
+    if cfg!(test) {
+        return "en";
+    }
     let env = std::env::var("LC_ALL")
         .or_else(|_| std::env::var("LANG"))
         .unwrap_or_default();
