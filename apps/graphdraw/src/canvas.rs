@@ -436,6 +436,14 @@ fn draw_page(app: &App, painter: &Painter, rect: ERect, preview: Option<Affine>)
             .collect();
         (ids, t)
     });
+    // Editing a clip frame's contents: its frame is drawn as a hairline
+    // only (see draw_clip_frame_edit).
+    app.raster.borrow_mut().hidden = app
+        .clip_frame_outer
+        .iter()
+        .chain(app.clip_frame_edit.iter())
+        .map(|(id, _)| *id)
+        .collect();
     if let Some(tex) = app.raster.borrow_mut().texture(
         painter.ctx(),
         doc,
@@ -1119,8 +1127,8 @@ fn draw_empty_clip_frames(app: &App, painter: &Painter) {
 }
 
 /// While a clip frame's contents are edited, its frame (and the frames of
-/// the levels around it) shows as a dashed line: blue dashes on a white
-/// line, so it reads on any drawing.
+/// the levels around it) shows as a light blue hairline: where the
+/// container is, without hiding the contents.
 fn draw_clip_frame_edit(app: &App, painter: &Painter) {
     let frames = app
         .clip_frame_outer
@@ -1140,14 +1148,13 @@ fn draw_clip_frame_edit(app: &App, painter: &Painter) {
             if pts.len() < 2 {
                 continue;
             }
-            painter.add(epaint::PathShape::line(
-                pts.clone(),
-                EStroke::new(3.0, Color32::from_white_alpha(200)),
-            ));
-            dashed_polyline(painter, &pts, EStroke::new(1.5, Tokens::SELECTION), 6.0, 4.0);
+            painter.add(epaint::PathShape::line(pts, EStroke::new(1.0, CLIP_EDIT_LINE)));
         }
     }
 }
+
+/// The hairline of a clip frame whose contents are being edited.
+const CLIP_EDIT_LINE: Color32 = Color32::from_rgb(0x6C, 0xC4, 0xFF);
 
 /// Document grid line colour (lines) and dot colour (dots).
 const GRID_LINE: Color32 = Color32::from_gray(0xDC);

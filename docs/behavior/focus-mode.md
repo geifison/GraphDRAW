@@ -5,9 +5,10 @@ ungrouping it, with the rest of the drawing faded behind it.
 
 ## Entering and leaving
 
-- Double-click a group or a clip frame with the Pick tool (Tools > Options >
+- Double-click a group with the Pick tool (Tools > Options >
   Workspace > Edit: "Double-click to activate focus mode", on by
-  default).
+  default). A double-click on a clip frame edits its contents instead
+  (see clip-frame.md); Bring into Focus still focuses a clip frame.
 - Right-click an object > Bring into Focus. For a plain object inside a
   group, the group that holds it gets the focus and the object stays
   selected.

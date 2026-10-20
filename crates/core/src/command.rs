@@ -1163,13 +1163,18 @@ fn restyle(doc: &mut Document) {
 
 /// Run `f` on `shape` and, when it is a group, on everything inside it
 /// (groups within groups too), as a fill or outline given to a group
-/// reaches its objects.
+/// reaches its objects. A clip frame passes it on to its frame object
+/// (what is drawn as its fill and outline), not to its contents.
 fn for_group_deep(shape: &mut Shape, f: &mut dyn FnMut(&mut Shape)) {
     f(shape);
-    if let ShapeKind::Group { children } = &mut shape.kind {
-        for c in children {
-            for_group_deep(c, f);
+    match &mut shape.kind {
+        ShapeKind::Group { children } => {
+            for c in children {
+                for_group_deep(c, f);
+            }
         }
+        ShapeKind::ClipFrame { frame, .. } => f(frame),
+        _ => {}
     }
 }
 
@@ -1697,6 +1702,49 @@ mod tests {
             .unwrap();
         assert_eq!(doc.layer(layer).unwrap().shapes.len(), 2);
         assert!(doc.shape(ia).is_ok());
+    }
+
+    /// An outline or fill given to a clip frame reaches its frame object
+    /// (what is drawn), not the contents.
+    #[test]
+    fn a_clip_frame_takes_an_outline_and_fill_on_its_frame() {
+        let mut doc = Document::default();
+        let layer = doc.pages[0].layers[0].id;
+        let a = rect(&mut doc, 0.0);
+        let b = rect(&mut doc, 5.0);
+        let (ia, ib) = (a.id, b.id);
+        for shape in [a, b] {
+            Command::AddShape { layer, shape }.apply(&mut doc).unwrap();
+        }
+        Command::PlaceInside {
+            contents: vec![ia],
+            frame: ib,
+        }
+        .apply(&mut doc)
+        .unwrap();
+        let before = doc.find_shape(ia).unwrap().stroke.clone();
+        let stroke = crate::style::Stroke {
+            width: 1.5,
+            ..Default::default()
+        };
+        Command::SetStroke {
+            shapes: vec![ib],
+            stroke: Some(stroke.clone()),
+        }
+        .apply(&mut doc)
+        .unwrap();
+        Command::SetFill {
+            shapes: vec![ib],
+            fill: Fill::None,
+        }
+        .apply(&mut doc)
+        .unwrap();
+        let ShapeKind::ClipFrame { frame, contents } = &doc.shape(ib).unwrap().1.kind else {
+            panic!("not a clip frame");
+        };
+        assert_eq!(frame.stroke, Some(stroke));
+        assert_eq!(frame.fill, Fill::None);
+        assert_eq!(contents[0].stroke, before);
     }
 
     #[test]

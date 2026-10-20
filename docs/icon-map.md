@@ -322,6 +322,7 @@ São rasterizados com resvg no tamanho exato em pixels físicos (grades de
 | `Glyph::ClipCenter` | `clip-center.svg` | conteúdo no centro, setas opostas |
 | `Glyph::ClipFill` | `clip-fill.svg` | setas diagonais para fora |
 | `Glyph::ClipFit` | `clip-fit.svg` | setas para dentro |
+| `status.click_frame` | `cur-pick-path.svg` | cursor de Colocar dentro do quadro: seta lateral do conjunto de cursores, ponta no ponto de clique |
 | `Glyph::ClipExtract` | sem equivalente |  |
 | `Glyph::ClipEdit` | sem equivalente |  |
 | `Glyph::ClipFinish` | sem equivalente |  |

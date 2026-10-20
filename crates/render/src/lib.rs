@@ -86,6 +86,10 @@ pub struct RenderOptions {
     /// Focus mode: this object drawn as it is and everything else faded
     /// to the given visibility (0 to 1).
     pub focus: Option<(graphdraw_core::ShapeId, f32)>,
+    /// On screen only: objects on the layers left out (the frame of a
+    /// clip frame whose contents are being edited, shown as a hairline
+    /// by the app instead). Exports leave it empty.
+    pub hidden: Vec<graphdraw_core::ShapeId>,
 }
 
 impl Default for RenderOptions {
@@ -105,6 +109,7 @@ impl Default for RenderOptions {
             anti_alias: true,
             draft: false,
             focus: None,
+            hidden: Vec::new(),
         }
     }
 }
@@ -219,7 +224,7 @@ pub fn render_page(doc: &Document, page: PageId, opts: &RenderOptions) -> Option
         if !layer.visible {
             continue;
         }
-        for shape in &layer.shapes {
+        for shape in layer.shapes.iter().filter(|s| !opts.hidden.contains(&s.id)) {
             let extra = r.child_transform(shape, Affine::IDENTITY);
             r.draw_shape(shape, extra);
         }
@@ -451,7 +456,11 @@ impl Renderer<'_> {
                 if let (Some(mut layer), Some(mut mask)) =
                     (Pixmap::new(w, h), tiny_skia::Mask::new(w, h))
                 {
-                    mask.fill_path(&sk_frame, FillRule::EvenOdd, true, Transform::identity());
+                    // The frame clips by the rule its fill is drawn with:
+                    // text glyphs (overlapping contours of synthetic bold
+                    // and outlined fonts) by non-zero winding, so a glyph
+                    // clips by its whole inside and not by its edges only.
+                    mask.fill_path(&sk_frame, fill_rule_of(frame), true, Transform::identity());
                     {
                         let mut sub = self.sub(&mut layer);
                         for c in contents {
@@ -657,10 +666,7 @@ impl Renderer<'_> {
         }
 
         if !self.flags.wireframe {
-            let rule = match &shape.kind {
-                ShapeKind::Text { .. } => FillRule::Winding,
-                _ => FillRule::EvenOdd,
-            };
+            let rule = fill_rule_of(shape);
             let blend = self.blend_for(shape.overprint_fill);
             if let Fill::Mesh(m) = &shape.fill {
                 // Mesh nodes are local: bring them to page space first.
@@ -1913,6 +1919,16 @@ pub fn sk_color(c: Color) -> SkColor {
     SkColor::from_rgba8(r, g, b, 255)
 }
 
+/// The rule `shape`'s fill is drawn with, which is also how it clips as
+/// the frame of a clip frame: non-zero winding for text, even-odd for
+/// everything else (holes of combined curves stay open).
+pub fn fill_rule_of(shape: &Shape) -> FillRule {
+    match &shape.kind {
+        ShapeKind::Text { .. } => FillRule::Winding,
+        _ => FillRule::EvenOdd,
+    }
+}
+
 pub fn to_sk_path(path: &BezPath) -> Option<SkPath> {
     let mut pb = PathBuilder::new();
     for el in path.elements() {
@@ -2042,6 +2058,7 @@ pub fn render_page_image_with(
             anti_alias: opts.anti_alias,
             draft: false,
             focus: None,
+            hidden: Vec::new(),
         },
     )?;
     let mut out = Pixmap::new(w, h)?;
@@ -2125,6 +2142,47 @@ mod tests {
     /// A clip frame as an opacity mask: the contents show where the
     /// frame is light, not where it is dark, and nothing outside it; the
     /// frame is not drawn. Inverted, the other way round.
+    /// Text clips by non-zero winding (overlapping glyph contours fill),
+    /// other frames by even-odd (holes stay open).
+    #[test]
+    fn text_frames_clip_by_winding_and_curves_by_even_odd() {
+        let text = Shape::new(
+            graphdraw_core::ShapeId(1),
+            ShapeKind::Text {
+                spans: vec![graphdraw_core::TextSpan::new("A", "Sans", 12.0)],
+                origin: graphdraw_core::geometry::Point::ZERO,
+                frame: None,
+                align: Default::default(),
+                para: Default::default(),
+                on_path: None,
+            },
+        );
+        assert_eq!(fill_rule_of(&text), FillRule::Winding);
+        let r = rect(2, Rect::new(0.0, 0.0, 10.0, 10.0), Color::BLACK);
+        assert_eq!(fill_rule_of(&r), FillRule::EvenOdd);
+    }
+
+    /// Objects listed in `hidden` are left out of the drawing.
+    #[test]
+    fn hidden_objects_are_not_drawn() {
+        let red = rect(1, Rect::new(0.0, 0.0, 100.0, 100.0), Color::rgb8(255, 0, 0));
+        let (doc, page) = doc_with(vec![red]);
+        let mut opts = RenderOptions {
+            width: 10,
+            height: 10,
+            view: ViewTransform {
+                zoom: 0.1,
+                origin_x: 0.0,
+                origin_y: 10.0,
+            },
+            ..RenderOptions::default()
+        };
+        let px = |opts: &RenderOptions| render_page(&doc, page, opts).unwrap().pixel(5, 5).unwrap();
+        assert_eq!(px(&opts).red(), 255);
+        opts.hidden = vec![graphdraw_core::ShapeId(1)];
+        assert_eq!(px(&opts).alpha(), 0);
+    }
+
     #[test]
     fn opacity_masks_show_the_contents_by_the_frame_brightness() {
         let red = Color::rgb8(255, 0, 0);

@@ -46,7 +46,7 @@ static FILES: &[(&str, &str)] = embed!["";
     "bool-intersect", "bool-simplify", "bool-trim", "bool-weld", "break-apart", "cancel", "center-on",
     "clear-transform", "clip-center", "clip-edit", "clip-extract", "clip-fill", "clip-finish",
     "clip-fit", "clip-inside", "combine", "copy", "copy-fill", "copy-props", "copy-stroke", "corner-chamfer",
-    "corner-round", "corner-scallop", "cur-move", "cut", "delete", "dist-bottom", "dist-center-h",
+    "corner-round", "corner-scallop", "cur-move", "cur-pick-path", "cut", "delete", "dist-bottom", "dist-center-h",
     "dist-center-v", "dist-left", "dist-right", "dist-space-h", "dist-space-v", "dist-top",
     "doc-close", "duplicate", "ellipse-arc", "ellipse-pie", "ellipse-whole", "eye-off",
     "file-export", "file-import", "file-new", "file-open", "file-print", "file-save",
@@ -271,6 +271,8 @@ const KEYS: &[(&str, &str)] = &[
     ("drop.copy_outline_here", "copy-stroke"),
     ("drop.copy_all_properties", "copy-props"),
     ("drop.place_inside", "clip-inside"),
+    // Place Inside Frame waiting for the frame: the cursor's sideways arrow.
+    ("status.click_frame", "cur-pick-path"),
     ("drop.cancel", "cancel"),
 ];
 

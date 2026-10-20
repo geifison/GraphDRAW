@@ -194,6 +194,15 @@ impl App {
         Some((level, level + below))
     }
 
+    /// While a clip frame's contents are edited only they can be picked
+    /// (by a click or a marquee); the frame and everything else cannot.
+    pub fn clip_edit_allows(&self, id: ShapeId) -> bool {
+        match &self.clip_frame_edit {
+            Some((_, ids)) => ids.contains(&id),
+            None => true,
+        }
+    }
+
     /// Leave every level of clip frame editing, innermost first.
     pub fn finish_all_clip_frame_edits(&mut self) {
         // Each call drops one level, so this ends.
@@ -341,6 +350,10 @@ mod tests {
         assert_eq!(app.clip_frame_edit_depth(), Some((1, 1)));
         // Not a clip frame: the ordinary Ctrl+click.
         assert!(!app.clip_frame_ctrl_click(Point::new(15.0, 25.0)));
+        // Only the contents can be picked: the frame cannot.
+        assert_eq!(app.hit_test(Point::new(15.0, 25.0)), Some(inner));
+        assert_eq!(app.hit_test(Point::new(80.0, 25.0)), None);
+        assert!(!app.clip_edit_allows(frame));
         assert!(app.clip_frame_ctrl_click(Point::new(500.0, 500.0)));
         assert!(app.clip_frame_edit.is_none());
         assert!(matches!(

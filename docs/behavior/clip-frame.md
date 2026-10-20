@@ -13,8 +13,12 @@ outline are drawn, the contents are clipped to the frame's path.
 ## Commands
 
 - Place Inside Frame: with contents selected, choose it (Object > Clip to
-  Frame, or the object context menu), then click the frame; the pointer
-  is the solid arrow while it waits. The contents keep their position
+  Frame, or the object context menu), then click the frame; while it
+  waits the pointer is the cursor set's sideways arrow (`cur-pick-path`),
+  its tip on the spot the click lands. Any closed object or text can be
+  the frame: text clips by the whole inside of its letters (non-zero
+  winding, so synthetic bold and overlapping glyph contours fill), other
+  objects by even-odd (holes of combined curves stay open). The contents keep their position
   (centred when Options > Clip Frames asks for it). Three ways in: the
   Object menu, the context menu, or dragging the contents onto the frame
   with the right button and choosing Place Inside.
@@ -22,11 +26,13 @@ outline are drawn, the contents are clipped to the frame's path.
   ordinary objects again, selected; the frames stay. One undo step. An
   empty frame is left alone and a notice says there is nothing to
   extract.
-- Edit Contents (Ctrl+click a clip frame with the Pick tool): the
-  contents come out to be moved and edited, the frame is drawn with a
-  dashed blue line, and the clip frame bar shows the level being edited.
-  Finish Editing Contents (Esc, Ctrl+click an empty spot, the bar's
-  button or the context menu) puts the contents back. A frame left with
+- Edit Contents (double-click or Ctrl+click a clip frame with the Pick
+  tool): the contents come out to be moved and edited, and only they can
+  be picked, by a click or a marquee. The frame is not drawn; a light
+  blue hairline shows where it is. The clip frame bar shows the level
+  being edited. Finish Editing Contents (Esc, Ctrl+click outside the
+  contents, the bar's button or the context menu) puts the contents
+  back. A frame left with
   no contents stays an empty clip frame.
 - Nested clip frames: Ctrl+click a clip frame among the contents being
   edited goes one level deeper; finishing goes back one level. The bar
@@ -44,6 +50,13 @@ outline are drawn, the contents are clipped to the frame's path.
   rotating the frame transforms the contents too. With it off, the frame
   moves alone and the contents stay where they are
   (`compensate_unlocked_clip_frames` undoes the transform on them).
+
+## Fill and outline
+
+A fill or outline given to a selected clip frame (palette, Properties,
+Outline) goes to its frame object, which is what is drawn: the frame's
+outline stays visible above the contents and can always be changed. The
+contents keep theirs.
 
 ## Clip frame bar
 

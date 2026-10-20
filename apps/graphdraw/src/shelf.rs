@@ -504,6 +504,7 @@ pub fn thumbnail(item: &ShelfItem, px: u32) -> Option<(Vec<u8>, u32, u32)> {
             anti_alias: true,
             draft: true,
             focus: None,
+            hidden: Vec::new(),
             ..graphdraw_render::RenderOptions::default()
         },
     )?;

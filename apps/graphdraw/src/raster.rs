@@ -14,6 +14,8 @@ pub struct Raster {
     /// made when first needed and dropped with the texture (the colour
     /// settings changed).
     proof: Option<ProofLut>,
+    /// Objects left out of the drawing (see `RenderOptions::hidden`).
+    pub hidden: Vec<ShapeId>,
 }
 
 /// Screen colours as they would print, on a `N` x `N` x `N` grid of the
@@ -104,6 +106,7 @@ struct Key {
     complex_effects: bool,
     proof: bool,
     focus: Option<(ShapeId, u32)>,
+    hidden: Vec<ShapeId>,
     /// The Pixels view: the document pixels drawn (dpi, first column, top
     /// row).
     pixels: Option<(u64, i64, i64)>,
@@ -210,6 +213,7 @@ impl Raster {
             complex_effects,
             proof,
             focus: focus.map(|(id, v)| (id, (v * 1000.0) as u32)),
+            hidden: self.hidden.clone(),
             pixels: window
                 .zip(pixel_dpi)
                 .map(|(win, dpi)| ((dpi * 1000.0).round() as u64, win.ix0, win.iy1)),
@@ -244,6 +248,7 @@ impl Raster {
             anti_alias: true,
             draft: true,
             focus,
+            hidden: self.hidden.clone(),
         };
         let pixmap = render_page(doc, page, &opts)?;
         let lut = if proof {

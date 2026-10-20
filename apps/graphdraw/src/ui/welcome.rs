@@ -8,6 +8,7 @@ use crate::ui::icons;
 use egui::Ui;
 
 const NEWS: &[(&str, &str)] = &[
+    ("welcome.news_clip_title", "welcome.news_clip_body"),
     ("welcome.news_1_title", "welcome.news_1_body"),
     ("welcome.news_2_title", "welcome.news_2_body"),
     ("welcome.news_3_title", "welcome.news_3_body"),

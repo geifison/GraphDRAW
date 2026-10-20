@@ -61,6 +61,9 @@ pub enum ToolCursor {
         radius: f32,
         square: bool,
     },
+    /// Place Inside Frame waiting for the frame: a thick arrow pointing
+    /// sideways at the object to click, its tip the hot spot.
+    PlaceInside,
 }
 
 /// What a curve tool's press would do besides drawing.
@@ -267,9 +270,9 @@ pub fn for_tool(
     if app.pending_palette_sample {
         return ToolCursor::Pipette;
     }
-    // Place Inside Frame waiting for the frame: the solid arrow.
+    // Place Inside Frame waiting for the frame: the sideways arrow.
     if app.pending_clip_frame {
-        return ToolCursor::ShapeArrow(ShapeMark::Nothing);
+        return ToolCursor::PlaceInside;
     }
     if matches!(app.tool, Tool::Pick | Tool::FreeformPick) {
         if let Some(c) = pick_cursor(app, pos) {
@@ -447,7 +450,21 @@ pub fn paint(painter: &Painter, cursor: ToolCursor, p: Pos2) {
             curve_mark_sign(painter, p, mark);
         }
         ToolCursor::Nib { radius, square } => nib(painter, p, radius, square),
+        ToolCursor::PlaceInside => side_arrow(painter, p),
     }
+}
+
+/// The cursor set's sideways arrow (`cur-pick-path`, 24 px grid, tip at
+/// (22, 12)) with its tip at `tip`: where Place Inside Frame's click
+/// lands. Black on a white halo, like the other drawn cursors.
+fn side_arrow(painter: &Painter, tip: Pos2) {
+    use crate::ui::svg_icons::{paint, IconRef};
+    let icon = IconRef::Key("status.click_frame");
+    let r = Rect::from_min_size(tip - Vec2::new(22.0, 12.0), Vec2::splat(24.0));
+    for d in [(-1.0, 0.0), (1.0, 0.0), (0.0, -1.0), (0.0, 1.0)] {
+        paint(painter, r.translate(Vec2::new(d.0, d.1)), icon, HALO);
+    }
+    paint(painter, r, icon, INK);
 }
 
 /// The tool's icon below and to the right of the cross hair, on a light

@@ -89,6 +89,7 @@ fn main() {
             anti_alias: true,
             draft: false,
             focus: None,
+            hidden: Vec::new(),
         },
     ) else {
         std::process::exit(1);
@@ -150,6 +151,7 @@ fn visible_area(
             anti_alias: false,
             draft: true,
             focus: None,
+            hidden: Vec::new(),
         },
     )?;
     let (mut x0, mut y0, mut x1, mut y1) = (u32::MAX, u32::MAX, 0u32, 0u32);

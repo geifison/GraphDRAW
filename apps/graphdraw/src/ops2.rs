@@ -1281,6 +1281,7 @@ impl App {
                 anti_alias,
                 draft: false,
                 focus: None,
+                hidden: Vec::new(),
                 ..graphdraw_render::RenderOptions::default()
             },
         )?;

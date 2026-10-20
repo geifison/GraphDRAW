@@ -165,7 +165,13 @@ impl App {
             .rev()
             .filter(|l| l.visible && !l.locked)
             .flat_map(|l| l.shapes.iter().rev())
-            .find(|s| !s.locked && s.visible && !skip(s.id) && self.shape_hit(s, p, tol))
+            .find(|s| {
+                !s.locked
+                    && s.visible
+                    && !skip(s.id)
+                    && self.clip_edit_allows(s.id)
+                    && self.shape_hit(s, p, tol)
+            })
             .map(|s| s.id)
     }
 
@@ -369,7 +375,7 @@ impl App {
             .into_iter()
             .filter(|l| l.visible && !l.locked)
             .flat_map(|l| &l.shapes)
-            .filter(|s| s.visible && !s.locked)
+            .filter(|s| s.visible && !s.locked && self.clip_edit_allows(s.id))
         {
             if !ids.contains(&s.id)
                 && crate::select_region::takes(region, s, touching, &fill_counts)
@@ -1092,7 +1098,18 @@ impl App {
                 return;
             }
             if let Some(id) = self.hit_test(p) {
-                // A group or clip frame: into focus mode.
+                // A clip frame: edit its contents (only they can be
+                // picked; the frame shows as a light blue hairline).
+                if self
+                    .doc()
+                    .shape(id)
+                    .is_ok_and(|(_, s)| matches!(s.kind, ShapeKind::ClipFrame { .. }))
+                {
+                    self.select(vec![id]);
+                    self.edit_clip_frame();
+                    return;
+                }
+                // A group: into focus mode.
                 if self.focus_on_double_click(id) {
                     self.focus_on(id);
                     return;
