@@ -14,7 +14,42 @@
   Windows &middot; macOS &middot; Linux &middot; navegador &nbsp;|&nbsp; em português e mais 17 idiomas &nbsp;|&nbsp; código aberto &nbsp;|&nbsp; <a href="README.en.md">English</a>
 </p>
 
-<!-- CAPTURAS -->
+<br>
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/images/readme/brasil.png" alt="O GraphDraw com um desenho da bandeira do Brasil e a palavra BRASIL, feito no próprio programa e salvo em .gdr" width="100%">
+      <sub><b>Feito no GraphDraw.</b> Desenho criado e salvo no próprio programa, no formato <code>.gdr</code>.</sub>
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/images/readme/gsite.png" alt="Variações do logotipo gsite abertas de um arquivo .cdr versão 26, com todos os objetos selecionados" width="100%">
+      <sub><b>Logotipos.</b> Variações de marca abertas de um <code>.cdr</code> versão 26, com os 22 objetos selecionados.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/images/readme/convite.png" alt="Convite de churrasco de aniversário com textura, ícones e textos, aberto de um arquivo .cdr" width="100%">
+      <sub><b>Convites e peças sociais.</b> Texto, ícones e textura vindos de um <code>.cdr</code>, prontos para editar.</sub>
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/images/readme/ilustracao.png" alt="Ilustração vetorial em tons de cinza de uma guerreira com lança e o título Filhos de Aina, em um arquivo de quatro páginas" width="100%">
+      <sub><b>Ilustração vetorial.</b> Um arquivo de quatro páginas, com as páginas em abas na parte de baixo.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/images/readme/lettering.png" alt="Composições de lettering com as frases Você só colhe o que planta e Viva agora, com 562 objetos" width="100%">
+      <sub><b>Lettering.</b> 562 curvas abertas sem perder nenhuma.</sub>
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/images/readme/baloes.png" alt="Doze balões de fala desenhados à mão em traço preto" width="100%">
+      <sub><b>Elementos gráficos.</b> Balões de fala em curvas, prontos para reaproveitar.</sub>
+    </td>
+  </tr>
+</table>
+
+<p align="center"><sub>Capturas do próprio GraphDraw, geradas pelo teste <code>readme_shots</code> com trabalhos reais do autor.</sub></p>
 
 ---
 

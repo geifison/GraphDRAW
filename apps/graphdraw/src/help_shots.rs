@@ -597,6 +597,79 @@ fn help_shots() {
     eprintln!("{} screenshots; not made: {missed:#?}", made.len());
 }
 
+/// The README screenshots: the whole application drawn headlessly with a
+/// drawing open and fitted to the window, into `$README_SHOTS`. The
+/// drawings are listed in `$README_SHOTS_FILES` as `name=path` pairs
+/// separated by `|`; `name+` also selects every object of the page. The
+/// interface language is `$README_SHOTS_LANG` (Portuguese by default).
+#[test]
+#[ignore]
+fn readme_shots() {
+    let Some(dir) = std::env::var_os("README_SHOTS") else {
+        return;
+    };
+    let dir = std::path::PathBuf::from(dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let files = std::env::var("README_SHOTS_FILES").unwrap_or_default();
+    let mut sh = Shooter::new();
+    for entry in files.split('|').filter(|e| !e.is_empty()) {
+        let Some((name, path)) = entry.split_once('=') else {
+            continue;
+        };
+        let (name, select) = match name.strip_suffix('+') {
+            Some(n) => (n, true),
+            None => (name, false),
+        };
+        // The system fonts, as the program loads them, so text is drawn.
+        graphdraw_text::install();
+        let mut app = App::headless();
+        crate::i18n::set_language(
+            &std::env::var("README_SHOTS_LANG").unwrap_or_else(|_| "pt-BR".into()),
+        );
+        // Only the drawing shown: the untitled one a headless app starts
+        // with is closed (nothing in it to save).
+        app.close_document();
+        app.open_path(std::path::PathBuf::from(path));
+        if select {
+            app.select_all();
+        }
+        // A few frames: the layout settles, then the page is fitted to the
+        // canvas it now knows; only the last one is rasterised (slow).
+        const FRAMES: usize = 5;
+        for n in 0..FRAMES {
+            if n == 2 {
+                app.zoom_to_page();
+            }
+            sh.time += 0.5;
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(W as f32, H as f32),
+                )),
+                time: Some(sh.time),
+                ..Default::default()
+            };
+            let mut out = sh.ctx.run_ui(input, |ui| {
+                let ctx = ui.ctx().clone();
+                crate::ui::apply_theme(&ctx, &crate::settings::effective_theme(&app.settings));
+                crate::ui::root(&mut app, ui);
+            });
+            sh.tex.apply(&out.textures_delta);
+            if n + 1 == FRAMES {
+                let shapes = std::mem::take(&mut out.shapes);
+                let prims = sh.ctx.tessellate(shapes, out.pixels_per_point);
+                let mut canvas = Canvas::new(W, H);
+                canvas.paint(&sh.tex, &prims);
+                canvas.save(&dir.join(format!("{name}.png")), (0, 0, W, H));
+            }
+            for id in &out.textures_delta.free {
+                sh.tex.0.remove(id);
+            }
+            out.textures_delta.clear();
+        }
+    }
+}
+
 /// The New Document window step by step, the whole application drawn
 /// headlessly, into `$NEWDOC_SHOTS`: as it opens, a search, a category,
 /// lengths typed with units and sums, and the drawing it creates.
