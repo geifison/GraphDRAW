@@ -1,4 +1,4 @@
-// Gera os ícones do GraphDraw (desenhos próprios do projeto, MPL-2.0).
+// Gera os ícones do GraphDraw (desenhos próprios do projeto, MIT OR Apache-2.0).
 // Estilo único (docs/design/DESIGN-SYSTEM.md, seção 3): traço de 1,5 px na
 // grade em que o ícone é exibido (20 px na interface, 16 px nos
 // microcontroles, 24 px nos cursores), pontas e cantos arredondados,
