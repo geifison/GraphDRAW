@@ -80,6 +80,7 @@ pub fn paint_art_band(
 }
 
 /// The window (title bar and task bar) icon.
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
 pub fn window_icon() -> Option<egui::IconData> {
     let bytes = include_bytes!("../../../../assets/brand/app-256.png");
     let img = image::load_from_memory(bytes).ok()?.to_rgba8();

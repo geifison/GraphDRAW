@@ -75,7 +75,6 @@ mod knife;
 mod length_input;
 mod lens;
 mod live_guides;
-#[cfg(not(target_arch = "wasm32"))]
 mod macro_forms;
 mod macros;
 mod mcp;
