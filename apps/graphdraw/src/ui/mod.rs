@@ -43,6 +43,7 @@ pub mod effects_docker;
 pub mod envelope_ui;
 pub mod export_docker;
 pub mod extrude_bar;
+pub mod eyedropper_ui;
 pub mod field;
 pub mod fill_tool_bars;
 pub mod fill_window;
@@ -731,6 +732,7 @@ pub(crate) fn drawing_window(app: &mut App, ui: &mut Ui, full: egui::Rect) {
     canvas::draw_docker_preview(app, &painter);
     canvas::draw_live_guides(app, &painter, canvas_rect);
     canvas::draw_snap_mark(app, &painter);
+    eyedropper_ui::canvas_overlay(app, ui, &painter, canvas_rect);
     app.draw_right_drag(&painter);
     context::context_menu(app, ui, &response);
     crate::drop_menu::drop_menu_ui(app, ui);

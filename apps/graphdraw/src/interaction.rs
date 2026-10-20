@@ -694,6 +694,10 @@ impl App {
             if self.pending_click(response, p) || self.coords_pick_input(response, p) {
                 return;
             }
+            // The eyedroppers own the right button: the outline.
+            if self.eyedropper_right_click(p, mods) {
+                return;
+            }
             self.open_context_menu(screen, p);
             return;
         }
@@ -772,8 +776,7 @@ impl App {
             Tool::Text => self.text_input(response, p, mods),
             Tool::ColorEyedropper | Tool::AttributesEyedropper => {
                 if response.clicked() {
-                    let attrs = self.tool == Tool::AttributesEyedropper;
-                    self.eyedropper_click(p, attrs, mods.shift);
+                    self.eyedropper_canvas_click(p, mods, false);
                 }
             }
             Tool::InteractiveFill => self.fill_input(response, p),
@@ -2524,6 +2527,10 @@ impl App {
             && !egui::Popup::is_any_open(ctx)
             && self.crop_area.take().is_none()
         {
+            // An eyedropper holding a sample: the first Esc only empties it.
+            if self.eyedropper_escape() {
+                return;
+            }
             // Editing a clip frame's contents: Esc finishes that level and
             // leaves the frame selected.
             if self.clip_frame_edit.is_some() && self.tool == Tool::Pick && self.curve.is_none() {

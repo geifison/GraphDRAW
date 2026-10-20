@@ -407,6 +407,8 @@ São rasterizados com resvg no tamanho exato em pixels físicos (grades de
 | `fillwin.smooth_tip` | `grad-smooth.svg` | suavizar (próxima etapa) |
 | `fillwin.reverse_tip` | `grad-reverse.svg` | inverter os nós |
 | `stylewin.eyedropper_tip` | `tool-eyedropper.svg` | conta-gotas das janelas |
+| `toolbar.eye_mode_color` | `tool-eyedropper.svg` | modo Cor do conta-gotas (o mesmo da ferramenta) |
+| `toolbar.eye_empty` | `cancel.svg` | esvaziar o balde do conta-gotas (Esc) |
 | `outlinewin.dash_standard` | `dash-standard.svg` | Caneta de contorno: tracejado nos cantos (próxima etapa) |
 | `outlinewin.dash_align` | `dash-align.svg` | idem |
 | `outlinewin.dash_fixed` | `dash-fixed.svg` | idem |

@@ -300,6 +300,8 @@ const KEYS: &[(&str, &str)] = &[
     ("fillwin.smooth_tip", "grad-smooth"),
     ("fillwin.reverse_tip", "grad-reverse"),
     ("stylewin.eyedropper_tip", "tool-eyedropper"),
+    ("toolbar.eye_mode_color", "tool-eyedropper"),
+    ("toolbar.eye_empty", "cancel"),
     ("outlinewin.dash_standard", "dash-standard"),
     ("outlinewin.dash_align", "dash-align"),
     ("outlinewin.dash_fixed", "dash-fixed"),
