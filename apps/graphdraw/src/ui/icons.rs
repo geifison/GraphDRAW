@@ -325,7 +325,14 @@ pub fn tool_color(tool: Tool, plain: Color32) -> Color32 {
     }
 }
 
+/// Draw `tool`'s icon into `r`: its SVG when it has one, else the painted
+/// one (see [`crate::ui::svg_icons::paint`]).
 pub fn draw(painter: &Painter, r: Rect, tool: Tool, color: Color32) {
+    crate::ui::svg_icons::paint(painter, r, crate::ui::svg_icons::IconRef::Tool(tool), color);
+}
+
+/// The tool icon painted in code, the fallback for tools without an SVG.
+pub(crate) fn draw_painted(painter: &Painter, r: Rect, tool: Tool, color: Color32) {
     // Stroke weights follow the icon size (1.25 and 0.9 px at 16 px).
     let k = r.width() / 16.0;
     let s = Stroke::new(1.25 * k, color);
@@ -1046,7 +1053,14 @@ pub enum Action {
 /// The New button's green badge with a white plus.
 const NEW_GREEN: Color32 = Color32::from_rgb(0x1E, 0x9E, 0x3C);
 
+/// Draw action `a`'s icon into `r`: its SVG when it has one, else the
+/// painted one (see [`crate::ui::svg_icons::paint`]).
 pub fn draw_action(painter: &Painter, r: Rect, a: Action, color: Color32) {
+    crate::ui::svg_icons::paint(painter, r, crate::ui::svg_icons::IconRef::Action(a), color);
+}
+
+/// The action icon painted in code, the fallback for actions without an SVG.
+pub(crate) fn draw_action_painted(painter: &Painter, r: Rect, a: Action, color: Color32) {
     let k = r.width() / 16.0;
     let s = Stroke::new(1.25 * k, color);
     let thin = Stroke::new(0.9 * k, color);

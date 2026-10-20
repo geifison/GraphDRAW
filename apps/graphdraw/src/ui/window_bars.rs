@@ -7,6 +7,7 @@
 use crate::app::App;
 use crate::i18n::{tr, trf};
 use crate::theme::Tokens;
+use crate::ui::svg_icons::IconRef;
 use egui::{Color32, Pos2, Rect, Sense, Stroke, Ui, Vec2};
 
 /// Height of the bottom row and width of the vertical scrollbar.
@@ -362,6 +363,19 @@ fn nav_button(ui: &mut Ui, g: Glyph, tip: &str) -> bool {
             Stroke::NONE,
         ));
     };
+    // The interface icon of the command when it has one (Insert Page is
+    // the Layout menu's command).
+    let icon = match g {
+        Glyph::AddPage => IconRef::Glyph(crate::ui::menu_glyphs::Glyph::PageInsert),
+        Glyph::First => IconRef::Key("status.first_page"),
+        Glyph::Previous => IconRef::Key("status.previous_page"),
+        Glyph::Next => IconRef::Key("status.next_page"),
+        Glyph::Last => IconRef::Key("status.last_page"),
+    };
+    let svg_box = Rect::from_center_size(c, Vec2::splat(16.0));
+    if crate::ui::svg_icons::paint_svg(p, svg_box, icon, color) {
+        return resp.on_hover_text(tip).clicked();
+    }
     match g {
         Glyph::AddPage => {
             let page = Rect::from_center_size(c, Vec2::new(9.0, 11.0));

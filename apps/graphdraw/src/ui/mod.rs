@@ -78,6 +78,7 @@ pub mod shaping_docker;
 pub mod shelf_docker;
 pub mod status;
 pub mod straighten_dialog;
+pub mod svg_icons;
 pub mod symmetry_bar;
 pub mod tabs;
 pub mod template_dialog;
