@@ -180,11 +180,10 @@ impl App {
                 }
             }
             Tool::MeshFill => self.mesh_tool_input(response, p),
+            // The Outline Pen tool (F12) opens its floating window.
             Tool::OutlinePen => {
                 self.set_tool(Tool::Pick);
-                self.show_dockers = true;
-                self.docker_tab = crate::app::DockerTab::Properties;
-                self.properties_open = Some(1);
+                self.open_outline_window();
             }
             Tool::OutlineColor => {
                 self.set_tool(Tool::Pick);

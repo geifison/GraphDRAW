@@ -39,6 +39,9 @@ pub struct Settings {
     /// Arrowheads created with Object > Create > Arrowhead.
     #[serde(default)]
     pub custom_arrowheads: Vec<graphdraw_core::Arrowhead>,
+    /// Line styles made in the Outline Pen window's line style editor.
+    #[serde(default)]
+    pub line_styles: Vec<crate::ui::outline_window::LineStyle>,
     /// Grid, ruler and guideline settings new drawings start with
     /// (Document Options > Save as Default).
     #[serde(default)]
@@ -1071,6 +1074,7 @@ impl Default for Settings {
             wheel_zooms: true,
             toolbox: Vec::new(),
             custom_arrowheads: Vec::new(),
+            line_styles: Vec::new(),
             document_defaults: DocumentDefaults::default(),
             startup: Startup::default(),
             undo_levels: default_undo_levels(),

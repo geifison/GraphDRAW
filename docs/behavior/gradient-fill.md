@@ -20,7 +20,8 @@ in) in a strip under the type. The Interactive Fill property bar and the
 Transparency tool's gradient list offer the Shaped type too; a shaped
 gradient has no handles on the canvas.
 
-Shortcut: F11 opens the fill editor; G is the Interactive Fill tool.
+Shortcut: F11 opens the floating Edit Fill window (see
+`fill-and-outline-windows.md`); G is the Interactive Fill tool.
 Dragging with Interactive Fill on an object (anywhere inside it, filled
 or not) sets a linear fill from the press point to the release point; a
 click gives the default fill; Ctrl constrains the angle to 15 degree

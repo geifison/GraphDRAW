@@ -1,7 +1,8 @@
 # Outline Pen and Outline Colour
 
-The Outline Pen tool (F12) opens the Properties
-panel on the Outline section and returns to the Pick tool; Outline
+The Outline Pen tool (F12) opens the floating Outline Pen window (see
+`fill-and-outline-windows.md`) and returns to the Pick tool; the same
+settings stay in the Properties panel, Outline section. Outline
 Colour (Shift+F12) opens the Colour panel. The model is
 `graphdraw_core::Stroke`.
 

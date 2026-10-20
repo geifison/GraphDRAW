@@ -288,7 +288,7 @@ fn slider(
 }
 
 /// The sliders of the color's model. True when one moved.
-fn sliders(ui: &mut Ui, c: &mut Color) -> bool {
+pub(crate) fn sliders(ui: &mut Ui, c: &mut Color) -> bool {
     let mut changed = false;
     match c {
         Color::Rgb { r, g, b } => {

@@ -45,6 +45,7 @@ pub mod export_docker;
 pub mod extrude_bar;
 pub mod field;
 pub mod fill_tool_bars;
+pub mod fill_window;
 pub mod clip_frame_bar;
 pub mod focus_bar;
 pub mod font_list;
@@ -63,6 +64,7 @@ pub mod menu_pics;
 pub mod menus;
 pub mod objects_docker;
 pub mod options;
+pub mod outline_window;
 pub mod options_global;
 pub mod overflow;
 pub mod palette;
@@ -79,6 +81,7 @@ pub mod shaping_docker;
 pub mod shelf_docker;
 pub mod status;
 pub mod straighten_dialog;
+pub mod style_windows;
 pub mod svg_icons;
 pub mod symmetry_bar;
 pub mod tabs;
@@ -246,6 +249,11 @@ pub fn root(app: &mut App, ui: &mut Ui) {
         crate::help::handle_f1(app, &ctx);
     }
     app.keyboard(&ctx);
+    // The Outline Pen tool (F12, or picked in the toolbox) is its window.
+    if app.tool == crate::tools::Tool::OutlinePen && app.has_document() {
+        app.set_tool(crate::tools::Tool::Pick);
+        app.open_outline_window();
+    }
     // A menu command run by a shortcut of the user's.
     if let Some(cmd) = app.pending_command.take() {
         if !menus::run_command(app, &ctx, &cmd) {
@@ -600,6 +608,8 @@ pub fn root(app: &mut App, ui: &mut Ui) {
         clip_frame_bar::show(app, &ctx);
         effect_picker::show(app, &ctx);
         crate::perspective_draw::show_bar(app, &ctx);
+        // The floating Fill and Outline windows (F11, F12).
+        style_windows::show(app, &ctx);
     }
     dialogs::show(app, &ctx);
 }

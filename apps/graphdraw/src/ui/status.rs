@@ -442,7 +442,7 @@ pub fn status_bar(app: &mut App, ui: &mut Ui) {
     }
     .show(ui, &painter, fill_part);
     if fill_hit && doc {
-        app.open_fill_editor();
+        app.open_fill_window();
     }
     let outline_part = Rect::from_min_max(
         Pos2::new(outline_x, row.min.y),
@@ -457,7 +457,7 @@ pub fn status_bar(app: &mut App, ui: &mut Ui) {
     }
     .show(ui, &painter, outline_part);
     if outline_hit && doc {
-        app.open_outline_editor();
+        app.open_outline_window();
     }
 
     // Proof colours.

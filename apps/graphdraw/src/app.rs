@@ -1177,6 +1177,9 @@ pub struct App {
     pub mixer_color: Color,
     /// The Color docker's views, hue and palette.
     pub color_docker: crate::ui::color_docker::ColorDockerState,
+    /// The floating Edit Fill and Outline Pen windows (F11, F12) and the
+    /// drawing the canvas previews while they are open.
+    pub style_windows: crate::ui::style_windows::StyleWindows,
     pub lens_synced_to: Option<ShapeId>,
     pub pending_blend_path: bool,
     /// Text > Fit Text to Path waits for a click on the path.
@@ -1961,6 +1964,7 @@ impl App {
             color_model: 1,
             mixer_color: Color::cmyk_pct(0.0, 0.0, 0.0, 100.0),
             color_docker: Default::default(),
+            style_windows: Default::default(),
             lens_synced_to: None,
             pending_blend_path: false,
             pending_text_path: false,
@@ -2081,20 +2085,37 @@ impl App {
         doc
     }
 
-    /// F11, and a double click on the status bar's fill: the fill
-    /// settings (the Properties docker's Fill section).
+    /// The fill settings in the Properties docker's Fill section (the
+    /// Edit Fill window's "In the docker" button).
     pub fn open_fill_editor(&mut self) {
         self.show_dockers = true;
         self.docker_tab = DockerTab::Properties;
         self.properties_open = Some(0);
     }
 
-    /// F12, and a double click on the status bar's outline: the outline
-    /// settings (the Properties docker's Outline section).
+    /// The outline settings in the Properties docker's Outline section
+    /// (the Outline Pen window's "In the docker" button).
     pub fn open_outline_editor(&mut self) {
         self.show_dockers = true;
         self.docker_tab = DockerTab::Properties;
         self.properties_open = Some(1);
+    }
+
+    /// F11, and a double click on the status bar's fill: the floating
+    /// Edit Fill window for the selection (or for new objects).
+    pub fn open_fill_window(&mut self) {
+        if self.style_windows.fill.is_none() {
+            self.style_windows.fill = Some(crate::ui::fill_window::FillWindow::open(self));
+        }
+    }
+
+    /// F12 (the Outline Pen tool), and a double click on the status bar's
+    /// outline: the floating Outline Pen window.
+    pub fn open_outline_window(&mut self) {
+        if self.style_windows.outline.is_none() {
+            self.style_windows.outline =
+                Some(crate::ui::outline_window::OutlineWindow::open(self));
+        }
     }
 
     /// The resolution of the active drawing, for the pixel unit.

@@ -423,8 +423,12 @@ fn draw_page(app: &App, painter: &Painter, rect: ERect, preview: Option<Affine>)
     }
 
     // Objects, rasterized with tiny-skia into a texture; the live drag preview
-    // is applied to the selection during the render.
-    let doc: &Document = app.doc();
+    // is applied to the selection during the render. While the Edit Fill or
+    // Outline Pen window has changes, the drawing with them is shown.
+    let (doc, revision): (&Document, u64) = app
+        .style_windows
+        .canvas_doc(app.engine.revision())
+        .unwrap_or((app.doc(), app.engine.revision()));
     // Paragraph text being resized keeps its letters while the frame
     // follows the drag (the text flows anew on release).
     let preview_ids = preview.map(|t| {
@@ -451,7 +455,7 @@ fn draw_page(app: &App, painter: &Painter, rect: ERect, preview: Option<Affine>)
         view,
         rect,
         preview_ids,
-        app.engine.revision(),
+        revision,
         app.wireframe,
         app.simulate_overprints,
         app.rasterize_complex_effects,

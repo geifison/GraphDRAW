@@ -70,6 +70,7 @@ static FILES: &[(&str, &str)] = embed!["";
     "tool-smart-draw", "tool-smart-fill", "tool-spiral", "tool-text", "tool-virtual-delete",
     "tool-width", "tool-zoom", "tp-straighten", "undo", "ungroup", "ungroup-all",
     "unlock-all", "zoom-in", "zoom-out",
+    "fill-none", "tool-fill-solid", "fill-gradient", "fill-vector", "fill-bitmap", "fill-two-color", "fill-texture", "fill-postscript", "fill-linear", "fill-radial", "fill-elliptic", "fill-conic", "fill-rectangular", "fill-shaped", "grad-reflect", "grad-repeat", "blend-direct", "blend-cw", "blend-ccw", "grad-smooth", "grad-reverse", "dash-standard", "dash-align", "dash-fixed", "join-miter", "join-round", "join-bevel", "cap-butt", "cap-round", "cap-square", "pos-outside", "pos-center", "pos-inside", "behind-fill", "scale-stroke",
 ];
 
 /// Versions drawn for the 16 px grid, used at that size.
@@ -274,6 +275,45 @@ const KEYS: &[(&str, &str)] = &[
     // Place Inside Frame waiting for the frame: the cursor's sideways arrow.
     ("status.click_frame", "cur-pick-path"),
     ("drop.cancel", "cancel"),
+    // The Edit Fill and Outline Pen windows.
+    ("fillwin.mode_none", "fill-none"),
+    ("fillwin.mode_solid", "tool-fill-solid"),
+    ("fillwin.mode_gradient", "fill-gradient"),
+    ("fillwin.mode_vector", "fill-vector"),
+    ("fillwin.mode_bitmap", "fill-bitmap"),
+    ("fillwin.mode_two_color", "fill-two-color"),
+    ("fillwin.mode_texture", "fill-texture"),
+    ("fillwin.mode_mesh", "tool-mesh"),
+    ("fillwin.postscript_tip", "fill-postscript"),
+    ("fill.linear", "fill-linear"),
+    ("fill.radial", "fill-radial"),
+    ("fillwin.elliptic", "fill-elliptic"),
+    ("fill.conical", "fill-conic"),
+    ("fill.square", "fill-rectangular"),
+    ("fill.shaped", "fill-shaped"),
+    ("fillwin.steps_lock", "lock-off"),
+    ("fillwin.reflect_tip", "grad-reflect"),
+    ("fillwin.repeat_tip", "grad-repeat"),
+    ("fillwin.blend_direct", "blend-direct"),
+    ("fillwin.blend_cw", "blend-cw"),
+    ("fillwin.blend_ccw", "blend-ccw"),
+    ("fillwin.smooth_tip", "grad-smooth"),
+    ("fillwin.reverse_tip", "grad-reverse"),
+    ("stylewin.eyedropper_tip", "tool-eyedropper"),
+    ("outlinewin.dash_standard", "dash-standard"),
+    ("outlinewin.dash_align", "dash-align"),
+    ("outlinewin.dash_fixed", "dash-fixed"),
+    ("outlinewin.join_miter_tip", "join-miter"),
+    ("outlinewin.join_round_tip", "join-round"),
+    ("outlinewin.join_bevel_tip", "join-bevel"),
+    ("outlinewin.cap_butt_tip", "cap-butt"),
+    ("outlinewin.cap_round_tip", "cap-round"),
+    ("outlinewin.cap_square_tip", "cap-square"),
+    ("outlinewin.pos_outside_tip", "pos-outside"),
+    ("outlinewin.pos_center_tip", "pos-center"),
+    ("outlinewin.pos_inside_tip", "pos-inside"),
+    ("outlinewin.behind_fill_tip", "behind-fill"),
+    ("outlinewin.scale_tip", "scale-stroke"),
 ];
 
 fn find<K: PartialEq>(table: &[(K, &'static str)], key: &K) -> Option<&'static str> {

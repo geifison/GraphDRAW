@@ -379,11 +379,54 @@ São rasterizados com resvg no tamanho exato em pixels físicos (grades de
 | `drop.place_inside` | `clip-inside.svg` | mesmo desenho de Objeto > Recortar no quadro |
 | `drop.cancel` | `cancel.svg` | menu ao arrastar com o botão direito |
 
+## Janelas Editar preenchimento (F11) e Caneta de contorno (F12)
+
+| id na base | SVG do GraphDraw | observações |
+|---|---|---|
+| `fillwin.mode_none` | `fill-none.svg` | Editar preenchimento: sem preenchimento |
+| `fillwin.mode_solid` | `tool-fill-solid.svg` | Editar preenchimento: uniforme |
+| `fillwin.mode_gradient` | `fill-gradient.svg` | Editar preenchimento: gradiente |
+| `fillwin.mode_vector` | `fill-vector.svg` | Editar preenchimento: padrão vetorial |
+| `fillwin.mode_bitmap` | `fill-bitmap.svg` | Editar preenchimento: padrão de imagem |
+| `fillwin.mode_two_color` | `fill-two-color.svg` | Editar preenchimento: padrão de duas cores |
+| `fillwin.mode_texture` | `fill-texture.svg` | Editar preenchimento: textura |
+| `fillwin.mode_mesh` | `tool-mesh.svg` | mesmo desenho da ferramenta Malha |
+| `fillwin.postscript_tip` | `fill-postscript.svg` | botão desabilitado (PostScript não oferecido) |
+| `fill.linear` | `fill-linear.svg` | tipo de gradiente |
+| `fill.radial` | `fill-radial.svg` | tipo de gradiente |
+| `fillwin.elliptic` | `fill-elliptic.svg` | tipo de gradiente (próxima etapa) |
+| `fill.conical` | `fill-conic.svg` | tipo de gradiente |
+| `fill.square` | `fill-rectangular.svg` | tipo de gradiente |
+| `fill.shaped` | `fill-shaped.svg` | tipo de gradiente da base; desenho novo no mesmo traço |
+| `fillwin.steps_lock` | `lock-off.svg` | faixas do gradiente (próxima etapa) |
+| `fillwin.reflect_tip` | `grad-reflect.svg` | repetir espelhado |
+| `fillwin.repeat_tip` | `grad-repeat.svg` | repetir |
+| `fillwin.blend_direct` | `blend-direct.svg` | mistura direta |
+| `fillwin.blend_cw` | `blend-cw.svg` | mistura pela roda, horário (próxima etapa) |
+| `fillwin.blend_ccw` | `blend-ccw.svg` | mistura pela roda, anti-horário (próxima etapa) |
+| `fillwin.smooth_tip` | `grad-smooth.svg` | suavizar (próxima etapa) |
+| `fillwin.reverse_tip` | `grad-reverse.svg` | inverter os nós |
+| `stylewin.eyedropper_tip` | `tool-eyedropper.svg` | conta-gotas das janelas |
+| `outlinewin.dash_standard` | `dash-standard.svg` | Caneta de contorno: tracejado nos cantos (próxima etapa) |
+| `outlinewin.dash_align` | `dash-align.svg` | idem |
+| `outlinewin.dash_fixed` | `dash-fixed.svg` | idem |
+| `outlinewin.join_miter_tip` | `join-miter.svg` | Caneta de contorno: cantos |
+| `outlinewin.join_round_tip` | `join-round.svg` | Caneta de contorno: cantos |
+| `outlinewin.join_bevel_tip` | `join-bevel.svg` | Caneta de contorno: cantos |
+| `outlinewin.cap_butt_tip` | `cap-butt.svg` | Caneta de contorno: pontas |
+| `outlinewin.cap_round_tip` | `cap-round.svg` | Caneta de contorno: pontas |
+| `outlinewin.cap_square_tip` | `cap-square.svg` | Caneta de contorno: pontas |
+| `outlinewin.pos_outside_tip` | `pos-outside.svg` | posição do contorno (próxima etapa) |
+| `outlinewin.pos_center_tip` | `pos-center.svg` | idem |
+| `outlinewin.pos_inside_tip` | `pos-inside.svg` | idem |
+| `outlinewin.behind_fill_tip` | `behind-fill.svg` | atrás do preenchimento |
+| `outlinewin.scale_tip` | `scale-stroke.svg` | escalar com o objeto |
+
 ## SVGs sem comando na base
 
-119 dos 282 desenhos de 20 px não têm comando equivalente na base (ou o comando parecido tem outro sentido) e não são embutidos no programa. Ficam em `assets/icons` para quando o comando existir. As versões de 16 px (`assets/icons/16/`) embutidas são as de `eye-off`, `lock-off` e `lock-on`.
+85 dos 283 desenhos de 20 px não têm comando equivalente na base (ou o comando parecido tem outro sentido) e não são embutidos no programa. Ficam em `assets/icons` para quando o comando existir. As versões de 16 px (`assets/icons/16/`) embutidas são as de `eye-off`, `lock-off` e `lock-on`.
 
-`bar-grip`, `bar-more`, `bar-overflow`, `behind-fill`, `bleed`, `blend-ccw`, `blend-cw`, `blend-direct`, `bool-divide`, `bool-exclude`, `cap-butt`, `cap-round`, `cap-square`, `cur-grab`, `cur-pan`, `cur-pick-path`, `cur-rotate`, `cur-select`, `cur-select-pick`, `cur-shape`, `cur-zoom`, `cut-line`, `dash-align`, `dash-fixed`, `dash-standard`, `doc`, `export-selection`, `eye-on`, `fill-bitmap`, `fill-conic`, `fill-elliptic`, `fill-gradient`, `fill-linear`, `fill-none`, `fill-pattern`, `fill-postscript`, `fill-radial`, `fill-rectangular`, `fill-texture`, `fill-two-color`, `fill-vector`, `focus`, `grad-reflect`, `grad-repeat`, `grad-reverse`, `grad-smooth`, `guide-object`, `history`, `image-frame`, `join-bevel`, `join-miter`, `join-round`, `layer-add`, `layer-move-to`, `nest`, `node-align-h`, `node-align-v`, `nudge-big`, `offset`, `page-grid`, `page-list`, `palette`, `panel-collapse`, `panel-expand`, `panel-undock`, `path-open`, `pos-center`, `pos-inside`, `pos-outside`, `print-off`, `print-on`, `reg-marks`, `report`, `rotate-ccw`, `scale-stroke`, `scale-xy`, `select-invert`, `select-same`, `snap`, `stroke-none`, `styles`, `text-all-caps`, `text-all-small-caps`, `text-bigger`, `text-bold`, `text-cap-spacing`, `text-frame`, `text-italic`, `text-path-detach`, `text-sample`, `text-small-caps`, `text-smaller`, `tool-artboard`, `tool-fill-solid`, `tp-badge`, `tp-construction`, `tp-corner-jump`, `tp-corner-split`, `tp-corner-wrap`, `tp-flip-side`, `tp-offset-x`, `tp-offset-y`, `tp-range`, `tp-relax`, `tp-reverse`, `tp-rotate`, `tp-skew-h`, `tp-skew-v`, `tp-tracking`, `tp-unlink`, `tp-upright`, `tp-warp`, `tpv-baseline`, `tpv-cap`, `tpv-center`, `tpv-descender`, `tpv-xheight`, `wireframe`, `zoom-actual`
+`bar-grip`, `bar-more`, `bar-overflow`, `bleed`, `bool-divide`, `bool-exclude`, `cur-grab`, `cur-pan`, `cur-pick-path`, `cur-rotate`, `cur-select`, `cur-select-pick`, `cur-shape`, `cur-zoom`, `cut-line`, `doc`, `export-selection`, `eye-on`, `fill-pattern`, `focus`, `guide-object`, `history`, `image-frame`, `layer-add`, `layer-move-to`, `nest`, `node-align-h`, `node-align-v`, `nudge-big`, `offset`, `page-grid`, `page-list`, `palette`, `panel-collapse`, `panel-expand`, `panel-undock`, `path-open`, `print-off`, `print-on`, `reg-marks`, `report`, `rotate-ccw`, `scale-xy`, `select-invert`, `select-same`, `snap`, `stroke-none`, `styles`, `text-all-caps`, `text-all-small-caps`, `text-bigger`, `text-bold`, `text-cap-spacing`, `text-frame`, `text-italic`, `text-path-detach`, `text-sample`, `text-small-caps`, `text-smaller`, `tool-artboard`, `tp-badge`, `tp-construction`, `tp-corner-jump`, `tp-corner-split`, `tp-corner-wrap`, `tp-flip-side`, `tp-offset-x`, `tp-offset-y`, `tp-range`, `tp-relax`, `tp-reverse`, `tp-rotate`, `tp-skew-h`, `tp-skew-v`, `tp-tracking`, `tp-unlink`, `tp-upright`, `tp-warp`, `tpv-baseline`, `tpv-cap`, `tpv-center`, `tpv-descender`, `tpv-xheight`, `wireframe`, `zoom-actual`
 
 ## Casos duvidosos
 

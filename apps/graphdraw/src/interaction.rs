@@ -2073,6 +2073,11 @@ impl App {
             }
             return;
         }
+        // A floating Fill or Outline window under the pointer takes its
+        // keys (Delete removes a gradient node, Enter is OK, Esc Cancel).
+        if self.style_windows.owns_keyboard(ctx) {
+            return;
+        }
         // Esc during a move, scale, rotation or skew cancels it: nothing
         // changes and the selection stays.
         if self.transforming() && ctx.input(|i| i.key_pressed(Key::Escape)) {
@@ -2397,9 +2402,9 @@ impl App {
         if pressed(Key::F12, Modifiers::ALT) {
             self.align_chars_to_baseline();
         }
-        // F11: the fill editor (Properties docker, Fill section). F3: zoom out.
+        // F11: the floating Edit Fill window. F3: zoom out.
         if pressed(Key::F11, Modifiers::NONE) {
-            self.open_fill_editor();
+            self.open_fill_window();
         }
         if pressed(Key::F3, Modifiers::NONE) {
             self.zoom_step(false);

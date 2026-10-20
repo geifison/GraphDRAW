@@ -734,7 +734,7 @@ fn character(app: &mut App, ui: &mut Ui, first: Option<&graphdraw_core::Shape>) 
         row_check(app, ui, "background");
     });
     if more_fill || more_bg {
-        app.open_fill_editor();
+        app.open_fill_window();
     }
     ui.horizontal(|ui| {
         ui.label(egui::RichText::new("A").strong().color(Tokens::text_dim()))
@@ -776,7 +776,7 @@ fn character(app: &mut App, ui: &mut Ui, first: Option<&graphdraw_core::Shape>) 
             .on_hover_text(tr("docker.more_settings"))
             .clicked()
         {
-            app.open_outline_editor();
+            app.open_outline_window();
         }
         row_check(app, ui, "outline");
     });

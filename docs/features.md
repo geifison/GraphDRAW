@@ -124,6 +124,7 @@ Counts: works 191, partial 4 (`.cdr` content coverage; CMX import; print preview
 | Outline: width, colour, caps, joins, dashes, nib, behind fill, scale with object, arrowheads (presets and custom from the selection) | works |
 | Outline paint: every fill kind (none, uniform, gradient, pattern, texture, mesh) with the fill editors, on screen, in SVG (gradient and pattern strokes) and PDF (the outline's area shaded or rasterised) | works (see `behavior/outline-pen.md`, Outline paint; other exports use the outline colour) |
 | Outline Pen and Outline Color (hidden flyout, Options toggle); calligraphic nib rendered and exported | works |
+| Edit Fill (F11) and Outline Pen (F12) floating windows: movable, live preview on the drawing, OK as one undo step; colour picker with hue wheel, model sliders, palettes and screen eyedropper; gradient ramp with nodes; line style editor; nib view (see `behavior/fill-and-outline-windows.md`) | works; settings the drawing does not keep yet are shown dimmed |
 | Eyedroppers: colour (bitmap sampling, fill or outline) and attributes (properties, transformations, effects groups) | works |
 
 ## 6. Interactive effects

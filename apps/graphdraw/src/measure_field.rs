@@ -61,6 +61,29 @@ pub fn length_field(
     )
 }
 
+/// [`length_field`] showing up to `decimals` decimals (trailing zeros
+/// dropped): thin widths such as outlines.
+pub fn length_field_decimals(
+    ui: &mut egui::Ui,
+    id: &str,
+    value_mm: f64,
+    unit: Units,
+    dpi: f64,
+    decimals: usize,
+    width: f32,
+) -> Option<f64> {
+    let id = ui.id().with(id);
+    let unit_mm = length_input::units_mm(unit, dpi);
+    let shown = format!(
+        "{} {}",
+        localize(length_input::format(value_mm, unit, dpi, decimals)),
+        unit.id()
+    );
+    expr_field(ui, id, shown, width, LENGTH_ARROW_STEP, |t| {
+        length_input::parse_input(t, unit_mm, dpi, Some(value_mm))
+    })
+}
+
 /// A number with `suffix` inside the field (" dpi", "°", "%"); typing
 /// it with or without the suffix works.
 pub fn number_field(

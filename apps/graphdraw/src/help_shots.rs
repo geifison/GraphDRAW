@@ -670,6 +670,81 @@ fn readme_shots() {
     }
 }
 
+/// The Edit Fill and Outline Pen windows over a drawing, the whole
+/// application drawn headlessly, into `$STYLE_SHOTS`: each window with a
+/// change waiting (shown on the selected rectangle), then both together.
+#[test]
+#[ignore]
+fn style_window_shots() {
+    use crate::ui::fill_window::Mode;
+    let Some(dir) = std::env::var_os("STYLE_SHOTS") else {
+        return;
+    };
+    let dir = std::path::PathBuf::from(dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    graphdraw_text::install();
+    let mut sh = Shooter::new();
+    let mut app = demo_app();
+    crate::i18n::set_language(
+        &std::env::var("STYLE_SHOTS_LANG").unwrap_or_else(|_| "pt-BR".into()),
+    );
+    let mut shoot = |app: &mut App, name: &str| {
+        for n in 0..6 {
+            if n == 2 {
+                app.zoom_to_page();
+            }
+            sh.time += 0.5;
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(W as f32, H as f32),
+                )),
+                time: Some(sh.time),
+                ..Default::default()
+            };
+            let mut out = sh.ctx.run_ui(input, |ui| {
+                let ctx = ui.ctx().clone();
+                crate::ui::apply_theme(&ctx, &crate::settings::effective_theme(&app.settings));
+                crate::ui::root(app, ui);
+            });
+            sh.tex.apply(&out.textures_delta);
+            if n == 5 {
+                let shapes = std::mem::take(&mut out.shapes);
+                let prims = sh.ctx.tessellate(shapes, out.pixels_per_point);
+                let mut canvas = Canvas::new(W, H);
+                canvas.paint(&sh.tex, &prims);
+                canvas.save(&dir.join(format!("{name}.png")), (0, 0, W, H));
+            }
+            for id in &out.textures_delta.free {
+                sh.tex.0.remove(id);
+            }
+            out.textures_delta.clear();
+        }
+    };
+    app.open_fill_window();
+    shoot(&mut app, "preenchimento-uniforme");
+    if let Some(w) = app.style_windows.fill.as_mut() {
+        w.set_mode(Mode::Gradient);
+        w.add_stop(0.45, Some(graphdraw_core::Color::rgb8(255, 210, 0)));
+    }
+    shoot(&mut app, "preenchimento-gradiente");
+    app.style_windows.fill = None;
+    app.open_outline_window();
+    if let Some(w) = app.style_windows.outline.as_mut() {
+        w.enabled = true;
+        w.draft.width = 2.0;
+        w.draft.dash = vec![4.0, 2.0];
+        w.draft.color = graphdraw_core::Color::rgb8(200, 30, 30);
+        w.mark_changed();
+    }
+    shoot(&mut app, "contorno");
+    app.open_fill_window();
+    if let Some(w) = app.style_windows.fill.as_mut() {
+        w.set_mode(Mode::TwoColor);
+    }
+    shoot(&mut app, "as-duas");
+}
+
 /// The New Document window step by step, the whole application drawn
 /// headlessly, into `$NEWDOC_SHOTS`: as it opens, a search, a category,
 /// lengths typed with units and sums, and the drawing it creates.
