@@ -518,7 +518,7 @@ def build(help_dir, lang_dir, out_dir):
         f.write(CSS.strip() + "\n")
     with open(os.path.join(out_dir, "help.js"), "w", encoding="utf-8") as f:
         f.write(JS.strip() + "\n")
-    icon = os.path.join(ROOT, "assets/icon/graphdraw-256.png")
+    icon = os.path.join(ROOT, "assets/brand/app-256.png")
     if os.path.exists(icon):
         shutil.copy(icon, os.path.join(out_dir, "icon.png"))
     img_src = os.path.join(help_dir, "img")

@@ -80,7 +80,7 @@ cp web/FONTS.md site/
 size=$(wc -c < site/graphdraw_bg.wasm | tr -d ' ')
 sed -e "s/data-wasm-size=\"0\"/data-wasm-size=\"$size\"/" -e "s/@VERSION@/0.4.0/" \
     web/index.html > site/index.html
-cp assets/icon/graphdraw-256.png site/icon-256.png
+cp assets/brand/app-256.png site/icon-256.png
 python3 -m http.server -d site 8080   # then open http://localhost:8080
 ```
 
