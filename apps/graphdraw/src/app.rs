@@ -879,8 +879,12 @@ pub struct App {
     pub eyedropper_groups: crate::eyedropper::AttrGroups,
     /// Apply mode (after a sample) versus Select mode.
     pub eyedropper_apply: bool,
-    /// Bitmap sample box side in pixels: 1, 2 or 5.
+    /// Sample size: 0 = the native value of the object, else the side of
+    /// the averaged box in pixels (1, 2, 3 or 5).
     pub eyedropper_sample: u32,
+    /// The eyedroppers' cloned ramp, recent tones, magnifier and apply
+    /// highlight.
+    pub eyedrop: crate::eyedropper::EyedropState,
     pub canvas_rect: egui::Rect,
     pub pointer_page: Option<Point>,
     /// The palette shown in the bottom strip (the first visible one).
@@ -1800,7 +1804,8 @@ impl App {
             eyedropper_attrs: None,
             eyedropper_groups: Default::default(),
             eyedropper_apply: false,
-            eyedropper_sample: 1,
+            eyedropper_sample: 0,
+            eyedrop: Default::default(),
             canvas_rect: egui::Rect::NOTHING,
             pointer_page: None,
             palette: crate::palette::default_cmyk(),
@@ -3193,6 +3198,12 @@ impl App {
             self.crop_area = None;
             self.crop_drag = None;
             self.dimension_points.clear();
+            // Switching between the Colour and Attributes eyedroppers
+            // empties the bucket.
+            if crate::eyedropper::is_eyedropper(self.tool) && crate::eyedropper::is_eyedropper(tool)
+            {
+                self.eyedropper_reset();
+            }
             self.previous_tool = self.tool;
             self.tool = tool;
             self.rotate_mode = false;

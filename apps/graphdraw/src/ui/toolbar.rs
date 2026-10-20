@@ -1358,7 +1358,9 @@ pub fn property_bar(app: &mut App, ui: &mut Ui) {
                 }
             }
             Tool::ColorEyedropper => {
-                let has = app.eyedropper_color.is_some();
+                crate::ui::eyedropper_ui::mode_switch(app, ui);
+                vsep(ui);
+                let has = app.eyedropper_has_bucket();
                 if ui
                     .selectable_label(!app.eyedropper_apply, tr("toolbar.select_color"))
                     .clicked()
@@ -1375,21 +1377,10 @@ pub fn property_bar(app: &mut App, ui: &mut Ui) {
                     app.eyedropper_apply = true;
                 }
                 vsep(ui);
-                ui.label(
-                    egui::RichText::new(tr("toolbar.sample_size"))
-                        .color(Tokens::text_dim())
-                        .size(11.0),
-                );
-                for n in [1u32, 2, 5] {
-                    if ui
-                        .selectable_label(app.eyedropper_sample == n, format!("{n}x{n}"))
-                        .clicked()
-                    {
-                        app.eyedropper_sample = n;
-                    }
-                }
+                crate::ui::eyedropper_ui::sample_part(app, ui);
                 vsep(ui);
-                if let Some(c) = app.eyedropper_color {
+                crate::ui::eyedropper_ui::bucket_part(app, ui);
+                if let Some(c) = app.eyedropper_color.filter(|_| app.eyedrop.ramp.is_none()) {
                     let (r, _) =
                         ui.allocate_exact_size(egui::vec2(18.0, 18.0), egui::Sense::hover());
                     let [cr, cg, cb] = c.to_rgb8();
@@ -1406,15 +1397,13 @@ pub fn property_bar(app: &mut App, ui: &mut Ui) {
                             .color(Tokens::text_dim())
                             .size(11.0),
                     );
-                } else {
-                    ui.label(
-                        egui::RichText::new(tr("hint.bar_eyedropper"))
-                            .color(Tokens::text_dim())
-                            .size(11.0),
-                    );
                 }
+                vsep(ui);
+                crate::ui::eyedropper_ui::hint(ui, false);
             }
             Tool::AttributesEyedropper => {
+                crate::ui::eyedropper_ui::mode_switch(app, ui);
+                vsep(ui);
                 let has = app.eyedropper_attrs.is_some();
                 if ui
                     .selectable_label(!app.eyedropper_apply, tr("toolbar.select_attrs"))
@@ -1442,9 +1431,11 @@ pub fn property_bar(app: &mut App, ui: &mut Ui) {
                     ui.checkbox(&mut g.size, tr("toolbar.attr_size"));
                     ui.checkbox(&mut g.rotation, tr("toolbar.attr_rotation"));
                     ui.checkbox(&mut g.position, tr("toolbar.attr_position"));
+                    ui.checkbox(&mut g.skew, tr("toolbar.attr_skew"));
                 });
                 ui.checkbox(&mut g.effects, tr("toolbar.attr_effects"));
                 vsep(ui);
+                crate::ui::eyedropper_ui::bucket_part(app, ui);
                 ui.label(
                     egui::RichText::new(if has {
                         tr("hint.bar_attrs_apply")
@@ -1454,6 +1445,7 @@ pub fn property_bar(app: &mut App, ui: &mut Ui) {
                     .color(Tokens::text_dim())
                     .size(11.0),
                 );
+                crate::ui::eyedropper_ui::hint(ui, true);
             }
             Tool::BlockShadow => {
                 use graphdraw_core::{geometry::Vec2 as CVec2, live::Effect};

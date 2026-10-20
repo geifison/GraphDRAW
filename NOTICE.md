@@ -1,3 +1,5 @@
 GraphDraw é um trabalho derivado do TraceDraw (https://github.com/igtoth/tracedraw, commit c7f4e9c8b7da4537a9fd7ada075077988a8adee5), distribuído sob MIT OR Apache-2.0.
 
 Partes trazidas do GraphDraw anterior (https://github.com/geifison/GraphDRAW, branch `graphdraw-antigo`, antes distribuído sob MPL-2.0) foram relicenciadas pelo seu único autor, Geifison Queiroz Oliveira, sob MIT OR Apache-2.0 para entrar nesta base: a marca e os ícones do programa e do `.gdr` (`assets/brand/`), os ícones da interface e o gerador `make-icons.mjs` (`apps/graphdraw/assets/icons/`), a janela Novo documento, o campo de medida e o leitor de comprimentos (`apps/graphdraw/src/new_document_window.rs`, `measure_field.rs`, `length_input.rs`) e a biblioteca de formatos de página (`crates/core/src/page_presets.rs`).
+
+Também vieram do GraphDraw anterior, sob a mesma relicença, o ciclo amostrar e despejar do conta-gotas, a leitura nativa da cor e da rampa, a troca de uma parada do gradiente, a lupa com a grade de pixels, os últimos tons e o realce de aplicação (`apps/graphdraw/src/eyedropper.rs`, `apps/graphdraw/src/ui/eyedropper_ui.rs`).

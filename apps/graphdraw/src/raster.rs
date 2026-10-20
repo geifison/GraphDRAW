@@ -16,6 +16,18 @@ pub struct Raster {
     proof: Option<ProofLut>,
     /// Objects left out of the drawing (see `RenderOptions::hidden`).
     pub hidden: Vec<ShapeId>,
+    /// Keep a copy of the drawn pixels (the eyedroppers read the screen).
+    pub keep_pixels: bool,
+    /// The pixels of the last drawing while `keep_pixels` is on.
+    pub kept: Option<KeptPixels>,
+}
+
+/// The page as last drawn: premultiplied pixels, their size and where
+/// they land on screen.
+pub struct KeptPixels {
+    pub pixels: std::sync::Arc<Vec<egui::Color32>>,
+    pub size: [usize; 2],
+    pub screen: Rect,
 }
 
 /// Screen colours as they would print, on a `N` x `N` x `N` grid of the
@@ -218,7 +230,10 @@ impl Raster {
                 .zip(pixel_dpi)
                 .map(|(win, dpi)| ((dpi * 1000.0).round() as u64, win.ix0, win.iy1)),
         };
-        if self.key.as_ref() == Some(&key) {
+        if !self.keep_pixels {
+            self.kept = None;
+        }
+        if self.key.as_ref() == Some(&key) && (!self.keep_pixels || self.kept.is_some()) {
             if let Some(t) = &self.texture {
                 return Some((t.id(), screen));
             }
@@ -266,6 +281,13 @@ impl Raster {
                 }
             })
             .collect();
+        if self.keep_pixels {
+            self.kept = Some(KeptPixels {
+                pixels: std::sync::Arc::new(pixels.clone()),
+                size: [w as usize, h as usize],
+                screen,
+            });
+        }
         let image = ColorImage {
             size: [w as usize, h as usize],
             source_size: egui::vec2(w as f32, h as f32),
