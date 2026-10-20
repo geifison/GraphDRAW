@@ -678,11 +678,7 @@ impl App {
     /// Object > Clip to Frame > Edit Contents: take the contents out so they can
     /// be moved and edited; Finish Editing puts them back in the frame.
     pub fn edit_clip_frame(&mut self) {
-        let Some(clip) = self
-            .selected_shapes()
-            .into_iter()
-            .find(|s| matches!(s.kind, ShapeKind::ClipFrame { .. }))
-        else {
+        let Some(clip) = self.selected_clip_frames().into_iter().next() else {
             return;
         };
         let ShapeKind::ClipFrame { contents, .. } = &clip.kind else {
@@ -747,10 +743,7 @@ impl App {
 
     /// Object > Clip to Frame > Lock Contents to Frame: toggle for the selected clips.
     pub fn toggle_clip_frame_lock(&mut self) {
-        for s in self.selected_shapes() {
-            if !matches!(s.kind, ShapeKind::ClipFrame { .. }) {
-                continue;
-            }
+        for s in self.selected_clip_frames() {
             let locked = self.clip_frame_locked(s.id);
             let mut data = s.data.clone();
             data.retain(|(k, _)| k != "clip_frame.unlocked");
@@ -766,9 +759,8 @@ impl App {
     /// clips again; one undo step.
     pub fn set_opacity_masks(&mut self, on: bool, invert: bool) {
         let cmds: Vec<Command> = self
-            .selected_shapes()
+            .selected_clip_frames()
             .iter()
-            .filter(|s| matches!(s.kind, ShapeKind::ClipFrame { .. }))
             .map(|s| Command::SetOpacityMask {
                 shape: s.id,
                 mask: on.then_some(graphdraw_core::document::OpacityMask { invert }),

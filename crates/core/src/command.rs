@@ -656,7 +656,20 @@ impl Command {
                 }
             }
             Command::SetShapeKind { shape, kind } => {
-                let s = any_mut(doc, *shape)?;
+                let target = any_mut(doc, *shape)?;
+                // A clip frame given any other kind (a text style, a
+                // conversion to curves) changes its frame object; the
+                // contents stay inside.
+                let into_frame = !matches!(kind, ShapeKind::ClipFrame { .. })
+                    && matches!(target.kind, ShapeKind::ClipFrame { .. });
+                let s: &mut Shape = if into_frame {
+                    match &mut target.kind {
+                        ShapeKind::ClipFrame { frame, .. } => frame,
+                        _ => return Err(Error::NotClipFrame(*shape)),
+                    }
+                } else {
+                    target
+                };
                 // Chosen node types follow node indices: a curve that
                 // gains or loses nodes drops them.
                 if !s.node_types.is_empty() && node_count(&s.kind) != node_count(kind) {
@@ -1745,6 +1758,23 @@ mod tests {
         assert_eq!(frame.stroke, Some(stroke));
         assert_eq!(frame.fill, Fill::None);
         assert_eq!(contents[0].stroke, before);
+        // Another kind (a text style, curves) changes the frame object and
+        // keeps the contents.
+        let ellipse = ShapeKind::Ellipse {
+            rect: crate::geometry::Rect::new(0.0, 0.0, 10.0, 10.0),
+            arc: None,
+        };
+        Command::SetShapeKind {
+            shape: ib,
+            kind: ellipse.clone(),
+        }
+        .apply(&mut doc)
+        .unwrap();
+        let ShapeKind::ClipFrame { frame, contents } = &doc.shape(ib).unwrap().1.kind else {
+            panic!("the clip frame was replaced");
+        };
+        assert_eq!(frame.kind, ellipse);
+        assert_eq!(contents.len(), 1);
     }
 
     #[test]

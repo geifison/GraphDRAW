@@ -51,6 +51,16 @@ outline are drawn, the contents are clipped to the frame's path.
   moves alone and the contents stay where they are
   (`compensate_unlocked_clip_frames` undoes the transform on them).
 
+## Text as the frame
+
+Text that becomes a clip frame stays text: with it selected the property
+bar, the Text docker, the Properties character section, the Text menu
+and in-place editing (the Text tool, F8) work on it as on any text
+(`clip_frames::text_view` shows the frame as text with the clip frame's
+id). Commands that give the clip frame another kind (a font, a size,
+Convert to Curves) change its frame and keep the contents
+(`Command::SetShapeKind`). A double-click still edits the contents.
+
 ## Fill and outline
 
 A fill or outline given to a selected clip frame (palette, Properties,

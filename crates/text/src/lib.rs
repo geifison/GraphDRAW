@@ -1855,7 +1855,19 @@ impl FontSystem {
             if synth_bold {
                 let off = size_pt * PT_MM * 0.02;
                 let g2 = Affine::translate((off, 0.0)) * gp.clone();
-                gp.extend(g2.elements().iter().copied());
+                // One outline for the thickened letter: the glyph welded
+                // with its shifted copy. Two overlapping copies drew a
+                // double line under an outline and clipped badly.
+                let welded = graphdraw_core::shaping::overlay(
+                    &gp,
+                    &g2,
+                    graphdraw_core::shaping::Op::Weld,
+                );
+                if welded.elements().is_empty() {
+                    gp.extend(g2.elements().iter().copied());
+                } else {
+                    gp = welded;
+                }
             }
             if let Some(a) = place {
                 gp = a * gp;
@@ -3950,6 +3962,28 @@ mod tests {
         assert!(heavy.path.elements().len() < plain.path.elements().len() * 2);
         let advance = |l: &TextLayout| l.lines[0].edges.last().copied().unwrap_or(0.0);
         assert!((advance(&heavy) - advance(&plain)).abs() > 0.1);
+    }
+
+    /// Synthetic bold (a font with no bold face) is one welded outline
+    /// per letter, not the letter and a shifted copy on top of each other.
+    #[test]
+    fn synthetic_bold_is_one_outline_per_letter() {
+        let f = system_with(&[]);
+        f.add_document_fonts(&[DocumentFont::new("Selawik", SELAWIK.to_vec())]);
+        let mut span = TextSpan::new("l", "Selawik", 100.0);
+        let plain = f.outline(std::slice::from_ref(&span));
+        span.bold = true;
+        let heavy = f.outline(&[span]);
+        let subpaths = |l: &TextLayout| {
+            l.path
+                .elements()
+                .iter()
+                .filter(|e| matches!(e, kurbo::PathEl::MoveTo(_)))
+                .count()
+        };
+        assert_eq!(subpaths(&heavy), subpaths(&plain));
+        use kurbo::Shape as _;
+        assert!(heavy.path.bounding_box().width() > plain.path.bounding_box().width());
     }
 
     #[test]

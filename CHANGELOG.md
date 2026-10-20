@@ -16,6 +16,11 @@ full, row-by-row status.
   Place Inside waits; notices for a locked target, the frame itself and
   empty frames; an emptied frame stays a clip frame after editing; news
   item on the welcome screen.
+- Text that becomes a clip frame stays text: font, size, style, the Text
+  docker and in-place editing work on it, and the contents stay inside.
+- Synthetic bold (a font with no bold face) is one welded outline per
+  letter; the letter and a shifted copy drew a double line under an
+  outline.
 - Clip frames in text clip by the whole inside of the letters (they
   clipped to thin bands along the edges with synthetic bold fonts), and
   a fill or outline given to a clip frame reaches its frame (it was

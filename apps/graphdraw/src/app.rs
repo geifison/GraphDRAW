@@ -3076,6 +3076,8 @@ impl App {
         self.selection
             .iter()
             .filter_map(|id| doc.shape_on_page(*id))
+            // A clip frame of text stays text for the text tools.
+            .map(crate::clip_frames::text_view)
             .collect()
     }
 

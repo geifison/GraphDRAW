@@ -55,6 +55,23 @@ pub fn content_fit_transform(contents: Rect, frame: Rect, how: ContentFit) -> Op
     )
 }
 
+/// `s` as text when it is a clip frame whose frame is text: the frame,
+/// with the clip frame's id and the two transforms together, so the text
+/// panels, the property bar and in-place editing work on it (the commands
+/// they send to that id reach the frame, see `Command::SetShapeKind`).
+/// Anything else is returned unchanged.
+pub fn text_view(s: Shape) -> Shape {
+    match &s.kind {
+        ShapeKind::ClipFrame { frame, .. } if matches!(frame.kind, ShapeKind::Text { .. }) => {
+            let mut f = (**frame).clone();
+            f.id = s.id;
+            f.transform = s.transform * f.transform;
+            f
+        }
+        _ => s,
+    }
+}
+
 /// How many clip frames deep `s` goes: 0 for an object that holds none,
 /// 1 for a clip frame of plain objects, 2 when one of those is a clip
 /// frame too...
@@ -417,6 +434,43 @@ mod tests {
         app.extract_clip_contents();
         assert_eq!(app.selection, vec![inner]);
         assert!(app.doc().shape(full).is_ok() && app.doc().shape(inner).is_ok());
+    }
+
+    /// Text that became a clip frame is still text for the text tools: the
+    /// selection reads as text, and a new font reaches the frame while the
+    /// contents stay inside.
+    #[test]
+    fn a_text_clip_frame_keeps_its_text_properties() {
+        let mut app = App::headless();
+        let text = app
+            .new_shape(ShapeKind::Text {
+                spans: vec![graphdraw_core::TextSpan::new("Brasil", "Selawik", 32.0)],
+                origin: Point::new(0.0, 0.0),
+                frame: None,
+                align: Default::default(),
+                para: Default::default(),
+                on_path: None,
+            })
+            .unwrap();
+        let flag = rect_shape(&mut app, Rect::new(0.0, 0.0, 60.0, 20.0));
+        app.place_inside(vec![flag], text);
+        app.select(vec![text]);
+        assert!(matches!(
+            app.selected_shapes()[0].kind,
+            ShapeKind::Text { .. }
+        ));
+        assert_eq!(app.selected_clip_frames().len(), 1);
+        app.text_font = "Other Sans".into();
+        app.apply_text_style();
+        let ShapeKind::ClipFrame { frame, contents } = &app.doc().find_shape(text).unwrap().kind
+        else {
+            panic!("the clip frame was lost");
+        };
+        let ShapeKind::Text { spans, .. } = &frame.kind else {
+            panic!("the frame is no longer text");
+        };
+        assert_eq!(spans[0].font_family, "Other Sans");
+        assert_eq!(contents.len(), 1);
     }
 
     #[test]

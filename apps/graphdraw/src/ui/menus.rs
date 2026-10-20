@@ -2131,10 +2131,7 @@ fn object_menu(app: &mut App, ui: &mut Ui) {
     });
     sep(ui);
     sub(ui, "menu.object.clip_frame", |ui| {
-        let is_clip = app
-            .selected_shapes()
-            .iter()
-            .any(|s| matches!(s.kind, ShapeKind::ClipFrame { .. }));
+        let is_clip = !app.selected_clip_frames().is_empty();
         if item(ui, "menu.object.clip_frame_place_inside", "", has) {
             app.pending_clip_frame = true;
             app.status = tr("status.click_frame");
@@ -2159,17 +2156,15 @@ fn object_menu(app: &mut App, ui: &mut Ui) {
             app.edit_clip_frame();
         }
         let locked = app
-            .selected_shapes()
+            .selected_clip_frames()
             .iter()
-            .filter(|s| matches!(s.kind, ShapeKind::ClipFrame { .. }))
             .all(|s| app.clip_frame_locked(s.id));
         if check(ui, "menu.object.clip_frame_lock", "", is_clip && locked) && is_clip {
             app.toggle_clip_frame_lock();
         }
         let masks: Vec<_> = app
-            .selected_shapes()
+            .selected_clip_frames()
             .iter()
-            .filter(|s| matches!(s.kind, ShapeKind::ClipFrame { .. }))
             .map(|s| s.opacity_mask)
             .collect();
         let masked = !masks.is_empty() && masks.iter().all(|m| m.is_some());

@@ -65,8 +65,12 @@ impl App {
     /// The spans of the text being edited.
     pub fn edit_spans(&self) -> Option<Vec<TextSpan>> {
         let te = self.text_edit.as_ref()?;
-        match self.doc().find_shape(te.shape).map(|s| &s.kind) {
-            Some(ShapeKind::Text { spans, .. }) => Some(spans.clone()),
+        match self
+            .doc()
+            .find_shape(te.shape)
+            .map(|s| crate::clip_frames::text_view(s.clone()).kind)
+        {
+            Some(ShapeKind::Text { spans, .. }) => Some(spans),
             _ => None,
         }
     }
@@ -81,8 +85,8 @@ impl App {
     /// Layout of a text object and the transform from layout space to the
     /// page (the shape's transform after the origin or frame shift).
     pub fn text_layout_of(&self, id: ShapeId) -> Option<(TextLayout, Affine)> {
-        let s = self.doc().find_shape(id)?;
-        layout_of_text_shape(s, Affine::IDENTITY)
+        let s = crate::clip_frames::text_view(self.doc().find_shape(id)?.clone());
+        layout_of_text_shape(&s, Affine::IDENTITY)
     }
 
     /// Replace the spans of the text being edited. Keystrokes collapse
@@ -91,7 +95,12 @@ impl App {
         let Some(te) = self.text_edit.clone() else {
             return;
         };
-        let Some(s) = self.doc().find_shape(te.shape).cloned() else {
+        let Some(s) = self
+            .doc()
+            .find_shape(te.shape)
+            .cloned()
+            .map(crate::clip_frames::text_view)
+        else {
             return;
         };
         let ShapeKind::Text {
