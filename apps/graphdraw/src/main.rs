@@ -23,6 +23,7 @@ mod border_grommet;
 mod brushes;
 mod callouts;
 mod canvas;
+mod clip_frames;
 mod clipboard;
 mod clone_effect;
 mod color_drop;

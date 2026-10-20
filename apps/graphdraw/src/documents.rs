@@ -228,7 +228,7 @@ impl App {
         // Time counted for the drawing being left belongs to it.
         self.flush_tracked_time();
         if self.clip_frame_edit.is_some() {
-            self.finish_clip_frame_edit();
+            self.finish_all_clip_frame_edits();
         }
         self.drag = Drag::None;
         self.curve = None;

@@ -85,6 +85,9 @@ pub enum Glyph {
     ClipExtract,
     ClipEdit,
     ClipFinish,
+    ClipCenter,
+    ClipFill,
+    ClipFit,
     Barcode,
     QrCode,
     Symmetry,
@@ -206,6 +209,9 @@ pub fn for_key(key: &str) -> Option<Glyph> {
         "menu.object.clip_frame_extract" => ClipExtract,
         "menu.object.clip_frame_edit" => ClipEdit,
         "menu.object.clip_frame_finish" => ClipFinish,
+        "menu.object.clip_frame_center" => ClipCenter,
+        "menu.object.clip_frame_fill" => ClipFill,
+        "menu.object.clip_frame_fit" => ClipFit,
         "menu.object.insert_barcode" | "menu.object.insert" => Barcode,
         "menu.object.insert_qr" => QrCode,
         "menu.object.symmetry_create" | "menu.object.symmetry_edit" | "menu.object.symmetry" => {
@@ -822,6 +828,14 @@ pub(crate) fn draw_painted(painter: &Painter, r: Rect, g: Glyph, color: Color32)
             rect(1.5, 1.5, 14.5, 14.5, paper, s);
             circle(8.0, 8.0, 3.5, blue, Stroke::NONE);
             line((9.0, 14.5), (15.0, 8.5), Stroke::new(2.0 * k, accent(GOLD)));
+        }
+        ClipCenter | ClipFill | ClipFit => {
+            rect(1.5, 1.5, 14.5, 14.5, paper, s);
+            match g {
+                ClipCenter => fillr(6.0, 6.0, 10.0, 10.0, blue),
+                ClipFill => fillr(1.5, 1.5, 14.5, 14.5, blue),
+                _ => fillr(1.5, 5.0, 14.5, 11.0, blue),
+            }
         }
         ClipFinish => {
             rect(1.5, 1.5, 14.5, 14.5, paper, s);

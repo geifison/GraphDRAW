@@ -703,20 +703,15 @@ impl App {
             if response.clicked_by(PointerButton::Primary) {
                 self.pending_clip_frame = false;
                 if let Some(frame) = self.hit_test(p) {
-                    let contents: Vec<ShapeId> = self
-                        .selection
-                        .iter()
-                        .copied()
-                        .filter(|id| *id != frame)
-                        .collect();
-                    if contents.is_empty() {
-                        self.status = crate::i18n::tr("status.clip_frame_select_contents");
-                    } else {
-                        self.place_inside(contents, frame);
-                        self.select(vec![frame]);
+                    match self.clip_frame_contents_for(frame) {
+                        Ok(contents) => {
+                            self.place_inside(contents, frame);
+                            self.select(vec![frame]);
+                        }
+                        Err(why) => self.clip_notice(why),
                     }
                 } else {
-                    self.status = crate::i18n::tr("status.clip_frame_cancelled");
+                    self.clip_frame_target_missed(p);
                 }
             }
             if response.secondary_clicked() {
@@ -1049,6 +1044,11 @@ impl App {
                     }
                     return;
                 }
+            }
+            // Ctrl on a clip frame edits its contents; on an empty spot
+            // while editing, it finishes (see clip_frames.rs).
+            if mods.ctrl && !mods.shift && self.clip_frame_ctrl_click(p) {
+                return;
             }
             // Ctrl: one group level further in.
             let hit = if mods.ctrl {
@@ -2501,6 +2501,12 @@ impl App {
             && !egui::Popup::is_any_open(ctx)
             && self.crop_area.take().is_none()
         {
+            // Editing a clip frame's contents: Esc finishes that level and
+            // leaves the frame selected.
+            if self.clip_frame_edit.is_some() && self.tool == Tool::Pick && self.curve.is_none() {
+                self.finish_clip_frame_edit();
+                return;
+            }
             // In focus mode with nothing selected: one level out.
             if self.selection.is_empty() && self.focus_target().is_some() {
                 self.focus_up();

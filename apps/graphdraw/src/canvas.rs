@@ -462,6 +462,7 @@ fn draw_page(app: &App, painter: &Painter, rect: ERect, preview: Option<Affine>)
 
     draw_pixel_grid(app, painter, rect);
     draw_empty_clip_frames(app, painter);
+    draw_clip_frame_edit(app, painter);
 }
 
 /// The drawing of a window that is not the active one (Window > Cascade
@@ -1113,6 +1114,37 @@ fn draw_empty_clip_frames(app: &App, painter: &Painter) {
                 painter.line_segment([r.left_top(), r.right_bottom()], stroke);
                 painter.line_segment([r.right_top(), r.left_bottom()], stroke);
             }
+        }
+    }
+}
+
+/// While a clip frame's contents are edited, its frame (and the frames of
+/// the levels around it) shows as a dashed line: blue dashes on a white
+/// line, so it reads on any drawing.
+fn draw_clip_frame_edit(app: &App, painter: &Painter) {
+    let frames = app
+        .clip_frame_outer
+        .iter()
+        .chain(app.clip_frame_edit.iter())
+        .map(|(id, _)| *id);
+    for id in frames {
+        let Some(s) = app.doc().shape_on_page(id) else {
+            continue;
+        };
+        for (mut pts, closed) in flatten(&s.page_path(), &app.view) {
+            if closed {
+                if let Some(first) = pts.first().copied() {
+                    pts.push(first);
+                }
+            }
+            if pts.len() < 2 {
+                continue;
+            }
+            painter.add(epaint::PathShape::line(
+                pts.clone(),
+                EStroke::new(3.0, Color32::from_white_alpha(200)),
+            ));
+            dashed_polyline(painter, &pts, EStroke::new(1.5, Tokens::SELECTION), 6.0, 4.0);
         }
     }
 }

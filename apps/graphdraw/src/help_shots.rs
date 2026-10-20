@@ -716,3 +716,113 @@ fn new_document_window_shots() {
     let size = app.page_size();
     eprintln!("page {} x {} mm", size.width, size.height);
 }
+
+/// The clip frame bar and editing drawn headlessly, the whole application,
+/// into `$CLIP_SHOTS` (language `$CLIP_SHOTS_LANG`, Portuguese by default):
+/// a clip frame selected with its bar, its contents filling the frame,
+/// editing them (dashed frame, level), one level deeper, and the notice
+/// for an empty frame.
+#[test]
+#[ignore]
+fn clip_frame_shots() {
+    use graphdraw_core::geometry::{Point, Rect};
+    use graphdraw_core::{Color, Command, Fill, ShapeKind};
+    let Some(dir) = std::env::var_os("CLIP_SHOTS") else {
+        return;
+    };
+    let dir = std::path::PathBuf::from(dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let mut sh = Shooter::new();
+    let mut app = App::headless();
+    crate::i18n::set_language(
+        &std::env::var("CLIP_SHOTS_LANG").unwrap_or_else(|_| "pt-BR".into()),
+    );
+    let rect = |app: &mut App, r: Rect, c: Color| {
+        let id = app
+            .new_shape(ShapeKind::Rect {
+                rect: r,
+                radius: 0.0,
+                corners: None,
+            })
+            .unwrap();
+        app.run(Command::SetFill {
+            shapes: vec![id],
+            fill: Fill::Solid(c),
+        });
+        id
+    };
+    let frame = app
+        .new_shape(ShapeKind::Ellipse {
+            rect: Rect::new(40.0, 40.0, 140.0, 110.0),
+            arc: None,
+        })
+        .unwrap();
+    let a = rect(&mut app, Rect::new(30.0, 60.0, 90.0, 120.0), Color::rgb8(70, 130, 220));
+    let b = rect(&mut app, Rect::new(80.0, 30.0, 150.0, 80.0), Color::rgb8(230, 120, 40));
+    let inner_frame = app
+        .new_shape(ShapeKind::Ellipse {
+            rect: Rect::new(70.0, 50.0, 110.0, 90.0),
+            arc: None,
+        })
+        .unwrap();
+    let c = rect(&mut app, Rect::new(60.0, 60.0, 120.0, 80.0), Color::rgb8(40, 170, 90));
+    app.place_inside(vec![c], inner_frame);
+    app.place_inside(vec![a, b, inner_frame], frame);
+    app.select(vec![frame]);
+    app.view.zoom = 3.0;
+    let mut run = |app: &mut App, frames: usize| {
+        let mut c = None;
+        for n in 0..frames {
+            sh.time += 0.5;
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(W as f32, H as f32),
+                )),
+                time: Some(sh.time),
+                events: vec![egui::Event::PointerMoved(egui::pos2(700.0, 500.0))],
+                ..Default::default()
+            };
+            let mut out = sh.ctx.run_ui(input, |ui| {
+                let ctx = ui.ctx().clone();
+                crate::ui::apply_theme(&ctx, &crate::settings::effective_theme(&app.settings));
+                crate::ui::root(app, ui);
+            });
+            sh.tex.apply(&out.textures_delta);
+            if n + 1 == frames {
+                let shapes = std::mem::take(&mut out.shapes);
+                let prims = sh.ctx.tessellate(shapes, out.pixels_per_point);
+                let mut canvas = Canvas::new(W, H);
+                canvas.paint(&sh.tex, &prims);
+                c = Some(canvas);
+            }
+            for id in &out.textures_delta.free {
+                sh.tex.0.remove(id);
+            }
+            out.textures_delta.clear();
+        }
+        c.unwrap()
+    };
+    let full = (0, 0, W, H);
+    run(&mut app, 3);
+    let page = app.view.to_screen(Point::new(90.0, 75.0));
+    let canvas_center = app.canvas_rect.center();
+    app.view.origin += canvas_center - page;
+    run(&mut app, 4).save(&dir.join("01-moldura-selecionada.png"), full);
+    app.fit_clip_contents(crate::clip_frames::ContentFit::Fill);
+    run(&mut app, 3).save(&dir.join("02-preencher-moldura.png"), full);
+    app.undo();
+    app.select(vec![frame]);
+    app.edit_clip_frame();
+    run(&mut app, 3).save(&dir.join("03-editando-nivel-1.png"), full);
+    app.select(vec![inner_frame]);
+    app.edit_clip_frame();
+    run(&mut app, 3).save(&dir.join("04-editando-nivel-2.png"), full);
+    app.finish_all_clip_frame_edits();
+    let empty = rect(&mut app, Rect::new(160.0, 40.0, 200.0, 80.0), Color::rgb8(220, 220, 220));
+    app.select(vec![empty]);
+    app.objects_to_clip_frames();
+    app.select(vec![empty]);
+    app.extract_clip_contents();
+    run(&mut app, 3).save(&dir.join("05-aviso-moldura-vazia.png"), full);
+}

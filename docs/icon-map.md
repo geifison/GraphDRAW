@@ -316,6 +316,12 @@ São rasterizados com resvg no tamanho exato em pixels físicos (grades de
 | `Glyph::Properties` | sem equivalente |  |
 | `Glyph::ObjectsDocker` | `layers.svg` | pilha de camadas (docker Objetos); duvidoso, ver abaixo |
 | `Glyph::ClipInside` | `clip-inside.svg` |  |
+| `Glyph::ClipExtract` | `clip-extract.svg` | moldura com seta saindo por cima (menus e barra da moldura de recorte) |
+| `Glyph::ClipEdit` | `clip-edit.svg` | lápis sobre a moldura tracejada |
+| `Glyph::ClipFinish` | `clip-finish.svg` | seta saindo da moldura pela direita |
+| `Glyph::ClipCenter` | `clip-center.svg` | conteúdo no centro, setas opostas |
+| `Glyph::ClipFill` | `clip-fill.svg` | setas diagonais para fora |
+| `Glyph::ClipFit` | `clip-fit.svg` | setas para dentro |
 | `Glyph::ClipExtract` | sem equivalente |  |
 | `Glyph::ClipEdit` | sem equivalente |  |
 | `Glyph::ClipFinish` | sem equivalente |  |

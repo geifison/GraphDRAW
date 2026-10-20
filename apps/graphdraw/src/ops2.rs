@@ -690,6 +690,10 @@ impl App {
         };
         let ids: Vec<ShapeId> = contents.iter().map(|c| c.id).collect();
         self.run(Command::ExtractContents { clip: clip.id });
+        // A frame among the contents being edited: one level deeper.
+        if let Some(outer) = self.clip_frame_edit.take() {
+            self.clip_frame_outer.push(outer);
+        }
         self.clip_frame_edit = Some((clip.id, ids.clone()));
         self.select(ids);
         self.status = tr("status.editing_clip_frame");
@@ -701,17 +705,31 @@ impl App {
         let Some((frame, ids)) = self.clip_frame_edit.take() else {
             return;
         };
-        if self.doc().find_shape(frame).is_none() {
-            return;
+        // Back to the level around it, when this one was nested.
+        self.clip_frame_edit = self.clip_frame_outer.pop();
+        match self.doc().shape(frame) {
+            Err(_) => return,
+            // Already a clip frame again (the editing was undone).
+            Ok((_, s)) if matches!(s.kind, ShapeKind::ClipFrame { .. }) => {
+                self.select(vec![frame]);
+                return;
+            }
+            Ok(_) => {}
         }
+        // Only what still lies on a layer can go back in.
         let contents: Vec<ShapeId> = ids
             .into_iter()
-            .filter(|id| self.doc().find_shape(*id).is_some())
+            .filter(|id| *id != frame && self.doc().shape(*id).is_ok())
             .collect();
         if contents.is_empty() {
-            return;
+            // Nothing left inside: the frame stays a frame, empty.
+            self.run(Command::PlaceInside {
+                contents: Vec::new(),
+                frame,
+            });
+        } else {
+            self.place_inside(contents, frame);
         }
-        self.place_inside(contents, frame);
         self.select(vec![frame]);
     }
 

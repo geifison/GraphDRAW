@@ -2140,15 +2140,16 @@ fn object_menu(app: &mut App, ui: &mut Ui) {
             app.status = tr("status.click_frame");
         }
         if item(ui, "menu.object.clip_frame_extract", "", is_clip) {
-            let clips: Vec<_> = app
-                .selected_shapes()
-                .iter()
-                .filter(|s| matches!(s.kind, ShapeKind::ClipFrame { .. }))
-                .map(|s| s.id)
-                .collect();
-            for c in clips {
-                app.run(Command::ExtractContents { clip: c });
-            }
+            app.extract_clip_contents();
+        }
+        if item(ui, "menu.object.clip_frame_center", "", is_clip) {
+            app.fit_clip_contents(crate::clip_frames::ContentFit::Center);
+        }
+        if item(ui, "menu.object.clip_frame_fill", "", is_clip) {
+            app.fit_clip_contents(crate::clip_frames::ContentFit::Fill);
+        }
+        if item(ui, "menu.object.clip_frame_fit", "", is_clip) {
+            app.fit_clip_contents(crate::clip_frames::ContentFit::Fit);
         }
         if app.clip_frame_edit.is_some() {
             if item(ui, "menu.object.clip_frame_finish", "", true) {

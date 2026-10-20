@@ -267,6 +267,10 @@ pub fn for_tool(
     if app.pending_palette_sample {
         return ToolCursor::Pipette;
     }
+    // Place Inside Frame waiting for the frame: the solid arrow.
+    if app.pending_clip_frame {
+        return ToolCursor::ShapeArrow(ShapeMark::Nothing);
+    }
     if matches!(app.tool, Tool::Pick | Tool::FreeformPick) {
         if let Some(c) = pick_cursor(app, pos) {
             return c;

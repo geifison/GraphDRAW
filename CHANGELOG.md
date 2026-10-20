@@ -6,6 +6,14 @@ full, row-by-row status.
 
 ## GraphDraw (fork do TraceDraw)
 
+- Clip frames: Ctrl+click a clip frame edits its contents (again on an
+  inner frame for nested levels), Esc or Ctrl+click an empty spot
+  finishes; a clip frame bar under the selection with Edit, Center
+  Contents, Fill Frame Proportionally, Fit Contents Proportionally,
+  Extract and Lock Contents (also in Object > Clip to Frame and the
+  context menu); the frame being edited is drawn dashed; the solid arrow
+  while Place Inside waits; notices for a locked target, the frame itself
+  and empty frames; an emptied frame stays a clip frame after editing.
 - Fork do TraceDraw no commit c7f4e9c8b7da4537a9fd7ada075077988a8adee5 (https://github.com/igtoth/tracedraw), com a identidade renomeada para GraphDraw: crates e aplicativos `graphdraw-*`, formato nativo `.gdr` (antes `.tdraw`), variáveis de ambiente `GRAPHDRAW_*`, pasta de configuração GraphDraw, repositório https://github.com/geifison/GraphDRAW. As entradas abaixo são anteriores ao fork e pertencem ao TraceDraw.
 
 ## Unreleased

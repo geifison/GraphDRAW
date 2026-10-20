@@ -12,19 +12,63 @@ outline are drawn, the contents are clipped to the frame's path.
 
 ## Commands
 
-- Place Inside Frame: with contents selected, click the frame; the
-  contents keep their position.
-- Extract Contents: the contents become ordinary objects again; the frame
-  stays (an empty frame shows a hatched preview).
-- Edit Contents: enters the clip frame; only the contents are editable,
-  the rest of the page is dimmed and the frame is drawn as an outline.
-  Finish Editing Contents leaves it. While editing, the property bar
-  shows Finish.
+- Place Inside Frame: with contents selected, choose it (Object > Clip to
+  Frame, or the object context menu), then click the frame; the pointer
+  is the solid arrow while it waits. The contents keep their position
+  (centred when Options > Clip Frames asks for it). Three ways in: the
+  Object menu, the context menu, or dragging the contents onto the frame
+  with the right button and choosing Place Inside.
+- Extract Contents: the contents of the selected clip frames become
+  ordinary objects again, selected; the frames stay. One undo step. An
+  empty frame is left alone and a notice says there is nothing to
+  extract.
+- Edit Contents (Ctrl+click a clip frame with the Pick tool): the
+  contents come out to be moved and edited, the frame is drawn with a
+  dashed blue line, and the clip frame bar shows the level being edited.
+  Finish Editing Contents (Esc, Ctrl+click an empty spot, the bar's
+  button or the context menu) puts the contents back. A frame left with
+  no contents stays an empty clip frame.
+- Nested clip frames: Ctrl+click a clip frame among the contents being
+  edited goes one level deeper; finishing goes back one level. The bar
+  shows "level n of m": n counts from the outermost frame, m is n plus
+  how many clip frames deep the contents go.
+- Center Contents, Fill Frame Proportionally, Fit Contents
+  Proportionally: the contents of each selected clip frame, as one block,
+  are centred on the frame (size kept), scaled in proportion until they
+  cover the frame (the parts outside are clipped), or scaled until they
+  just fit inside it; one undo step each. Measured in the frame's own
+  space (its bounds and the contents' bounds), so a turned clip frame
+  works the same.
 - Lock Contents to Frame (default on, stored as `clip_frame.unlocked` in
   the object data when off): with the lock on, moving, scaling or
   rotating the frame transforms the contents too. With it off, the frame
   moves alone and the contents stay where they are
   (`compensate_unlocked_clip_frames` undoes the transform on them).
+
+## Clip frame bar
+
+With clip frames selected and the Pick tool idle, a bar shows under them
+(above them when there is no room below, kept inside the drawing
+window): Edit Contents, Center Contents, Fill Frame Proportionally, Fit
+Contents Proportionally, Extract Contents and a padlock for Lock Contents
+to Frame (closed: the contents move with the frame). While contents are
+edited it shows Finish, "Editing contents: level n of m" and a Ctrl key
+cap with "+ click outside to finish". Every button has a hover tip with
+its shortcut, which is also its accessible name, and takes keyboard
+focus. The same commands are in Object > Clip to Frame and in the object
+context menu, with the same icons.
+
+## Notices
+
+Shown on the status bar and for 2.5 s next to the pointer:
+
+- Place Inside Frame clicked on a locked object: "The object is locked.
+  Unlock it to continue."
+- Place Inside Frame clicked on the only selected object: "Choose a
+  different object as the frame."
+- Extract Contents on empty frames: "There is no content to extract."
+- Ctrl+click on an object that is not a clip frame: the ordinary
+  Ctrl+click (a member of a group), nothing about clip frames.
 
 ## Opacity mask
 
@@ -74,3 +118,10 @@ in place and lock work as for any clip frame. One undo step each.
   `app::tests::clip_frames_turn_into_opacity_masks_and_back`.
 - `frame_type::tests::empty_clip_frames_come_and_go_in_place`,
   `frame_type::tests::an_object_gives_way_to_an_empty_text_frame_of_its_size`.
+- `clip_frames::tests::fit_transforms_centre_fill_and_fit`,
+  `clip_frames::tests::the_bar_centres_fills_and_fits_in_one_undo_step_each`,
+  `clip_frames::tests::ctrl_click_edits_and_ctrl_click_outside_finishes`,
+  `clip_frames::tests::nested_clip_frames_are_edited_level_by_level`,
+  `clip_frames::tests::an_empty_frame_stays_a_frame_after_editing`,
+  `clip_frames::tests::extracting_an_empty_frame_says_so_and_changes_nothing`,
+  `clip_frames::tests::a_frame_cannot_take_itself_and_locked_targets_are_named`.

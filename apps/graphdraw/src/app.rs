@@ -963,6 +963,12 @@ pub struct App {
     pub pending_clip_frame: bool,
     /// Clip frame being edited in place: (frame id, content ids).
     pub clip_frame_edit: Option<(ShapeId, Vec<ShapeId>)>,
+    /// The outer levels of clip frame editing (a clip frame edited among
+    /// the contents of another), outermost first.
+    pub clip_frame_outer: Vec<(ShapeId, Vec<ShapeId>)>,
+    /// A short notice next to the pointer about a clip frame request that
+    /// did nothing; the time it was first shown fills in when drawn.
+    pub clip_notice: Option<(String, Option<f64>)>,
     /// Object > Symmetry > Edit Symmetry: the object whose symmetry is
     /// being edited.
     pub symmetry_edit: Option<ShapeId>,
@@ -1825,6 +1831,8 @@ impl App {
             show_welcome: false,
             pending_clip_frame: false,
             clip_frame_edit: None,
+            clip_frame_outer: Vec::new(),
+            clip_notice: None,
             symmetry_edit: None,
             show_guides: true,
             selected_guides: Vec::new(),

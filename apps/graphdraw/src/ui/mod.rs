@@ -45,6 +45,7 @@ pub mod export_docker;
 pub mod extrude_bar;
 pub mod field;
 pub mod fill_tool_bars;
+pub mod clip_frame_bar;
 pub mod focus_bar;
 pub mod font_list;
 pub mod font_manager;
@@ -570,6 +571,7 @@ pub fn root(app: &mut App, ui: &mut Ui) {
     if app.has_document() && !app.show_welcome {
         symmetry_bar::show(app, &ctx);
         focus_bar::show(app, &ctx);
+        clip_frame_bar::show(app, &ctx);
         effect_picker::show(app, &ctx);
         crate::perspective_draw::show_bar(app, &ctx);
     }

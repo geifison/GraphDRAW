@@ -300,6 +300,30 @@ pub(crate) fn object_menu(app: &mut App, ui: &mut Ui, close: &mut bool) {
         app.pending_clip_frame = true;
         app.status = tr("status.click_frame");
     }
+    // A clip frame selected: what the clip frame bar offers.
+    if !app.selected_clip_frames().is_empty() {
+        use crate::clip_frames::ContentFit;
+        if ci(ui, close, "menu.object.clip_frame_edit", "Ctrl+Click", true) {
+            app.edit_clip_frame();
+        }
+        if ci(ui, close, "menu.object.clip_frame_extract", "", true) {
+            app.extract_clip_contents();
+        }
+        if ci(ui, close, "menu.object.clip_frame_center", "", true) {
+            app.fit_clip_contents(ContentFit::Center);
+        }
+        if ci(ui, close, "menu.object.clip_frame_fill", "", true) {
+            app.fit_clip_contents(ContentFit::Fill);
+        }
+        if ci(ui, close, "menu.object.clip_frame_fit", "", true) {
+            app.fit_clip_contents(ContentFit::Fit);
+        }
+    }
+    if app.clip_frame_edit.is_some()
+        && ci(ui, close, "menu.object.clip_frame_finish", "Esc", true)
+    {
+        app.finish_clip_frame_edit();
+    }
     sub(ui, "context.frame_type", |ui| {
         let empty_frames = !app.empty_clip_frames().is_empty();
         if ci(ui, close, "context.frame_none", "", empty_frames) {
