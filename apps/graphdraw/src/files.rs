@@ -107,11 +107,16 @@ pub fn remove(path: impl AsRef<Path>) -> std::io::Result<()> {
     std::fs::remove_file(path)
 }
 
+/// Tests never open the system's file dialogs: one would wait for a
+/// click nobody makes. They count as cancelled.
+#[cfg(not(target_arch = "wasm32"))]
+const NATIVE_DIALOGS: bool = !cfg!(test);
+
 /// Choose a folder (desktop only; `None` when cancelled or in a browser).
 pub fn pick_folder() -> Option<PathBuf> {
     #[cfg(not(target_arch = "wasm32"))]
     {
-        rfd::FileDialog::new().pick_folder()
+        NATIVE_DIALOGS.then(|| rfd::FileDialog::new().pick_folder()).flatten()
     }
     #[cfg(target_arch = "wasm32")]
     {
@@ -414,7 +419,7 @@ impl Dialog {
                 let exts: Vec<&str> = exts.iter().map(|e| e.as_str()).collect();
                 d = d.add_filter(name, &exts);
             }
-            if let Some(paths) = d.pick_files() {
+            if let Some(paths) = NATIVE_DIALOGS.then(|| d.pick_files()).flatten() {
                 then(app, paths);
             }
         }
@@ -468,7 +473,7 @@ impl Dialog {
             if let Some(n) = &self.file_name {
                 d = d.set_file_name(n);
             }
-            return d.save_file();
+            return NATIVE_DIALOGS.then(|| d.save_file()).flatten();
         }
         #[allow(unreachable_code)]
         None
@@ -481,7 +486,7 @@ impl Dialog {
             let exts: Vec<&str> = exts.iter().map(|e| e.as_str()).collect();
             d = d.add_filter(name, &exts);
         }
-        d.pick_file()
+        NATIVE_DIALOGS.then(|| d.pick_file()).flatten()
     }
 
     #[cfg(target_arch = "wasm32")]
