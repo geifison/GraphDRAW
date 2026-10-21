@@ -26,6 +26,7 @@ mod canvas;
 mod clip_frames;
 mod clip_native;
 mod clip_offer;
+mod clip_system;
 #[cfg(test)]
 mod clip_tests;
 mod clipboard;

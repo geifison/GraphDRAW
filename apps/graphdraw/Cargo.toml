@@ -54,6 +54,10 @@ arboard = { version = "3", default-features = false, features = ["wayland-data-c
 # AI Drawing: HTTPS requests to the AI service the user sets up.
 ureq = { version = "3", features = ["platform-verifier"] }
 
+# Several clipboard formats at once (private, SVG, PNG, text).
+[target.'cfg(windows)'.dependencies]
+clipboard-win = "5.4"
+
 # The browser build: WebGL canvas, file pickers and downloads through the
 # DOM, randomness and time from JavaScript.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
