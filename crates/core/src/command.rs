@@ -233,6 +233,16 @@ pub enum Command {
         shapes: Vec<ShapeId>,
         link: Option<String>,
     },
+    /// Mark `shapes` as construction lines (shown, not printed or exported).
+    SetConstruction {
+        shapes: Vec<ShapeId>,
+        construction: bool,
+    },
+    /// The ghost path a straightened text keeps (see `text_path`).
+    SetTextPathMemory {
+        shape: ShapeId,
+        memory: Option<Box<crate::document::TextOnPath>>,
+    },
     SetWrapText {
         shapes: Vec<ShapeId>,
         wrap: bool,
@@ -387,6 +397,8 @@ impl Command {
             Command::SetExtraPaint { .. } => "Fills and Outlines",
             Command::SetOverprint { .. } => "Overprint",
             Command::SetLink { .. } => "Hyperlink",
+            Command::SetConstruction { .. } => "Construction Line",
+            Command::SetTextPathMemory { .. } => "Straighten Text",
             Command::SetWrapText { .. } => "Wrap Paragraph Text",
             Command::SetWrapStyle { .. } => "Wrap Style",
             Command::SetObjectData { .. } => "Object Data",
@@ -800,6 +812,20 @@ impl Command {
                         s.overprint_outline = *o;
                     }
                 }
+            }
+            Command::SetConstruction {
+                shapes,
+                construction,
+            } => {
+                for id in shapes {
+                    any(doc, *id)?;
+                }
+                for id in shapes {
+                    any_mut(doc, *id)?.construction = *construction;
+                }
+            }
+            Command::SetTextPathMemory { shape, memory } => {
+                any_mut(doc, *shape)?.text_path_memory = memory.clone();
             }
             Command::SetWrapText { shapes, wrap } => {
                 for id in shapes {

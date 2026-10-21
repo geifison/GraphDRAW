@@ -375,6 +375,13 @@ pub enum Drag {
         start: Point,
         current: Point,
     },
+    /// Dragging a handle of the selected fitted text (see
+    /// `text_path_handles`).
+    PathHandle {
+        handle: crate::text_path_handles::PathHandle,
+        start: Point,
+        current: Point,
+    },
     /// Moving the selection.
     Move {
         /// Where the drag began.
@@ -3595,11 +3602,19 @@ impl App {
         let mut ids = Vec::new();
         let mut cmds = Vec::new();
         let here = self.doc().object_styles.clone();
+        let mut pairs = Vec::new();
+        let mut copies = Vec::new();
         for s in cb.shapes {
             let id = self.engine.new_shape_id();
+            pairs.push((s.id, id));
             let mut shape = reid(s, id, &mut self.engine);
             crate::styles::keep_links_to(&mut shape, &cb.styles, &here);
             ids.push(id);
+            copies.push(shape);
+        }
+        // Texts on paths follow their pasted guides.
+        graphdraw_core::text_path::relink_copies(&mut copies, &pairs);
+        for shape in copies {
             cmds.push(Command::AddShape { layer, shape });
         }
         if let Err(e) = self.engine.run_batch("Paste", &cmds) {
@@ -3618,11 +3633,19 @@ impl App {
         };
         let mut ids = Vec::new();
         let mut cmds = Vec::new();
+        let mut pairs = Vec::new();
+        let mut copies = Vec::new();
         for s in shapes {
             let id = self.engine.new_shape_id();
+            pairs.push((s.id, id));
             let mut shape = reid(s, id, &mut self.engine);
             shape.transform = Affine::translate(self.duplicate_offset) * shape.transform;
             ids.push(id);
+            copies.push(shape);
+        }
+        // Texts on paths follow their duplicated guides.
+        graphdraw_core::text_path::relink_copies(&mut copies, &pairs);
+        for shape in copies {
             cmds.push(Command::AddShape { layer, shape });
         }
         if cmds.is_empty() {

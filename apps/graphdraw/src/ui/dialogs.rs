@@ -605,6 +605,9 @@ pub enum Dialog {
     /// Reset every preference to the defaults? (F8 while GraphDraw
     /// starts, Options > Global.)
     ConfirmResetSettings,
+    /// Fit Text to Path: the click picking the guide missed a curve; try
+    /// again or cancel.
+    RetryTextPath,
     /// At start-up: drawings a session that ended without closing left in
     /// the auto-backup folder (see `recovery.rs`).
     Recover(Vec<crate::recovery::Found>),
@@ -1380,6 +1383,27 @@ pub fn show(app: &mut App, ctx: &Context) {
                     close = true;
                 }
                 Some(_) => close = true,
+                None => {}
+            }
+        }
+        Dialog::RetryTextPath => {
+            let (retry, cancel) = (tr("dialog.try_again"), tr("dialog.cancel"));
+            match crate::ui::chrome::message_box(
+                ctx,
+                crate::ui::chrome::MessageIcon::Question,
+                &tr("dialog.text_path_missed"),
+                &[&retry, &cancel],
+            ) {
+                Some(0) => {
+                    // Wait for another click on the guide.
+                    app.pending_text_path = true;
+                    app.status = tr("status.click_text_path");
+                    close = true;
+                }
+                Some(_) => {
+                    app.status = tr("status.cancelled");
+                    close = true;
+                }
                 None => {}
             }
         }
@@ -4327,6 +4351,7 @@ mod tests {
             Dialog::OldCdrVersion { version: 9 },
             Dialog::ConfirmClose,
             Dialog::ConfirmResetSettings,
+            Dialog::RetryTextPath,
             Dialog::Updates,
             Dialog::Recover(vec![crate::recovery::Found {
                 marker: "/nowhere/session-x.json".into(),

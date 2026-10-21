@@ -357,6 +357,11 @@ impl App {
         // subpaths. One undo step for the whole selection.
         let mut cmds = Vec::new();
         for id in &ids {
+            // A text on a path: unlinked from its guide, keeping its curve.
+            if let Some(mut c) = self.text_path_unlink_commands(*id) {
+                cmds.append(&mut c);
+                continue;
+            }
             match self.text_break_commands(*id) {
                 Some(mut c) => cmds.append(&mut c),
                 None => cmds.push(Command::BreakApart { shape: *id }),

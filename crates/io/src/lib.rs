@@ -289,6 +289,58 @@ mod tests {
     }
 
     #[test]
+    fn text_on_a_path_with_its_link_and_ghost_round_trips_through_the_native_format() {
+        use graphdraw_core::{
+            PathTextCorners, PathTextOrientation, PathTextVertical, TextAlign, TextOnPath, TextSpan,
+        };
+        let mut doc = Document::default();
+        let layer = doc.pages[0].layers[0].id;
+        let mut path = graphdraw_core::BezPath::new();
+        path.move_to((10.0, 50.0));
+        path.line_to((60.0, 50.0));
+        let gid = doc.ids_mut().shape();
+        let mut guide = Shape::new(
+            gid,
+            ShapeKind::Path {
+                path: path.clone(),
+                closed: false,
+            },
+        );
+        guide.construction = true;
+        let tid = doc.ids_mut().shape();
+        let tp = TextOnPath {
+            orientation: PathTextOrientation::Warp,
+            vertical: PathTextVertical::CapHeight,
+            corners: PathTextCorners::Split,
+            below: true,
+            ..TextOnPath::fitted(path, Some(gid))
+        };
+        let mut text = Shape::new(
+            tid,
+            ShapeKind::Text {
+                spans: vec![TextSpan::new("abc", "DejaVu Sans", 12.0)],
+                origin: graphdraw_core::Point::ZERO,
+                frame: None,
+                align: TextAlign::Justify,
+                para: Default::default(),
+                on_path: Some(tp.clone()),
+            },
+        );
+        text.text_path_memory = Some(Box::new(tp));
+        let l = doc.layer_mut(layer).unwrap();
+        l.shapes.push(guide);
+        l.shapes.push(text);
+        let json = doc.to_json().unwrap();
+        let back = Document::from_json(&json).unwrap();
+        assert_eq!(back, doc);
+        // A drawing written before these fields existed still opens.
+        let plain = json
+            .replace("\"construction\":true,", "")
+            .replace("\"construction\": true,", "");
+        assert!(Document::from_json(&plain).is_ok());
+    }
+
+    #[test]
     fn custom_arrowhead_round_trips_through_the_native_format() {
         let mut doc = Document::default();
         let layer = doc.pages[0].layers[0].id;

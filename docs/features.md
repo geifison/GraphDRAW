@@ -97,7 +97,7 @@ Counts: works 191, partial 4 (`.cdr` content coverage; CMX import; print preview
 | Tracking, baseline shift, OpenType features (ligatures, small caps, old-style figures, fractions, swash) | works |
 | Character horizontal and vertical offsets and angle; character and word spacing; Shape tool character nodes (drag to shift) and interactive horizontal and vertical spacing arrows; Straighten Text and Align to Baseline for characters | works (see `behavior/text.md`); `.cdr` character offsets are not read yet |
 | Hyphenation (Liang patterns en/pt, heuristic elsewhere) and Custom Optional Hyphens (words hyphenated by hand win; turned on for typed, pasted and imported text holding them) | works |
-| Text on path (offset, distance, mirror), straighten text | works |
+| Text on path (offset, distance, mirrors, orientation incl. warp, line on the stroke, placement incl. justify, corner rule, anti-collision, side, several lines), live link to the guide, pick the guide with retry, right-drag Fit to Path, canvas handles, unlink (Ctrl+K), straighten with ghost path and Reactivate Source Path, badge, guide as construction line, letter spacing | works (see `behavior/text.md`) |
 | Fit text to frame; wrap paragraph text around objects above it on the page (contour or square; left, right, both sides, above and below; text wrap offset); baselines on the page's baseline grid (see `behavior/text-wrap.md`) | works |
 | Insert Placeholder Text: filler that fills each selected paragraph frame (see `behavior/text.md`) | works |
 | Linked paragraph text frames (link, unlink, live re-flow) | works |

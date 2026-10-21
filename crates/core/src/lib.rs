@@ -31,6 +31,7 @@ mod press;
 pub mod shaping;
 pub mod style;
 pub mod text_flow;
+pub mod text_path;
 
 pub use color::Color;
 pub use command::Command;
@@ -39,7 +40,7 @@ pub use document::{
     split_spans_at, Baseline, BitmapEffect, BitmapFxStack, ColorStyle, CornerKind, Corners,
     DefaultKind, DefaultProperties, Document, DocumentFont, DocumentProfile, EllipseArc, Layer,
     LeadingUnit, MasterScope, Metadata, ObjectDefaults, ObjectStyle, Page, ParagraphStyle,
-    PathTextOrientation, PathTextVertical, QrCode, QrKind, Shadow, Shape, ShapeKind, StyleParts,
+    PathTextCorners, PathTextOrientation, PathTextVertical, QrCode, QrKind, Shadow, Shape, ShapeKind, StyleParts,
     Symbol, Table, TableCell, TextAlign, TextOnPath, TextSpan, TimeTracker, TrackedTask,
     VerticalAlign,
 };

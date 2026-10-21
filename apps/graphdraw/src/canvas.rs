@@ -112,6 +112,7 @@ pub fn draw_canvas(app: &App, painter: &Painter, rect: ERect) {
         Some(t) => draw_transform_outline(app, painter, t),
         None => draw_selection(app, painter, None),
     }
+    crate::text_path_handles::draw(app, painter);
     draw_table_cells(app, painter);
     crate::variable_outline::draw_width_nodes(app, painter);
     crate::comments::draw_comments(app, painter);

@@ -1297,7 +1297,7 @@ impl Writer<'_> {
     }
 
     fn shape(&mut self, shape: &Shape, parent: Affine) {
-        if !shape.visible {
+        if !shape.visible || shape.construction {
             return;
         }
         if !shape.effects.is_empty() {

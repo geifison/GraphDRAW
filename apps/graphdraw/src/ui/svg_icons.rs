@@ -71,6 +71,11 @@ static FILES: &[(&str, &str)] = embed!["";
     "tool-width", "tool-zoom", "tp-straighten", "undo", "ungroup", "ungroup-all",
     "unlock-all", "zoom-in", "zoom-out",
     "fill-none", "tool-fill-solid", "fill-gradient", "fill-vector", "fill-bitmap", "fill-two-color", "fill-texture", "fill-postscript", "fill-linear", "fill-radial", "fill-elliptic", "fill-conic", "fill-rectangular", "fill-shaped", "grad-reflect", "grad-repeat", "blend-direct", "blend-cw", "blend-ccw", "grad-smooth", "grad-reverse", "dash-standard", "dash-align", "dash-fixed", "join-miter", "join-round", "join-bevel", "cap-butt", "cap-round", "cap-square", "pos-outside", "pos-center", "pos-inside", "behind-fill", "scale-stroke",
+    // Text on a path.
+    "tp-rotate", "tp-upright", "tp-skew-v", "tp-skew-h", "tp-warp", "tpv-baseline",
+    "tpv-descender", "tpv-xheight", "tpv-cap", "tpv-center", "tp-reverse", "tp-flip-side",
+    "tp-offset-x", "tp-offset-y", "tp-corner-jump", "tp-corner-wrap", "tp-corner-split",
+    "tp-relax", "tp-tracking", "tp-badge", "tp-construction", "tp-unlink",
 ];
 
 /// Versions drawn for the 16 px grid, used at that size.
@@ -314,6 +319,40 @@ const KEYS: &[(&str, &str)] = &[
     ("outlinewin.pos_inside_tip", "pos-inside"),
     ("outlinewin.behind_fill_tip", "behind-fill"),
     ("outlinewin.scale_tip", "scale-stroke"),
+    // Text on a path: the bar, the context and drop menus.
+    ("toolbar.path_rotate", "tp-rotate"),
+    ("toolbar.path_upright", "tp-upright"),
+    ("toolbar.path_vertical_skew", "tp-skew-v"),
+    ("toolbar.path_horizontal_skew", "tp-skew-h"),
+    ("toolbar.path_warp", "tp-warp"),
+    ("toolbar.path_on_baseline", "tpv-baseline"),
+    ("toolbar.path_on_descender", "tpv-descender"),
+    ("toolbar.path_on_xheight", "tpv-xheight"),
+    ("toolbar.path_on_cap", "tpv-cap"),
+    ("toolbar.path_on_center", "tpv-center"),
+    // No drawing of its own: the nearest line, the capitals' top.
+    ("toolbar.path_on_ascender", "tpv-cap"),
+    ("toolbar.path_place_left", "text-left"),
+    ("toolbar.path_place_center", "text-center"),
+    ("toolbar.path_place_right", "text-right"),
+    ("toolbar.path_place_justify", "text-justify"),
+    ("toolbar.path_mirror_h", "tp-reverse"),
+    ("toolbar.path_mirror_v", "tp-flip-side"),
+    ("toolbar.path_offset", "tp-offset-x"),
+    ("toolbar.path_distance", "tp-offset-y"),
+    ("toolbar.path_corner_jump", "tp-corner-jump"),
+    ("toolbar.path_corner_wrap", "tp-corner-wrap"),
+    ("toolbar.path_corner_split", "tp-corner-split"),
+    ("toolbar.path_relax", "tp-relax"),
+    ("toolbar.letter_spacing", "tp-tracking"),
+    ("toolbar.path_badge", "tp-badge"),
+    ("toolbar.path_construction", "tp-construction"),
+    ("toolbar.path_unlink", "tp-unlink"),
+    ("toolbar.path_straighten", "tp-straighten"),
+    ("context.put_text_on_path", "text-path"),
+    ("context.reactivate_text_path", "text-path"),
+    ("drop.fit_to_path", "text-path"),
+    ("status.click_text_path", "cur-pick-path"),
 ];
 
 fn find<K: PartialEq>(table: &[(K, &'static str)], key: &K) -> Option<&'static str> {

@@ -804,6 +804,15 @@ pub fn property_bar(app: &mut App, ui: &mut Ui) {
         match app.tool {
             Tool::Shape => shape_tool_bar(app, ui),
             Tool::Pick | Tool::FreeformPick if shapes.is_empty() => page_properties(app, ui),
+            Tool::Pick | Tool::FreeformPick if app.fitted_text().is_some() => {
+                // A text fitted to a path: the object fields, how it
+                // follows the path, then its font.
+                object_properties(app, ui);
+                vsep(ui);
+                crate::ui::text_path_bar::text_path_bar(app, ui);
+                vsep(ui);
+                text_properties(app, ui);
+            }
             Tool::Pick | Tool::FreeformPick
                 if shapes
                     .iter()
@@ -830,13 +839,6 @@ pub fn property_bar(app: &mut App, ui: &mut Ui) {
                 object_properties(app, ui);
                 vsep(ui);
                 crate::ui::connector_bar::connector_bar(app, ui);
-            }
-            Tool::Pick | Tool::FreeformPick if app.fitted_text().is_some() => {
-                // A text fitted to a path: the object fields, then how it
-                // follows the path.
-                object_properties(app, ui);
-                vsep(ui);
-                crate::ui::text_path_bar::text_path_bar(app, ui);
             }
             Tool::Pick | Tool::FreeformPick
                 if shapes
@@ -1775,6 +1777,12 @@ fn text_properties(app: &mut App, ui: &mut Ui) {
             }
             changed = true;
         }
+    }
+    // Letter spacing, % of the body (a text on a path has it in its own
+    // part of the bar).
+    if app.fitted_text().is_none() {
+        vsep(ui);
+        crate::ui::text_path_bar::letter_spacing_part(app, ui);
     }
     vsep(ui);
     if text_align_list(app, ui) {

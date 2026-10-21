@@ -901,6 +901,10 @@ impl App {
                 self.snap_mark.set(Some(t));
             }
         }
+        // The handles of a text on a path come first.
+        if self.path_handle_input(response, p, screen) {
+            return;
+        }
         if response.drag_started_by(PointerButton::Primary) {
             self.drag_copy = false;
             // Rotate mode: the centre of rotation moves.
@@ -1181,6 +1185,7 @@ impl App {
         };
         match &mut self.drag {
             Drag::AlongPath { current, .. } => *current = p,
+            Drag::PathHandle { current, .. } => *current = p,
             Drag::Move { last, total, .. } => {
                 if let Some((np, nt)) = snapped_move {
                     *last = np;
@@ -1802,6 +1807,11 @@ impl App {
                 }
             }
             Drag::AlongPath { start, current } => self.finish_along_path(start, current),
+            Drag::PathHandle {
+                handle,
+                start,
+                current,
+            } => self.finish_path_handle(handle, start, current),
             Drag::Pivot => {}
             Drag::Scale { .. } | Drag::Rotate { .. } | Drag::Skew { .. } => {
                 if let Some(t) = self.preview_transform_of(&drag) {
@@ -2538,6 +2548,7 @@ impl App {
             self.dimension_points.clear();
             self.eyedropper_reset();
             self.pending_palette_sample = false;
+            self.pending_text_path = false;
             self.palette_shades = None;
             self.palette_expanded = None;
             self.select(Vec::new());

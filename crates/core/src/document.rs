@@ -1168,6 +1168,25 @@ pub enum PathTextOrientation {
     HorizontalSkew,
     /// Letters stay upright, only moved along the path.
     Upright,
+    /// Every point of a letter follows the path: its base runs along the
+    /// stroke and its top along the outer arc (signs, medallions).
+    Warp,
+}
+
+/// What a letter that would fall on a sharp corner of the path does.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum PathTextCorners {
+    /// No rule: each letter is placed by its centre wherever it falls
+    /// (texts fitted before the corner rules existed, imported files).
+    #[default]
+    Free,
+    /// Skip the corner: the whole letter goes on to the next side.
+    Jump,
+    /// Bend at the corner: the letter is warped round it.
+    Wrap,
+    /// Equal parts per side: the text is shared out evenly between the
+    /// sides between the corners.
+    Split,
 }
 
 /// Which line of the letters sits on the path.
@@ -1178,6 +1197,10 @@ pub enum PathTextVertical {
     Ascender,
     Descender,
     Center,
+    /// The top of the lower-case letters (half the body).
+    XHeight,
+    /// The top of the capitals (72 % of the body).
+    CapHeight,
 }
 
 /// Text fitted to a path: glyphs follow `path` (local space). The letters
@@ -1209,9 +1232,38 @@ pub struct TextOnPath {
     pub orientation: PathTextOrientation,
     #[serde(default)]
     pub vertical: PathTextVertical,
+    /// The curve the text follows (live link): when it changes, the text
+    /// is laid on it again (see [`crate::text_path`]). `None` once the
+    /// text is unlinked from it, or for texts fitted without one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub guide: Option<ShapeId>,
+    /// The letters hang below the stroke (their cap height on it) instead
+    /// of standing on it, reading the same way (Mirror Vertically on the
+    /// bar, the double arrow on the canvas).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub below: bool,
+    /// The rule for letters falling on sharp corners.
+    #[serde(default)]
+    pub corners: PathTextCorners,
+    /// Anti-collision: on concave stretches the spacing opens by the
+    /// ratio between the letters' top and base so they do not touch.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub relax: bool,
 }
 
 impl TextOnPath {
+    /// A text newly fitted to `path`, linked to the curve `guide`: letters
+    /// skip sharp corners and open up on concave stretches.
+    pub fn fitted(path: BezPath, guide: Option<ShapeId>) -> TextOnPath {
+        TextOnPath {
+            path,
+            guide,
+            corners: PathTextCorners::Jump,
+            relax: true,
+            ..Default::default()
+        }
+    }
+
     /// The horizontal and vertical mirrors in effect (`mirror` is both).
     pub fn mirrors(&self) -> (bool, bool) {
         (self.mirror ^ self.mirror_h, self.mirror ^ self.mirror_v)
@@ -1380,6 +1432,16 @@ impl Baseline {
         self.lengths.last().copied().unwrap_or(0.0)
     }
 
+    /// The polyline's points (a closed one repeats its first at the end).
+    pub fn points(&self) -> &[Point] {
+        &self.points
+    }
+
+    /// The arc length at each point.
+    pub fn lengths(&self) -> &[f64] {
+        &self.lengths
+    }
+
     /// The arc length of the point nearest `p` and how far `p` is from
     /// it, positive to the left of the direction (where letters stand).
     pub fn nearest(&self, p: Point) -> Option<(f64, f64)> {
@@ -1536,6 +1598,14 @@ pub struct Shape {
     /// again from it whenever it changes.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub qr: Option<Box<QrCode>>,
+    /// A construction line: shown on screen, left out of printing, PDF,
+    /// SVG and cutting (the guide of a text on a path, for one).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub construction: bool,
+    /// A text straightened off its path keeps the path here (ghost path)
+    /// so Reactivate Source Path can put it back.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text_path_memory: Option<Box<TextOnPath>>,
 }
 
 /// What a QR code holds: the kind of content, which decides the fields
@@ -1799,6 +1869,8 @@ impl Shape {
             extra_strokes: Vec::new(),
             raster_fx: None,
             qr: None,
+            construction: false,
+            text_path_memory: None,
         }
     }
 

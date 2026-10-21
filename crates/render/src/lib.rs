@@ -303,7 +303,8 @@ impl Renderer<'_> {
         if let Some(pic) = shape.drawn_as().filter(|_| !self.flags.wireframe) {
             return self.draw_shape(&pic, parent);
         }
-        if !shape.visible {
+        // Construction lines show on screen only, not in exports or print.
+        if !shape.visible || (shape.construction && !self.flags.draft) {
             return;
         }
         // Character backgrounds go under the text, in its transform.

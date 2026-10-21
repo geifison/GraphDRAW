@@ -113,7 +113,7 @@ fn write_unlinked(
     next_grad: &mut usize,
     indent: usize,
 ) {
-    if !shape.visible {
+    if !shape.visible || shape.construction {
         return;
     }
     let pad = "  ".repeat(indent);
@@ -906,6 +906,22 @@ mod tests {
         });
         line.transform = Affine::translate((0.0, 100.0));
         line
+    }
+
+    #[test]
+    fn construction_lines_are_left_out() {
+        let mut doc = Document::default();
+        let layer = doc.pages[0].layers[0].id;
+        let mut line = arrow_line();
+        let shown = {
+            let mut d = doc.clone();
+            d.layer_mut(layer).unwrap().shapes.push(line.clone());
+            page_to_svg(&d, 0)
+        };
+        line.construction = true;
+        doc.layer_mut(layer).unwrap().shapes.push(line);
+        let svg = page_to_svg(&doc, 0);
+        assert!(shown.contains("<path") && !svg.contains("<path"), "{svg}");
     }
 
     #[test]
