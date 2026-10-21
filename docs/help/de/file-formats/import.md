@@ -30,5 +30,15 @@ Einstellung auf der Seite [[options.file_formats]] der globalen Optionen; siehe
 Wenn einige Objekte einer Datei nicht gelesen werden können oder Schriften
 fehlen, weist eine Meldung darauf hin; siehe
 [Hinweise nach dem Öffnen](../get-started/open-and-save.md#open-notes). Sie
-können Dateien auch auf das Fenster ziehen oder aus anderen Programmen
-einfügen; siehe [Inhalte einfügen](../objects/paste-special.md).
+können auch aus anderen Programmen einfügen; siehe
+[Inhalte einfügen](../objects/paste-special.md).
+
+## Dateien auf das Fenster ziehen {#drop}
+
+Ziehen Sie eine oder mehrere Dateien aus dem Dateimanager auf das Fenster.
+Solange sie darüber sind, zeigt die Zeichnung einen gestrichelten blauen
+Rahmen und „Zum Importieren loslassen“. Jede Datei wird importiert und in die
+Zeichnung eingebettet: die erste mittig an der Stelle, an der Sie sie
+loslassen, die folgenden jeweils etwas weiter; alles Importierte wird
+ausgewählt. Eine Datei, die GraphDraw nicht lesen kann, öffnet die Meldung
+[[alert.unsupported_file]] mit ihrem Namen.

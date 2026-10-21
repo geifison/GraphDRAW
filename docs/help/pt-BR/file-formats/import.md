@@ -26,5 +26,15 @@ globais; veja [Opções globais](../customize/global-options.md#file-formats).
 Quando alguns objetos de um arquivo não podem ser lidos, ou faltam fontes, uma
 mensagem avisa; veja
 [Observações após abrir](../get-started/open-and-save.md#open-notes). Você
-também pode arrastar arquivos para a janela, ou colar de outros programas; veja
+também pode colar de outros programas; veja
 [Colar especial](../objects/paste-special.md).
+
+## Soltar arquivos na janela {#drop}
+
+Arraste um ou mais arquivos do gerenciador de arquivos para a janela.
+Enquanto estão sobre ela, o desenho mostra uma moldura azul tracejada e
+"Solte para importar". Cada arquivo é importado e incorporado ao desenho:
+o primeiro fica centralizado onde você o soltou, os seguintes um pouco
+adiante cada um, e tudo o que foi importado fica selecionado. Um arquivo
+que o GraphDraw não sabe ler abre a mensagem [[alert.unsupported_file]]
+com o nome dele.

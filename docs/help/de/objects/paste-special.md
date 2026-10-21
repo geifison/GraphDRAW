@@ -18,12 +18,21 @@ bearbeitbaren Formen oder zu einem Bild werden.
    - [[dialog.paste_svg]]: SVG-Text, umgewandelt in Formen, die Sie bearbeiten
      können;
    - [[dialog.paste_bitmap]]: ein Bild, als Bitmap;
+   - [[dialog.paste_files]]: jede Datei wird wie mit Datei > Importieren
+     importiert;
    - [[dialog.paste_text]]: einfacher Text, als Textzeile.
 4. Klicken Sie auf [[dialog.ok]].
 
 Enthält die Zwischenablage nichts, was eingefügt werden kann, zeigt das
 Dialogfeld [[dialog.clipboard_empty]].
 
-Das gewöhnliche [[menu.edit.paste]] (<kbd>Ctrl+V</kbd>) fügt in der ersten
-verfügbaren Form ein, und [[menu.edit.paste_in_view]]
-(<kbd>Ctrl+Shift+V</kbd>) fügt in der Mitte des Fensters ein.
+Das gewöhnliche [[menu.edit.paste]] (<kbd>Ctrl+V</kbd>) fügt in der besten
+verfügbaren Form ein: GraphDraw-Objekte, dann SVG, Dateien, Bilder und Text.
+Optionen > Bearbeiten > [[options.clipboard_section]] legt fest, ob es an der
+kopierten Position oder in der Mitte der Ansicht einfügt;
+[[menu.edit.paste_in_view]] (<kbd>Ctrl+Shift+V</kbd>) fügt immer in der Mitte
+des Fensters ein.
+
+Beim Kopieren legt GraphDraw die Objekte als GraphDraw-Objekte, SVG, SVG-Text
+und Bild in die Zwischenablage, damit auch andere Programme sie einfügen
+können.

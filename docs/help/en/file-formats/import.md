@@ -25,5 +25,14 @@ global options; see [Global options](../customize/global-options.md#file-formats
 
 When some objects of a file cannot be read, or fonts are missing, a message
 says so; see [Notes after opening](../get-started/open-and-save.md#open-notes).
-You can also drag files onto the window, or paste from other programs; see
+You can also paste from other programs; see
 [Paste Special](../objects/paste-special.md).
+
+## Dropping files on the window {#drop}
+
+Drag one or more files from the file manager onto the window. While they
+are over it, the drawing shows a dashed blue frame and "Drop to import".
+Each file is imported and embedded in the drawing, the first one centred
+where you drop it and the next ones a little further each, and everything
+imported is selected. A file GraphDraw cannot read opens the message
+[[alert.unsupported_file]] with its name.

@@ -6,6 +6,16 @@ full, row-by-row status.
 
 ## GraphDraw (fork do TraceDraw)
 
+- Clipboard: Copy puts the objects on the system clipboard as GraphDraw
+  objects (every property, for other GraphDraw windows), SVG, SVG text
+  and a picture; Paste takes the best of these, files copied in the file
+  manager, pictures and HTML pictures from browsers, or text, and no
+  longer pastes an older internal copy over something copied elsewhere;
+  pasted SVG reads no files or network; Options > Edit sets where Ctrl+V
+  pastes and which formats Copy publishes.
+- Files dropped on the window are imported where they fall, with a hint
+  while they hover; files no reader understands raise "File or format
+  not supported!"; `.gdr` drawings can be imported.
 - Clip frames: double-click or Ctrl+click a clip frame edits its
   contents (again on an inner frame for nested levels); only the
   contents can be picked and the frame shows as a light blue hairline;

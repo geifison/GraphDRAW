@@ -13,15 +13,23 @@ um SVG copiado de uma página web pode virar formas editáveis ou uma imagem.
 2. Escolha [[menu.edit > menu.edit.paste_special]].
 3. Em [[dialog.paste_as]], escolha uma das formas que a área de transferência
    oferece:
-   - [[dialog.paste_objects]]: objetos copiados no GraphDraw, como eram;
-   - [[dialog.paste_svg]]: texto SVG, transformado em formas editáveis;
+   - [[dialog.paste_objects]]: objetos copiados no GraphDraw, nesta ou em
+     outra janela, como eram;
+   - [[dialog.paste_svg]]: SVG, transformado em formas editáveis;
    - [[dialog.paste_bitmap]]: uma imagem, como bitmap;
+   - [[dialog.paste_files]]: cada arquivo importado como em Arquivo > Importar;
    - [[dialog.paste_text]]: texto simples, como uma linha de texto.
 4. Clique em [[dialog.ok]].
 
 Quando a área de transferência não tem nada que possa ser colado, a caixa de
 diálogo diz [[dialog.clipboard_empty]].
 
-O [[menu.edit.paste]] comum (<kbd>Ctrl+V</kbd>) cola na primeira forma
-disponível, e [[menu.edit.paste_in_view]] (<kbd>Ctrl+Shift+V</kbd>) cola no
-meio da janela.
+O [[menu.edit.paste]] comum (<kbd>Ctrl+V</kbd>) cola na melhor forma
+disponível: objetos do GraphDraw, depois SVG, arquivos, imagens e texto.
+Opções > Editar > [[options.clipboard_section]] escolhe se ele cola na
+posição copiada ou no meio da área visível; [[menu.edit.paste_in_view]]
+(<kbd>Ctrl+Shift+V</kbd>) sempre cola no meio da janela.
+
+Copiar no GraphDraw coloca os objetos na área de transferência como objetos
+do GraphDraw, SVG, texto SVG e imagem, para que outros programas também
+possam colá-los.

@@ -231,6 +231,8 @@ Counts: works 191, partial 4 (`.cdr` content coverage; CMX import; print preview
 |---|---|
 | Undo/redo with history panel, repeat (Ctrl+R) | works |
 | Copy, paste, paste in view, Paste Special (system clipboard as text, bitmap or objects), duplicate, clone, copy properties from | works |
+| System clipboard: Copy publishes a private format, SVG, SVG text and PNG together; Paste takes the best of private, SVG, copied files, PNG, bitmap, HTML data image, SVG text and text with fallback; own copy recognised; sanitised SVG and HTML, size limits; Ctrl+V at the copied position or the view centre (see `behavior/clipboard-and-drop.md`; `clip_tests`) | works |
+| Files dropped on the window: imported and embedded at the drop point, cascaded, selected; dashed hint while hovering; one alert naming unsupported files (`drop_import::tests`) | works |
 | Find and Replace (text and object attributes) | works |
 | Scripts panel: JavaScript object model (documents, pages, layers, shapes, fills, outlines, colours, curves with their subpaths and nodes, effects listed, added and removed), run, record macro, load/save | works (`scripting::tests`) |
 | File > GitHub: open a drawing from a repository, save it back as a commit with a message (refused over a newer version), the file's history and earlier versions; a personal access token, kept for the session or remembered | works (see `behavior/github.md`) |
