@@ -579,6 +579,8 @@ fn drag_chip(app: &App, ctx: &egui::Context, color: Option<Color>, pos: Pos2) {
         egui::Order::Tooltip,
         egui::Id::new("palette_drag_chip"),
     ));
+    // The stops of a gradient under the pointer take a dropped colour.
+    crate::gradient_tool::paint_hover_stops(app, &painter, pos);
     let r = Rect::from_min_size(pos + vec2(12.0, 12.0), vec2(16.0, 16.0));
     let fill = color.map(crate::canvas::to_color32);
     painter.rect_filled(r.expand(1.0), 0.0, Color32::WHITE);

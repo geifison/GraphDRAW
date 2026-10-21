@@ -48,6 +48,14 @@ impl App {
     /// Drop `color` (`None`: No Color) at `at` (screen); false when
     /// nothing took it.
     pub fn drop_color(&mut self, color: Option<Color>, at: Pos2) -> bool {
+        // On a gradient stop: that stop's colour (gradient_tool.rs).
+        if let Some(c) = color {
+            if self.drop_color_on_stop(c, at) {
+                return true;
+            }
+        }
+        // Elsewhere the chosen stop does not take it.
+        self.gradient_tool.stop = None;
         match self.color_target(at) {
             ColorTarget::DocumentPalette => match color {
                 Some(c) => {

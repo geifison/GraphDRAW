@@ -56,6 +56,7 @@ mod extrude_tool;
 mod eyedropper;
 mod files;
 mod fill_tool;
+mod gradient_tool;
 mod focus;
 #[cfg(any(target_arch = "wasm32", test))]
 mod font_folder;

@@ -1162,6 +1162,7 @@ pub fn fountain_kind_key(k: FountainKind) -> &'static str {
         FountainKind::Conical => "fill.conical",
         FountainKind::Square => "fill.square",
         FountainKind::Shaped => "fill.shaped",
+        FountainKind::Elliptical => "fillwin.elliptic",
     }
 }
 
@@ -1204,7 +1205,7 @@ fn fountain_editor(ui: &mut Ui, f: &mut Fountain) -> bool {
                 let (a, b) = ui
                     .data(|d| d.get_temp::<(Color, Color)>(current_colors_id()))
                     .unwrap_or((Color::BLACK, Color::WHITE));
-                let current = vec![Stop { pos: 0.0, color: a }, Stop { pos: 1.0, color: b }];
+                let current = vec![Stop::new(0.0, a), Stop::new(1.0, b)];
                 let (r, resp) =
                     ui.allocate_exact_size(egui::vec2(34.0, 20.0), egui::Sense::click());
                 gradient_swatch(ui.painter(), r, &current);
@@ -1328,7 +1329,7 @@ fn fountain_editor(ui: &mut Ui, f: &mut Fountain) -> bool {
         let pos = (f.stops[i].pos + next) / 2.0;
         // The stops' own colour there (not the repeats or the inversion).
         let color = graphdraw_core::style::sample_stops(&f.sorted_stops(), pos);
-        f.stops.insert(i + 1, Stop { pos, color });
+        f.stops.insert(i + 1, Stop::new(pos, color));
         changed = true;
     }
     if let Some(i) = remove {

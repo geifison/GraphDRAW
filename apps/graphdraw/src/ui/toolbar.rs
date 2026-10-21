@@ -2503,15 +2503,31 @@ fn interactive_fill_bar(app: &mut App, ui: &mut Ui, shapes: &[graphdraw_core::do
                 f.edge_pad = pad / 100.0;
                 changed = true;
             }
+            // Size, steps, blending, smoothing, Reverse and the chosen
+            // stop (gradient_tool.rs).
+            vsep(ui);
+            changed |= crate::gradient_tool::bar_fields(app, ui, f);
         }
         _ => {}
     }
     if changed {
+        let keep = matches!(fill, Fill::Fountain(_)) && app.gradient_stop().is_some();
+        if !keep {
+            // Not a stop's colour: the fill itself changes.
+            app.gradient_tool.stop = None;
+        }
         app.apply_fill_or_default(fill);
+        if keep {
+            app.gradient_keep_stop();
+        }
     }
     vsep(ui);
     ui.label(
-        egui::RichText::new(tr("toolbar.fill_hint"))
+        egui::RichText::new(tr(if app.gradient_target().is_some() {
+            "gradtool.hint"
+        } else {
+            "toolbar.fill_hint"
+        }))
             .color(Tokens::text_dim())
             .size(11.0),
     );

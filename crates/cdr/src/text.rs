@@ -1632,14 +1632,8 @@ pub(crate) fn object_transparency_mask(style: &str) -> Option<(graphdraw_core::F
     let mut fountain = Fountain {
         kind,
         stops: vec![
-            Stop {
-                pos: 0.0,
-                color: Color::Gray { v: first },
-            },
-            Stop {
-                pos: 1.0,
-                color: Color::Gray { v: last },
-            },
+            Stop::new(0.0, Color::Gray { v: first }),
+            Stop::new(1.0, Color::Gray { v: last }),
         ],
         angle: num(&fill, "angle").unwrap_or(0.0).rem_euclid(360.0),
         offset: graphdraw_core::geometry::Point::new(pct("xCenterOffset"), pct("yCenterOffset")),

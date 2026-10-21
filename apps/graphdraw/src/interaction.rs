@@ -1676,6 +1676,10 @@ impl App {
     }
 
     fn fill_input(&mut self, response: &Response, p: Point) {
+        // The gradient's handles and stops first (gradient_tool.rs).
+        if self.gradient_input(response, p) {
+            return;
+        }
         if response.drag_started_by(PointerButton::Primary) {
             if let Some(h) = self.fountain_handle_at(p) {
                 self.drag = Drag::FountainHandle { handle: h };
@@ -1695,8 +1699,9 @@ impl App {
                 self.drag_fountain_handle(handle, p);
                 return;
             }
-            if let Drag::FillGradient { current, .. } = &mut self.drag {
-                *current = p;
+            let ctrl = response.ctx.input(|i| i.modifiers.command || i.modifiers.ctrl);
+            if let Drag::FillGradient { start, current, .. } = &mut self.drag {
+                *current = crate::gradient_tool::snap_end(*start, p, ctrl);
             }
         }
         if response.clicked_by(PointerButton::Primary) {
@@ -1871,15 +1876,9 @@ impl App {
                 current,
             } => {
                 if (current - start).hypot() > 0.5 {
-                    let from = match &self.default_fill() {
-                        Fill::Solid(c) => *c,
-                        _ => Color::cmyk_pct(0.0, 0.0, 0.0, 100.0),
-                    };
-                    let angle = (current - start).atan2().to_degrees();
-                    self.run(Command::SetFill {
-                        shapes: vec![shape],
-                        fill: Fill::linear(from, Color::WHITE, angle),
-                    });
+                    // From the press point to the release point, in the
+                    // object's colours (gradient_tool.rs).
+                    self.finish_fill_gradient(shape, start, current);
                 }
             }
             Drag::ZoomBox { start, current } => {
@@ -1905,6 +1904,7 @@ impl App {
                 self.drag = d;
                 self.finish_guide_move(at);
             }
+            Drag::GradientHandle => self.finish_gradient_drag(),
             Drag::FountainHandle { .. }
             | Drag::ContourDrag { .. }
             | Drag::Shadow { .. }
@@ -2451,7 +2451,9 @@ impl App {
             self.zoom_step(false);
         }
         if pressed(Key::Delete, Modifiers::NONE) || pressed(Key::Backspace, Modifiers::NONE) {
-            if matches!(self.tool, Tool::MeshFill | Tool::Shape)
+            if self.tool == Tool::InteractiveFill && self.delete_gradient_stop() {
+                // The chosen gradient stop went, the object stays.
+            } else if matches!(self.tool, Tool::MeshFill | Tool::Shape)
                 && self.selected_mesh_node().is_some()
             {
                 self.delete_mesh_lines();

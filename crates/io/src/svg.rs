@@ -446,8 +446,14 @@ fn paint_value(
             let stop_xml: String = stops
                 .iter()
                 .map(|st| {
+                    // A stop that is not opaque says how much it shows.
+                    let opacity = if st.opacity < 1.0 {
+                        format!(" stop-opacity=\"{}\"", fmt(st.opacity.clamp(0.0, 1.0)))
+                    } else {
+                        String::new()
+                    };
                     format!(
-                        "      <stop offset=\"{}\" stop-color=\"{}\"/>\n",
+                        "      <stop offset=\"{}\" stop-color=\"{}\"{opacity}/>\n",
                         fmt(st.pos),
                         st.color.to_hex()
                     )
@@ -467,7 +473,7 @@ fn paint_value(
                     );
                     let _ = writeln!(defs, "    <linearGradient id=\"{id}\" gradientUnits=\"userSpaceOnUse\" x1=\"{x1}\" y1=\"{y1}\" x2=\"{x2}\" y2=\"{y2}\">\n{stop_xml}    </linearGradient>");
                 }
-                graphdraw_core::FountainKind::Radial => {
+                graphdraw_core::FountainKind::Radial | graphdraw_core::FountainKind::Elliptical => {
                     let cx = bounds.center().x + f.offset.x * bounds.width() / 2.0;
                     let cy = bounds.center().y - f.offset.y * bounds.height() / 2.0;
                     let r = bounds.width().max(bounds.height()) / 2.0 * std::f64::consts::SQRT_2;
@@ -1058,5 +1064,21 @@ mod tests {
         saw.repeats = 3;
         let svg = one_shape_svg(Fill::Fountain(saw), None);
         assert_eq!(svg.matches("<stop ").count(), 6, "{svg}");
+    }
+
+    #[test]
+    fn gradient_stop_opacity_and_elliptical_kind_are_written() {
+        use graphdraw_core::{Fountain, FountainKind};
+        let (red, blue) = (Color::rgb8(255, 0, 0), Color::rgb8(0, 0, 255));
+        let mut f = Fountain::two(FountainKind::Elliptical, red, blue, 0.0);
+        f.stops[1].opacity = 0.25;
+        let svg = one_shape_svg(Fill::Fountain(f), None);
+        assert!(svg.contains("<radialGradient"), "{svg}");
+        assert!(svg.contains("stop-opacity=\"0.25\""), "{svg}");
+        // Steps come out as hard bands.
+        let mut s = Fountain::two(FountainKind::Linear, red, blue, 0.0);
+        s.steps = 3;
+        let svg = one_shape_svg(Fill::Fountain(s), None);
+        assert!(svg.matches("<stop ").count() >= 6, "{svg}");
     }
 }

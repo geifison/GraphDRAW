@@ -1793,7 +1793,7 @@ impl<'a> Importer<'a> {
                 .first()
                 .map(|s| s.color)
                 .unwrap_or(Color::Gray { v: 0.5 });
-            vec![Stop { pos: 0.0, color: c }, Stop { pos: 1.0, color: c }]
+            vec![Stop::new(0.0, c), Stop::new(1.0, c)]
         };
         let coords = self
             .get(sh, b"Coords")
@@ -1837,7 +1837,7 @@ impl<'a> Importer<'a> {
                     .map(|p| self.eval_function(p, t, 0).first().copied().unwrap_or(0.0))
                     .collect();
                 if let Some(c) = color_from_components(&comps, cs) {
-                    stops.push(Stop { pos: t, color: c });
+                    stops.push(Stop::new(t, c));
                 }
             }
             return dedup_stops(stops);
@@ -1864,7 +1864,7 @@ impl<'a> Importer<'a> {
                     color_from_components(&c0, cs),
                     color_from_components(&c1, cs),
                 ) {
-                    return vec![Stop { pos: 0.0, color: a }, Stop { pos: 1.0, color: b }];
+                    return vec![Stop::new(0.0, a), Stop::new(1.0, b)];
                 }
             }
         }
@@ -1901,10 +1901,7 @@ impl<'a> Importer<'a> {
                     let comps = self.eval_function(f, t, 1);
                     if let Some(c) = color_from_components(&comps, cs) {
                         let pos = ((lo + (hi - lo) * t) - d0) / span;
-                        stops.push(Stop {
-                            pos: pos.clamp(0.0, 1.0),
-                            color: c,
-                        });
+                        stops.push(Stop::new(pos.clamp(0.0, 1.0), c));
                     }
                 }
             }
@@ -1916,7 +1913,7 @@ impl<'a> Importer<'a> {
             let t = i as f64 / 8.0;
             let comps = self.eval_function(&obj, t, 0);
             if let Some(c) = color_from_components(&comps, cs) {
-                stops.push(Stop { pos: t, color: c });
+                stops.push(Stop::new(t, c));
             }
         }
         dedup_stops(stops)

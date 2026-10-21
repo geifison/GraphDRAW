@@ -16,16 +16,20 @@ pub enum FountainKind {
     /// Follows the object's outline: 0 on its edge, 1 at the point
     /// deepest inside it.
     Shaped,
+    /// An ellipse fitted to the bounds (radii `w/2 * sqrt 2` and
+    /// `h/2 * sqrt 2 * aspect`), turned by the angle.
+    Elliptical,
 }
 
 impl FountainKind {
     /// Every kind, in the order the fill editor lists them.
-    pub const ALL: [FountainKind; 5] = [
+    pub const ALL: [FountainKind; 6] = [
         FountainKind::Linear,
         FountainKind::Radial,
         FountainKind::Conical,
         FountainKind::Square,
         FountainKind::Shaped,
+        FountainKind::Elliptical,
     ];
 }
 
@@ -47,6 +51,60 @@ pub struct Stop {
     /// 0.0 at the start, 1.0 at the end.
     pub pos: f64,
     pub color: Color,
+    /// Opacity of the colour, 0..1 (1 = opaque).
+    #[serde(default = "one_f64", skip_serializing_if = "is_one_f64")]
+    pub opacity: f64,
+    /// Where, in 0..1 of the run to the next stop, the two colours mix
+    /// half and half (0.5 = halfway).
+    #[serde(default = "half_f64", skip_serializing_if = "is_half_f64")]
+    pub midpoint: f64,
+}
+
+impl Stop {
+    /// An opaque stop with its midpoint halfway.
+    pub const fn new(pos: f64, color: Color) -> Stop {
+        Stop {
+            pos,
+            color,
+            opacity: 1.0,
+            midpoint: 0.5,
+        }
+    }
+}
+
+impl Default for Stop {
+    fn default() -> Self {
+        Stop::new(0.0, Color::BLACK)
+    }
+}
+
+fn one_f64() -> f64 {
+    1.0
+}
+
+fn is_one_f64(v: &f64) -> bool {
+    *v == 1.0
+}
+
+fn half_f64() -> f64 {
+    0.5
+}
+
+fn is_half_f64(v: &f64) -> bool {
+    *v == 0.5
+}
+
+/// How the colours run from one stop to the next.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum FountainBlend {
+    /// Straight between the colours (RGB).
+    #[default]
+    Direct,
+    /// Around the colour wheel, hue increasing.
+    Clockwise,
+    /// Around the colour wheel, hue decreasing.
+    Counterclockwise,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -73,6 +131,26 @@ pub struct Fountain {
     /// Colours in reverse order.
     #[serde(default, skip_serializing_if = "is_default")]
     pub invert: bool,
+    /// Size of the span against the automatic one (1 = fitted to the
+    /// bounds): the length of a linear axis, the radius of the others.
+    #[serde(default = "one_f64", skip_serializing_if = "is_one_f64")]
+    pub scale: f64,
+    /// Linear: the axis centre along its direction, in half lengths of
+    /// the automatic axis (0 = the bounds' centre).
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub axis_offset: f64,
+    /// Elliptical and square: the y radius over the x radius.
+    #[serde(default = "one_f64", skip_serializing_if = "is_one_f64")]
+    pub aspect: f64,
+    /// Bands of one colour each; 0 = continuous.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub steps: u32,
+    /// Dithered on screen and in pictures, against visible banding.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub smooth: bool,
+    /// How the colours run from one stop to the next.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub blend: FountainBlend,
 }
 
 fn is_default<T: Default + PartialEq>(v: &T) -> bool {
@@ -101,16 +179,7 @@ impl Fountain {
     pub fn two(kind: FountainKind, from: Color, to: Color, angle: f64) -> Self {
         Fountain {
             kind,
-            stops: vec![
-                Stop {
-                    pos: 0.0,
-                    color: from,
-                },
-                Stop {
-                    pos: 1.0,
-                    color: to,
-                },
-            ],
+            stops: vec![Stop::new(0.0, from), Stop::new(1.0, to)],
             angle,
             offset: Point::ZERO,
             edge_pad: 0.0,
@@ -118,6 +187,12 @@ impl Fountain {
             repeats: 1,
             bilinear: false,
             invert: false,
+            scale: 1.0,
+            axis_offset: 0.0,
+            aspect: 1.0,
+            steps: 0,
+            smooth: false,
+            blend: FountainBlend::Direct,
         }
     }
 
@@ -152,7 +227,7 @@ impl Fountain {
         });
         if v.len() < 2 {
             let c = v.first().map(|s| s.color).unwrap_or(Color::BLACK);
-            v = vec![Stop { pos: 0.0, color: c }, Stop { pos: 1.0, color: c }];
+            v = vec![Stop::new(0.0, c), Stop::new(1.0, c)];
         }
         v
     }
@@ -191,16 +266,30 @@ impl Fountain {
         u
     }
 
-    /// Colour at `t` in 0..1 (sRGB interpolation).
+    /// Colour at `t` in 0..1 (sRGB interpolation; the size, axis offset,
+    /// midpoints, steps and blending of `crate::gradient` in).
     pub fn color_at(&self, t: f64) -> Color {
+        if self.has_extras() {
+            return self.color_alpha_at(t).0;
+        }
         sample_stops(&self.sorted_stops(), self.stop_param(t))
     }
 
     /// The fountain as plain stops over 0..1 that give the same colours
     /// in one run, with the edge pad, repeat cycles, bilinear mirror and
     /// inversion worked in (for gradient shaders and exports that only
-    /// know a single run of stops). Equal positions are hard edges.
+    /// know a single run of stops). Equal positions are hard edges. The
+    /// size and axis offset are worked in over the automatic span, and
+    /// the midpoints, steps and blending into the stops; the stops keep
+    /// their opacity.
     pub fn resolved_stops(&self) -> Vec<Stop> {
+        if self.has_span_extras()
+            || self.steps > 0
+            || self.blend != FountainBlend::Direct
+            || self.stops.iter().any(|s| s.midpoint != 0.5)
+        {
+            return self.sampled_stops();
+        }
         let base = self.sorted_stops();
         let cycles = self.cycles();
         let n = cycles as f64;
@@ -227,13 +316,16 @@ impl Fountain {
         ts.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
         ts.dedup_by(|a, b| (*a - *b).abs() < 1e-12);
         let mut out: Vec<Stop> = Vec::new();
-        let mut push = |pos: f64, color: Color| {
+        let mut push = |pos: f64, color: Color, opacity: f64| {
             if let Some(l) = out.last() {
-                if (l.pos - pos).abs() < 1e-12 && l.color == color {
+                if (l.pos - pos).abs() < 1e-12 && l.color == color && l.opacity == opacity {
                     return;
                 }
             }
-            out.push(Stop { pos, color });
+            out.push(Stop {
+                opacity,
+                ..Stop::new(pos, color)
+            });
         };
         for w in ts.windows(2) {
             let (a, b) = (w[0], w[1]);
@@ -247,7 +339,7 @@ impl Fountain {
             let slope = (p3 - p1) / (q3 - q1);
             let pa = (p1 - slope * (q1 - a)).clamp(0.0, 1.0);
             let pb = (p3 + slope * (b - q3)).clamp(0.0, 1.0);
-            push(a, sample_stops(&base, pa));
+            push(a, sample_stops(&base, pa), sample_opacity(&base, pa));
             if (pb - pa).abs() > 1e-12 {
                 let (lo, hi) = (pa.min(pb), pa.max(pb));
                 let mut inner: Vec<Stop> = base
@@ -255,17 +347,17 @@ impl Fountain {
                     .filter(|s| s.pos > lo + 1e-9 && s.pos < hi - 1e-9)
                     .map(|s| Stop {
                         pos: a + (s.pos - pa) / (pb - pa) * (b - a),
-                        color: s.color,
+                        ..*s
                     })
                     .collect();
                 if pb < pa {
                     inner.reverse();
                 }
                 for s in inner {
-                    push(s.pos, s.color);
+                    push(s.pos, s.color, s.opacity);
                 }
             }
-            push(b, sample_stops(&base, pb));
+            push(b, sample_stops(&base, pb), sample_opacity(&base, pb));
         }
         if out.len() < 2 {
             return base;
@@ -279,7 +371,14 @@ impl Fountain {
     /// shaped fountain becomes a square one running from the centre out.
     /// A fountain with none of the options comes back unchanged.
     pub fn to_plain(&self, max_stops: usize) -> Fountain {
-        if self.runs_once() && self.kind != FountainKind::Shaped {
+        let extras = self.has_span_extras()
+            || self.steps > 0
+            || self.blend != FountainBlend::Direct
+            || self.stops.iter().any(|s| s.midpoint != 0.5);
+        if self.runs_once()
+            && !extras
+            && !matches!(self.kind, FountainKind::Shaped | FountainKind::Elliptical)
+        {
             return self.clone();
         }
         let mut stops = self.resolved_stops();
@@ -297,8 +396,8 @@ impl Fountain {
                 .map(|i| {
                     let pos = i as f64 / k;
                     Stop {
-                        pos,
-                        color: sample_stops(&stops, pos),
+                        opacity: sample_opacity(&stops, pos),
+                        ..Stop::new(pos, sample_stops(&stops, pos))
                     }
                 })
                 .collect();
@@ -306,6 +405,8 @@ impl Fountain {
         Fountain {
             kind: match self.kind {
                 FountainKind::Shaped => FountainKind::Square,
+                // The nearest kind formats know: a circle.
+                FountainKind::Elliptical => FountainKind::Radial,
                 k => k,
             },
             stops,
@@ -316,8 +417,28 @@ impl Fountain {
             repeats: 1,
             bilinear: false,
             invert: false,
+            ..Fountain::default()
         }
     }
+}
+
+/// Opacity at `t` along `stops` (sorted by position), straight between
+/// the two around it.
+pub fn sample_opacity(stops: &[Stop], t: f64) -> f64 {
+    let Some(first) = stops.first() else {
+        return 1.0;
+    };
+    if t <= first.pos {
+        return first.opacity;
+    }
+    for w in stops.windows(2) {
+        if t <= w[1].pos {
+            let span = (w[1].pos - w[0].pos).max(1e-9);
+            let k = ((t - w[0].pos) / span).clamp(0.0, 1.0);
+            return w[0].opacity + (w[1].opacity - w[0].opacity) * k;
+        }
+    }
+    stops.last().map(|s| s.opacity).unwrap_or(1.0)
 }
 
 /// Colour at `t` along `stops` (sorted by position): the two around it
@@ -1103,18 +1224,9 @@ mod tests {
         let f = Fountain {
             kind: FountainKind::Linear,
             stops: vec![
-                Stop {
-                    pos: 0.0,
-                    color: Color::rgb8(0, 0, 0),
-                },
-                Stop {
-                    pos: 0.5,
-                    color: Color::rgb8(255, 0, 0),
-                },
-                Stop {
-                    pos: 1.0,
-                    color: Color::rgb8(255, 255, 255),
-                },
+                Stop::new(0.0, Color::rgb8(0, 0, 0)),
+                Stop::new(0.5, Color::rgb8(255, 0, 0)),
+                Stop::new(1.0, Color::rgb8(255, 255, 255)),
             ],
             angle: 0.0,
             offset: Point::ZERO,
@@ -1177,18 +1289,9 @@ mod tests {
     fn resolved_stops_draw_the_same_colours_in_one_run() {
         let three = Fountain {
             stops: vec![
-                Stop {
-                    pos: 0.0,
-                    color: Color::rgb8(255, 0, 0),
-                },
-                Stop {
-                    pos: 0.4,
-                    color: Color::rgb8(0, 255, 0),
-                },
-                Stop {
-                    pos: 1.0,
-                    color: Color::rgb8(0, 0, 255),
-                },
+                Stop::new(0.0, Color::rgb8(255, 0, 0)),
+                Stop::new(0.4, Color::rgb8(0, 255, 0)),
+                Stop::new(1.0, Color::rgb8(0, 0, 255)),
             ],
             ..Default::default()
         };

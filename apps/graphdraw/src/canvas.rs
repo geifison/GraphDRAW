@@ -666,6 +666,10 @@ fn draw_fountain_handles(app: &App, painter: &Painter) {
     if app.tool != Tool::InteractiveFill {
         return;
     }
+    // The gradient's axis, ends and stops (gradient_tool.rs).
+    if crate::gradient_tool::draw(app, painter) {
+        return;
+    }
     let Some((_, f, b)) = app.selected_fountain() else {
         return;
     };
