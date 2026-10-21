@@ -14,6 +14,8 @@ struct HistoryEntry {
     label: &'static str,
     before: Document,
     after: Document,
+    /// The revision the step was recorded at.
+    rev: u64,
 }
 
 #[derive(Debug)]
@@ -161,6 +163,7 @@ impl Engine {
             label,
             before,
             after: self.doc.clone(),
+            rev: 0,
         });
         self.finish_step();
         Ok(())
@@ -173,6 +176,9 @@ impl Engine {
         self.redo.clear();
         self.revision += 1;
         self.step_revision = self.revision;
+        if let Some(e) = self.undo.last_mut() {
+            e.rev = self.revision;
+        }
     }
 
     /// Apply several commands as one undo step.
@@ -189,6 +195,7 @@ impl Engine {
             label,
             before,
             after: self.doc.clone(),
+            rev: 0,
         });
         self.finish_step();
         Ok(())
@@ -242,6 +249,29 @@ impl Engine {
         self.revision += 1;
         self.step_revision = self.revision;
         Ok(())
+    }
+
+    /// Join every step recorded after revision `mark` (see
+    /// [`Engine::revision`]) into one step named `label`, so one action
+    /// that ran several commands (a paste or a drop of several files) is
+    /// undone at once. Nothing changes when fewer than two steps were
+    /// recorded since.
+    pub fn join_steps_since(&mut self, mark: u64, label: &'static str) {
+        let Some(first) = self.undo.iter().position(|e| e.rev > mark) else {
+            return;
+        };
+        if first + 1 >= self.undo.len() {
+            return;
+        }
+        let before = self.undo.swap_remove(first).before;
+        self.undo.truncate(first);
+        self.undo.push(HistoryEntry {
+            label,
+            before,
+            after: self.doc.clone(),
+            rev: self.revision,
+        });
+        self.step_revision = self.revision;
     }
 
     /// Mint a fresh shape id. Ids never rewind on undo.
@@ -316,6 +346,54 @@ mod tests {
     use super::*;
     use crate::document::{Shape, ShapeKind};
     use crate::geometry::Rect;
+
+    fn add_rect(eng: &mut Engine, label: &'static str) {
+        let layer = eng.document().pages[0].layers[0].id;
+        let id = eng.new_shape_id();
+        let shape = Shape::new(
+            id,
+            ShapeKind::Rect {
+                rect: Rect::new(0.0, 0.0, 10.0, 10.0),
+                radius: 0.0,
+                corners: None,
+            },
+        );
+        eng.run_batch(label, &[Command::AddShape { layer, shape }])
+            .unwrap();
+    }
+
+    #[test]
+    fn steps_since_a_drawing_join_into_one() {
+        let mut eng = Engine::default();
+        add_rect(&mut eng, "Before");
+        let start = eng.document().clone();
+        let mark = eng.revision();
+        add_rect(&mut eng, "Import");
+        add_rect(&mut eng, "Import");
+        add_rect(&mut eng, "Import");
+        eng.join_steps_since(mark, "Paste");
+        assert_eq!(eng.history_labels().0, ["Before", "Paste"]);
+        eng.undo().unwrap();
+        // Ids never rewind; the shapes are those of the start.
+        assert_eq!(
+            eng.document().pages[0].layers[0].shapes,
+            start.pages[0].layers[0].shapes
+        );
+        eng.redo().unwrap();
+        assert_eq!(eng.document().pages[0].layers[0].shapes.len(), 4);
+    }
+
+    #[test]
+    fn joining_one_step_or_none_changes_nothing() {
+        let mut eng = Engine::default();
+        let mark = eng.revision();
+        add_rect(&mut eng, "Import");
+        eng.join_steps_since(mark, "Paste");
+        assert_eq!(eng.history_labels().0, ["Import"]);
+        let later = eng.revision();
+        eng.join_steps_since(later, "Paste");
+        assert_eq!(eng.history_labels().0, ["Import"]);
+    }
 
     #[test]
     fn objects_keep_their_identity_and_copies_get_their_own() {
