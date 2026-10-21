@@ -29,8 +29,41 @@ pub struct Imported {
 /// Parse SVG text. `ids` allocates shape identifiers so the result can be
 /// added to an existing document.
 pub fn parse(svg: &str, ids: &mut IdSource) -> std::result::Result<Imported, String> {
-    let opt = usvg::Options::default();
-    let tree = usvg::Tree::from_str(svg, &opt).map_err(|e| e.to_string())?;
+    parse_with(svg, &usvg::Options::default(), ids)
+}
+
+/// Largest SVG text accepted from the clipboard or another program.
+pub const MAX_UNTRUSTED_BYTES: usize = 64 * 1024 * 1024;
+/// Most elements accepted in such an SVG.
+pub const MAX_UNTRUSTED_ELEMENTS: usize = 500_000;
+
+/// [`parse`] for SVG from outside (the clipboard, other programs): images
+/// load only from embedded `data:` URLs, never from files or the network,
+/// and oversize or overcrowded documents are refused. Scripts and event
+/// attributes are never run (usvg ignores them).
+pub fn parse_untrusted(svg: &str, ids: &mut IdSource) -> std::result::Result<Imported, String> {
+    if svg.len() > MAX_UNTRUSTED_BYTES {
+        return Err("SVG too large".into());
+    }
+    if svg.bytes().filter(|b| *b == b'<').count() > MAX_UNTRUSTED_ELEMENTS {
+        return Err("SVG has too many elements".into());
+    }
+    let opt = usvg::Options {
+        image_href_resolver: usvg::ImageHrefResolver {
+            resolve_data: usvg::ImageHrefResolver::default_data_resolver(),
+            resolve_string: Box::new(|_, _| None),
+        },
+        ..usvg::Options::default()
+    };
+    parse_with(svg, &opt, ids)
+}
+
+fn parse_with(
+    svg: &str,
+    opt: &usvg::Options,
+    ids: &mut IdSource,
+) -> std::result::Result<Imported, String> {
+    let tree = usvg::Tree::from_str(svg, opt).map_err(|e| e.to_string())?;
     let size = tree.size();
     let height_px = size.height() as f64;
     // SVG px, Y down -> mm, Y up.
@@ -409,5 +442,74 @@ mod clip_tests {
             }
             other => panic!("{other:?}"),
         }
+    }
+}
+
+#[cfg(test)]
+mod untrusted_tests {
+    use super::*;
+    use base64::Engine as _;
+
+    fn has_bitmap(shapes: &[Shape]) -> bool {
+        shapes.iter().any(|s| match &s.kind {
+            ShapeKind::Bitmap { .. } => true,
+            ShapeKind::Group { children } => has_bitmap(children),
+            ShapeKind::ClipFrame { contents, .. } => has_bitmap(contents),
+            _ => false,
+        })
+    }
+
+    fn png() -> Vec<u8> {
+        let mut png = Vec::new();
+        image::DynamicImage::ImageRgba8(image::RgbaImage::new(2, 2))
+            .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+            .expect("png");
+        png
+    }
+
+    #[test]
+    fn untrusted_svg_never_reads_files_named_by_href() {
+        let dir = std::env::temp_dir().join("gd-untrusted-svg");
+        std::fs::create_dir_all(&dir).expect("dir");
+        let path = dir.join("secret.png");
+        std::fs::write(&path, png()).expect("png");
+        let svg = format!(
+            r#"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="10" height="10"><image width="5" height="5" xlink:href="{}"/><rect width="4" height="4"/></svg>"#,
+            path.display().to_string().replace('\\', "/")
+        );
+        // The trusting reader does load the file, so the test really
+        // exercises the href.
+        assert!(has_bitmap(
+            &parse(&svg, &mut IdSource::default())
+                .expect("parses")
+                .shapes
+        ));
+        let out = parse_untrusted(&svg, &mut IdSource::default()).expect("parses");
+        assert!(!has_bitmap(&out.shapes));
+        assert!(!out.shapes.is_empty(), "the rectangle stays");
+    }
+
+    #[test]
+    fn untrusted_svg_keeps_embedded_data_images() {
+        let b64 = base64::engine::general_purpose::STANDARD.encode(png());
+        let svg = format!(
+            r#"<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><image width="5" height="5" href="data:image/png;base64,{b64}"/></svg>"#
+        );
+        let out = parse_untrusted(&svg, &mut IdSource::default()).expect("parses");
+        assert!(has_bitmap(&out.shapes));
+    }
+
+    #[test]
+    fn untrusted_svg_refuses_oversize_and_overcrowded_input() {
+        let huge = format!(
+            "<svg xmlns=\"http://www.w3.org/2000/svg\">{}</svg>",
+            " ".repeat(MAX_UNTRUSTED_BYTES)
+        );
+        assert!(parse_untrusted(&huge, &mut IdSource::default()).is_err());
+        let many = format!(
+            "<svg xmlns=\"http://www.w3.org/2000/svg\">{}</svg>",
+            "<g/>".repeat(MAX_UNTRUSTED_ELEMENTS + 1)
+        );
+        assert!(parse_untrusted(&many, &mut IdSource::default()).is_err());
     }
 }
