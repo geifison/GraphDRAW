@@ -109,7 +109,14 @@ pub fn html_image_data(html: &str) -> Option<Vec<u8>> {
 
 /// The decoded `data:image/` URL in the `src` of one `<img ...` tag.
 fn img_src(tag: &str, tag_lower: &str) -> Option<Vec<u8>> {
-    let s = tag_lower.find("src=")?;
+    // The `src` attribute itself, not `data-src` and the like.
+    let s = tag_lower.match_indices("src=").map(|(i, _)| i).find(|i| {
+        *i > 0
+            && tag_lower
+                .as_bytes()
+                .get(i - 1)
+                .is_some_and(u8::is_ascii_whitespace)
+    })?;
     let rest = tag.get(s + 4..)?;
     let quote = rest.chars().next().filter(|q| *q == '"' || *q == '\'')?;
     let body = rest.get(1..)?;
@@ -215,6 +222,12 @@ mod tests {
             None
         );
         assert_eq!(html_image_data("<b>no image</b>"), None);
+        assert_eq!(
+            html_image_data(
+                r#"<img data-src="https://example.com/a.png" src="data:image/png;base64,QUJD">"#
+            ),
+            Some(b"ABC".to_vec())
+        );
         assert_eq!(html_image_data("<img src=\"data:image/png;base64,é"), None);
     }
 

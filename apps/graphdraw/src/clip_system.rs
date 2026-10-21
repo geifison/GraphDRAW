@@ -49,6 +49,9 @@ pub fn sequence() -> Option<u32> {
 /// A flavour larger than this is left unread.
 #[cfg(windows)]
 const MAX_FLAVOUR_BYTES: usize = crate::clip_native::MAX_BYTES;
+/// A plain bitmap larger than this is left undecoded.
+#[cfg(windows)]
+const MAX_BITMAP_BYTES: usize = 128 * 1024 * 1024;
 
 /// `png` as a 24-bit BMP file, transparent parts on white, for programs
 /// that only take plain bitmaps.
@@ -72,7 +75,7 @@ fn png_to_bmp(png: &[u8]) -> Option<Vec<u8>> {
 
 #[cfg(windows)]
 mod real {
-    use super::{png_to_bmp, Offer, Publication, MAX_FLAVOUR_BYTES};
+    use super::{png_to_bmp, Offer, Publication, MAX_BITMAP_BYTES, MAX_FLAVOUR_BYTES};
     use clipboard_win::{formats, options::NoClear, raw};
 
     const SVG_FORMAT: &str = "image/svg+xml";
@@ -136,20 +139,24 @@ mod real {
             let Ok(_open) = clipboard_win::Clipboard::new_attempts(10) else {
                 return o;
             };
-            o.native = format(crate::clip_native::FORMAT_NAME).and_then(bytes);
+            // Some writers pad formats with NULs.
+            o.native = format(crate::clip_native::FORMAT_NAME)
+                .and_then(bytes)
+                .map(|mut b| {
+                    while b.last() == Some(&0) {
+                        b.pop();
+                    }
+                    b
+                });
             o.svg = format(SVG_FORMAT).and_then(text_of);
             o.png = format(PNG_FORMAT).and_then(bytes);
             if raw::is_format_avail(formats::CF_HDROP) {
                 let _ = raw::get_file_list_path(&mut o.files);
             }
-            if let Some(f) = format(HTML_FORMAT).filter(|f| raw::is_format_avail(*f)) {
-                let mut html = Vec::new();
-                if raw::size(f).is_some_and(|s| s.get() <= MAX_FLAVOUR_BYTES)
-                    && raw::get_html(f, &mut html).is_ok()
-                {
-                    o.html = Some(String::from_utf8_lossy(&html).into_owned());
-                }
-            }
+            // Read whole: the fragment offsets in its header come from the
+            // other program and are not to be trusted; the picture search
+            // scans the text, header included.
+            o.html = format(HTML_FORMAT).and_then(text_of);
             if raw::size(formats::CF_UNICODETEXT).is_some_and(|s| s.get() <= MAX_FLAVOUR_BYTES) {
                 let mut t = Vec::new();
                 if raw::get_string(&mut t).is_ok() {
@@ -157,14 +164,21 @@ mod real {
                         Some(String::from_utf8_lossy(&t).into_owned()).filter(|t| !t.is_empty());
                 }
             }
-            has_bitmap = raw::is_format_avail(formats::CF_DIB)
-                || raw::is_format_avail(formats::CF_DIBV5)
-                || raw::is_format_avail(formats::CF_BITMAP);
+            // Decoding a plain bitmap allocates all its pixels: only when
+            // nothing better is there, and only within the size limit.
+            let dib_size = [formats::CF_DIBV5, formats::CF_DIB]
+                .into_iter()
+                .find_map(|f| raw::size(f).filter(|_| raw::is_format_avail(f)));
+            has_bitmap = o.native.is_none()
+                && o.svg.is_none()
+                && o.files.is_empty()
+                && o.png.is_none()
+                && dib_size.is_some_and(|s| s.get() <= MAX_BITMAP_BYTES);
             o.other_formats = raw::count_formats().unwrap_or(0) > 0;
         }
         // Plain bitmaps come in several layouts; the clipboard library
         // decodes them. It opens the clipboard itself, hence after closing.
-        if o.png.is_none() && has_bitmap {
+        if has_bitmap {
             o.image = arboard::Clipboard::new()
                 .and_then(|mut cb| cb.get_image())
                 .ok()
@@ -216,15 +230,24 @@ mod real {
         let Ok(mut cb) = arboard::Clipboard::new() else {
             return Offer::default();
         };
-        Offer {
+        let mut o = Offer {
             text: cb.get_text().ok().filter(|t| !t.is_empty()),
-            image: cb.get_image().ok().and_then(|i| {
-                image::RgbaImage::from_raw(i.width as u32, i.height as u32, i.bytes.into_owned())
-            }),
             html: cb.get().html().ok(),
             files: cb.get().file_list().unwrap_or_default(),
             ..Default::default()
+        };
+        // Decoding a picture allocates all its pixels: only when no
+        // vectors or files are there.
+        let vectors = o
+            .text
+            .as_deref()
+            .is_some_and(crate::clip_offer::looks_like_svg);
+        if !vectors && o.files.is_empty() {
+            o.image = cb.get_image().ok().and_then(|i| {
+                image::RgbaImage::from_raw(i.width as u32, i.height as u32, i.bytes.into_owned())
+            });
         }
+        o
     }
 
     pub fn sequence() -> Option<u32> {

@@ -18,15 +18,11 @@ impl App {
     /// Import the files dropped on the window this frame. A browser reads
     /// them in the background; each is imported when it has arrived.
     pub fn take_dropped_files(&mut self, ctx: &Context) {
-        let (files, pos) = ctx.input_mut(|i| {
-            (
-                std::mem::take(&mut i.raw.dropped_files),
-                i.pointer.latest_pos(),
-            )
-        });
+        let files = ctx.input_mut(|i| std::mem::take(&mut i.raw.dropped_files));
         if files.is_empty() {
             return;
         }
+        let pos = pointer_now(ctx);
         let at = pos
             .filter(|p| self.canvas_rect.contains(*p))
             .map(|p| self.view.to_page(p));
@@ -39,9 +35,13 @@ impl App {
     }
 
     /// Import `paths`, the first centred on `at` (page space; the view
-    /// centre when the drop missed the canvas), each as its own undo step;
+    /// centre when the drop missed the canvas), all as one undo step;
     /// every imported object ends up selected.
     pub fn import_dropped(&mut self, paths: Vec<std::path::PathBuf>, at: Option<Point>) {
+        self.as_one_step("Import", |app| app.import_dropped_now(paths, at));
+    }
+
+    fn import_dropped_now(&mut self, paths: Vec<std::path::PathBuf>, at: Option<Point>) {
         let target = at.unwrap_or_else(|| self.view.visible_page_rect(self.canvas_rect).center());
         let mut all = Vec::new();
         let mut placed = 0.0;
@@ -69,6 +69,38 @@ impl App {
             self.select(all);
         }
     }
+}
+
+/// Where the pointer is, in the window's points. While a file is dragged
+/// in from the file manager Windows sends the window no pointer moves, so
+/// the system is asked.
+#[cfg(windows)]
+fn pointer_now(ctx: &Context) -> Option<egui::Pos2> {
+    #[repr(C)]
+    struct ScreenPoint {
+        x: i32,
+        y: i32,
+    }
+    #[link(name = "user32")]
+    extern "system" {
+        fn GetCursorPos(point: *mut ScreenPoint) -> i32;
+    }
+    let mut p = ScreenPoint { x: 0, y: 0 };
+    // SAFETY: GetCursorPos writes one POINT to the pointer it is given,
+    // which points to a live, properly laid out value.
+    if unsafe { GetCursorPos(&mut p) } == 0 {
+        return ctx.input(|i| i.pointer.latest_pos());
+    }
+    let Some(inner) = ctx.input(|i| i.viewport().inner_rect) else {
+        return ctx.input(|i| i.pointer.latest_pos());
+    };
+    let ppp = ctx.pixels_per_point();
+    Some(egui::pos2(p.x as f32 / ppp, p.y as f32 / ppp) - inner.min.to_vec2())
+}
+
+#[cfg(not(windows))]
+fn pointer_now(ctx: &Context) -> Option<egui::Pos2> {
+    ctx.input(|i| i.pointer.latest_pos())
 }
 
 /// The hint over the canvas while files hover over the window.

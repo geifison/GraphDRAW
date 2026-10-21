@@ -2998,11 +2998,13 @@ impl App {
     /// Edit > Paste in View: paste centred on the visible area.
     /// One undo step with the paste.
     pub fn paste_in_view(&mut self) {
-        let before: Vec<_> = self.selection.clone();
-        self.paste_best();
-        if self.selection != before && !self.selection.is_empty() {
-            self.centre_selection_in_view();
-        }
+        self.as_one_step("Paste", |app| {
+            let before: Vec<_> = app.selection.clone();
+            app.paste_best();
+            if app.selection != before && !app.selection.is_empty() {
+                app.centre_selection_in_view();
+            }
+        });
     }
 
     pub fn select_all_of(&mut self, pred: impl Fn(&Shape) -> bool) {
@@ -3585,6 +3587,7 @@ impl App {
                 shapes,
                 styles: self.doc().object_styles.clone(),
             });
+            self.mark_internal_copy();
             self.status = crate::i18n::trf(
                 "status.objects_copied",
                 &[("n", &self.selection.len().to_string())],
@@ -4988,6 +4991,13 @@ impl App {
 
     /// Returns whether objects were added (they are then the selection).
     pub fn import_path(&mut self, path: &std::path::Path) -> bool {
+        let mut imported = false;
+        // Some readers record more than one step (a bitmap and its link).
+        self.as_one_step("Import", |app| imported = app.import_path_placed(path));
+        imported
+    }
+
+    fn import_path_placed(&mut self, path: &std::path::Path) -> bool {
         let before = self.selection.clone();
         self.import_path_as_in_file(path);
         let imported = self.selection != before && !self.selection.is_empty();

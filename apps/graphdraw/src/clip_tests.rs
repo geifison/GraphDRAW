@@ -407,3 +407,86 @@ fn paste_special_forces_a_flavour() {
         ShapeKind::Text { .. }
     ));
 }
+
+#[test]
+fn several_pasted_files_are_one_undo_step() {
+    let svg = br#"<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="4" height="4"/></svg>"#;
+    let a = temp_file("multi-a.svg", svg);
+    let b = temp_file("multi-b.svg", svg);
+    let c = temp_file("multi-c.png", &png_bytes(3, 3));
+    let mut app = self::app();
+    app.settings.clipboard.paste_place = crate::prefs::PastePlace::ViewCenter;
+    crate::clip_system::fake::set(crate::clip_offer::Offer {
+        files: vec![a, b, c],
+        ..offer()
+    });
+    let n = shape_count(&app);
+    let steps = undo_depth(&app);
+    app.paste_any();
+    assert_eq!(app.selection.len(), 3);
+    assert_eq!(undo_depth(&app), steps + 1);
+    app.undo();
+    assert_eq!(shape_count(&app), n);
+}
+
+#[test]
+fn a_bitmap_file_import_is_one_step_with_its_link() {
+    let mut app = self::app();
+    let steps = undo_depth(&app);
+    assert!(app.import_path(&temp_file("one-step.png", &png_bytes(2, 2))));
+    assert_eq!(undo_depth(&app), steps + 1);
+}
+
+#[test]
+fn copied_segments_win_until_something_else_is_copied() {
+    let mut app = app_with_selected_rect();
+    crate::clip_system::fake::set(crate::clip_offer::Offer {
+        text: Some("older text".into()),
+        ..offer()
+    });
+    // An internal-only copy, as of curve segments.
+    app.copy();
+    app.paste_any();
+    assert!(matches!(
+        app.selected_shapes()[0].kind,
+        ShapeKind::Rect { .. }
+    ));
+    crate::clip_system::fake::set(crate::clip_offer::Offer {
+        text: Some("newer text".into()),
+        ..offer()
+    });
+    app.paste_any();
+    assert!(matches!(
+        app.selected_shapes()[0].kind,
+        ShapeKind::Text { .. }
+    ));
+}
+
+#[test]
+fn without_a_change_counter_or_svg_text_our_copy_is_the_newest() {
+    let mut app = app_with_selected_rect();
+    app.settings.clipboard.svg_as_text = false;
+    app.copy_with_system();
+    // A system without a change counter, holding only our picture.
+    crate::clip_system::fake::set(crate::clip_offer::Offer {
+        png: Some(png_bytes(4, 4)),
+        ..offer()
+    });
+    app.published.as_mut().expect("published").sequence = None;
+    app.paste_any();
+    assert!(matches!(
+        app.selected_shapes()[0].kind,
+        ShapeKind::Rect { .. }
+    ));
+}
+
+#[test]
+fn a_missing_file_is_a_read_error_not_an_unsupported_format() {
+    let mut app = self::app();
+    let missing = std::env::temp_dir()
+        .join("graphdraw-clip-tests")
+        .join("nowhere.png");
+    assert!(!app.import_path(&missing));
+    assert!(matches!(app.dialog, Dialog::None));
+    assert!(!app.status.is_empty());
+}

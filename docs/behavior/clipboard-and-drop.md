@@ -82,8 +82,8 @@ there (SVG markup pasted as text, for example).
 - While files are dragged over the window, the canvas shows a dashed blue
   frame and "Drop to import" (with the number of files when there are
   several).
-- Each dropped file is imported and embedded as by File > Import, as its
-  own undo step. The first is centred where it was dropped (the view
+- Each dropped file is imported and embedded as by File > Import; the
+  whole drop is one undo step. The first is centred where it was dropped (the view
   centre when dropped outside the canvas); each next one a Duplicate
   offset further, so they do not cover each other. Everything imported
   ends up selected.

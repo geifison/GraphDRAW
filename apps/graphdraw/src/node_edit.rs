@@ -532,6 +532,7 @@ impl App {
             shapes,
             styles: self.doc().object_styles.clone(),
         });
+        self.mark_internal_copy();
         true
     }
 

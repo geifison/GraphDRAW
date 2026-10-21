@@ -1582,9 +1582,12 @@ pub fn show(app: &mut App, ctx: &Context) {
                 if ok_cancel(ui, &mut close) && any {
                     let offer = crate::clip_system::read();
                     let kinds = PASTE_SPECIAL.get(st.choice).map_or(&[][..], |(_, k)| *k);
-                    if !app.paste_with(&offer, kinds) && st.choice == 0 {
-                        app.paste();
-                    }
+                    let choice = st.choice;
+                    app.as_one_step("Paste", |app| {
+                        if !app.paste_with(&offer, kinds) && choice == 0 {
+                            app.paste();
+                        }
+                    });
                 }
             });
         }

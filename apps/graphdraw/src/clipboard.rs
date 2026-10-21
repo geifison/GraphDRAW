@@ -31,7 +31,7 @@ fn decode_picture(bytes: &[u8]) -> Option<image::RgbaImage> {
     let mut limits = image::Limits::default();
     limits.max_image_width = Some(MAX_PICTURE_SIDE);
     limits.max_image_height = Some(MAX_PICTURE_SIDE);
-    limits.max_alloc = Some(1 << 30);
+    limits.max_alloc = Some(512 * 1024 * 1024);
     reader.limits(limits);
     reader.decode().ok().map(|i| i.to_rgba8())
 }
@@ -79,11 +79,29 @@ impl App {
             },
         };
         fit_publication(&mut p, prefs.max_publish_bytes);
-        let sequence = crate::clip_system::publish(&p);
+        // When publishing fails the counter still tells whether anything
+        // was copied elsewhere since.
+        let sequence = crate::clip_system::publish(&p).or_else(crate::clip_system::sequence);
         self.published = Some(Published {
             sequence,
-            svg_hash: p.svg.as_deref().map(text_hash),
+            svg_hash: p.svg.as_deref().filter(|_| p.svg_as_text).map(text_hash),
         });
+    }
+
+    /// A copy that stays on the internal clipboard only (curve segments):
+    /// it is the newest copy until the system clipboard changes.
+    pub(crate) fn mark_internal_copy(&mut self) {
+        self.published = Some(Published {
+            sequence: crate::clip_system::sequence(),
+            svg_hash: None,
+        });
+    }
+
+    /// Run `f` and keep everything it recorded as one undo step.
+    pub(crate) fn as_one_step(&mut self, label: &'static str, f: impl FnOnce(&mut App)) {
+        let mark = self.engine.revision();
+        f(self);
+        self.engine.join_steps_since(mark, label);
     }
 
     /// The selection as a PNG at screen resolution, smaller when its
@@ -207,13 +225,15 @@ impl App {
     /// Ctrl+V: the best flavour on the clipboard, placed as Options >
     /// Workspace > Edit asks (one undo step with the paste).
     pub fn paste_any(&mut self) {
-        let before = self.selection.clone();
-        self.paste_best();
-        let pasted = self.selection != before && !self.selection.is_empty();
-        if pasted && self.settings.clipboard.paste_place == crate::prefs::PastePlace::ViewCenter
-        {
-            self.centre_selection_in_view();
-        }
+        self.as_one_step("Paste", |app| {
+            let before = app.selection.clone();
+            app.paste_best();
+            let pasted = app.selection != before && !app.selection.is_empty();
+            if pasted && app.settings.clipboard.paste_place == crate::prefs::PastePlace::ViewCenter
+            {
+                app.centre_selection_in_view();
+            }
+        });
     }
 
     /// Paste the internal clipboard while the system clipboard holds our
@@ -293,17 +313,19 @@ impl App {
     }
 
     /// Whether the system clipboard still holds what our last copy put
-    /// there: by the change counter, else by the SVG text.
+    /// there: by the change counter, else by the SVG text. With neither
+    /// to compare, the copy made here is taken as the newest.
     fn is_own_publication(&self, offer: &Offer) -> bool {
         let Some(p) = &self.published else {
             return false;
         };
-        match (p.sequence, crate::clip_system::sequence()) {
-            (Some(ours), Some(now)) => ours == now,
-            _ => {
+        match (p.sequence, crate::clip_system::sequence(), p.svg_hash) {
+            (Some(ours), Some(now), _) => ours == now,
+            (_, _, Some(hash)) => {
                 let svg = offer.svg.as_deref().or(offer.text.as_deref());
-                p.svg_hash.is_some() && svg.map(text_hash) == p.svg_hash
+                svg.map(text_hash) == Some(hash)
             }
+            _ => true,
         }
     }
 
