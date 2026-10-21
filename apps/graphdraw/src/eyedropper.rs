@@ -1526,10 +1526,7 @@ mod tests {
     #[test]
     fn stop_points_follow_inversion_and_edge_pad() {
         let mut f = red_blue();
-        f.stops.push(Stop {
-            pos: 0.5,
-            color: GREEN,
-        });
+        f.stops.push(Stop::new(0.5, GREEN));
         let b = Rect::new(0.0, 0.0, 100.0, 10.0);
         let pts = stop_points(&f, b);
         assert!((pts[2].1.x - 50.0).abs() < 1e-9);
