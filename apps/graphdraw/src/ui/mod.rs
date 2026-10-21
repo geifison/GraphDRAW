@@ -734,6 +734,7 @@ pub(crate) fn drawing_window(app: &mut App, ui: &mut Ui, full: egui::Rect) {
     canvas::draw_docker_preview(app, &painter);
     canvas::draw_live_guides(app, &painter, canvas_rect);
     canvas::draw_snap_mark(app, &painter);
+    crate::drop_import::draw_drop_hint(ui.ctx(), &painter, canvas_rect);
     eyedropper_ui::canvas_overlay(app, ui, &painter, canvas_rect);
     app.draw_right_drag(&painter);
     context::context_menu(app, ui, &response);

@@ -50,6 +50,7 @@ mod doc_stats;
 mod documents;
 mod draft_history;
 mod drawing_scale;
+mod drop_import;
 mod drop_menu;
 mod effects_ui;
 mod encode;
@@ -306,6 +307,8 @@ impl eframe::App for Shell {
         app.sync_document_colors();
         // File dialogs that finished in the background (browser build).
         files::run_finished(app);
+        // Files dropped on the window.
+        app.take_dropped_files(ui.ctx());
         // Requests of AI agents for the open drawing (MCP).
         #[cfg(not(target_arch = "wasm32"))]
         if app.sync_mcp_link(ui.ctx()) {

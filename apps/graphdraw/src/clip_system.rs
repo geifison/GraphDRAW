@@ -47,6 +47,7 @@ pub fn sequence() -> Option<u32> {
 }
 
 /// A flavour larger than this is left unread.
+#[cfg(windows)]
 const MAX_FLAVOUR_BYTES: usize = crate::clip_native::MAX_BYTES;
 
 /// `png` as a 24-bit BMP file, transparent parts on white, for programs

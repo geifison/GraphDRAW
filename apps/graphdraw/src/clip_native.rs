@@ -6,6 +6,8 @@ use graphdraw_core::{ObjectStyle, Shape, ShapeKind, Symbol};
 use serde::{Deserialize, Serialize};
 
 /// Name of the clipboard format as registered with the system.
+// Only the Windows clipboard holds named formats.
+#[cfg_attr(not(windows), allow(dead_code))]
 pub const FORMAT_NAME: &str = "GraphDraw Objects";
 /// Highest payload version this build writes and understands.
 pub const VERSION: u32 = 1;

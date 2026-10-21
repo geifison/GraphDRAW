@@ -336,6 +336,30 @@ pub fn run_finished(app: &mut App) {
     }
 }
 
+/// Read a file dropped on the page in the background, keep it under its
+/// bare name in the uploads and run `then` with that path on the next
+/// frame (browser).
+#[cfg(target_arch = "wasm32")]
+pub fn read_dropped(
+    file: egui::DroppedFileHandle,
+    then: impl FnOnce(&mut App, PathBuf) + 'static,
+) {
+    wasm_bindgen_futures::spawn_local(async move {
+        let name = file
+            .path()
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "dropped".into());
+        let Ok(bytes) = file.bytes_async().await else {
+            return;
+        };
+        let path = PathBuf::from("/upload").join(name);
+        store(&path, bytes);
+        FINISHED.with(|f| f.borrow_mut().push((Box::new(then), path)));
+        crate::web::request_repaint();
+    });
+}
+
 /// The path picked for `key` by [`Dialog::pick_into`], once.
 pub fn take_picked(key: &str) -> Option<PathBuf> {
     PICKED.with(|p| p.borrow_mut().remove(key))

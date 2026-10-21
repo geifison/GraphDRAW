@@ -4842,3 +4842,5 @@ options.paste_place.as_copied = "कॉपी की गई स्थिति �
 options.paste_place.view_center = "दृश्य के केंद्र में"
 options.clipboard_svg_text = "SVG टेक्स्ट के रूप में भी कॉपी करें (टेक्स्ट एडिटर और वेब टूल के लिए)"
 options.clipboard_png = "चित्र (PNG) के रूप में भी कॉपी करें"
+drop.hint = "आयात करने के लिए छोड़ें"
+drop.hint_many = "{n} फ़ाइलें आयात करने के लिए छोड़ें"
