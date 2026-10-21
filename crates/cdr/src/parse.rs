@@ -1043,20 +1043,14 @@ impl<'a> Ctx<'a> {
             if v >= 13 {
                 r.skip(3);
             }
-            stops.push(Stop {
-                pos: pos.clamp(0.0, 1.0),
-                color,
-            });
+            stops.push(Stop::new(pos.clamp(0.0, 1.0), color));
         }
         if stops.is_empty() {
             return None;
         }
         if stops.len() == 1 {
             let only = stops[0];
-            stops.push(Stop {
-                pos: 1.0,
-                color: only.color,
-            });
+            stops.push(Stop::new(1.0, only.color));
             stops[0].pos = 0.0;
         }
         stops.sort_by(|a, b| a.pos.total_cmp(&b.pos));
@@ -2351,14 +2345,8 @@ impl<'a> Ctx<'a> {
                         FountainKind::Linear
                     },
                     stops: vec![
-                        Stop {
-                            pos: 0.0,
-                            color: from,
-                        },
-                        Stop {
-                            pos: 1.0,
-                            color: to,
-                        },
+                        Stop::new(0.0, from),
+                        Stop::new(1.0, to),
                     ],
                     angle,
                     ..Default::default()

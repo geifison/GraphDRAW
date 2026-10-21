@@ -1377,18 +1377,9 @@ fn centred_gradients_are_written_from_their_edge_and_read_back() {
         let f = Fountain {
             kind,
             stops: vec![
-                Stop {
-                    pos: 0.0,
-                    color: red,
-                },
-                Stop {
-                    pos: 0.3,
-                    color: Color::rgb8(255, 128, 0),
-                },
-                Stop {
-                    pos: 1.0,
-                    color: yellow,
-                },
+                Stop::new(0.0, red),
+                Stop::new(0.3, Color::rgb8(255, 128, 0)),
+                Stop::new(1.0, yellow),
             ],
             angle: 0.0,
             offset: graphdraw_core::geometry::Point::ZERO,
@@ -1820,6 +1811,36 @@ fn gradient_options_are_written_as_the_closest_plain_gradient() {
         assert_eq!(fills[3].kind, plain.kind, "{v}");
         assert_eq!(fills[3].first_color(), red, "{v}");
         assert!(fills.iter().all(|f| f.runs_once()), "{v}");
+    }
+    // The newer options: elliptical as radial, a smaller span and steps
+    // worked into the stops, the start colour still first.
+    let mut doc = doc_with(Vec::new());
+    let mut ids = doc.ids().clone();
+    let mut s = Shape::new(
+        ids.shape(),
+        ShapeKind::Rect {
+            rect: Rect::new(10.0, 10.0, 60.0, 40.0),
+            radius: 0.0,
+            corners: None,
+        },
+    );
+    let mut e = Fountain::two(FountainKind::Elliptical, red, blue, 0.0);
+    e.scale = 0.5;
+    e.steps = 4;
+    e.stops[0].midpoint = 0.3;
+    s.fill = Fill::Fountain(e);
+    s.stroke = None;
+    doc.pages[0].layers[0].shapes = vec![s];
+    doc.set_ids(ids);
+    for v in [7u16, 17] {
+        let bytes = document_to_cdr_version(&doc, v);
+        let (back, _) = crate::open_bytes(&bytes, "back").expect("reads back");
+        let Fill::Fountain(f) = &back.pages[0].layers[0].shapes[0].fill else {
+            panic!("a fountain {v}");
+        };
+        assert_eq!(f.kind, FountainKind::Radial, "{v}");
+        assert!(f.stops.len() > 2, "{v}");
+        assert_eq!(f.last_color(), blue, "{v}");
     }
 }
 

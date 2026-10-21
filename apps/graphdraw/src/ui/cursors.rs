@@ -309,8 +309,9 @@ pub fn for_tool(
         }
         // The fill's handles move.
         Tool::InteractiveFill
-            if matches!(app.drag, Drag::FountainHandle { .. })
-                || pos.is_some_and(|s| app.fountain_handle_at(app.view.to_page(s)).is_some()) =>
+            if matches!(app.drag, Drag::FountainHandle { .. } | Drag::GradientHandle)
+                || pos.is_some_and(|s| app.fountain_handle_at(app.view.to_page(s)).is_some())
+                || pos.is_some_and(|s| app.gradient_handle_at(app.view.to_page(s)).is_some()) =>
         {
             ToolCursor::System(egui::CursorIcon::Move)
         }

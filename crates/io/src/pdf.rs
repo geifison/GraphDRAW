@@ -1594,18 +1594,9 @@ mod tests {
         s.fill = Fill::Fountain(graphdraw_core::Fountain {
             kind: FountainKind::Linear,
             stops: vec![
-                graphdraw_core::Stop {
-                    pos: 0.0,
-                    color: Color::rgb8(255, 0, 0),
-                },
-                graphdraw_core::Stop {
-                    pos: 0.3,
-                    color: Color::rgb8(0, 255, 0),
-                },
-                graphdraw_core::Stop {
-                    pos: 1.0,
-                    color: Color::rgb8(0, 0, 255),
-                },
+                graphdraw_core::Stop::new(0.0, Color::rgb8(255, 0, 0)),
+                graphdraw_core::Stop::new(0.3, Color::rgb8(0, 255, 0)),
+                graphdraw_core::Stop::new(1.0, Color::rgb8(0, 0, 255)),
             ],
             angle: 90.0,
             offset: graphdraw_core::geometry::Point::ZERO,

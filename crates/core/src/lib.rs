@@ -19,6 +19,7 @@ pub mod envelope;
 pub mod extrude;
 pub mod extrude3d;
 pub mod geometry;
+pub mod gradient;
 pub mod icc;
 pub mod id;
 pub mod join;
@@ -49,7 +50,8 @@ pub use icc::{Intent as RenderingIntent, Profile as IccProfile, Transform as Icc
 pub use id::{LayerId, PageId, ShapeId};
 pub use paragraphs::ParagraphFormat;
 pub use style::{
-    arrowhead_paths, Arrowhead, Fill, Fountain, FountainKind, FountainRepeat, LineCap, LineJoin,
+    arrowhead_paths, Arrowhead, Fill, Fountain, FountainBlend, FountainKind, FountainRepeat, LineCap,
+    LineJoin,
     Mesh, MeshNode, Pattern, PatternTile, Stop, Stroke, Texture, TextureKind, WidthNode,
 };
 pub use text_flow::{TextWrap, WrapMode, WrapSide};

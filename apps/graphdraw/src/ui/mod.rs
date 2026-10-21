@@ -611,6 +611,8 @@ pub fn root(app: &mut App, ui: &mut Ui) {
         crate::perspective_draw::show_bar(app, &ctx);
         // The floating Fill and Outline windows (F11, F12).
         style_windows::show(app, &ctx);
+        // Interactive Fill: the chosen gradient stop's balloon.
+        crate::gradient_tool::stop_popup(app, &ctx);
     }
     dialogs::show(app, &ctx);
 }

@@ -10,9 +10,10 @@
 //! original one, Help, OK and Cancel. The drawing shows the new fill on
 //! the objects while the window is open (see `style_windows`).
 //!
-//! Controls whose settings the drawing does not keep yet (node
-//! transparency and midpoints, steps, blending around the colour wheel,
-//! smoothing, size, elliptical gradients, editable two-colour cells, tile
+//! The gradient also edits each node's transparency and midpoint, the
+//! steps, blending around the colour wheel, smoothing, size and the
+//! elliptical type. Controls whose settings the drawing does not keep yet
+//! (a uniform fill's transparency, editable two-colour cells, tile
 //! rotation and offsets, texture detail and contrast) are shown dimmed.
 
 use crate::app::App;
@@ -91,7 +92,7 @@ impl Mode {
 const KINDS: [(Option<FountainKind>, &str); 6] = [
     (Some(FountainKind::Linear), "fill.linear"),
     (Some(FountainKind::Radial), "fill.radial"),
-    (None, "fillwin.elliptic"),
+    (Some(FountainKind::Elliptical), "fillwin.elliptic"),
     (Some(FountainKind::Conical), "fill.conical"),
     (Some(FountainKind::Square), "fill.square"),
     (Some(FountainKind::Shaped), "fill.shaped"),
@@ -165,7 +166,7 @@ pub struct FillWindow {
 }
 
 fn stop(pos: f64, color: Color) -> Stop {
-    Stop { pos, color }
+    Stop::new(pos, color)
 }
 
 impl FillWindow {
@@ -420,8 +421,15 @@ impl FillWindow {
         let old = self.fountain.stops.clone();
         self.fountain.stops = (0..n)
             .map(|j| {
-                let mut s = old[n - 1 - j];
+                let k = n - 1 - j;
+                let mut s = old[k];
                 s.pos = 1.0 - s.pos;
+                // Each run's midpoint mirrors with it.
+                s.midpoint = if k > 0 {
+                    1.0 - old[k - 1].midpoint
+                } else {
+                    0.5
+                };
                 s
             })
             .collect();
@@ -690,11 +698,29 @@ impl FillWindow {
                 self.sort_stops();
                 self.touch();
             }
-            later(ui, |ui| {
-                ui.label(tr("fillwin.transparency"));
-                let mut tp = 0.0;
-                ui.add(egui::Slider::new(&mut tp, 0.0..=100.0).suffix(" %"));
-            });
+            // The chosen node's transparency and the midpoint of its run
+            // to the next node.
+            ui.label(tr("fillwin.transparency"));
+            let op = self.fountain.stops.get(i).map_or(1.0, |s| s.opacity);
+            let mut tp = ((1.0 - op) * 100.0).round();
+            if ui
+                .add(egui::Slider::new(&mut tp, 0.0..=100.0).suffix("%"))
+                .changed()
+            {
+                if let Some(s) = self.fountain.stops.get_mut(i) {
+                    s.opacity = (1.0 - tp / 100.0).clamp(0.0, 1.0);
+                }
+                self.touch();
+            }
+            ui.label(tr("gradtool.midpoint"));
+            let mid = self.fountain.stops.get(i).map_or(0.5, |s| s.midpoint) * 100.0;
+            if let Some(v) = crate::measure_field::number_field(ui, "node_mid", mid, 0, "%", 52.0)
+            {
+                if let Some(s) = self.fountain.stops.get_mut(i) {
+                    s.midpoint = (v / 100.0).clamp(0.01, 0.99);
+                }
+                self.touch();
+            }
         });
         self.presets(ui);
         ui.separator();
@@ -746,7 +772,10 @@ impl FillWindow {
                 ui.label(tr("fillwin.angle"));
                 let angled = matches!(
                     kind,
-                    FountainKind::Linear | FountainKind::Conical | FountainKind::Square
+                    FountainKind::Linear
+                        | FountainKind::Conical
+                        | FountainKind::Square
+                        | FountainKind::Elliptical
                 );
                 ui.add_enabled_ui(angled, |ui| {
                     ui.horizontal(|ui| {
@@ -760,9 +789,22 @@ impl FillWindow {
                     });
                 });
                 ui.label(tr("fillwin.size"));
-                later(ui, |ui| {
-                    let mut v = 100.0;
-                    ui.add(egui::DragValue::new(&mut v).suffix(" %"));
+                let sized = !matches!(kind, FountainKind::Conical | FountainKind::Shaped);
+                ui.add_enabled_ui(sized, |ui| {
+                    if let Some(v) = crate::measure_field::number_field(
+                        ui,
+                        "size",
+                        f.scale * 100.0,
+                        0,
+                        "%",
+                        64.0,
+                    ) {
+                        f.scale = (v / 100.0).clamp(
+                            graphdraw_core::gradient::MIN_SCALE,
+                            graphdraw_core::gradient::MAX_SCALE,
+                        );
+                        ch = true;
+                    }
                 });
                 ui.end_row();
                 let centred = !matches!(kind, FountainKind::Linear | FountainKind::Shaped);
@@ -792,19 +834,32 @@ impl FillWindow {
                 }
                 ui.end_row();
                 ui.label(tr("fillwin.steps"));
-                later(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        icon_button(
-                            ui,
-                            "fillwin.steps_lock",
-                            &tr("fillwin.steps_lock"),
-                            false,
-                            false,
-                        );
-                        let mut n = 16u32;
-                        ui.add(egui::DragValue::new(&mut n));
+                ui.horizontal(|ui| {
+                    let locked = f.steps > 0;
+                    if icon_button(
+                        ui,
+                        "fillwin.steps_lock",
+                        &tr("fillwin.steps_lock"),
+                        locked,
+                        true,
+                    )
+                    .clicked()
+                    {
+                        f.steps = if locked { 0 } else { 16 };
+                        ch = true;
+                    }
+                    let mut n = if locked { f.steps } else { 16 };
+                    let r = ui.add_enabled(
+                        locked,
+                        egui::DragValue::new(&mut n).range(2..=graphdraw_core::gradient::MAX_STEPS),
+                    );
+                    if r.changed() {
+                        f.steps = n;
+                        ch = true;
+                    }
+                    if !locked {
                         ui.label(tr("fillwin.continuous"));
-                    });
+                    }
                 });
                 ui.label(tr("fillwin.repeat"));
                 ui.horizontal(|ui| {
@@ -841,25 +896,32 @@ impl FillWindow {
                 ui.label(tr("fillwin.blend"));
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 2.0;
-                    icon_button(ui, "fillwin.blend_direct", &tr("fillwin.blend_direct"), true, true);
-                    for tip in ["fillwin.blend_cw", "fillwin.blend_ccw"] {
-                        icon_button(
-                            ui,
-                            tip,
-                            &format!("{} ({})", tr(tip), tr("stylewin.coming")),
-                            false,
-                            false,
-                        );
+                    for (b, tip) in [
+                        (graphdraw_core::FountainBlend::Direct, "fillwin.blend_direct"),
+                        (graphdraw_core::FountainBlend::Clockwise, "fillwin.blend_cw"),
+                        (graphdraw_core::FountainBlend::Counterclockwise, "fillwin.blend_ccw"),
+                    ] {
+                        if icon_button(ui, tip, &tr(tip), f.blend == b, true).clicked()
+                            && f.blend != b
+                        {
+                            f.blend = b;
+                            ch = true;
+                        }
                     }
                 });
                 ui.label(tr("fillwin.smooth"));
-                icon_button(
+                if icon_button(
                     ui,
                     "fillwin.smooth_tip",
-                    &format!("{} ({})", tr("fillwin.smooth_tip"), tr("stylewin.coming")),
-                    false,
-                    false,
-                );
+                    &tr("fillwin.smooth_tip"),
+                    f.smooth,
+                    true,
+                )
+                .clicked()
+                {
+                    f.smooth = !f.smooth;
+                    ch = true;
+                }
                 ui.end_row();
                 ui.label(tr("docker.edge_pad"));
                 if let Some(v) = crate::measure_field::number_field(

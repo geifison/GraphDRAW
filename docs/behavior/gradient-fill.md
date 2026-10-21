@@ -4,8 +4,16 @@
 
 | Control | Default | Range |
 |---|---|---|
-| Type | Linear | Linear, Radial (elliptical), Conical, Square, Shaped |
+| Type | Linear | Linear, Radial, Elliptical, Conical, Square, Shaped |
 | Stops | 2: colour 0% = object colour or black, 100% = white | 2..64 |
+| Stop opacity | 100% | 0..100% |
+| Stop midpoint (of the run to the next stop) | 50% | 1..99% |
+| Size (span against the bounds-fitted one) | 100% | 1..10000% |
+| Axis offset (linear, along the axis) | 0 | half lengths of the automatic axis |
+| Y radius (elliptical, square) | 100% of the x radius | 1..10000% |
+| Steps (bands) | 0 = continuous | 2..256 |
+| Smoothing (dither) | off | |
+| Blend | Direct | Direct, around the colour wheel clockwise or counter-clockwise |
 | Angle (linear, conical, square) | 0 (left to right, counter-clockwise positive) | -360..360 |
 | Edge pad | 0% | 0..49% |
 | Centre offset (radial, conical, square) | 0, 0 | -100..100% of half the bounding box |
@@ -35,13 +43,59 @@ the start and end colours, the angle and the edge pad. With a selection
 the fields edit it; with nothing selected they set the default fill for
 the next object.
 
-Handles on the canvas (Interactive Fill, gradient-filled selection): a
-linear fill shows its axis as a dashed line between a start node and an
-end node (squares in the two colours) at `c -/+ h (cos a, sin a)` with
-`h = (w |cos a| + h |sin a|) / 2`; dragging either node turns the axis
-about the centre and sets the angle. Radial, conical and square fills
-show one node at `c + offset * (w, h) / 2`; dragging it sets the centre
-offset, clamped to the bounds.
+After the edge pad the bar has the size, the Y radius (elliptical and
+square), steps (the lock turns them on at 16), the three blends,
+smoothing and Reverse (positions and midpoints mirrored), all with the
+Edit Fill window's icons; with a stop chosen, its colour, position,
+opacity and midpoint. Every field is one undo step. The hint reads
+"Drag the ends and stops; double-click the line to add a stop; click a
+stop for its color; Delete removes it; Shift turns the axis; Ctrl = 15
+degree steps".
+
+Handles on the canvas (Interactive Fill, one gradient-filled object
+selected; `gradient_tool.rs`, geometry in `graphdraw_core::gradient`).
+The line between the two end handles (white squares) is the axis; the
+stops sit on it as circles in their colours, the chosen one ringed.
+Handles are taken within 7 screen points, the ends first, then the Y
+radius, then the stops.
+
+- Linear: the start and end of the axis, `c + u h (o -/+ s)` with
+  `u = (cos a, sin a)`, `h = (w |cos a| + h |sin a|) / 2`, size `s` and
+  axis offset `o`. Dragging one end moves that end alone (angle, size
+  and offset follow; the other end stays); Shift turns the axis about
+  the bounds' centre keeping its length; Ctrl turns in 15 degree steps.
+  An end dragged off the centre line lands on it (the colours are the
+  same).
+- Radial, elliptical, conical, square: the start handle is the centre
+  `c + offset * (w, h) / 2` (offset clamped to -1..1); the end handle the
+  end of the x radius along the angle (square: along x). Dragging it sets
+  the size (radial, square), the size and the angle (elliptical) or the
+  angle (conical). Elliptical and square fills have a diamond at the end
+  of the Y radius; dragging it sets the Y radius.
+- Stops: `t = (e + p' (1 - 2e)) / n` along the axis (`p' = 1 - p` when
+  inverted, `e` the edge pad, `n` the cycles, halved when bilinear).
+  Dragging a stop slides it along the axis (0..1); on release the stops
+  are sorted and the dragged one stays chosen.
+- A double click on the axis adds a stop there with the colour and
+  opacity the stops already give, and chooses it.
+- A click on a stop chooses it (on an end: the end stop) and opens the
+  stop balloon: the colour picker, opacity and midpoint, applied at
+  once; OK, Esc or a click outside closes it. A click on the axis does
+  nothing else; elsewhere it gives the default fill as before.
+- Delete or Backspace removes the chosen stop (two always stay). A
+  palette colour clicked goes to the chosen stop; a colour dragged from
+  a palette shows the stops of the gradient under the pointer and,
+  dropped on one, recolours it (the selection stays).
+- Each change is one undo step; a drag is one step on release. After
+  an undo the chosen stop no longer holds (Delete and the palette act
+  on the object again).
+- Dragging across an object (not on a handle) makes a linear fill from
+  the press point to the release point (Ctrl: 15 degree steps), with the
+  stops and options of its gradient, or its colour to white, or the
+  default colour to white.
+
+The older `fill_tool::drag_fountain_handle` (an end turns the axis, the
+centre node sets the offset) stays for scripts and tests.
 
 ## Formulas
 
@@ -69,9 +123,23 @@ Bounding box `b` of the object in page space, centre `c`.
      odd ones. No repeat: `n` is ignored.
   3. Edge pad `e`: `t = clamp((t - e) / (1 - 2e), 0, 1)` (per cycle).
   4. Invert colours: `s = 1 - t`.
+- Elliptical: `t = sqrt((p'/rx)^2 + (q'/ry)^2)` in the frame turned by
+  `a` about `c'`, `rx = w/2 sqrt 2`, `ry = h/2 sqrt 2 * aspect`. Square
+  with a Y radius: `t = max(|dx|, |dy| / aspect) * 2` in bounds units.
+- Span (`Fountain::span_param`), before the stop parameter: linear
+  `x = (2t - 1 - o + s) / (2s)`; radial, elliptical, square `x = t / s`;
+  conical and shaped unchanged. Inside 0..1 it is the parameter; beyond,
+  with a size or axis offset set, Sawtooth repeats (`frac x`) and Mirror
+  reflects; otherwise the end colours hold.
+- Steps `N`: `s = (floor(s N) + 0.5) / N`, clamped to 0..1.
 - Colour at `s` is a linear interpolation in RGB between the two stops
-  around it; stops are sorted by position; equal positions give a hard
-  edge.
+  around it, at `k = bias(local, m)` with `bias(k, m) = k^(ln 0.5 / ln m)`
+  for the first stop's midpoint `m` (identity at 0.5); around the colour
+  wheel the hue runs up (clockwise) or down, saturation and brightness
+  straight. The opacity mixes the same way. Stops are sorted by
+  position; equal positions give a hard edge.
+- Smoothing adds up to 0.75 of a level of noise per pixel (a hash of the
+  point) before quantising; such fills are drawn pixel by pixel.
 - Gradient shaders and exports that know one run of stops take
   `Fountain::resolved_stops`: the same colours as stops over 0..1, with
   a sawtooth's jumps as hard edges (two stops at one position).
@@ -103,7 +171,25 @@ Bounding box `b` of the object in page space, centre `c`.
   every combination of repeat, cycles, bilinear, invert and edge pad
   against `color_at`.
 
+- `gradient::tests` (core) check the handle drags, adding, sorting and
+  removing stops, midpoints, steps, the blends, opacity, the extras
+  worked into `resolved_stops`, and their `.gdr` round trip;
+  `tests::fountain_extras_are_drawn` (render) the pixels;
+  `gradient_tool::tests::interactive_gradient_tool` the walk-through
+  (new gradient, end drag, double click, palette colour, Delete, five
+  undos) and `clicking_gradient_end_opens_stop_popup` the balloon.
+
 ## Files and exports
+
+The newer options (`opacity` and `midpoint` per stop, `scale`,
+`axis_offset`, `aspect`, `steps`, `smooth`, `blend`, kind `elliptical`)
+are left out of `.gdr` files when at their defaults, so older files read
+as before. `resolved_stops` works the size, axis offset, midpoints,
+steps and blending into stops over the automatic span (sampled, hard
+edges kept), so SVG, PDF, EPS, EMF and `.cdr` draw the same colours along
+the automatic axis; SVG writes `stop-opacity`, the other formats drop the
+opacity. An elliptical fill is written as a radial one; smoothing is for
+the screen and pictures only.
 
 The options are saved in `.gdr` files (`repeat`, `repeats`,
 `bilinear`, `invert`, kind `shaped`); they are left out when off, so

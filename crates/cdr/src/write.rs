@@ -1284,7 +1284,8 @@ fn pref() -> Vec<u8> {
 fn fountain_type(kind: FountainKind) -> u8 {
     match kind {
         FountainKind::Linear => 1,
-        FountainKind::Radial => 2,
+        // An elliptical one is written as a radial one (`Fountain::to_plain`).
+        FountainKind::Radial | FountainKind::Elliptical => 2,
         FountainKind::Conical => 3,
         // A shaped gradient is written as a square one (`Fountain::to_plain`).
         FountainKind::Square | FountainKind::Shaped => 4,
@@ -2423,7 +2424,7 @@ fn graded_transparency_json(g: (&graphdraw_core::Fountain, u8)) -> Option<String
     let (first, last) = (f.stops.first()?, f.stops.last()?);
     let grey = |c: &graphdraw_core::Color| (c.luminance().clamp(0.0, 1.0) * 255.0).round() as u32;
     let kind = match f.kind {
-        FountainKind::Radial => 2,
+        FountainKind::Radial | FountainKind::Elliptical => 2,
         FountainKind::Conical => 3,
         FountainKind::Square => 4,
         _ => 1,

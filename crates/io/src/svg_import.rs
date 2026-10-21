@@ -250,14 +250,11 @@ fn convert_paint(paint: &usvg::Paint, opacity: f64, bounds: Rect, to_page: Affin
 fn convert_stops(stops: &[usvg::Stop]) -> Vec<Stop> {
     let mut out: Vec<Stop> = stops
         .iter()
-        .map(|s| Stop {
-            pos: s.offset().get() as f64,
-            color: rgb(s.color()),
-        })
+        .map(|s| Stop::new(s.offset().get() as f64, rgb(s.color())))
         .collect();
     if out.len() < 2 {
         let c = out.first().map(|s| s.color).unwrap_or(Color::BLACK);
-        out = vec![Stop { pos: 0.0, color: c }, Stop { pos: 1.0, color: c }];
+        out = vec![Stop::new(0.0, c), Stop::new(1.0, c)];
     }
     out
 }

@@ -1068,18 +1068,22 @@ impl Renderer<'_> {
             }
             Fill::Fountain(f) => {
                 let b = bbox(page_path);
-                // The edge pad, repeats, mirror and inversion are worked
-                // into one run of stops the shader pads beyond.
+                // The edge pad, repeats, mirror, inversion, size, axis
+                // offset, midpoints, steps and blending are worked into one
+                // run of stops over the automatic span, which the shader
+                // pads beyond; the stops keep their opacity.
                 let stops: Vec<GradientStop> = f
                     .resolved_stops()
                     .iter()
-                    .map(|s| GradientStop::new(s.pos as f32, sk_color(s.color)))
+                    .map(|s| GradientStop::new(s.pos as f32, sk_color_alpha(s.color, s.opacity)))
                     .collect();
+                // Smoothing dithers per pixel: drawn procedurally.
+                let shader = !f.smooth;
                 match f.kind {
                     graphdraw_core::FountainKind::Shaped => {
                         self.fill_shaped(f, sk, sk, rule);
                     }
-                    graphdraw_core::FountainKind::Linear => {
+                    graphdraw_core::FountainKind::Linear if shader => {
                         let a = f.angle.to_radians();
                         let (cx, cy) = (b.center().x, b.center().y);
                         let half = (b.width() * a.cos().abs() + b.height() * a.sin().abs()) / 2.0;
@@ -1097,7 +1101,7 @@ impl Renderer<'_> {
                                 .fill_path(sk, &paint, rule, Transform::identity(), None);
                         }
                     }
-                    graphdraw_core::FountainKind::Radial => {
+                    graphdraw_core::FountainKind::Radial if shader => {
                         let c = Point::new(
                             b.center().x + f.offset.x * b.width() / 2.0,
                             b.center().y + f.offset.y * b.height() / 2.0,
@@ -1118,28 +1122,28 @@ impl Renderer<'_> {
                                 .fill_path(sk, &paint, rule, Transform::identity(), None);
                         }
                     }
-                    graphdraw_core::FountainKind::Conical
-                    | graphdraw_core::FountainKind::Square => {
+                    _ => {
+                        // Conical, square and elliptical fountains (and
+                        // smoothed ones) pixel by pixel, the parameter from
+                        // `Fountain::raw_param_uv`.
                         let f2 = f.clone();
                         let base = f.sorted_stops();
+                        let plain = !f.has_extras();
+                        let (w, h) = (b.width(), b.height());
                         let key = format!("{f:?}");
-                        self.fill_procedural(page_path, sk, rule, &key, move |u, v| {
-                            let dx = u - 0.5 - f2.offset.x / 2.0;
-                            let dy = v - 0.5 - f2.offset.y / 2.0;
-                            let t = match f2.kind {
-                                graphdraw_core::FountainKind::Conical => {
-                                    let a = dy.atan2(dx) - f2.angle.to_radians();
-                                    let a =
-                                        a.rem_euclid(std::f64::consts::TAU) / std::f64::consts::TAU;
-                                    if a < 0.5 {
-                                        a * 2.0
-                                    } else {
-                                        2.0 - a * 2.0
-                                    }
-                                }
-                                _ => (dx.abs().max(dy.abs()) * 2.0).min(1.0),
+                        self.fill_procedural_alpha(page_path, sk, rule, &key, move |u, v| {
+                            let t = f2.raw_param_uv(u, v, w, h);
+                            let (c, a) = if plain {
+                                let s = f2.stop_param(t.min(1.0));
+                                (graphdraw_core::style::sample_stops(&base, s), 1.0)
+                            } else {
+                                f2.color_alpha_at(t)
                             };
-                            graphdraw_core::style::sample_stops(&base, f2.stop_param(t))
+                            if f2.smooth {
+                                (dither(c, u, v), a as f32)
+                            } else {
+                                (c, a as f32)
+                            }
                         });
                     }
                 }
@@ -1362,10 +1366,17 @@ impl Renderer<'_> {
                 let Some(mut pm) = Pixmap::new(gw, gh) else {
                     return;
                 };
+                let extras = f.has_run_extras();
                 for (px, d) in pm.pixels_mut().iter_mut().zip(&dist) {
-                    let c = graphdraw_core::style::sample_stops(&base, f.stop_param(d / deepest));
+                    let s = f.stop_param(d / deepest);
+                    let (c, a) = if extras {
+                        f.sample_run(s)
+                    } else {
+                        (graphdraw_core::style::sample_stops(&base, s), 1.0)
+                    };
                     let [r, g, bb] = c.to_rgb8();
-                    *px = tiny_skia::ColorU8::from_rgba(r, g, bb, 255).premultiply();
+                    let a = (a.clamp(0.0, 1.0) * 255.0).round() as u8;
+                    *px = tiny_skia::ColorU8::from_rgba(r, g, bb, a).premultiply();
                 }
                 procedural_cache_put(key, pm.clone());
                 pm
@@ -1394,6 +1405,18 @@ impl Renderer<'_> {
         rule: FillRule,
         key: &str,
         f: impl Fn(f64, f64) -> Color + Sync,
+    ) {
+        self.fill_procedural_alpha(page_path, sk, rule, key, move |u, v| (f(u, v), 1.0));
+    }
+
+    /// [`Self::fill_procedural`] with an opacity (0..1) for each point.
+    fn fill_procedural_alpha(
+        &mut self,
+        page_path: &BezPath,
+        sk: &SkPath,
+        rule: FillRule,
+        key: &str,
+        f: impl Fn(f64, f64) -> (Color, f32) + Sync,
     ) {
         use graphdraw_core::geometry::Shape as _;
         let b = bbox(page_path);
@@ -1438,8 +1461,10 @@ impl Renderer<'_> {
                     for (x, px) in out.iter_mut().enumerate() {
                         let u = (x0 + (x as f64 + 0.5) * st - sb.x0) / bw;
                         let v = 1.0 - (y0 + (y as f64 + 0.5) * st - sb.y0) / bh;
-                        let [r, g, bb] = f(u, v).to_rgb8();
-                        *px = tiny_skia::ColorU8::from_rgba(r, g, bb, 255).premultiply();
+                        let (c, a) = f(u, v);
+                        let [r, g, bb] = c.to_rgb8();
+                        let a = (a.clamp(0.0, 1.0) * 255.0).round() as u8;
+                        *px = tiny_skia::ColorU8::from_rgba(r, g, bb, a).premultiply();
                     }
                 };
                 for_rows(pm.pixels_mut(), w as usize, &row);
@@ -1919,6 +1944,33 @@ pub fn sk_color(c: Color) -> SkColor {
     SkColor::from_rgba8(r, g, b, 255)
 }
 
+/// [`sk_color`] with an opacity (0..1).
+pub fn sk_color_alpha(c: Color, opacity: f64) -> SkColor {
+    let [r, g, b] = c.to_rgb8();
+    let a = if opacity.is_finite() {
+        (opacity.clamp(0.0, 1.0) * 255.0).round() as u8
+    } else {
+        255
+    };
+    SkColor::from_rgba8(r, g, b, a)
+}
+
+/// A smoothed gradient's colour at `(u, v)`: up to a level of noise
+/// either way (a hash of the point), so the quantised bands blend.
+fn dither(c: Color, u: f64, v: f64) -> Color {
+    let x = (u * 7919.0 + v * 104_729.0).to_bits();
+    let mut h = x ^ (x >> 29);
+    h = h.wrapping_mul(0xBF58_476D_1CE4_E5B9);
+    h ^= h >> 32;
+    let n = ((h & 0xFFFF) as f32 / 65535.0 - 0.5) / 255.0 * 1.5;
+    let [r, g, b] = c.to_rgb_f32();
+    Color::Rgb {
+        r: (r + n).clamp(0.0, 1.0),
+        g: (g + n).clamp(0.0, 1.0),
+        b: (b + n).clamp(0.0, 1.0),
+    }
+}
+
 /// The rule `shape`'s fill is drawn with, which is also how it clips as
 /// the frame of a clip frame: non-zero winding for text, even-odd for
 /// everything else (holes of combined curves stay open).
@@ -2193,22 +2245,10 @@ mod tests {
         frame.fill = Fill::Fountain(Fountain {
             kind: FountainKind::Linear,
             stops: vec![
-                Stop {
-                    pos: 0.0,
-                    color: Color::WHITE,
-                },
-                Stop {
-                    pos: 0.499,
-                    color: Color::WHITE,
-                },
-                Stop {
-                    pos: 0.501,
-                    color: Color::BLACK,
-                },
-                Stop {
-                    pos: 1.0,
-                    color: Color::BLACK,
-                },
+                Stop::new(0.0, Color::WHITE),
+                Stop::new(0.499, Color::WHITE),
+                Stop::new(0.501, Color::BLACK),
+                Stop::new(1.0, Color::BLACK),
             ],
             ..Fountain::two(FountainKind::Linear, Color::WHITE, Color::BLACK, 0.0)
         });
@@ -2782,18 +2822,9 @@ mod tests {
         let fill = Fill::Fountain(Fountain {
             kind: FountainKind::Linear,
             stops: vec![
-                Stop {
-                    pos: 0.0,
-                    color: Color::rgb8(0, 0, 0),
-                },
-                Stop {
-                    pos: 0.5,
-                    color: Color::rgb8(255, 0, 0),
-                },
-                Stop {
-                    pos: 1.0,
-                    color: Color::rgb8(255, 255, 255),
-                },
+                Stop::new(0.0, Color::rgb8(0, 0, 0)),
+                Stop::new(0.5, Color::rgb8(255, 0, 0)),
+                Stop::new(1.0, Color::rgb8(255, 255, 255)),
             ],
             angle: 0.0,
             offset: Point::ZERO,
@@ -3067,6 +3098,50 @@ mod tests {
         let img = strip(Fill::Fountain(sq));
         assert!(red_at(&img, 50) > 200, "{}", red_at(&img, 50));
         assert!(red_at(&img, 1) < 30, "{}", red_at(&img, 1));
+    }
+
+    /// GD-FIL-03: the size and axis offset, midpoints, steps, opacity,
+    /// smoothing and the elliptical kind as drawn.
+    #[test]
+    fn fountain_extras_are_drawn() {
+        let bw = || Fountain::two(FountainKind::Linear, Color::BLACK, Color::WHITE, 0.0);
+        let red_at = |img: &Pixmap, x: u32| img.pixel(x, 5).unwrap().red() as i32;
+        // Half the span, starting on the left: white from the middle on.
+        let mut f = bw();
+        f.scale = 0.5;
+        f.axis_offset = -0.5;
+        let img = strip(Fill::Fountain(f.clone()));
+        assert!((red_at(&img, 25) - 128).abs() < 20, "{}", red_at(&img, 25));
+        assert!(red_at(&img, 75) > 245);
+        // The same with a repeat keeps repeating past the span.
+        f.repeat = graphdraw_core::FountainRepeat::Repeat;
+        let img = strip(Fill::Fountain(f));
+        assert!(red_at(&img, 52) < 30, "{}", red_at(&img, 52));
+        // The midpoint at 20%: half grey there.
+        let mut m = bw();
+        m.stops[0].midpoint = 0.2;
+        let img = strip(Fill::Fountain(m));
+        assert!((red_at(&img, 20) - 128).abs() < 20, "{}", red_at(&img, 20));
+        // Four steps: one colour per band.
+        let mut s = bw();
+        s.steps = 4;
+        let img = strip(Fill::Fountain(s));
+        assert!((red_at(&img, 3) - red_at(&img, 21)).abs() <= 2);
+        assert!(red_at(&img, 28) > red_at(&img, 21) + 40);
+        // A transparent end shows the white page.
+        let mut o = bw();
+        o.stops[0].opacity = 0.0;
+        let img = strip(Fill::Fountain(o));
+        assert!(red_at(&img, 1) > 240, "{}", red_at(&img, 1));
+        // Smoothed: about the same colours.
+        let mut sm = bw();
+        sm.smooth = true;
+        let img = strip(Fill::Fountain(sm));
+        assert!((red_at(&img, 50) - 128).abs() < 20 && red_at(&img, 1) < 20);
+        // Elliptical: dark in the centre, lighter towards the ends.
+        let e = Fountain::two(FountainKind::Elliptical, Color::BLACK, Color::WHITE, 0.0);
+        let img = strip(Fill::Fountain(e));
+        assert!(red_at(&img, 50) < 20 && red_at(&img, 2) > 120, "{}", red_at(&img, 2));
     }
 
     #[test]

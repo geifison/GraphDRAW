@@ -522,6 +522,9 @@ pub enum Drag {
     FountainHandle {
         handle: crate::fill_tool::FountainHandle,
     },
+    /// Moving a gradient handle or stop (Interactive Fill); the handle
+    /// is in `App::gradient_tool`.
+    GradientHandle,
     /// Zoom tool rubber band.
     ZoomBox {
         start: Point,
@@ -1294,6 +1297,9 @@ pub struct App {
     pub smoothing: Option<Vec<crate::node_edit::StartCurve>>,
     /// Last clicked effect/mesh node (palette clicks colour a mesh node).
     pub selected_effect_node: Option<(ShapeId, usize)>,
+    /// Interactive Fill: the chosen gradient stop, its colour balloon and
+    /// the handle being dragged (see `gradient_tool.rs`).
+    pub gradient_tool: crate::gradient_tool::GradientToolState,
     /// Open drawings, one tab each (see `documents.rs`); the active one's
     /// state lives in the fields above.
     pub docs: Vec<crate::documents::DocSlot>,
@@ -2030,6 +2036,7 @@ impl App {
             curve_smoothness: 0.0,
             smoothing: None,
             selected_effect_node: None,
+            gradient_tool: Default::default(),
             docs: Vec::new(),
             active_doc: 0,
             untitled_counter: 0,
@@ -3746,6 +3753,10 @@ impl App {
         // mesh node.
         if let Fill::Solid(c) = &fill {
             if matches!(self.tool, Tool::MeshFill | Tool::Shape) && self.color_mesh_node(*c) {
+                return;
+            }
+            // With Interactive Fill, to the chosen gradient stop.
+            if self.tool == Tool::InteractiveFill && self.set_gradient_stop_color(*c) {
                 return;
             }
         }
@@ -5632,6 +5643,7 @@ pub fn fill_description(fill: &Fill) -> String {
             graphdraw_core::FountainKind::Conical => tr("fill.conical_fountain"),
             graphdraw_core::FountainKind::Square => tr("fill.square_fountain"),
             graphdraw_core::FountainKind::Shaped => tr("fill.shaped_fountain"),
+            graphdraw_core::FountainKind::Elliptical => tr("fill.elliptical_fountain"),
         },
         Fill::Pattern(graphdraw_core::Pattern::TwoColor { tile, .. }) => {
             trf("fill.two_color_pattern", &[("t", tile.name())])
