@@ -26,6 +26,8 @@ mod canvas;
 mod clip_frames;
 mod clip_native;
 mod clip_offer;
+#[cfg(test)]
+mod clip_tests;
 mod clipboard;
 mod clone_effect;
 mod color_drop;

@@ -6,12 +6,12 @@ use crate::theme;
 use crate::tools::Tool;
 use crate::view::View;
 use egui::Pos2;
-use std::path::PathBuf;
 use graphdraw_core::{
     document::{paper, Shape, ShapeKind, TextSpan},
     geometry::{Affine, Point, Rect, Size, Vec2},
     Color, Command, Engine, Fill, LayerId, PageId, ShapeId, Stroke,
 };
+use std::path::PathBuf;
 
 /// What a drag with the Free Transform tool does. Modifier keys override
 /// the mode: Alt scales, Ctrl skews, Shift reflects.
@@ -2125,8 +2125,7 @@ impl App {
     /// outline: the floating Outline Pen window.
     pub fn open_outline_window(&mut self) {
         if self.style_windows.outline.is_none() {
-            self.style_windows.outline =
-                Some(crate::ui::outline_window::OutlineWindow::open(self));
+            self.style_windows.outline = Some(crate::ui::outline_window::OutlineWindow::open(self));
         }
     }
 
@@ -4922,9 +4921,9 @@ impl App {
 
     pub fn import(&mut self) {
         let mut all: Vec<String> = [
-            "cdr", "cdt", "cdrt", "cmx", "svg", "svgz", "pdf", "ai", "eps", "ps", "prn", "dxf",
-            "psd", "psb", "emf", "wmf", "plt", "hpgl", "hgl", "txt", "rtf", "docx", "png", "jpg",
-            "jpeg", "bmp", "gif", "webp", "tif", "tiff",
+            "cdr", "cdt", "cdrt", "cmx", "gdr", "svg", "svgz", "pdf", "ai", "eps", "ps", "prn",
+            "dxf", "psd", "psb", "emf", "wmf", "plt", "hpgl", "hgl", "txt", "rtf", "docx", "png",
+            "jpg", "jpeg", "bmp", "gif", "webp", "tif", "tiff",
         ]
         .map(String::from)
         .to_vec();
@@ -4960,7 +4959,9 @@ impl App {
                 crate::i18n::tr("file.images"),
                 &["png", "jpg", "jpeg", "bmp", "gif", "webp", "tif", "tiff"],
             )
-            .pick_file(self, |app, path| app.import_path(&path));
+            .pick_file(self, |app, path| {
+                app.import_path(&path);
+            });
     }
 
     /// Import a file into the active layer, by extension.
@@ -4976,22 +4977,22 @@ impl App {
         }
     }
 
-    pub fn import_path(&mut self, path: &std::path::Path) {
+    /// Returns whether objects were added (they are then the selection).
+    pub fn import_path(&mut self, path: &std::path::Path) -> bool {
         let before = self.selection.clone();
         self.import_path_as_in_file(path);
-        if self.settings.formats.import_place != crate::prefs::ImportPlace::ViewCenter
-            || self.selection == before
-            || self.selection.is_empty()
+        let imported = self.selection != before && !self.selection.is_empty();
+        if !imported || self.settings.formats.import_place != crate::prefs::ImportPlace::ViewCenter
         {
-            return;
+            return imported;
         }
         let Some(b) = self.selection_bounds() else {
-            return;
+            return true;
         };
         let view = self.view.visible_page_rect(self.canvas_rect).center();
         let d = view - b.center();
         if !(d.x.is_finite() && d.y.is_finite()) {
-            return;
+            return true;
         }
         // Part of the import's own undo step.
         let cmd = Command::TransformShapes {
@@ -5000,6 +5001,31 @@ impl App {
         };
         if let Err(e) = self.engine.amend(&cmd) {
             self.status = e.to_string();
+        }
+        true
+    }
+
+    /// The alert for files no reader understands, naming them. A second
+    /// call while the alert is open adds its names to it, so a drop of
+    /// several files gives one alert.
+    pub fn alert_unsupported(&mut self, names: &[String]) {
+        use crate::ui::dialogs::Dialog;
+        if names.is_empty() {
+            return;
+        }
+        let head = crate::i18n::tr("alert.unsupported_file");
+        match &mut self.dialog {
+            Dialog::Alert(text) if text.starts_with(&head) => {
+                for n in names {
+                    text.push('\n');
+                    text.push_str(n);
+                }
+            }
+            Dialog::None => {
+                self.dialog = Dialog::Alert(format!("{head}\n\n{}", names.join("\n")));
+            }
+            // Another dialog is open: say it in the status bar instead.
+            _ => self.status = format!("{head} {}", names.join(", ")),
         }
     }
 
@@ -5048,45 +5074,59 @@ impl App {
             self.import_psd(&path);
             return;
         }
+        if ext == "gdr" {
+            let doc = crate::files::read(&path)
+                .map_err(|e| e.to_string())
+                .and_then(|b| String::from_utf8(b).map_err(|e| e.to_string()))
+                .and_then(|t| graphdraw_core::Document::from_json(&t).map_err(|e| e.to_string()));
+            match doc {
+                Ok(doc) => self.import_document_shapes(&doc),
+                Err(e) => self.status = crate::i18n::trf("status.import_failed", &[("e", &e)]),
+            }
+            return;
+        }
         if ext != "cdr" && ext != "cmx" {
+            // Any other file: the bitmap reader, which knows pictures by
+            // their content, raises the unsupported-file alert.
             self.import_bitmap(&path);
             return;
         }
         match Self::open_cdr(&path) {
-            Ok((doc, _)) => {
-                let Some(layer) = self.active_layer() else {
-                    return;
-                };
-                // The imported text keeps its letters; saving the drawing
-                // carries the fonts along.
-                self.add_carried_fonts(&doc.fonts);
-                let mut cmds = Vec::new();
-                let mut ids = Vec::new();
-                for s in doc
-                    .pages
-                    .iter()
-                    .flat_map(|p| &p.layers)
-                    .flat_map(|l| &l.shapes)
-                {
-                    let id = self.engine.new_shape_id();
-                    let mut shape = reid(s.clone(), id, &mut self.engine);
-                    self.apply_import_policy(
-                        std::slice::from_mut(&mut shape),
-                        doc.cmyk_profile.as_ref(),
-                    );
-                    ids.push(id);
-                    cmds.push(Command::AddShape { layer, shape });
-                }
-                if let Err(e) = self.engine.run_batch("Import", &cmds) {
-                    self.status = e.to_string();
-                }
-                self.hyphenate_imported(&ids);
-                self.select(ids);
-            }
+            Ok((doc, _)) => self.import_document_shapes(&doc),
             Err(e) => {
                 self.status = crate::i18n::trf("status.import_failed", &[("e", &e.to_string())])
             }
         }
+    }
+
+    /// Every object of every page of `doc` into the active layer, as one
+    /// undo step, selected.
+    fn import_document_shapes(&mut self, doc: &graphdraw_core::Document) {
+        let Some(layer) = self.active_layer() else {
+            return;
+        };
+        // The imported text keeps its letters; saving the drawing
+        // carries the fonts along.
+        self.add_carried_fonts(&doc.fonts);
+        let mut cmds = Vec::new();
+        let mut ids = Vec::new();
+        for s in doc
+            .pages
+            .iter()
+            .flat_map(|p| &p.layers)
+            .flat_map(|l| &l.shapes)
+        {
+            let id = self.engine.new_shape_id();
+            let mut shape = reid(s.clone(), id, &mut self.engine);
+            self.apply_import_policy(std::slice::from_mut(&mut shape), doc.cmyk_profile.as_ref());
+            ids.push(id);
+            cmds.push(Command::AddShape { layer, shape });
+        }
+        if let Err(e) = self.engine.run_batch("Import", &cmds) {
+            self.status = e.to_string();
+        }
+        self.hyphenate_imported(&ids);
+        self.select(ids);
     }
 
     /// Read a `.cdr` file through the file layer (uploads in a browser).
@@ -6042,10 +6082,7 @@ mod tests {
         app.reset_settings();
         assert!(app.settings.shortcuts.is_empty());
         assert_eq!(app.settings.ui_size, 0.0);
-        assert_eq!(
-            app.settings.recent_files,
-            vec![PathBuf::from("/kept.gdr")]
-        );
+        assert_eq!(app.settings.recent_files, vec![PathBuf::from("/kept.gdr")]);
         assert_eq!(app.workspace, Workspace::Default);
         assert!(app.show_status_bar && app.show_page_border && app.show_dockers);
         assert_eq!(app.toolbox_last[0], crate::tools::GROUPS[0].tools[0]);

@@ -102,6 +102,7 @@ pub fn dialog_topic(d: &Dialog, options: OptionsPage) -> &'static str {
         Dialog::GithubSave(_) => "get-started/github#save",
         Dialog::GithubHistory => "get-started/github#history",
         Dialog::WebNotice => "get-started/browser-version",
+        Dialog::Alert(_) => "file-formats/supported-formats",
         Dialog::TimeTracker(_) => "customize/time-tracker",
         Dialog::Preflight(_) => "printing/preflight",
         Dialog::PublishPdf(_) => "file-formats/publish-pdf",
@@ -418,6 +419,7 @@ mod tests {
             Dialog::About,
             Dialog::GithubHistory,
             Dialog::WebNotice,
+            Dialog::Alert("x".into()),
         ]
     }
 

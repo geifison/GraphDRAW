@@ -446,10 +446,14 @@ impl App {
         let img = match crate::files::open_image(path) {
             Ok(i) => i.to_rgba8(),
             Err(e) => {
-                self.status = crate::i18n::trf(
-                    "status.could_not_read",
-                    &[("p", &path.display().to_string()), ("e", &e.to_string())],
-                );
+                // The last reader tried: a file it cannot read either is
+                // of no format GraphDraw knows.
+                log::warn!("import {}: {e}", path.display());
+                let name = path
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| path.display().to_string());
+                self.alert_unsupported(&[name]);
                 return;
             }
         };

@@ -302,6 +302,8 @@ pub enum MessageIcon {
     /// Work going on (checking for updates): a turning ring of dashes,
     /// the text in bold.
     Busy,
+    /// Something went wrong: a "!" on amber.
+    Warning,
 }
 
 /// Paint a 32 px message icon at `rect`: a blue disc with a white
@@ -313,6 +315,7 @@ fn paint_message_icon(ui: &Ui, rect: Rect, icon: MessageIcon) {
     let mark = match icon {
         MessageIcon::Question => "?",
         MessageIcon::Info => "i",
+        MessageIcon::Warning => "!",
         MessageIcon::Busy => {
             // Eight dashes; the brightest one goes round once a second.
             let t = ui.input(|i| i.time);
@@ -332,12 +335,19 @@ fn paint_message_icon(ui: &Ui, rect: Rect, icon: MessageIcon) {
             return;
         }
     };
-    p.circle_filled(c, r, Color32::from_rgb(0x1F, 0x6F, 0xC5));
-    p.circle_stroke(
-        c,
-        r - 0.5,
-        Stroke::new(1.0, Color32::from_rgb(0x14, 0x52, 0x96)),
-    );
+    let (fill, edge) = if icon == MessageIcon::Warning {
+        (
+            Color32::from_rgb(0xE0, 0x8E, 0x0B),
+            Color32::from_rgb(0xA8, 0x68, 0x05),
+        )
+    } else {
+        (
+            Color32::from_rgb(0x1F, 0x6F, 0xC5),
+            Color32::from_rgb(0x14, 0x52, 0x96),
+        )
+    };
+    p.circle_filled(c, r, fill);
+    p.circle_stroke(c, r - 0.5, Stroke::new(1.0, edge));
     p.text(
         c + Vec2::new(0.0, 0.5),
         Align2::CENTER_CENTER,

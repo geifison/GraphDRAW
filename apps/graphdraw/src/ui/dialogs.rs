@@ -82,7 +82,8 @@ impl Default for ExportState {
 }
 
 /// Where a `.cdr` file that does not open right is sent in.
-pub const CDR_ISSUE: &str = "https://github.com/geifison/GraphDRAW/issues/new?template=cdr_file.yml";
+pub const CDR_ISSUE: &str =
+    "https://github.com/geifison/GraphDRAW/issues/new?template=cdr_file.yml";
 
 pub const PDF_STANDARDS: [&str; 4] = ["PDF 1.4", "PDF/X-1a:2003", "PDF/X-3:2003", "PDF/X-4"];
 
@@ -666,6 +667,9 @@ pub enum Dialog {
     /// The browser version, each time the page opens: the same program
     /// compiled for the browser, what is slower there, the desktop app.
     WebNotice,
+    /// A warning with an OK button (a file or clipboard format no reader
+    /// understands).
+    Alert(String),
     TimeTracker(crate::ui::time_tracker::TrackerDialog),
     Preflight(crate::ui::preflight_dialog::PreflightState),
     PublishPdf(Box<crate::ui::publish_pdf::PublishState>),
@@ -1825,9 +1829,7 @@ pub fn show(app: &mut App, ctx: &Context) {
         }
         Dialog::FontManager(st) => font_manager_dialog(app, ctx, st, &mut close),
         Dialog::PaletteEditor(st) => palette_editor_dialog(app, ctx, st, &mut close),
-        Dialog::NewDocument(st) => {
-            crate::new_document_window::dialog(app, ctx, st, &mut close)
-        }
+        Dialog::NewDocument(st) => crate::new_document_window::dialog(app, ctx, st, &mut close),
         Dialog::PageNumberSettings => {
             window(ctx, tr("dialog.page_number_settings")).show(ctx, |ui| {
                 let pn = &mut app.page_numbers;
@@ -1906,6 +1908,18 @@ pub fn show(app: &mut App, ctx: &Context) {
                 }
                 Some(_) => close = true,
                 None => {}
+            }
+        }
+        Dialog::Alert(text) => {
+            if crate::ui::chrome::message_box(
+                ctx,
+                crate::ui::chrome::MessageIcon::Warning,
+                text,
+                &[&tr("dialog.ok")],
+            )
+            .is_some()
+            {
+                close = true;
             }
         }
     }
@@ -4393,11 +4407,12 @@ mod tests {
             Dialog::ColorManagement(Default::default()),
             Dialog::FontManager(FontManagerState::default()),
             Dialog::PaletteEditor(PaletteEditorState::default()),
-            Dialog::NewDocument(Box::new(
-                crate::new_document_window::NewDocWindow::open("n".into()),
-            )),
+            Dialog::NewDocument(Box::new(crate::new_document_window::NewDocWindow::open(
+                "n".into(),
+            ))),
             Dialog::About,
             Dialog::WebNotice,
+            Dialog::Alert("x".into()),
             Dialog::GithubOpen(Default::default()),
             Dialog::GithubSave(Default::default()),
         ]
