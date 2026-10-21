@@ -82,13 +82,92 @@ impl App {
         Some(graphdraw_io::svg::page_to_svg(&tmp, 0))
     }
 
-    /// Copy to the internal clipboard and, as SVG, to the system clipboard.
+    /// Copy to the internal clipboard and to the system clipboard: the
+    /// private payload, SVG, the SVG as text and a picture, as Options >
+    /// Workspace > Edit asks, leaving out the heaviest formats past the
+    /// size limit.
     pub fn copy_with_system(&mut self) {
         self.copy();
-        if let Some(svg) = self.selection_svg() {
-            write_text(&svg);
+        let shapes = self.selected_shapes();
+        if shapes.is_empty() {
+            return;
         }
+        let prefs = self.settings.clipboard.clone();
+        let doc = self.doc();
+        let native = crate::clip_native::encode(&shapes, &doc.object_styles, &doc.symbols)
+            .map_err(|e| log::warn!("clipboard payload: {e}"))
+            .ok();
+        let mut p = crate::clip_system::Publication {
+            native,
+            svg: self.selection_svg(),
+            svg_as_text: prefs.svg_as_text,
+            png: if prefs.png {
+                self.clipboard_png(prefs.png_max_side)
+            } else {
+                None
+            },
+        };
+        fit_publication(&mut p, prefs.max_publish_bytes);
+        let sequence = crate::clip_system::publish(&p);
+        self.published = Some(Published {
+            sequence,
+            svg_hash: p.svg.as_deref().map(text_hash),
+        });
     }
+
+    /// The selection as a PNG at screen resolution, smaller when its
+    /// longest side would pass `max_side` pixels.
+    fn clipboard_png(&self, max_side: u32) -> Option<Vec<u8>> {
+        let b = self.selection_bounds()?;
+        let longest_mm = b.width().max(b.height());
+        let mut dpi = 96.0;
+        if longest_mm > 0.0 {
+            dpi = f64::min(dpi, f64::from(max_side.max(1)) * 25.4 / longest_mm);
+        }
+        self.render_selection_png(dpi, true).map(|(png, ..)| png)
+    }
+}
+
+/// What a copy published, so a paste knows its own publication.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Published {
+    /// The clipboard's change counter right after publishing.
+    pub sequence: Option<u32>,
+    /// The SVG published (systems without a change counter).
+    pub svg_hash: Option<u64>,
+}
+
+pub(crate) fn text_hash(t: &str) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::hash::DefaultHasher::new();
+    t.hash(&mut h);
+    h.finish()
+}
+
+/// Leave formats out, the picture first, then the SVG text, until `p`
+/// fits in `limit` bytes; the private payload goes last.
+fn fit_publication(p: &mut crate::clip_system::Publication, limit: usize) {
+    let size = |p: &crate::clip_system::Publication| {
+        let svg = p.svg.as_ref().map_or(0, String::len);
+        p.native.as_ref().map_or(0, Vec::len)
+            + p.png.as_ref().map_or(0, Vec::len)
+            + if p.svg_as_text { svg * 3 } else { svg }
+    };
+    if size(p) > limit {
+        p.png = None;
+    }
+    if size(p) > limit {
+        p.svg_as_text = false;
+    }
+    if size(p) > limit {
+        p.svg = None;
+    }
+    if size(p) > limit {
+        p.native = None;
+    }
+}
+
+impl App {
 
     /// Paste the system clipboard's text as artistic text at the page centre.
     pub fn paste_as_text(&mut self, text: &str) {

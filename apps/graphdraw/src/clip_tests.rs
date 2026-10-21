@@ -104,3 +104,64 @@ fn gdr_files_are_imported_as_one_step() {
     ));
     assert_eq!(undo_depth(&app), steps + 1);
 }
+
+#[test]
+fn copy_publishes_native_svg_text_and_png() {
+    let mut app = app_with_selected_rect();
+    app.copy_with_system();
+    let p = crate::clip_system::fake::last_published().expect("published");
+    let back = crate::clip_native::decode(p.native.as_deref().expect("native")).expect("decodes");
+    assert_eq!(back.shapes, app.selected_shapes());
+    assert!(p.svg.as_deref().is_some_and(|s| s.contains("<svg")));
+    assert!(p.svg_as_text);
+    let png = image::load_from_memory(p.png.as_deref().expect("png")).expect("png decodes");
+    assert!(png.width().max(png.height()) <= app.settings.clipboard.png_max_side);
+    assert!(app.published.is_some());
+    assert!(app.clipboard.is_some(), "the internal copy stays");
+}
+
+#[test]
+fn big_selections_get_a_picture_no_larger_than_the_limit() {
+    let mut app = app_with_selected_rect();
+    app.settings.clipboard.png_max_side = 64;
+    app.copy_with_system();
+    let p = crate::clip_system::fake::last_published().expect("published");
+    let png = image::load_from_memory(p.png.as_deref().expect("png")).expect("png decodes");
+    assert!(png.width().max(png.height()) <= 64);
+}
+
+#[test]
+fn preferences_turn_formats_off() {
+    let mut app = app_with_selected_rect();
+    app.settings.clipboard.png = false;
+    app.settings.clipboard.svg_as_text = false;
+    app.copy_with_system();
+    let p = crate::clip_system::fake::last_published().expect("published");
+    assert!(p.png.is_none());
+    assert!(!p.svg_as_text);
+    assert!(p.native.is_some() && p.svg.is_some());
+}
+
+#[test]
+fn the_size_limit_drops_the_picture_first() {
+    let mut app = app_with_selected_rect();
+    let p_all = {
+        app.copy_with_system();
+        crate::clip_system::fake::last_published().expect("published")
+    };
+    let png_len = p_all.png.as_ref().map_or(0, Vec::len);
+    let rest =
+        p_all.native.as_ref().map_or(0, Vec::len) + 3 * p_all.svg.as_ref().map_or(0, String::len);
+    app.settings.clipboard.max_publish_bytes = rest + png_len / 2;
+    app.copy_with_system();
+    let p = crate::clip_system::fake::last_published().expect("published");
+    assert!(p.png.is_none());
+    assert!(p.native.is_some() && p.svg_as_text);
+}
+
+#[test]
+fn copying_nothing_publishes_nothing() {
+    let mut app = app();
+    app.copy_with_system();
+    assert!(app.published.is_none());
+}

@@ -268,6 +268,9 @@ pub struct Settings {
     /// Options > Global > File Formats.
     #[serde(default)]
     pub formats: crate::prefs::FormatPrefs,
+    /// Copy and paste (Options > Workspace > Edit).
+    #[serde(default)]
+    pub clipboard: crate::prefs::ClipboardPrefs,
     /// AI Drawing: the service, address, model and (when asked) the key.
     #[serde(default)]
     pub ai: crate::ai::AiPrefs,
@@ -1140,6 +1143,7 @@ impl Default for Settings {
             workspace_parts: crate::workspace_file::WorkspaceParts::default(),
             printing: Default::default(),
             formats: Default::default(),
+            clipboard: Default::default(),
             ai: Default::default(),
             ai_enabled: true,
             ai_image: None,

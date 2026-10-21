@@ -152,6 +152,45 @@ pub enum ImportPlace {
     ViewCenter,
 }
 
+/// Where Ctrl+V puts what it pastes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PastePlace {
+    /// Where the objects were when copied.
+    #[default]
+    AsCopied,
+    /// Centred in the middle of the view.
+    ViewCenter,
+}
+
+/// Options > Workspace > Edit, clipboard part: what Copy publishes for
+/// other programs and where Ctrl+V pastes.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ClipboardPrefs {
+    pub paste_place: PastePlace,
+    /// The SVG markup also as plain text (for text editors and web tools).
+    pub svg_as_text: bool,
+    /// A picture (PNG and a plain bitmap) next to the vectors.
+    pub png: bool,
+    /// The picture's longest side, pixels.
+    pub png_max_side: u32,
+    /// Formats are left out, the picture first, past this many bytes.
+    pub max_publish_bytes: usize,
+}
+
+impl Default for ClipboardPrefs {
+    fn default() -> Self {
+        ClipboardPrefs {
+            paste_place: PastePlace::AsCopied,
+            svg_as_text: true,
+            png: true,
+            png_max_side: 2048,
+            max_publish_bytes: 64 * 1024 * 1024,
+        }
+    }
+}
+
 /// Options > Global > File Formats: what File > Export starts with,
 /// where imported objects go and the `.cdr` version of new drawings.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -803,6 +803,8 @@ pub struct App {
     /// The tool each toolbox group shows: the one last used from its flyout.
     pub toolbox_last: Vec<Tool>,
     pub clipboard: Option<Clipboard>,
+    /// What the last copy put on the system clipboard, to know it again.
+    pub published: Option<crate::clipboard::Published>,
     pub duplicate_offset: Vec2,
     // Defaults for new objects (no fill, black hairline).
     pub polygon_points: u32,
@@ -1756,6 +1758,7 @@ impl App {
             flyout_open: None,
             toolbox_last: crate::tools::GROUPS.iter().map(|g| g.tools[0]).collect(),
             clipboard: None,
+            published: None,
             duplicate_offset: Vec2::new(6.35, 6.35),
             polygon_points: 5,
             star_sharpness: 0.5,
