@@ -2074,6 +2074,7 @@ fn fills_not_written_yet_go_out_as_their_mean_colour() {
                 color_b: Color::rgb8(120, 120, 120),
                 scale: 5.0,
                 seed: 1,
+                ..Default::default()
             }),
             [80, 80, 80],
         ),
@@ -2083,6 +2084,7 @@ fn fills_not_written_yet_go_out_as_their_mean_colour() {
                 front: Color::rgb8(0, 0, 0),
                 back: Color::rgb8(200, 100, 50),
                 size_mm: 5.0,
+                layout: Default::default(),
             }),
             [100, 50, 25],
         ),
@@ -2092,6 +2094,7 @@ fn fills_not_written_yet_go_out_as_their_mean_colour() {
                 width_px: 2,
                 height_px: 1,
                 size_mm: 5.0,
+                layout: Default::default(),
             }),
             [100, 0, 50],
         ),

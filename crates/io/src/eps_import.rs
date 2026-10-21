@@ -3568,6 +3568,7 @@ impl<'a> Interp<'a> {
                 (xstep.abs() * scale).max(graphdraw_core::Pattern::MIN_TILE_MM),
                 (ystep.abs() * scale).max(graphdraw_core::Pattern::MIN_TILE_MM),
             ),
+            layout: Default::default(),
         }));
     }
 

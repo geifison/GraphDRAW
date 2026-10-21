@@ -46,6 +46,7 @@ impl TransparencySettings {
                 front: Color::WHITE,
                 back: Color::BLACK,
                 size_mm: 10.0,
+                layout: Default::default(),
             }),
             3 => Fill::Texture(Texture {
                 kind: TextureKind::Clouds,
@@ -53,6 +54,7 @@ impl TransparencySettings {
                 color_b: Color::BLACK,
                 scale: 20.0,
                 seed: 1,
+                ..Default::default()
             }),
             _ => Fill::linear(Color::WHITE, Color::BLACK, angle),
         }

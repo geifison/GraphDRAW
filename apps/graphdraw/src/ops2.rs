@@ -1374,6 +1374,7 @@ impl App {
             width_px,
             height_px,
             size_mm: bounds.width().max(0.1),
+            layout: Default::default(),
         });
         self.set_default_properties(graphdraw_core::DefaultKind::Graphic, |p| p.fill = fill);
         self.status = tr("status.pattern_created");

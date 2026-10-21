@@ -23,6 +23,7 @@ pub fn page_to_svg(doc: &Document, page_index: usize) -> String {
     let _ = writeln!(out, "  <title>{}</title>", escape(&doc.title));
     // Flip Y: page space has origin bottom-left.
     let flip = Affine::new([1.0, 0.0, 0.0, -1.0, 0.0, h]);
+    PLACE.with(|p| p.set((flip, flip)));
     let mut gradient_defs = String::new();
     let mut body = String::new();
     let mut next_grad = 0usize;
@@ -56,6 +57,14 @@ pub fn page_to_svg(doc: &Document, page_index: usize) -> String {
     out.push_str(&body);
     out.push_str("</svg>\n");
     out
+}
+
+thread_local! {
+    /// Page space to output space, and the transform (to output space)
+    /// of the object being written: patterns fixed to the page and
+    /// patterns that follow their object are placed with them.
+    static PLACE: std::cell::Cell<(Affine, Affine)> =
+        const { std::cell::Cell::new((Affine::IDENTITY, Affine::IDENTITY)) };
 }
 
 /// A linked object inside a link (`<a>`) to its address; links of the
@@ -297,6 +306,7 @@ fn write_unlinked(
     let path = transform * shape.local_path();
     let d = path_data(&path);
     let bounds = path.bounding_box();
+    PLACE.with(|p| p.set((p.get().0, transform)));
 
     let mut fill_attr = format!(
         "fill=\"{}\"",
@@ -501,72 +511,11 @@ fn paint_value(
             }
             format!("url(#{id})")
         }
-        Fill::Pattern(graphdraw_core::Pattern::TwoColor {
-            tile,
-            front,
-            back,
-            size_mm,
-        }) => {
-            *next_grad += 1;
-            let id = format!("pat{}", *next_grad);
-            // Rasterize the tile at 32 px into a data URI.
-            let n = 32u32;
-            let mut rgba = Vec::with_capacity((n * n * 4) as usize);
-            for y in 0..n {
-                for x in 0..n {
-                    let u = (x as f64 + 0.5) / n as f64;
-                    let v = 1.0 - (y as f64 + 0.5) / n as f64;
-                    let c = if tile.front(u, v) { *front } else { *back };
-                    let [r, g, b] = c.to_rgb8();
-                    rgba.extend_from_slice(&[r, g, b, 255]);
-                }
-            }
-            let png = encode_png(n, n, &rgba);
-            use base64::Engine;
-            let b64 = base64::engine::general_purpose::STANDARD.encode(png);
-            let _ = writeln!(defs, "    <pattern id=\"{id}\" patternUnits=\"userSpaceOnUse\" width=\"{s}\" height=\"{s}\"><image width=\"{s}\" height=\"{s}\" href=\"data:image/png;base64,{b64}\"/></pattern>", s = fmt(*size_mm));
-            format!("url(#{id})")
-        }
-        Fill::Pattern(graphdraw_core::Pattern::Bitmap {
-            png,
-            width_px,
-            height_px,
-            size_mm,
-        }) => {
-            *next_grad += 1;
-            let id = format!("pat{}", *next_grad);
-            use base64::Engine;
-            let b64 = base64::engine::general_purpose::STANDARD.encode(png);
-            let h = size_mm * *height_px as f64 / (*width_px).max(1) as f64;
-            let _ = writeln!(defs, "    <pattern id=\"{id}\" patternUnits=\"userSpaceOnUse\" width=\"{}\" height=\"{}\"><image width=\"{}\" height=\"{}\" href=\"data:image/png;base64,{b64}\"/></pattern>", fmt(*size_mm), fmt(h), fmt(*size_mm), fmt(h));
-            format!("url(#{id})")
-        }
-        Fill::Pattern(graphdraw_core::Pattern::Vector {
-            shapes: tile_shapes,
-            tile,
-        }) => {
-            *next_grad += 1;
-            let id = format!("pat{}", *next_grad);
-            // The tile's content stays vector: its shapes are written into
-            // the pattern with the tile's own Y flip (tile space is Y up,
-            // origin bottom-left). Gradients they use land in `defs` too.
-            let tile_flip = Affine::new([1.0, 0.0, 0.0, -1.0, 0.0, tile.height]);
-            let mut inner = String::new();
-            for s in tile_shapes {
-                write_shape(s, symbols, tile_flip, &mut inner, defs, next_grad, 3);
-            }
-            let _ = writeln!(
-            defs,
-            "    <pattern id=\"{id}\" patternUnits=\"userSpaceOnUse\" width=\"{}\" height=\"{}\">\n{inner}    </pattern>",
-            fmt(tile.width),
-            fmt(tile.height)
-        );
-            format!("url(#{id})")
-        }
-        Fill::Texture(t) => {
-            // Approximate with the average of the two colours.
+        Fill::Pattern(p) => pattern_paint(p, symbols, defs, next_grad),
+        Fill::Texture(t) => texture_paint(t, bounds, defs, next_grad).unwrap_or_else(|| {
+            // Too large to become an image: the middle of its colours.
             graphdraw_core::style::lerp_color(t.color_a, t.color_b, 0.5).to_hex()
-        }
+        }),
         Fill::Mesh(m) => {
             // Average of the node colours; the renderer image path is exact.
             let n = m.nodes.len().max(1) as f32;
@@ -585,6 +534,172 @@ fn paint_value(
             .to_hex()
         }
     }
+}
+
+/// A pattern fill as an SVG `<pattern>` in `defs`, returning its paint.
+///
+/// The tile's content is written once (two colours and bitmaps as an
+/// image, vector tiles as their objects) in pattern space (Y up, origin at
+/// the tile's bottom-left corner); `patternTransform` places pattern space
+/// on the page, or with the object for tiles that follow it, with the
+/// layout's rotation and scale. Offsets and mirroring repeat a 2 by 2
+/// block of tiles drawn with `<use>`.
+fn pattern_paint(
+    p: &graphdraw_core::Pattern,
+    symbols: &[graphdraw_core::Symbol],
+    defs: &mut String,
+    next_grad: &mut usize,
+) -> String {
+    use base64::Engine;
+    use graphdraw_core::Pattern;
+    let (page_out, object_out) = PLACE.with(|c| c.get());
+    let layout = *p.layout();
+    let to_out = if layout.with_object {
+        layout.pattern_to_page(object_out)
+    } else {
+        page_out * layout.pattern_to_page(Affine::IDENTITY)
+    };
+    let size = p.tile_size();
+    let (w, h) = (size.width, size.height);
+    *next_grad += 1;
+    let id = format!("pat{}", *next_grad);
+    // An image drawn upright in the Y up tile.
+    let upright = |png: &[u8], pixelated: bool| {
+        let b64 = base64::engine::general_purpose::STANDARD.encode(png);
+        let style = if pixelated {
+            " style=\"image-rendering:pixelated\""
+        } else {
+            ""
+        };
+        format!(
+            "<image width=\"{}\" height=\"{}\" transform=\"matrix(1 0 0 -1 0 {})\" preserveAspectRatio=\"none\"{style} href=\"data:image/png;base64,{b64}\"/>",
+            fmt(w),
+            fmt(h),
+            fmt(h)
+        )
+    };
+    let content = match p {
+        Pattern::TwoColor {
+            tile, front, back, ..
+        } => {
+            // Cells: one pixel each, kept sharp; drawn tiles: at the
+            // layout's resolution.
+            let (nx, ny) = match tile {
+                graphdraw_core::PatternTile::Cells(_) => (8u32, 8u32),
+                _ => {
+                    let k = layout.safe_resolution() / 25.4 * layout.safe_scale();
+                    let px = |mm: f64| ((mm * k).round() as u32).clamp(2, 512);
+                    (px(w), px(h))
+                }
+            };
+            let mut rgba = Vec::with_capacity((nx * ny * 4) as usize);
+            for y in 0..ny {
+                for x in 0..nx {
+                    let u = (x as f64 + 0.5) / nx as f64;
+                    let v = 1.0 - (y as f64 + 0.5) / ny as f64;
+                    let c = if tile.front(u, v) { *front } else { *back };
+                    let [r, g, b] = c.to_rgb8();
+                    rgba.extend_from_slice(&[r, g, b, 255]);
+                }
+            }
+            upright(
+                &encode_png(nx, ny, &rgba),
+                matches!(tile, graphdraw_core::PatternTile::Cells(_)),
+            )
+        }
+        Pattern::Bitmap { png, .. } => upright(png, false),
+        Pattern::Vector { shapes, .. } => {
+            let mut inner = String::new();
+            for s in shapes {
+                write_shape(s, symbols, Affine::IDENTITY, &mut inner, defs, next_grad, 3);
+            }
+            inner
+        }
+    };
+    let c = to_out.as_coeffs();
+    let matrix = format!(
+        "matrix({} {} {} {} {} {})",
+        fmt(c[0]),
+        fmt(c[1]),
+        fmt(c[2]),
+        fmt(c[3]),
+        fmt(c[4]),
+        fmt(c[5])
+    );
+    if !layout.needs_super_tile() {
+        let _ = writeln!(
+            defs,
+            "    <pattern id=\"{id}\" patternUnits=\"userSpaceOnUse\" width=\"{}\" height=\"{}\" patternTransform=\"{matrix}\">\n{content}\n    </pattern>",
+            fmt(w),
+            fmt(h)
+        );
+        return format!("url(#{id})");
+    }
+    // The 2 by 2 block, as the renderer arranges it (see its pattern
+    // module): the second row moved right, the second column up, and the
+    // tiles off the diagonal mirrored.
+    let _ = writeln!(defs, "    <g id=\"{id}t\">{content}</g>");
+    let (row, col) = layout.safe_offsets();
+    let mut uses = String::new();
+    for (cx, cy) in [(0u32, 0u32), (1, 0), (0, 1), (1, 1)] {
+        let x = cx as f64 * w + if cy == 1 { row * w } else { 0.0 };
+        let y = h - cy as f64 * h + if cx == 1 { col * h } else { 0.0 };
+        let mirror = layout.mirror && (cx + cy) % 2 == 1;
+        for ox in [-2.0 * w, 0.0, 2.0 * w] {
+            for oy in [-2.0 * h, 0.0, 2.0 * h] {
+                let (x, y) = (x + ox, y + oy);
+                if x >= 2.0 * w || y >= 2.0 * h || x + w <= 0.0 || y + h <= 0.0 {
+                    continue;
+                }
+                let m = if mirror {
+                    format!("matrix(-1 0 0 1 {} {})", fmt(x + w), fmt(y))
+                } else {
+                    format!("translate({} {})", fmt(x), fmt(y))
+                };
+                let _ = writeln!(uses, "      <use href=\"#{id}t\" transform=\"{m}\"/>");
+            }
+        }
+    }
+    let _ = writeln!(
+        defs,
+        "    <pattern id=\"{id}\" patternUnits=\"userSpaceOnUse\" width=\"{}\" height=\"{}\" patternTransform=\"{matrix}\">\n{uses}    </pattern>",
+        fmt(2.0 * w),
+        fmt(2.0 * h)
+    );
+    format!("url(#{id})")
+}
+
+/// A texture as an image over `bounds` (output space) at its own
+/// resolution, in a `<pattern>` the size of the bounds. None when the
+/// image cannot be made.
+fn texture_paint(
+    t: &graphdraw_core::Texture,
+    bounds: graphdraw_core::Rect,
+    defs: &mut String,
+    next_grad: &mut usize,
+) -> Option<String> {
+    use base64::Engine;
+    let fill = Fill::Texture(t.clone());
+    // The texture follows its bounds only, so it is worked out over a box
+    // their size at the origin.
+    let local = graphdraw_core::Rect::new(0.0, 0.0, bounds.width(), bounds.height());
+    let dpi = graphdraw_render::export_fill_resolution(&fill, local);
+    let pm = graphdraw_render::render_fill_image(&fill, local, dpi)?;
+    let png = pm.encode_png().ok()?;
+    *next_grad += 1;
+    let id = format!("pat{}", *next_grad);
+    let b64 = base64::engine::general_purpose::STANDARD.encode(png);
+    let (x, y, w, h) = (
+        fmt(bounds.x0),
+        fmt(bounds.y0),
+        fmt(bounds.width()),
+        fmt(bounds.height()),
+    );
+    let _ = writeln!(
+        defs,
+        "    <pattern id=\"{id}\" patternUnits=\"userSpaceOnUse\" x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\"><image x=\"{x}\" y=\"{y}\" width=\"{w}\" height=\"{h}\" preserveAspectRatio=\"none\" href=\"data:image/png;base64,{b64}\"/></pattern>"
+    );
+    Some(format!("url(#{id})"))
 }
 
 fn fmt(v: f64) -> String {
@@ -998,6 +1113,7 @@ mod tests {
         s.fill = Fill::Pattern(graphdraw_core::Pattern::Vector {
             shapes: vec![tile_square],
             tile: graphdraw_core::geometry::Size::new(10.0, 10.0),
+            layout: Default::default(),
         });
         s.stroke = None;
         doc.layer_mut(layer).unwrap().shapes.push(s);
@@ -1006,11 +1122,12 @@ mod tests {
         let end = svg[start..].find("</pattern>").expect("pattern end") + start;
         let pattern = &svg[start..end];
         assert!(pattern.contains("patternUnits=\"userSpaceOnUse\" width=\"10\" height=\"10\""));
-        // The tile content is a vector path, not an image, flipped into the
-        // tile's top-down space (y 0..5 becomes 5..10).
+        // The tile content is a vector path, not an image, in the tile's
+        // own y-up space: the pattern transform turns it onto the page.
         assert!(pattern.contains("<path id=\"7\""), "{pattern}");
         assert!(pattern.contains("fill=\"#ff0000\""), "{pattern}");
-        assert!(pattern.contains("M0 10L5 10L5 5L0 5Z"), "{pattern}");
+        assert!(pattern.contains("M0 0L5 0L5 5L0 5Z"), "{pattern}");
+        assert!(pattern.contains("patternTransform=\"matrix(1 0 0 -1 0 297)\""), "{pattern}");
         assert!(!pattern.contains("<image"));
         assert!(svg.contains("fill=\"url(#pat1)\""));
     }
@@ -1051,20 +1168,22 @@ mod tests {
             front: red,
             back: blue,
             size_mm: 5.0,
+            layout: Default::default(),
         })));
         let svg = one_shape_svg(Fill::None, Some(st.clone()));
         assert!(svg.contains("stroke=\"url(#pat1)\""), "{svg}");
-        // A texture outline: a colour between its two, still an outline.
+        // A texture outline strokes with its picture, as a pattern.
         st.fill = Some(Box::new(Fill::Texture(graphdraw_core::Texture {
             kind: graphdraw_core::TextureKind::Clouds,
             color_a: red,
             color_b: blue,
             scale: 5.0,
             seed: 1,
+            ..Default::default()
         })));
         let svg = one_shape_svg(Fill::None, Some(st.clone()));
         assert!(
-            svg.contains("stroke=\"#800080\" stroke-width=\"2\""),
+            svg.contains("stroke=\"url(#pat1)\" stroke-width=\"2\""),
             "{svg}"
         );
         // A calligraphic band takes the paint as its fill.

@@ -530,6 +530,7 @@ impl App {
                     width_px: img.width(),
                     height_px: img.height(),
                     size_mm: size.width.max(size.height),
+                    layout: Default::default(),
                 },
             )),
         });

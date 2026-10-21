@@ -2416,6 +2416,7 @@ fn interactive_fill_bar(app: &mut App, ui: &mut Ui, shapes: &[graphdraw_core::do
                     front: base,
                     back: graphdraw_core::Color::WHITE,
                     size_mm: 10.0,
+                    layout: Default::default(),
                 }),
                 4 => Fill::Texture(graphdraw_core::style::Texture {
                     kind: graphdraw_core::style::TextureKind::Clouds,
@@ -2423,6 +2424,7 @@ fn interactive_fill_bar(app: &mut App, ui: &mut Ui, shapes: &[graphdraw_core::do
                     color_b: graphdraw_core::Color::WHITE,
                     scale: 20.0,
                     seed: 1,
+                    ..Default::default()
                 }),
                 _ => Fill::Mesh(graphdraw_core::Mesh::new(
                     shapes

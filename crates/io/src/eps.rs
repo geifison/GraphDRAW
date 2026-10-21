@@ -411,9 +411,12 @@ impl Writer<'_> {
             }
             other @ (Fill::Pattern(_) | Fill::Texture(_) | Fill::Mesh(_)) => {
                 // Patterns, textures and meshes: rasterised by the renderer
-                // over the bounds and clipped by the path, so the file shows
-                // the same pixels as the screen. Average colour if that fails.
-                match graphdraw_render::render_fill_image(other, bounds, 150.0) {
+                // over the bounds (patterns and textures at their own
+                // resolution, placed with the object when they follow it)
+                // and clipped by the path, so the file shows the same pixels
+                // as the screen. Average colour if that fails.
+                let dpi = graphdraw_render::export_fill_resolution(other, bounds);
+                match graphdraw_render::render_fill_image_placed(other, bounds, transform, dpi) {
                     Some(pm) => {
                         let _ = writeln!(self.out, "gsave");
                         self.path_ops(&path);
@@ -646,6 +649,7 @@ mod tests {
         s.fill = Fill::Pattern(graphdraw_core::Pattern::Vector {
             shapes: vec![tile_square],
             tile: graphdraw_core::geometry::Size::new(10.0, 10.0),
+            layout: Default::default(),
         });
         s.stroke = None;
         doc.layer_mut(layer).unwrap().shapes.push(s);

@@ -336,6 +336,9 @@ struct PageWriter<'a> {
     /// The drawing's spot inks, and the colour spaces this page uses.
     inks: &'a [graphdraw_core::document::Ink],
     spaces: Vec<(String, usize)>,
+    /// The transform of the object being painted (patterns that follow
+    /// their object are placed with it).
+    fill_object: Affine,
 }
 
 /// A PDF name: `#xx` for bytes outside `!` to `~` and for delimiters.
@@ -506,7 +509,7 @@ impl PageWriter<'_> {
                 } else {
                     bounds
                 };
-                if let Some((png, w, h)) = rasterise_fill(fill, path, bounds) {
+                if let Some((png, w, h)) = rasterise_fill(fill, path, bounds, self.fill_object) {
                     if let Some(rgb) = decode_png_rgb(&png) {
                         let name = format!("Im{}", self.images.len());
                         let id = self.pdf.add_image(w, h, &rgb);
@@ -718,6 +721,7 @@ impl PageWriter<'_> {
         // (the fill alpha only; the object's opacity times the fill's, as
         // the state replaces the one above).
         let text = matches!(shape.kind, ShapeKind::Text { .. });
+        self.fill_object = transform;
         let fill_alpha = if shape.fill_opacity.is_nan() {
             1.0
         } else {
@@ -916,15 +920,21 @@ fn outline_paint(s: &graphdraw_core::Stroke, transform: Affine) -> Option<Fill> 
 }
 
 /// Rasterise a pattern, texture, mesh or shaped gradient fill over
-/// `bounds` at 150 dpi (a shaped gradient follows `path`).
+/// `bounds`: gradients at 150 dpi (a shaped gradient follows `path`),
+/// patterns and textures at their own resolution, placed with `object`
+/// (the transform of the object they fill) when they follow it.
 fn rasterise_fill(
     fill: &Fill,
     path: &graphdraw_core::BezPath,
     bounds: graphdraw_core::geometry::Rect,
+    object: Affine,
 ) -> Option<(Vec<u8>, u32, u32)> {
     let pm = match fill {
         Fill::Fountain(_) => graphdraw_render::render_fill_image_in(fill, path, 150.0)?,
-        _ => graphdraw_render::render_fill_image(fill, bounds, 150.0)?,
+        _ => {
+            let dpi = graphdraw_render::export_fill_resolution(fill, bounds);
+            graphdraw_render::render_fill_image_placed(fill, bounds, object, dpi)?
+        }
     };
     let (w, h) = (pm.width(), pm.height());
     Some((pm.encode_png().ok()?, w, h))
@@ -1227,6 +1237,7 @@ pub fn document_to_pdf_with(doc: &Document, opts: &PdfOptions) -> Vec<u8> {
             symbols: &doc.symbols,
             inks: &doc.inks,
             spaces: Vec::new(),
+            fill_object: Affine::IDENTITY,
         };
         if let Some(bg) = &page.background {
             let mut bg_shape = Shape::new(
@@ -1697,6 +1708,7 @@ mod tests {
             color_b: blue,
             scale: 4.0,
             seed: 2,
+            ..Default::default()
         })));
         let text = one_rect_pdf(Fill::None, Some(st.clone()));
         assert!(text.contains("/Subtype /Image"), "{text}");
@@ -1723,6 +1735,7 @@ mod tests {
             front: Color::BLACK,
             back: Color::WHITE,
             size_mm: 5.0,
+            layout: Default::default(),
         });
         s.stroke = Some(graphdraw_core::Stroke {
             end_arrow: graphdraw_core::Arrowhead::Arrow,
@@ -1760,6 +1773,7 @@ mod tests {
         s.fill = Fill::Pattern(graphdraw_core::Pattern::Vector {
             shapes: vec![tile_square],
             tile: graphdraw_core::geometry::Size::new(10.0, 10.0),
+            layout: Default::default(),
         });
         s.stroke = None;
         doc.layer_mut(layer).unwrap().shapes.push(s);

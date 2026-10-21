@@ -964,6 +964,7 @@ impl<'a> Ctx<'a> {
         Some(Fill::Pattern(graphdraw_core::style::Pattern::Vector {
             shapes,
             tile,
+            layout: Default::default(),
         }))
     }
 
@@ -1189,6 +1190,7 @@ impl<'a> Ctx<'a> {
                     color_b: Color::rgb8(90, 90, 90),
                     scale: size_mm,
                     seed: pattern_id,
+                    ..Default::default()
                 }));
             }
             self.report.warn(format!(
@@ -1206,6 +1208,7 @@ impl<'a> Ctx<'a> {
             width_px: bm.width_px,
             height_px: bm.height_px,
             size_mm,
+            layout: Default::default(),
         }))
     }
 
@@ -1254,6 +1257,7 @@ impl<'a> Ctx<'a> {
                 width_px: tile.width,
                 height_px: tile.height,
                 size_mm,
+                layout: Default::default(),
             }));
         }
         self.report.warn(format!(
@@ -1264,6 +1268,7 @@ impl<'a> Ctx<'a> {
             front,
             back,
             size_mm,
+            layout: Default::default(),
         }))
     }
 
@@ -2401,6 +2406,7 @@ impl<'a> Ctx<'a> {
                 width_px: tile.width,
                 height_px: tile.height,
                 size_mm,
+                layout: Default::default(),
             });
         }
         self.report
@@ -2410,6 +2416,7 @@ impl<'a> Ctx<'a> {
             front,
             back,
             size_mm,
+            layout: Default::default(),
         })
     }
 
@@ -2434,6 +2441,7 @@ impl<'a> Ctx<'a> {
             front: Color::cmyk_pct(0.0, 0.0, 0.0, 40.0),
             back: Color::cmyk_pct(0.0, 0.0, 0.0, 0.0),
             size_mm: 4.0,
+            layout: Default::default(),
         })
     }
 
@@ -4841,7 +4849,7 @@ mod tests {
         let mut ctx = Ctx::new(&main, &tree, 18);
         ctx.vector_patterns.insert(12, &drawing);
         ctx.read_fill(tree.root.find(b"fild").unwrap());
-        let Fill::Pattern(graphdraw_core::style::Pattern::Vector { shapes, tile }) =
+        let Fill::Pattern(graphdraw_core::style::Pattern::Vector { shapes, tile, .. }) =
             &ctx.fills[&5].fill
         else {
             panic!("{:?}", ctx.fills[&5].fill)
@@ -7454,6 +7462,7 @@ mod tests {
                 height_px,
                 size_mm,
                 png,
+                ..
             }) => {
                 assert_eq!((*width_px, *height_px), (2, 2));
                 assert!((size_mm - 25.4).abs() < 1e-9);

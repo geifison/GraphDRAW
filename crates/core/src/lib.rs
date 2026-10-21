@@ -55,6 +55,7 @@ pub use style::{
     LineJoin,
     Mesh, MeshNode, Pattern, PatternTile, Stop, Stroke, Texture, TextureKind, WidthNode,
 };
+pub use style::TileLayout;
 pub use text_flow::{TextWrap, WrapMode, WrapSide};
 
 /// Convenience result type for the core crate.

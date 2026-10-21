@@ -34,7 +34,8 @@ selected).
 | Presets | The 29 built-in gradients |
 | Matrix | Angle with dial (Shift: 15 degree steps) for linear, conical and square; centre X and Y (-100..100%) for radial, conical and square; repeat mirrored or plain with the cycle count; edge pad (0..49%); bilinear; invert colours; Reverse (the first node goes to the end) |
 | Patterns | Vector: "Use copied objects" makes the tile from the clipboard (Ctrl+C); Bitmap: "Choose image..."; Two colours: 8 tiles, front and back colours; tile width (and height for vector tiles) |
-| Texture | Clouds, Marble, Wood, Noise; seed with Shuffle; noise scale (mm); front and back colours |
+| Texture | Clouds, Marble, Wood, Noise, Granite; seed with Shuffle; noise scale (mm); detail (1..8 layers), contrast, resolution (ppi); front and back colours |
+| Tile layout | Every pattern: scale, rotation, resolution (bitmap and two colours), row and column offsets, mirror alternate tiles, transform with object (off: fixed to the page); two-colour cells clickable (a built-in tile becomes Custom) |
 | Samples | New fill above the original one, over a chequerboard |
 
 ## Outline Pen
@@ -58,10 +59,6 @@ object only the settings changed in the window.
 ## Next step
 
 Shown dimmed with the tip "comes in the next step", because the drawing
-does not keep these settings yet: outline transparency, gradient
-node transparency and midpoints, steps, blending around the colour wheel,
-smoothing, size, the elliptical type, editable two-colour cells, tile
-scale, rotation, resolution, offsets, mirroring and "transform with
-object", texture detail, contrast and granite, how dashes go through
+does not keep these settings yet: outline transparency, how dashes go through
 corners, the miter limit, the outline position, and the arrowheads' size,
 rotation, mirror and offset.
