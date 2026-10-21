@@ -423,12 +423,44 @@ São rasterizados com resvg no tamanho exato em pixels físicos (grades de
 | `outlinewin.pos_inside_tip` | `pos-inside.svg` | idem |
 | `outlinewin.behind_fill_tip` | `behind-fill.svg` | atrás do preenchimento |
 | `outlinewin.scale_tip` | `scale-stroke.svg` | escalar com o objeto |
+| `toolbar.path_rotate` | `tp-rotate.svg` | texto em caminho: letras giradas |
+| `toolbar.path_upright` | `tp-upright.svg` | letras de pé |
+| `toolbar.path_vertical_skew` | `tp-skew-v.svg` | perspectiva pelas verticais |
+| `toolbar.path_horizontal_skew` | `tp-skew-h.svg` | perspectiva pelas horizontais |
+| `toolbar.path_warp` | `tp-warp.svg` | deformar |
+| `toolbar.path_on_baseline` | `tpv-baseline.svg` | traço na linha de base |
+| `toolbar.path_on_descender` | `tpv-descender.svg` | traço nas descendentes |
+| `toolbar.path_on_xheight` | `tpv-xheight.svg` | traço na altura-x |
+| `toolbar.path_on_cap` | `tpv-cap.svg` | traço na altura das maiúsculas |
+| `toolbar.path_on_center` | `tpv-center.svg` | traço no centro das letras |
+| `toolbar.path_on_ascender` | `tpv-cap.svg` | sem desenho próprio: o mais perto, o topo das maiúsculas |
+| `toolbar.path_place_left` | `text-left.svg` | início do caminho |
+| `toolbar.path_place_center` | `text-center.svg` | centro do caminho |
+| `toolbar.path_place_right` | `text-right.svg` | fim do caminho |
+| `toolbar.path_place_justify` | `text-justify.svg` | justificar no caminho |
+| `toolbar.path_mirror_h` | `tp-reverse.svg` | espelhar na horizontal (inverte a leitura no lugar) |
+| `toolbar.path_mirror_v` | `tp-flip-side.svg` | espelhar na vertical (outro lado do traço); também a seta dupla na tela |
+| `toolbar.path_offset` | `tp-offset-x.svg` | deslocar ao longo (ícone arrastável) |
+| `toolbar.path_distance` | `tp-offset-y.svg` | distância do traço |
+| `toolbar.path_corner_jump` | `tp-corner-jump.svg` | cantos: pular |
+| `toolbar.path_corner_wrap` | `tp-corner-wrap.svg` | cantos: dobrar |
+| `toolbar.path_corner_split` | `tp-corner-split.svg` | cantos: partes iguais por face |
+| `toolbar.path_relax` | `tp-relax.svg` | anticolisão |
+| `toolbar.letter_spacing` | `tp-tracking.svg` | espaçamento entre letras (ícone arrastável) |
+| `toolbar.path_badge` | `tp-badge.svg` | selo superior e inferior |
+| `toolbar.path_construction` | `tp-construction.svg` | traço como construção |
+| `toolbar.path_unlink` | `tp-unlink.svg` | desvincular |
+| `toolbar.path_straighten` | `tp-straighten.svg` | endireitar (o mesmo de `Pic::StraightenText`) |
+| `context.put_text_on_path` | `text-path.svg` | o mesmo de Ajustar texto ao caminho |
+| `context.reactivate_text_path` | `text-path.svg` | idem |
+| `drop.fit_to_path` | `text-path.svg` | idem, no menu do arrasto direito |
+| `status.click_text_path` | `cur-pick-path.svg` | cursor de Ajustar texto ao caminho esperando a guia |
 
 ## SVGs sem comando na base
 
-85 dos 283 desenhos de 20 px não têm comando equivalente na base (ou o comando parecido tem outro sentido) e não são embutidos no programa. Ficam em `assets/icons` para quando o comando existir. As versões de 16 px (`assets/icons/16/`) embutidas são as de `eye-off`, `lock-off` e `lock-on`.
+63 dos 283 desenhos de 20 px não têm comando equivalente na base (ou o comando parecido tem outro sentido) e não são embutidos no programa. Ficam em `assets/icons` para quando o comando existir. As versões de 16 px (`assets/icons/16/`) embutidas são as de `eye-off`, `lock-off` e `lock-on`.
 
-`bar-grip`, `bar-more`, `bar-overflow`, `bleed`, `bool-divide`, `bool-exclude`, `cur-grab`, `cur-pan`, `cur-pick-path`, `cur-rotate`, `cur-select`, `cur-select-pick`, `cur-shape`, `cur-zoom`, `cut-line`, `doc`, `export-selection`, `eye-on`, `fill-pattern`, `focus`, `guide-object`, `history`, `image-frame`, `layer-add`, `layer-move-to`, `nest`, `node-align-h`, `node-align-v`, `nudge-big`, `offset`, `page-grid`, `page-list`, `palette`, `panel-collapse`, `panel-expand`, `panel-undock`, `path-open`, `print-off`, `print-on`, `reg-marks`, `report`, `rotate-ccw`, `scale-xy`, `select-invert`, `select-same`, `snap`, `stroke-none`, `styles`, `text-all-caps`, `text-all-small-caps`, `text-bigger`, `text-bold`, `text-cap-spacing`, `text-frame`, `text-italic`, `text-path-detach`, `text-sample`, `text-small-caps`, `text-smaller`, `tool-artboard`, `tp-badge`, `tp-construction`, `tp-corner-jump`, `tp-corner-split`, `tp-corner-wrap`, `tp-flip-side`, `tp-offset-x`, `tp-offset-y`, `tp-range`, `tp-relax`, `tp-reverse`, `tp-rotate`, `tp-skew-h`, `tp-skew-v`, `tp-tracking`, `tp-unlink`, `tp-upright`, `tp-warp`, `tpv-baseline`, `tpv-cap`, `tpv-center`, `tpv-descender`, `tpv-xheight`, `wireframe`, `zoom-actual`
+`bar-grip`, `bar-more`, `bar-overflow`, `bleed`, `bool-divide`, `bool-exclude`, `cur-grab`, `cur-pan`, `cur-pick-path`, `cur-rotate`, `cur-select`, `cur-select-pick`, `cur-shape`, `cur-zoom`, `cut-line`, `doc`, `export-selection`, `eye-on`, `fill-pattern`, `focus`, `guide-object`, `history`, `image-frame`, `layer-add`, `layer-move-to`, `nest`, `node-align-h`, `node-align-v`, `nudge-big`, `offset`, `page-grid`, `page-list`, `palette`, `panel-collapse`, `panel-expand`, `panel-undock`, `path-open`, `print-off`, `print-on`, `reg-marks`, `report`, `rotate-ccw`, `scale-xy`, `select-invert`, `select-same`, `snap`, `stroke-none`, `styles`, `text-all-caps`, `text-all-small-caps`, `text-bigger`, `text-bold`, `text-cap-spacing`, `text-frame`, `text-italic`, `text-path-detach`, `text-sample`, `text-small-caps`, `text-smaller`, `tool-artboard`, `tp-range`, `wireframe`, `zoom-actual`
 
 ## Casos duvidosos
 

@@ -62,6 +62,8 @@ impl Default for AttrGroups {
 #[derive(Clone, Debug, PartialEq)]
 pub struct SampledAttrs {
     pub fill: Fill,
+    /// The fill's own transparency, copied with the fill.
+    pub fill_opacity: f64,
     pub stroke: Option<Stroke>,
     pub text: Option<TextSpan>,
     pub width: f64,
@@ -379,10 +381,16 @@ pub fn fountain_t(f: &Fountain, b: Rect, p: Point) -> Option<f64> {
             let start = c - dir * half;
             Some((p - start).dot(dir) / (2.0 * half))
         }
-        FountainKind::Radial | FountainKind::Elliptical => {
+        FountainKind::Radial => {
             let cr = Point::new(c.x + f.offset.x * w / 2.0, c.y + f.offset.y * h / 2.0);
             let radius = (w.max(h) / 2.0) * std::f64::consts::SQRT_2;
             (radius > 0.0).then(|| (p - cr).hypot() / radius)
+        }
+        FountainKind::Elliptical => {
+            if w <= 0.0 || h <= 0.0 {
+                return Some(0.0);
+            }
+            Some(f.raw_param_uv((p.x - b.x0) / w, (p.y - b.y0) / h, w, h))
         }
         FountainKind::Conical | FountainKind::Square => {
             if w <= 0.0 || h <= 0.0 {
@@ -440,10 +448,13 @@ pub fn stop_points(f: &Fountain, b: Rect) -> Vec<(usize, Point)> {
                 let half = (w * a.cos().abs() + h * a.sin().abs()) / 2.0;
                 Some(c - dir * half + dir * (2.0 * half * t))
             }
-            FountainKind::Radial | FountainKind::Elliptical => {
+            FountainKind::Radial => {
                 let cr = Point::new(c.x + f.offset.x * w / 2.0, c.y + f.offset.y * h / 2.0);
                 let radius = (w.max(h) / 2.0) * std::f64::consts::SQRT_2;
                 Some(Point::new(cr.x + radius * t, cr.y))
+            }
+            FountainKind::Elliptical => {
+                graphdraw_core::gradient::axis(f, b).map(|(a, z)| a + (z - a) * t)
             }
             FountainKind::Square => {
                 let u = 0.5 + f.offset.x / 2.0 + t / 2.0;
@@ -825,6 +836,7 @@ impl App {
         };
         Some(SampledAttrs {
             fill: s.fill.clone(),
+            fill_opacity: s.fill_opacity,
             stroke: s.stroke.clone(),
             text,
             width: b.width(),
@@ -870,6 +882,10 @@ impl App {
             cmds.push(Command::SetFill {
                 shapes: shapes.clone(),
                 fill: a.fill.clone(),
+            });
+            cmds.push(Command::SetFillOpacity {
+                shapes: shapes.clone(),
+                opacity: a.fill_opacity,
             });
         }
         if g.outline && !bitmap {

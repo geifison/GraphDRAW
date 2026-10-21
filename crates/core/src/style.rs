@@ -471,7 +471,8 @@ pub fn lerp_color(a: Color, b: Color, t: f32) -> Color {
     Color::rgb8(l(r1, r2), l(g1, g2), l(b1, b2))
 }
 
-/// Built-in two-colour pattern tiles (the two-colour pattern fill).
+/// Two-colour pattern tiles (the two-colour pattern fill): the built-in
+/// drawings, or a grid of cells the user set one by one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum PatternTile {
@@ -484,6 +485,10 @@ pub enum PatternTile {
     Bricks,
     Crosshatch,
     Waves,
+    /// [`PatternTile::CELLS`] by [`PatternTile::CELLS`] cells, one byte per
+    /// row from the top; in each byte the highest bit is the left cell and
+    /// a set bit is the front colour.
+    Cells([u8; 8]),
 }
 
 impl PatternTile {
@@ -508,12 +513,64 @@ impl PatternTile {
             PatternTile::Bricks => "Bricks",
             PatternTile::Crosshatch => "Crosshatch",
             PatternTile::Waves => "Waves",
+            PatternTile::Cells(_) => "Cells",
         }
+    }
+
+    /// Cells on each side of an editable tile.
+    pub const CELLS: usize = 8;
+
+    /// The tile as cells (row 0 at the top): a built-in drawing sampled
+    /// at each cell's centre, or the cells themselves.
+    pub fn cells(self) -> [u8; 8] {
+        if let PatternTile::Cells(rows) = self {
+            return rows;
+        }
+        let n = Self::CELLS as f64;
+        let mut rows = [0u8; 8];
+        for (y, row) in rows.iter_mut().enumerate() {
+            for x in 0..Self::CELLS {
+                let u = (x as f64 + 0.5) / n;
+                let v = 1.0 - (y as f64 + 0.5) / n;
+                if self.front(u, v) {
+                    *row |= 0x80 >> x;
+                }
+            }
+        }
+        rows
+    }
+
+    /// Is the cell in column `x`, row `y` (from the top) the front colour?
+    /// Cells outside the grid are the back colour.
+    pub fn cell(self, x: usize, y: usize) -> bool {
+        x < Self::CELLS && self.cells().get(y).is_some_and(|r| r & (0x80 >> x) != 0)
+    }
+
+    /// The tile with the cell in column `x`, row `y` swapped between front
+    /// and back; a built-in drawing becomes cells first. A cell outside
+    /// the grid leaves the tile as it is.
+    pub fn toggled(self, x: usize, y: usize) -> PatternTile {
+        if x >= Self::CELLS || y >= Self::CELLS {
+            return self;
+        }
+        let mut rows = self.cells();
+        if let Some(r) = rows.get_mut(y) {
+            *r ^= 0x80 >> x;
+        }
+        PatternTile::Cells(rows)
     }
 
     /// Is the tile pixel at (u, v) in 0..1 "front" (true) or "back" colour?
     pub fn front(self, u: f64, v: f64) -> bool {
         match self {
+            PatternTile::Cells(rows) => {
+                let n = Self::CELLS as f64;
+                let x = (u.rem_euclid(1.0) * n).floor() as usize;
+                let y = ((1.0 - v.rem_euclid(1.0)) * n).floor() as usize;
+                let x = x.min(Self::CELLS - 1);
+                let y = y.min(Self::CELLS - 1);
+                rows.get(y).is_some_and(|r| r & (0x80 >> x) != 0)
+            }
             PatternTile::Checker => (u < 0.5) == (v < 0.5),
             PatternTile::Dots => ((u - 0.5).powi(2) + (v - 0.5).powi(2)).sqrt() < 0.3,
             PatternTile::Stripes => v < 0.5,
@@ -532,6 +589,121 @@ impl PatternTile {
     }
 }
 
+/// How a pattern's tile repeats: its scale and rotation, the offset of
+/// every other row or column, mirrored neighbours, and whether the tiles
+/// follow the object or stay put on the page.
+///
+/// Pattern space has its origin at the page origin (or, with
+/// `with_object`, at the object's own origin), Y up, in millimetres. A
+/// point `p` of the tile grid lands on the page at
+/// `object * rotate(rotation) * scale(scale) * p`, where `object` is the
+/// object's transform with `with_object` and the identity without it.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct TileLayout {
+    /// Size factor of the tile (1 = 100 %), kept in
+    /// [`TileLayout::MIN_SCALE`]..=[`TileLayout::MAX_SCALE`].
+    pub scale: f64,
+    /// Degrees, counter-clockwise.
+    pub rotation: f64,
+    /// Every other row moves right by this fraction of the tile width (0..1).
+    pub row_offset: f64,
+    /// Every other column moves up by this fraction of the tile height (0..1).
+    pub column_offset: f64,
+    /// Every other tile (as the squares of a chequerboard) is mirrored left
+    /// to right.
+    pub mirror: bool,
+    /// The tiles follow the object's moves, scaling and rotation; off,
+    /// they stay fixed to the page and the object shows them through.
+    pub with_object: bool,
+    /// Pixels per inch when the pattern becomes an image (PDF and
+    /// PostScript exports, SVG for two-colour tiles).
+    pub resolution: f64,
+}
+
+impl Default for TileLayout {
+    fn default() -> Self {
+        TileLayout {
+            scale: 1.0,
+            rotation: 0.0,
+            row_offset: 0.0,
+            column_offset: 0.0,
+            mirror: false,
+            with_object: false,
+            resolution: TileLayout::DEFAULT_RESOLUTION,
+        }
+    }
+}
+
+impl TileLayout {
+    pub const MIN_SCALE: f64 = 0.01;
+    pub const MAX_SCALE: f64 = 100.0;
+    /// The resolution exports used before it could be set.
+    pub const DEFAULT_RESOLUTION: f64 = 150.0;
+    pub const MIN_RESOLUTION: f64 = 30.0;
+    pub const MAX_RESOLUTION: f64 = 1200.0;
+
+    pub fn is_default(&self) -> bool {
+        *self == TileLayout::default()
+    }
+
+    /// The scale, made safe: finite and within the limits.
+    pub fn safe_scale(&self) -> f64 {
+        if self.scale.is_finite() {
+            self.scale.clamp(Self::MIN_SCALE, Self::MAX_SCALE)
+        } else {
+            1.0
+        }
+    }
+
+    /// The row and column offsets, made safe: fractions in 0..1.
+    pub fn safe_offsets(&self) -> (f64, f64) {
+        let f = |v: f64| {
+            if v.is_finite() {
+                v.rem_euclid(1.0)
+            } else {
+                0.0
+            }
+        };
+        (f(self.row_offset), f(self.column_offset))
+    }
+
+    /// The resolution, made safe.
+    pub fn safe_resolution(&self) -> f64 {
+        safe_resolution(self.resolution)
+    }
+
+    /// Do the tiles need the 2 by 2 arrangement (offsets or mirroring)?
+    pub fn needs_super_tile(&self) -> bool {
+        let (r, c) = self.safe_offsets();
+        self.mirror || r > 1e-9 || c > 1e-9
+    }
+
+    /// Pattern space to page space for an object with `object` as its
+    /// transform (see the type's documentation).
+    pub fn pattern_to_page(&self, object: Affine) -> Affine {
+        let rotation = if self.rotation.is_finite() {
+            self.rotation.to_radians()
+        } else {
+            0.0
+        };
+        let own = Affine::rotate(rotation) * Affine::scale(self.safe_scale());
+        if self.with_object {
+            object * own
+        } else {
+            own
+        }
+    }
+}
+
+fn safe_resolution(ppi: f64) -> f64 {
+    if ppi.is_finite() {
+        ppi.clamp(TileLayout::MIN_RESOLUTION, TileLayout::MAX_RESOLUTION)
+    } else {
+        TileLayout::DEFAULT_RESOLUTION
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "pattern", rename_all = "lowercase")]
 pub enum Pattern {
@@ -540,6 +712,8 @@ pub enum Pattern {
         front: Color,
         back: Color,
         size_mm: f64,
+        #[serde(default, skip_serializing_if = "TileLayout::is_default")]
+        layout: TileLayout,
     },
     /// Tiled PNG, `size_mm` is the tile width; height follows the aspect ratio.
     Bitmap {
@@ -548,20 +722,66 @@ pub enum Pattern {
         width_px: u32,
         height_px: u32,
         size_mm: f64,
+        #[serde(default, skip_serializing_if = "TileLayout::is_default")]
+        layout: TileLayout,
     },
     /// Full-colour vector tile (the vector pattern fill):
     /// `shapes` are in tile-local coordinates, origin at the bottom-left
     /// corner of the tile, Y up, and the tile repeats every `tile.width` by
     /// `tile.height` millimetres. The shapes carry their own transforms,
-    /// fills and outlines; there is no extra pattern transform.
+    /// fills and outlines; `layout` places the tile grid.
     Vector {
         #[serde(default)]
         shapes: Vec<crate::document::Shape>,
         tile: Size,
+        #[serde(default, skip_serializing_if = "TileLayout::is_default")]
+        layout: TileLayout,
     },
 }
 
 impl Pattern {
+    /// How the tile repeats.
+    pub fn layout(&self) -> &TileLayout {
+        match self {
+            Pattern::TwoColor { layout, .. }
+            | Pattern::Bitmap { layout, .. }
+            | Pattern::Vector { layout, .. } => layout,
+        }
+    }
+
+    pub fn layout_mut(&mut self) -> &mut TileLayout {
+        match self {
+            Pattern::TwoColor { layout, .. }
+            | Pattern::Bitmap { layout, .. }
+            | Pattern::Vector { layout, .. } => layout,
+        }
+    }
+
+    /// The tile's size in pattern space (mm), before the layout's scale:
+    /// at least [`Pattern::MIN_TILE_MM`] each way, finite.
+    pub fn tile_size(&self) -> Size {
+        let safe = |v: f64| {
+            if v.is_finite() {
+                v.abs().max(Self::MIN_TILE_MM)
+            } else {
+                10.0
+            }
+        };
+        match self {
+            Pattern::TwoColor { size_mm, .. } => Size::new(safe(*size_mm), safe(*size_mm)),
+            Pattern::Bitmap {
+                width_px,
+                height_px,
+                size_mm,
+                ..
+            } => {
+                let w = safe(*size_mm);
+                Size::new(w, safe(w * *height_px as f64 / (*width_px).max(1) as f64))
+            }
+            Pattern::Vector { tile, .. } => Size::new(safe(tile.width), safe(tile.height)),
+        }
+    }
+
     /// Smallest tile edge, in mm, so a degenerate selection still tiles.
     pub const MIN_TILE_MM: f64 = 0.01;
 
@@ -596,6 +816,7 @@ impl Pattern {
                 bounds.width().max(Self::MIN_TILE_MM),
                 bounds.height().max(Self::MIN_TILE_MM),
             ),
+            layout: TileLayout::default(),
         }
     }
 }
@@ -609,14 +830,18 @@ pub enum TextureKind {
     Marble,
     Noise,
     Wood,
+    /// Speckled stone: folded noise (the distance of each octave from its
+    /// middle), so fine bright and dark grains sit side by side.
+    Granite,
 }
 
 impl TextureKind {
-    pub const ALL: [TextureKind; 4] = [
+    pub const ALL: [TextureKind; 5] = [
         TextureKind::Clouds,
         TextureKind::Marble,
         TextureKind::Noise,
         TextureKind::Wood,
+        TextureKind::Granite,
     ];
     pub fn name(self) -> &'static str {
         match self {
@@ -624,7 +849,14 @@ impl TextureKind {
             TextureKind::Marble => "Marble",
             TextureKind::Noise => "Noise",
             TextureKind::Wood => "Wood",
+            TextureKind::Granite => "Granite",
         }
+    }
+
+    /// Does the detail (the octaves of noise) change this kind? Plain
+    /// noise is a single octave.
+    pub fn has_detail(self) -> bool {
+        self != TextureKind::Noise
     }
 }
 
@@ -636,6 +868,82 @@ pub struct Texture {
     /// Feature size in mm.
     pub scale: f64,
     pub seed: u32,
+    /// Octaves of noise, [`Texture::MIN_DETAIL`]..=[`Texture::MAX_DETAIL`]:
+    /// each adds finer grain at half the strength of the one before.
+    #[serde(
+        default = "Texture::default_detail",
+        skip_serializing_if = "Texture::is_default_detail"
+    )]
+    pub detail: u8,
+    /// 0..1: 0 leaves the tones as they come, 1 pushes them five times
+    /// further from the middle (clipped at the two colours).
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub contrast: f64,
+    /// Pixels per inch of the texture's picture: on screen the texture
+    /// shows pixels this size when zoomed in past it, and exports turn it
+    /// into an image at this resolution.
+    #[serde(
+        default = "Texture::default_resolution",
+        skip_serializing_if = "Texture::is_default_resolution"
+    )]
+    pub resolution: f64,
+}
+
+impl Default for Texture {
+    fn default() -> Self {
+        Texture {
+            kind: TextureKind::Clouds,
+            color_a: Color::BLACK,
+            color_b: Color::WHITE,
+            scale: 20.0,
+            seed: 1,
+            detail: Texture::DEFAULT_DETAIL,
+            contrast: 0.0,
+            resolution: TileLayout::DEFAULT_RESOLUTION,
+        }
+    }
+}
+
+impl Texture {
+    pub const MIN_DETAIL: u8 = 1;
+    pub const MAX_DETAIL: u8 = 8;
+    /// The octaves textures had before the detail could be set.
+    pub const DEFAULT_DETAIL: u8 = 5;
+
+    fn default_detail() -> u8 {
+        Self::DEFAULT_DETAIL
+    }
+
+    fn is_default_detail(d: &u8) -> bool {
+        *d == Self::DEFAULT_DETAIL
+    }
+
+    fn default_resolution() -> f64 {
+        TileLayout::DEFAULT_RESOLUTION
+    }
+
+    fn is_default_resolution(r: &f64) -> bool {
+        *r == TileLayout::DEFAULT_RESOLUTION
+    }
+
+    /// The detail, made safe.
+    pub fn safe_detail(&self) -> u8 {
+        self.detail.clamp(Self::MIN_DETAIL, Self::MAX_DETAIL)
+    }
+
+    /// The contrast, made safe (0..1).
+    pub fn safe_contrast(&self) -> f64 {
+        if self.contrast.is_finite() {
+            self.contrast.clamp(0.0, 1.0)
+        } else {
+            0.0
+        }
+    }
+
+    /// The resolution, made safe.
+    pub fn safe_resolution(&self) -> f64 {
+        safe_resolution(self.resolution)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
@@ -902,6 +1210,81 @@ pub enum LineJoin {
     Bevel,
 }
 
+/// Where the outline lies on a closed path: centred on it (half inside,
+/// half outside), all outside or all inside it. Open paths are always
+/// centred.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum StrokePosition {
+    #[default]
+    Center,
+    Outside,
+    Inside,
+}
+
+/// How a dashed outline goes through the corners of its path.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum DashCorners {
+    /// The pattern runs on along the whole path, ignoring the corners.
+    #[default]
+    Standard,
+    /// Every stretch between corners starts and ends with a dash, the
+    /// pattern stretched or squeezed a little so that a whole dash runs
+    /// through each corner.
+    Align,
+    /// The pattern starts again at every corner with its exact lengths.
+    Fixed,
+}
+
+/// The size, turn, mirror and offset of one arrowhead.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct ArrowOptions {
+    /// Size as a fraction of the preset size (1 = 100 %), 0.05 to 50.
+    #[serde(default = "one")]
+    pub scale: f64,
+    /// Turn in degrees, counter-clockwise, about the tip.
+    #[serde(default)]
+    pub rotation: f64,
+    /// Flipped across the curve's direction.
+    #[serde(default)]
+    pub mirror: bool,
+    /// Distance in millimetres from the curve's end to the tip, outwards
+    /// along the curve's direction (negative: back along the curve).
+    #[serde(default)]
+    pub offset: f64,
+}
+
+impl Default for ArrowOptions {
+    fn default() -> Self {
+        ArrowOptions {
+            scale: 1.0,
+            rotation: 0.0,
+            mirror: false,
+            offset: 0.0,
+        }
+    }
+}
+
+impl ArrowOptions {
+    /// The size range, as a fraction of the preset size.
+    pub const SCALE_MIN: f64 = 0.05;
+    pub const SCALE_MAX: f64 = 50.0;
+
+    pub fn is_default(&self) -> bool {
+        *self == ArrowOptions::default()
+    }
+
+    /// The scale clamped to its range (1 for a value that is not a number).
+    pub fn safe_scale(&self) -> f64 {
+        if self.scale.is_finite() {
+            self.scale.clamp(Self::SCALE_MIN, Self::SCALE_MAX)
+        } else {
+            1.0
+        }
+    }
+}
+
 /// The preset arrowhead size in outline widths (the head-space unit; see
 /// [`Arrowhead`]). Hairlines count as 0.25 mm and the size is at least 1 mm.
 pub const HEAD_SIZE_PER_WIDTH: f64 = 4.0;
@@ -1067,6 +1450,40 @@ pub struct Stroke {
     /// Drawn as painterly brush marks along the path instead of a line.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub painterly: Option<crate::painterly::Painterly>,
+    /// The outline's own opacity, 0 (invisible) to 1 (opaque); it
+    /// multiplies the object's opacity.
+    #[serde(default = "one", skip_serializing_if = "is_one_f64")]
+    pub opacity: f64,
+    /// Longest mitre at a corner, in outline widths, before the corner is
+    /// bevelled instead (1 to 100).
+    #[serde(
+        default = "default_miter_limit",
+        skip_serializing_if = "is_default_miter_limit"
+    )]
+    pub miter_limit: f64,
+    /// Centred on the path, outside or inside it (closed paths only).
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub position: StrokePosition,
+    /// How dashes go through the path's corners.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub dash_corners: DashCorners,
+    /// Size, turn, mirror and offset of the start arrowhead.
+    #[serde(default, skip_serializing_if = "ArrowOptions::is_default")]
+    pub start_arrow_options: ArrowOptions,
+    /// Size, turn, mirror and offset of the end arrowhead.
+    #[serde(default, skip_serializing_if = "ArrowOptions::is_default")]
+    pub end_arrow_options: ArrowOptions,
+}
+
+/// The miter limit outlines have unless set otherwise.
+pub const DEFAULT_MITER_LIMIT: f64 = 4.0;
+
+fn default_miter_limit() -> f64 {
+    DEFAULT_MITER_LIMIT
+}
+
+fn is_default_miter_limit(v: &f64) -> bool {
+    *v == DEFAULT_MITER_LIMIT
 }
 
 /// A point of a variable-width outline: where it is along the path and
@@ -1156,6 +1573,39 @@ impl Stroke {
             ..Default::default()
         }
     }
+
+    /// The opacity clamped to 0..1 (1 for a value that is not a number).
+    pub fn safe_opacity(&self) -> f64 {
+        if self.opacity.is_finite() {
+            self.opacity.clamp(0.0, 1.0)
+        } else {
+            1.0
+        }
+    }
+
+    /// The miter limit clamped to 1..100 (the default for a value that is
+    /// not a number).
+    pub fn safe_miter_limit(&self) -> f64 {
+        if self.miter_limit.is_finite() {
+            self.miter_limit.clamp(1.0, 100.0)
+        } else {
+            DEFAULT_MITER_LIMIT
+        }
+    }
+
+    /// A hairline: one device pixel at every zoom.
+    pub fn is_hairline(&self) -> bool {
+        self.width <= Self::HAIRLINE + 1e-9
+    }
+
+    /// The dashes go through corners in their own way (aligned or fixed),
+    /// which plain strokes cannot draw: the dashes are then cut out of the
+    /// path first ([`crate::shaping::corner_dashes`]).
+    pub fn has_corner_dashes(&self) -> bool {
+        self.dash_corners != DashCorners::Standard
+            && !self.is_hairline()
+            && self.dash.iter().sum::<f64>() > 1e-9
+    }
 }
 
 impl Default for Stroke {
@@ -1175,6 +1625,12 @@ impl Default for Stroke {
             fill: None,
             widths: Vec::new(),
             painterly: None,
+            opacity: 1.0,
+            miter_limit: DEFAULT_MITER_LIMIT,
+            position: StrokePosition::Center,
+            dash_corners: DashCorners::Standard,
+            start_arrow_options: ArrowOptions::default(),
+            end_arrow_options: ArrowOptions::default(),
         }
     }
 }
@@ -1430,7 +1886,7 @@ mod tests {
             square(30.0, 40.0, 35.0, 45.0),
             square(35.0, 45.0, 40.0, 50.0),
         ];
-        let Pattern::Vector { shapes, tile } = Pattern::vector_from_shapes(&shapes) else {
+        let Pattern::Vector { shapes, tile, .. } = Pattern::vector_from_shapes(&shapes) else {
             panic!("expected a vector pattern");
         };
         assert_eq!(tile, Size::new(10.0, 10.0));
@@ -1450,7 +1906,7 @@ mod tests {
 
     #[test]
     fn vector_pattern_from_nothing_has_a_minimal_tile() {
-        let Pattern::Vector { shapes, tile } = Pattern::vector_from_shapes(&[]) else {
+        let Pattern::Vector { shapes, tile, .. } = Pattern::vector_from_shapes(&[]) else {
             panic!("expected a vector pattern");
         };
         assert!(shapes.is_empty());
@@ -1484,10 +1940,135 @@ mod tests {
             matches!(back, Fill::Pattern(Pattern::Vector { ref shapes, .. }) if shapes.is_empty())
         );
     }
+
+    #[test]
+    fn unchanged_patterns_and_textures_save_as_before() {
+        let fill = Fill::Pattern(Pattern::TwoColor {
+            tile: PatternTile::Dots,
+            front: Color::BLACK,
+            back: Color::WHITE,
+            size_mm: 5.0,
+            layout: TileLayout::default(),
+        });
+        let json = serde_json::to_string(&fill).unwrap();
+        assert!(!json.contains("layout"), "{json}");
+        assert!(json.contains("\"tile\":\"dots\""), "{json}");
+        let t = Fill::Texture(Texture::default());
+        let json = serde_json::to_string(&t).unwrap();
+        for key in ["detail", "contrast", "resolution"] {
+            assert!(!json.contains(key), "{json}");
+        }
+        // An older texture reads with the settings it was drawn with.
+        let old = r#"{"fill":"texture","kind":"wood","color_a":{"model":"gray","v":0.0},"color_b":{"model":"gray","v":1.0},"scale":5.0,"seed":3}"#;
+        let Fill::Texture(back) = serde_json::from_str::<Fill>(old).unwrap() else {
+            panic!("a texture");
+        };
+        assert_eq!(
+            (back.detail, back.contrast, back.resolution),
+            (Texture::DEFAULT_DETAIL, 0.0, TileLayout::DEFAULT_RESOLUTION)
+        );
+    }
+
+    #[test]
+    fn tile_layout_cells_and_granite_round_trip() {
+        let layout = TileLayout {
+            scale: 2.5,
+            rotation: 30.0,
+            row_offset: 0.5,
+            column_offset: 0.25,
+            mirror: true,
+            with_object: true,
+            resolution: 600.0,
+        };
+        let tile = PatternTile::Checker.toggled(0, 0);
+        let fills = [
+            Fill::Pattern(Pattern::TwoColor {
+                tile,
+                front: Color::BLACK,
+                back: Color::WHITE,
+                size_mm: 5.0,
+                layout,
+            }),
+            Fill::Pattern(Pattern::Vector {
+                shapes: Vec::new(),
+                tile: Size::new(4.0, 2.0),
+                layout,
+            }),
+            Fill::Texture(Texture {
+                kind: TextureKind::Granite,
+                detail: 8,
+                contrast: 0.4,
+                resolution: 300.0,
+                ..Texture::default()
+            }),
+        ];
+        for fill in fills {
+            let json = serde_json::to_string(&fill).unwrap();
+            let back: Fill = serde_json::from_str(&json).unwrap();
+            assert_eq!(back, fill, "{json}");
+        }
+        // A layout written with only some settings keeps the others.
+        let json = r#"{"fill":"pattern","pattern":"twocolor","tile":"dots","front":{"model":"gray","v":0.0},"back":{"model":"gray","v":1.0},"size_mm":5.0,"layout":{"rotation":45.0}}"#;
+        let Fill::Pattern(p) = serde_json::from_str::<Fill>(json).unwrap() else {
+            panic!("a pattern");
+        };
+        assert_eq!(p.layout().rotation, 45.0);
+        assert_eq!(p.layout().scale, 1.0);
+    }
+
+    #[test]
+    fn cells_toggle_and_sample_the_built_in_tiles() {
+        // The checker is front on the top right and bottom left quarters.
+        let rows = PatternTile::Checker.cells();
+        assert_eq!(rows[0], 0x0F);
+        assert_eq!(rows[7], 0xF0);
+        let t = PatternTile::Checker.toggled(0, 0);
+        assert!(matches!(t, PatternTile::Cells(_)));
+        assert!(t.cell(0, 0) && !t.cell(1, 0) && t.cell(0, 4) && !t.cell(4, 4));
+        // The top left cell is now front; its neighbour still back.
+        assert!(t.front(0.01, 0.99) && !t.front(0.2, 0.99));
+        assert_eq!(t.toggled(0, 0), PatternTile::Cells(rows));
+        // Outside the grid nothing changes and nothing panics.
+        assert_eq!(t.toggled(8, 0), t);
+        assert!(!t.cell(99, 99));
+        assert!(t.front(-0.99, 1.99) == t.front(0.01, 0.99));
+    }
+
+    #[test]
+    fn tile_layout_places_the_grid_on_the_page_or_the_object() {
+        let mut l = TileLayout {
+            scale: 2.0,
+            ..TileLayout::default()
+        };
+        let object = Affine::translate((10.0, 0.0)) * Affine::scale(3.0);
+        let p = Point::new(1.0, 1.0);
+        assert_eq!(l.pattern_to_page(object) * p, Point::new(2.0, 2.0));
+        l.with_object = true;
+        assert_eq!(l.pattern_to_page(object) * p, Point::new(16.0, 6.0));
+        l.rotation = 90.0;
+        l.with_object = false;
+        let q = l.pattern_to_page(object) * Point::new(1.0, 0.0);
+        assert!((q.x).abs() < 1e-9 && (q.y - 2.0).abs() < 1e-9, "{q:?}");
+        // Bad numbers from a file stay safe.
+        let bad = TileLayout {
+            scale: f64::NAN,
+            rotation: f64::INFINITY,
+            row_offset: 7.25,
+            column_offset: f64::NAN,
+            resolution: -5.0,
+            ..TileLayout::default()
+        };
+        assert_eq!(bad.safe_scale(), 1.0);
+        assert_eq!(bad.safe_offsets(), (0.25, 0.0));
+        assert_eq!(bad.safe_resolution(), TileLayout::MIN_RESOLUTION);
+        assert!(bad.pattern_to_page(Affine::IDENTITY).is_finite());
+    }
 }
 
 /// Arrowhead outlines (page space) for an open path's ends, sized by the
-/// outline width (hairlines use 0.25 mm). Filled with the outline colour.
+/// outline width (hairlines use 0.25 mm) and each end's [`ArrowOptions`]
+/// (size, turn about the tip, mirror across the curve's direction, the
+/// tip moved along that direction). Filled with the outline colour.
 pub fn arrowhead_paths(
     path: &crate::geometry::BezPath,
     stroke: &Stroke,
@@ -1498,7 +2079,7 @@ pub fn arrowhead_paths(
     } else {
         stroke.width
     };
-    let size = (w * HEAD_SIZE_PER_WIDTH).max(1.0);
+    let base = (w * HEAD_SIZE_PER_WIDTH).max(1.0);
     let mut pts: Vec<Point> = Vec::new();
     let mut closed = false;
     kurbo::flatten(path.elements().iter().copied(), 0.05, &mut |el| match el {
@@ -1514,12 +2095,30 @@ pub fn arrowhead_paths(
     if closed || pts.len() < 2 {
         return Vec::new();
     }
-    let head = |tip: Point, dir: Vec2, kind: &Arrowhead| -> Option<BezPath> {
+    let head = |tip: Point, dir: Vec2, kind: &Arrowhead, o: &ArrowOptions| -> Option<BezPath> {
         let dir = dir.normalize();
         if !dir.x.is_finite() {
             return None;
         }
-        let n = Vec2::new(-dir.y, dir.x);
+        let size = base * o.safe_scale();
+        let offset = if o.offset.is_finite() {
+            o.offset.clamp(-1000.0, 1000.0)
+        } else {
+            0.0
+        };
+        let tip = tip + dir * offset;
+        let turn = if o.rotation.is_finite() {
+            o.rotation.to_radians()
+        } else {
+            0.0
+        };
+        let (sin, cos) = turn.sin_cos();
+        let dir = Vec2::new(dir.x * cos - dir.y * sin, dir.x * sin + dir.y * cos);
+        let n = if o.mirror {
+            Vec2::new(dir.y, -dir.x)
+        } else {
+            Vec2::new(-dir.y, dir.x)
+        };
         let mut p = BezPath::new();
         match kind {
             Arrowhead::None => return None,
@@ -1583,10 +2182,20 @@ pub fn arrowhead_paths(
     use crate::geometry::Shape as _;
     let mut out = Vec::new();
     let n = pts.len();
-    if let Some(p) = head(pts[0], pts[0] - pts[1.min(n - 1)], &stroke.start_arrow) {
+    if let Some(p) = head(
+        pts[0],
+        pts[0] - pts[1.min(n - 1)],
+        &stroke.start_arrow,
+        &stroke.start_arrow_options,
+    ) {
         out.push(p);
     }
-    if let Some(p) = head(pts[n - 1], pts[n - 1] - pts[n - 2], &stroke.end_arrow) {
+    if let Some(p) = head(
+        pts[n - 1],
+        pts[n - 1] - pts[n - 2],
+        &stroke.end_arrow,
+        &stroke.end_arrow_options,
+    ) {
         out.push(p);
     }
     out
@@ -1749,5 +2358,184 @@ mod arrowhead_tests {
         assert_eq!(heads.len(), 1);
         let b = heads[0].bounding_box();
         assert!(b.x0.abs() < 1e-6 && (b.x1 - 4.0).abs() < 1e-6, "{b:?}");
+    }
+}
+
+#[cfg(test)]
+mod outline_option_tests {
+    use super::*;
+    use crate::geometry::{BezPath, Shape as _};
+
+    #[test]
+    fn new_outline_settings_round_trip_and_old_files_load_with_defaults() {
+        // An outline with none of the new settings writes none of them.
+        let plain = Stroke::new(Color::BLACK, 1.0);
+        let json = serde_json::to_string(&plain).unwrap();
+        for key in [
+            "opacity",
+            "miter_limit",
+            "position",
+            "dash_corners",
+            "arrow_options",
+        ] {
+            assert!(!json.contains(key), "{key} in {json}");
+        }
+        // A file written before them loads with the defaults.
+        let old = r#"{"color":{"model":"gray","v":0.0},"width":1.0,"cap":"butt","join":"miter","dash":[],"scale_with_object":false,"behind_fill":false,"start_arrow":"none","end_arrow":"arrow","stretch":1.0,"nib_angle":0.0}"#;
+        let back: Stroke = serde_json::from_str(old).unwrap();
+        assert_eq!(back.opacity, 1.0);
+        assert_eq!(back.miter_limit, DEFAULT_MITER_LIMIT);
+        assert_eq!(back.position, StrokePosition::Center);
+        assert_eq!(back.dash_corners, DashCorners::Standard);
+        assert!(back.start_arrow_options.is_default() && back.end_arrow_options.is_default());
+        // Every setting round trips.
+        let full = Stroke {
+            opacity: 0.4,
+            miter_limit: 12.5,
+            position: StrokePosition::Inside,
+            dash_corners: DashCorners::Align,
+            end_arrow: Arrowhead::Arrow,
+            end_arrow_options: ArrowOptions {
+                scale: 2.0,
+                rotation: 30.0,
+                mirror: true,
+                offset: -1.5,
+            },
+            ..Stroke::new(Color::BLACK, 1.0)
+        };
+        let json = serde_json::to_string(&full).unwrap();
+        assert!(json.contains("\"position\":\"inside\""), "{json}");
+        assert!(json.contains("\"dash_corners\":\"align\""), "{json}");
+        let back: Stroke = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, full);
+        // Partial options fill in the rest.
+        let o: ArrowOptions = serde_json::from_str(r#"{"mirror":true}"#).unwrap();
+        assert_eq!(o.scale, 1.0);
+        assert!(o.mirror);
+    }
+
+    #[test]
+    fn bad_values_are_tamed() {
+        let s = Stroke {
+            opacity: f64::NAN,
+            miter_limit: f64::INFINITY,
+            ..Stroke::default()
+        };
+        assert_eq!(s.safe_opacity(), 1.0);
+        assert_eq!(s.safe_miter_limit(), DEFAULT_MITER_LIMIT);
+        let s = Stroke {
+            opacity: 7.0,
+            miter_limit: 0.2,
+            ..Stroke::default()
+        };
+        assert_eq!(s.safe_opacity(), 1.0);
+        assert_eq!(s.safe_miter_limit(), 1.0);
+        let o = ArrowOptions {
+            scale: f64::NAN,
+            ..ArrowOptions::default()
+        };
+        assert_eq!(o.safe_scale(), 1.0);
+    }
+
+    fn line() -> BezPath {
+        let mut l = BezPath::new();
+        l.move_to((0.0, 0.0));
+        l.line_to((50.0, 0.0));
+        l
+    }
+
+    fn end_head(o: ArrowOptions) -> crate::geometry::Rect {
+        let s = Stroke {
+            end_arrow: Arrowhead::Square,
+            end_arrow_options: o,
+            ..Stroke::new(Color::BLACK, 1.0)
+        };
+        let heads = arrowhead_paths(&line(), &s);
+        assert_eq!(heads.len(), 1);
+        heads[0].bounding_box()
+    }
+
+    #[test]
+    fn arrowheads_take_their_size_turn_mirror_and_offset() {
+        // The preset square: 0.7 of 4 mm, its front at the end point.
+        let b = end_head(ArrowOptions::default());
+        assert!(
+            (b.width() - 2.8).abs() < 1e-9 && (b.x1 - 50.0).abs() < 1e-9,
+            "{b:?}"
+        );
+        // Twice the size.
+        let b = end_head(ArrowOptions {
+            scale: 2.0,
+            ..ArrowOptions::default()
+        });
+        assert!((b.width() - 5.6).abs() < 1e-9 && (b.height() - 5.6).abs() < 1e-9);
+        // Moved 3 mm on past the end.
+        let b = end_head(ArrowOptions {
+            offset: 3.0,
+            ..ArrowOptions::default()
+        });
+        assert!((b.x1 - 53.0).abs() < 1e-9, "{b:?}");
+        // Turned 90 degrees about the tip: it now points up, its body below.
+        let b = end_head(ArrowOptions {
+            rotation: 90.0,
+            ..ArrowOptions::default()
+        });
+        assert!(b.y1.abs() < 1e-9 && (b.y0 + 2.8).abs() < 1e-9, "{b:?}");
+        // A custom head off the axis flips to the other side when mirrored.
+        let mut tri = BezPath::new();
+        tri.move_to((0.0, 0.0));
+        tri.line_to((-1.0, 0.0));
+        tri.line_to((-1.0, 1.0));
+        tri.close_path();
+        let custom = Arrowhead::from_shape_path(&tri, "half");
+        let mut lop = BezPath::new();
+        lop.move_to((0.0, 0.0));
+        lop.line_to((-1.0, 0.0));
+        lop.line_to((-1.0, 3.0));
+        lop.close_path();
+        let lopsided = Arrowhead::from_shape_path(&lop, "lopsided");
+        assert!(custom.is_custom() && lopsided.is_custom());
+        let side = |mirror: bool| {
+            let s = Stroke {
+                end_arrow: lopsided.clone(),
+                end_arrow_options: ArrowOptions {
+                    mirror,
+                    ..ArrowOptions::default()
+                },
+                ..Stroke::new(Color::BLACK, 1.0)
+            };
+            let heads = arrowhead_paths(&line(), &s);
+            // The head's widest part (the base, at its back) is off the
+            // axis on one side: compare where its area's centre lies.
+            let p = &heads[0];
+            let b = p.bounding_box();
+            let mut above = 0;
+            for i in 0..40 {
+                for j in 0..40 {
+                    let q = Point::new(
+                        b.x0 + b.width() * (i as f64 + 0.5) / 40.0,
+                        b.y0 + b.height() * (j as f64 + 0.5) / 40.0,
+                    );
+                    if p.contains(q) {
+                        above += if q.y > 0.0 { 1 } else { -1 };
+                    }
+                }
+            }
+            above
+        };
+        assert!(
+            side(false) * side(true) < 0,
+            "{} {}",
+            side(false),
+            side(true)
+        );
+        // Absurd values never break the head.
+        let b = end_head(ArrowOptions {
+            scale: 1e9,
+            rotation: f64::NAN,
+            mirror: false,
+            offset: f64::INFINITY,
+        });
+        assert!(b.width().is_finite() && b.width() <= 2.8 * 50.0 + 1e-6);
     }
 }

@@ -841,6 +841,7 @@ fn fills(dir: &Path) {
                 front: hex("#3D7BFF"),
                 back: hex("#E8F0FF"),
                 size_mm: 8.0,
+                layout: Default::default(),
             }),
             6 => Fill::Texture(Texture {
                 kind: TextureKind::Marble,
@@ -848,6 +849,7 @@ fn fills(dir: &Path) {
                 color_b: hex("#8C7B6B"),
                 scale: 14.0,
                 seed: 3,
+                ..Default::default()
             }),
             _ => {
                 let mut m = Mesh::new(*r, 2, 2, Color::WHITE);

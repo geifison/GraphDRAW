@@ -3,12 +3,12 @@
 //! `colorimage`, text as outlines. One page per EPS file; PostScript files
 //! (`.ps`, and `.prn` print files, which are the same) hold every page.
 
-use std::fmt::Write as _;
 use graphdraw_core::{
     document::{Shape, ShapeKind},
     geometry::{Affine, PathEl, Shape as _},
     Color, Document, Fill, FountainKind, LineCap, LineJoin,
 };
+use std::fmt::Write as _;
 
 const MM_PT: f64 = 72.0 / 25.4;
 
@@ -244,7 +244,7 @@ impl Writer<'_> {
         if let Some(pic) = shape.drawn_as() {
             return self.shape(&pic, parent);
         }
-        if !shape.visible {
+        if !shape.visible || shape.construction {
             return;
         }
         if !shape.effects.is_empty() {
@@ -411,9 +411,12 @@ impl Writer<'_> {
             }
             other @ (Fill::Pattern(_) | Fill::Texture(_) | Fill::Mesh(_)) => {
                 // Patterns, textures and meshes: rasterised by the renderer
-                // over the bounds and clipped by the path, so the file shows
-                // the same pixels as the screen. Average colour if that fails.
-                match graphdraw_render::render_fill_image(other, bounds, 150.0) {
+                // over the bounds (patterns and textures at their own
+                // resolution, placed with the object when they follow it)
+                // and clipped by the path, so the file shows the same pixels
+                // as the screen. Average colour if that fails.
+                let dpi = graphdraw_render::export_fill_resolution(other, bounds);
+                match graphdraw_render::render_fill_image_placed(other, bounds, transform, dpi) {
                     Some(pm) => {
                         let _ = writeln!(self.out, "gsave");
                         self.path_ops(&path);
@@ -475,8 +478,21 @@ impl Writer<'_> {
             } else {
                 let _ = writeln!(self.out, "[] 0 setdash");
             }
-            self.path_ops(&path);
-            let _ = writeln!(self.out, "stroke");
+            // PostScript's own miter limit is 10: always give ours.
+            let _ = writeln!(self.out, "{} setmiterlimit", f(s.safe_miter_limit()));
+            // A band (calligraphic, variable, outside or inside, dashes
+            // through corners) is filled; EPS has no transparency, so the
+            // outline's opacity is left out.
+            match graphdraw_core::shaping::outline_band(&shape.page_path(), s, 1.0) {
+                Some(band) => {
+                    self.path_ops(&(parent * band));
+                    let _ = writeln!(self.out, "fill");
+                }
+                None => {
+                    self.path_ops(&path);
+                    let _ = writeln!(self.out, "stroke");
+                }
+            }
             // Arrowheads (presets and custom): the page-space path already
             // carries the shape's own transform, so only the parent applies.
             for head in graphdraw_core::arrowhead_paths(&shape.page_path(), s) {
@@ -646,6 +662,7 @@ mod tests {
         s.fill = Fill::Pattern(graphdraw_core::Pattern::Vector {
             shapes: vec![tile_square],
             tile: graphdraw_core::geometry::Size::new(10.0, 10.0),
+            layout: Default::default(),
         });
         s.stroke = None;
         doc.layer_mut(layer).unwrap().shapes.push(s);
@@ -656,5 +673,32 @@ mod tests {
         assert!(eps.contains("119 119 8 [119 0 0 -119 0 119]"), "{eps}");
         // Red pixels from the tile appear in the hex data.
         assert!(eps.contains("ff0000ff0000"));
+    }
+
+    /// The miter limit is written and a band (here an outline inside the
+    /// path) is filled, not stroked.
+    #[test]
+    fn outline_options_reach_the_eps() {
+        let mut doc = Document::default();
+        let layer = doc.pages[0].layers[0].id;
+        let id = doc.ids_mut().shape();
+        let mut s = Shape::new(
+            id,
+            ShapeKind::Rect {
+                rect: Rect::new(10.0, 10.0, 60.0, 40.0),
+                radius: 0.0,
+                corners: None,
+            },
+        );
+        s.fill = Fill::None;
+        s.stroke = Some(graphdraw_core::Stroke {
+            miter_limit: 7.0,
+            position: graphdraw_core::StrokePosition::Inside,
+            ..graphdraw_core::Stroke::new(Color::BLACK, 2.0)
+        });
+        doc.layer_mut(layer).unwrap().shapes.push(s);
+        let eps = page_to_eps(&doc, 0);
+        assert!(eps.contains("7 setmiterlimit"), "{eps}");
+        assert!(!eps.contains("\nstroke\n"), "{eps}");
     }
 }

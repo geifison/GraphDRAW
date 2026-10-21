@@ -876,6 +876,10 @@ impl App {
                 shapes: shapes.clone(),
                 fill: src.fill.clone(),
             },
+            Command::SetFillOpacity {
+                shapes: shapes.clone(),
+                opacity: src.fill_opacity,
+            },
             Command::SetStroke {
                 shapes,
                 stroke: src.stroke.clone(),
@@ -1370,6 +1374,7 @@ impl App {
             width_px,
             height_px,
             size_mm: bounds.width().max(0.1),
+            layout: Default::default(),
         });
         self.set_default_properties(graphdraw_core::DefaultKind::Graphic, |p| p.fill = fill);
         self.status = tr("status.pattern_created");
@@ -1704,7 +1709,15 @@ impl App {
     /// The path picked for Fit Text to Path: the selected text goes on it,
     /// or with no text selected a new empty text starts on it, ready to
     /// type.
+    // Kept for scripts and tests; the canvas passes the point clicked.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn fit_text_to_picked_path(&mut self, path_id: ShapeId) {
+        self.fit_text_to_picked_path_at(path_id, None);
+    }
+
+    /// [`App::fit_text_to_picked_path`] with the page point clicked: the
+    /// text starts there.
+    pub fn fit_text_to_picked_path_at(&mut self, path_id: ShapeId, at: Option<Point>) {
         let Ok(curve) = self.doc().shape(path_id).map(|(_, s)| s.clone()) else {
             return;
         };
@@ -1719,8 +1732,14 @@ impl App {
             .find(|s| s.id != path_id && matches!(s.kind, ShapeKind::Text { .. }))
             .map(|s| s.id);
         if let Some(t) = text {
-            self.selection = vec![t, path_id];
-            self.fit_text_to_path();
+            match at {
+                // The text starts at the point clicked on the guide.
+                Some(p) => self.fit_text_to_path_at(t, path_id, p),
+                None => {
+                    self.selection = vec![t, path_id];
+                    self.fit_text_to_path();
+                }
+            }
             return;
         }
         self.finish_text();
@@ -1742,11 +1761,15 @@ impl App {
             align,
             para,
             on_path: Some(graphdraw_core::TextOnPath {
-                path,
-                offset,
-                distance: 0.0,
-                mirror: false,
-                ..Default::default()
+                offset: match at {
+                    // Started where the click was (the Text tool on a curve).
+                    Some(p) => {
+                        let tp = graphdraw_core::TextOnPath::fitted(path.clone(), None);
+                        App::path_offset_at(&tp, align, Affine::IDENTITY, p)
+                    }
+                    None => offset,
+                },
+                ..graphdraw_core::TextOnPath::fitted(path, Some(path_id))
             }),
         }) {
             self.text_edit = Some(crate::app::TextEdit::at_end(id, 0));
@@ -1793,11 +1816,9 @@ impl App {
                 align,
                 para,
                 on_path: Some(graphdraw_core::TextOnPath {
-                    path,
                     offset,
-                    distance: 0.0,
-                    mirror: false,
-                    ..Default::default()
+                    // Linked to the curve: changing it lays the text again.
+                    ..graphdraw_core::TextOnPath::fitted(path, Some(curve.id))
                 }),
             },
         });
@@ -1828,7 +1849,7 @@ impl App {
             return false;
         }
         self.selection.clear();
-        self.fit_text_to_picked_path(id);
+        self.fit_text_to_picked_path_at(id, Some(p));
         true
     }
 
@@ -1847,6 +1868,7 @@ impl App {
             else {
                 continue;
             };
+            let to = Affine::translate(s.bounds().origin().to_vec2()) * s.transform.inverse();
             let cmds = vec![
                 Command::SetShapeKind {
                     shape: s.id,
@@ -1861,8 +1883,12 @@ impl App {
                 },
                 Command::TransformShapes {
                     shapes: vec![s.id],
-                    transform: Affine::translate(s.bounds().origin().to_vec2())
-                        * s.transform.inverse(),
+                    transform: to,
+                },
+                // The ghost path, for Reactivate Source Path.
+                Command::SetTextPathMemory {
+                    shape: s.id,
+                    memory: App::ghost_path(&s, to * s.transform),
                 },
             ];
             if let Err(e) = self.engine.run_batch("Straighten Text", &cmds) {
@@ -2207,95 +2233,9 @@ fn tiny_skia_white(w: u32, h: u32) -> tiny_skia::Pixmap {
 /// outside) and started at its highest point. Returns the path and whether
 /// it is closed.
 pub fn path_for_text(path: &BezPath) -> (BezPath, bool) {
-    use kurbo::{ParamCurve, ParamCurveExtrema, PathSeg};
-    let mut first = BezPath::new();
-    let mut closed = false;
-    for el in path.elements() {
-        match el {
-            graphdraw_core::geometry::PathEl::MoveTo(_) if !first.elements().is_empty() => break,
-            graphdraw_core::geometry::PathEl::ClosePath => {
-                closed = true;
-                break;
-            }
-            e => first.push(*e),
-        }
-    }
-    let mut segs: Vec<PathSeg> = first.segments().collect();
-    if let (Some(a), Some(b)) = (segs.first(), segs.last()) {
-        if (a.start() - b.end()).hypot() < 1e-6 && segs.len() > 1 {
-            closed = true;
-        }
-    }
-    if !closed || segs.is_empty() {
-        return (first, false);
-    }
-    if let (Some(a), Some(b)) = (segs.first(), segs.last()) {
-        if (a.start() - b.end()).hypot() >= 1e-6 {
-            segs.push(PathSeg::Line(graphdraw_core::geometry::Line::new(
-                b.end(),
-                a.start(),
-            )));
-        }
-    }
-    // Shoelace over the flattened outline: positive runs anticlockwise
-    // (y up), whose left side, where letters stand, is the inside.
-    let mut area = 0.0;
-    let mut prev: Option<Point> = None;
-    let mut start: Option<Point> = None;
-    graphdraw_core::geometry::flatten(&first, 0.1, &mut |el| match el {
-        graphdraw_core::geometry::PathEl::MoveTo(p) => {
-            start = Some(p);
-            prev = Some(p);
-        }
-        graphdraw_core::geometry::PathEl::LineTo(p) => {
-            if let Some(q) = prev {
-                area += q.x * p.y - p.x * q.y;
-            }
-            prev = Some(p);
-        }
-        _ => {}
-    });
-    if let (Some(q), Some(p)) = (prev, start) {
-        area += q.x * p.y - p.x * q.y;
-    }
-    if area > 0.0 {
-        segs = segs.iter().rev().map(|s| s.reverse()).collect();
-    }
-    // The highest point: the segment and parameter where y is largest.
-    let mut best = (0usize, 0.0f64, f64::NEG_INFINITY);
-    for (i, seg) in segs.iter().enumerate() {
-        let mut ts = vec![0.0, 1.0];
-        ts.extend(seg.extrema());
-        for t in ts {
-            let y = seg.eval(t).y;
-            if y > best.2 + 1e-9 {
-                best = (i, t, y);
-            }
-        }
-    }
-    let (k, t, _) = best;
-    let mut order: Vec<PathSeg> = Vec::new();
-    if t < 1.0 - 1e-9 {
-        order.push(segs[k].subsegment(t..1.0));
-    }
-    order.extend(segs[k + 1..].iter().copied());
-    order.extend(segs[..k].iter().copied());
-    if t > 1e-9 {
-        order.push(segs[k].subsegment(0.0..t));
-    }
-    let mut out = BezPath::new();
-    if let Some(s0) = order.first() {
-        out.move_to(s0.start());
-    }
-    for seg in order {
-        match seg {
-            PathSeg::Line(l) => out.line_to(l.p1),
-            PathSeg::Quad(q) => out.quad_to(q.p1, q.p2),
-            PathSeg::Cubic(c) => out.curve_to(c.p1, c.p2, c.p3),
-        }
-    }
-    out.close_path();
-    (out, true)
+    // Shared with the live link in the core, which lays linked texts
+    // again the same way.
+    graphdraw_core::text_path::path_for_text(path)
 }
 
 /// Where text fitted to `path` (its local space) is placed: on a closed

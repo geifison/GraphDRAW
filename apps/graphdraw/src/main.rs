@@ -139,6 +139,8 @@ mod text_effect_tests;
 mod text_frames;
 mod text_nodes;
 mod text_path;
+mod text_path_handles;
+mod text_path_link;
 #[cfg(test)]
 mod text_wrap_tests;
 mod textflow;

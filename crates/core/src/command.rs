@@ -229,9 +229,25 @@ pub enum Command {
         fill: Option<bool>,
         outline: Option<bool>,
     },
+    /// The uniform transparency of the fill alone (1.0 opaque, 0.0
+    /// invisible); the outline and the object's own opacity stay.
+    SetFillOpacity {
+        shapes: Vec<ShapeId>,
+        opacity: f64,
+    },
     SetLink {
         shapes: Vec<ShapeId>,
         link: Option<String>,
+    },
+    /// Mark `shapes` as construction lines (shown, not printed or exported).
+    SetConstruction {
+        shapes: Vec<ShapeId>,
+        construction: bool,
+    },
+    /// The ghost path a straightened text keeps (see `text_path`).
+    SetTextPathMemory {
+        shape: ShapeId,
+        memory: Option<Box<crate::document::TextOnPath>>,
     },
     SetWrapText {
         shapes: Vec<ShapeId>,
@@ -386,7 +402,10 @@ impl Command {
             Command::SetEffectStack { .. } => "Effects",
             Command::SetExtraPaint { .. } => "Fills and Outlines",
             Command::SetOverprint { .. } => "Overprint",
+            Command::SetFillOpacity { .. } => "Fill Transparency",
             Command::SetLink { .. } => "Hyperlink",
+            Command::SetConstruction { .. } => "Construction Line",
+            Command::SetTextPathMemory { .. } => "Straighten Text",
             Command::SetWrapText { .. } => "Wrap Paragraph Text",
             Command::SetWrapStyle { .. } => "Wrap Style",
             Command::SetObjectData { .. } => "Object Data",
@@ -799,6 +818,35 @@ impl Command {
                     if let Some(o) = outline {
                         s.overprint_outline = *o;
                     }
+                }
+            }
+            Command::SetConstruction {
+                shapes,
+                construction,
+            } => {
+                for id in shapes {
+                    any(doc, *id)?;
+                }
+                for id in shapes {
+                    any_mut(doc, *id)?.construction = *construction;
+                }
+            }
+            Command::SetTextPathMemory { shape, memory } => {
+                any_mut(doc, *shape)?.text_path_memory = memory.clone();
+            }
+            Command::SetFillOpacity { shapes, opacity } => {
+                for id in shapes {
+                    any(doc, *id)?;
+                }
+                // NaN (from a script) reads as opaque.
+                let o = if opacity.is_nan() {
+                    1.0
+                } else {
+                    opacity.clamp(0.0, 1.0)
+                };
+                for id in shapes {
+                    // A group passes it on to everything in it, as the fill.
+                    for_group_deep(any_mut(doc, *id)?, &mut |s| s.fill_opacity = o);
                 }
             }
             Command::SetWrapText { shapes, wrap } => {
@@ -1965,5 +2013,129 @@ mod tests {
             .apply(&mut doc)
             .unwrap_err();
         assert!(matches!(err, Error::LayerNotFound(_)));
+    }
+
+    #[test]
+    fn fill_opacity_is_set_undone_and_saved_only_when_not_opaque() {
+        use crate::engine::Engine;
+        let mut doc = Document::default();
+        let layer = doc.pages[0].layers[0].id;
+        let mut r = Shape::new(
+            doc.ids_mut().shape(),
+            ShapeKind::Rect {
+                rect: crate::geometry::Rect::new(0.0, 0.0, 10.0, 10.0),
+                radius: 0.0,
+                corners: None,
+            },
+        );
+        r.fill = Fill::Solid(crate::Color::rgb8(255, 0, 0));
+        let id = r.id;
+        // Opaque: nothing written, and older files read as opaque.
+        let json = serde_json::to_string(&r).unwrap();
+        assert!(!json.contains("fill_opacity"), "{json}");
+        let back: Shape = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.fill_opacity, 1.0);
+        doc.layer_mut(layer).unwrap().shapes.push(r);
+        let mut e = Engine::new(doc);
+        let cmd = Command::SetFillOpacity {
+            shapes: vec![id],
+            opacity: 0.25,
+        };
+        assert_eq!(cmd.label(), "Fill Transparency");
+        e.run(&cmd).unwrap();
+        let s = e.document().find_shape(id).unwrap();
+        assert_eq!(s.fill_opacity, 0.25);
+        // The object's own opacity and the outline stay.
+        assert_eq!(s.opacity, 1.0);
+        assert!(s.stroke.is_some());
+        let saved = e.document().to_json().unwrap();
+        assert!(saved.contains("fill_opacity"));
+        let reread = Document::from_json(&saved).unwrap();
+        assert_eq!(reread.find_shape(id).unwrap().fill_opacity, 0.25);
+        e.undo().unwrap();
+        assert_eq!(e.document().find_shape(id).unwrap().fill_opacity, 1.0);
+        e.redo().unwrap();
+        assert_eq!(e.document().find_shape(id).unwrap().fill_opacity, 0.25);
+        // Out of range and NaN clamp; an unknown object is an error.
+        e.run(&Command::SetFillOpacity {
+            shapes: vec![id],
+            opacity: 7.0,
+        })
+        .unwrap();
+        assert_eq!(e.document().find_shape(id).unwrap().fill_opacity, 1.0);
+        e.run(&Command::SetFillOpacity {
+            shapes: vec![id],
+            opacity: 0.5,
+        })
+        .unwrap();
+        e.run(&Command::SetFillOpacity {
+            shapes: vec![id],
+            opacity: f64::NAN,
+        })
+        .unwrap();
+        assert_eq!(e.document().find_shape(id).unwrap().fill_opacity, 1.0);
+        assert!(e
+            .run(&Command::SetFillOpacity {
+                shapes: vec![ShapeId(999_999)],
+                opacity: 0.5,
+            })
+            .is_err());
+    }
+
+    #[test]
+    fn fill_opacity_reaches_the_shapes_of_a_group_and_not_extra_fills() {
+        let mut doc = Document::default();
+        let layer = doc.pages[0].layers[0].id;
+        let a = Shape::new(
+            doc.ids_mut().shape(),
+            ShapeKind::Rect {
+                rect: crate::geometry::Rect::new(0.0, 0.0, 10.0, 10.0),
+                radius: 0.0,
+                corners: None,
+            },
+        );
+        let aid = a.id;
+        let g = Shape::new(doc.ids_mut().shape(), ShapeKind::Group { children: vec![a] });
+        let gid = g.id;
+        doc.layer_mut(layer).unwrap().shapes.push(g);
+        Command::SetFillOpacity {
+            shapes: vec![gid],
+            opacity: 0.5,
+        }
+        .apply(&mut doc)
+        .unwrap();
+        let mut layered = doc.find_shape(aid).unwrap().clone();
+        assert_eq!(layered.fill_opacity, 0.5);
+        layered.extra_fills = vec![Fill::Solid(crate::Color::rgb8(0, 0, 255))];
+        let parts = layered.layers().unwrap();
+        let fills: Vec<f64> = parts
+            .iter()
+            .filter(|p| p.stroke.is_none())
+            .map(|p| p.fill_opacity)
+            .collect();
+        assert_eq!(fills, vec![0.5, 1.0]);
+    }
+
+    #[test]
+    fn an_object_style_carries_the_fill_transparency_with_the_fill() {
+        let mut s = Shape::new(
+            ShapeId(1),
+            ShapeKind::Rect {
+                rect: crate::geometry::Rect::new(0.0, 0.0, 10.0, 10.0),
+                radius: 0.0,
+                corners: None,
+            },
+        );
+        s.fill_opacity = 0.4;
+        let style = ObjectStyle::from_shape("s", &s);
+        assert_eq!(style.fill_opacity, 0.4);
+        let mut t = Shape::new(ShapeId(2), s.kind.clone());
+        style.apply_to(&mut t);
+        assert_eq!(t.fill_opacity, 0.4);
+        // Styles saved before keep an opaque fill.
+        let mut json = serde_json::to_value(&style).unwrap();
+        json.as_object_mut().unwrap().remove("fill_opacity");
+        let old: ObjectStyle = serde_json::from_value(json).unwrap();
+        assert_eq!(old.fill_opacity, 1.0);
     }
 }

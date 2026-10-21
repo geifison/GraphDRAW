@@ -14,7 +14,7 @@ use std::sync::{Arc, Mutex, OnceLock, RwLock, RwLockReadGuard};
 use graphdraw_core::{
     document::{
         text_outline::TextRequest, DocumentFont, ParagraphStyle, PathTextOrientation,
-        PathTextVertical, TextAlign, TextOnPath, TextSpan, VerticalAlign,
+        TextAlign, TextSpan, VerticalAlign,
     },
     geometry::{Affine, BezPath, Point, Rect, Shape as _},
     text_flow::{free_segments, WrapRegion},
@@ -22,6 +22,8 @@ use graphdraw_core::{
 
 pub mod catalog;
 pub mod hyphen;
+mod on_path;
+pub use on_path::PathSpan;
 
 /// Points to millimetres.
 pub const PT_MM: f64 = 25.4 / 72.0;
@@ -678,6 +680,8 @@ pub struct TextLayout {
     /// One entry per laid-out line, in order: the character range it holds
     /// and the pen position before each of its characters (for carets).
     pub lines: Vec<LineBox>,
+    /// Text on a path: where its letters lie along the path.
+    pub path_span: Option<PathSpan>,
 }
 
 /// Caret geometry of one laid-out line, mm, in layout space (Y up).
@@ -1469,7 +1473,7 @@ impl FontSystem {
                         std::mem::discriminant(el).hash(&mut h);
                     }
                     format!(
-                        "{:x}|{}|{}|{}|{}|{}|{:?}|{:?}",
+                        "{:x}|{}|{}|{}|{}|{}|{:?}|{:?}|{}|{:?}|{}",
                         h.finish(),
                         p.offset,
                         p.distance,
@@ -1477,7 +1481,10 @@ impl FontSystem {
                         p.mirror_h,
                         p.mirror_v,
                         p.orientation,
-                        p.vertical
+                        p.vertical,
+                        p.below,
+                        p.corners,
+                        p.relax
                     )
                 })
                 .unwrap_or_default(),
@@ -1929,6 +1936,7 @@ impl FontSystem {
                 fitted_chars: 0,
                 baselines: Vec::new(),
                 lines: Vec::new(),
+                path_span: None,
             };
         }
         let para = req.para;
@@ -2479,7 +2487,7 @@ impl FontSystem {
 
         // 4. Text on a path: re-place the glyphs of artistic text along the curve.
         if let (Some(tp), true) = (req.on_path, artistic) {
-            let placed = place_on_path(&lines, tp, style_of(0).0, spans);
+            let (placed, path_span) = on_path::place(&lines, tp, style_of(0).0);
             return TextLayout {
                 path: placed,
                 bounds,
@@ -2488,6 +2496,7 @@ impl FontSystem {
                 fitted_chars: total_chars,
                 baselines: line_baselines,
                 lines: line_boxes,
+                path_span,
             };
         }
 
@@ -2499,6 +2508,7 @@ impl FontSystem {
             fitted_chars,
             baselines: line_baselines,
             lines: line_boxes,
+            path_span: None,
         }
     }
 }
@@ -2766,64 +2776,6 @@ struct DropCap {
     glyph_advance: f64,
 }
 
-/// Place artistic text along a path: each glyph is centred on its arc
-/// length position along the baseline (see [`TextOnPath::baseline`]) and
-/// turned to its direction there. Positions wrap around closed paths.
-fn place_on_path(
-    lines: &[Line],
-    tp: &TextOnPath,
-    align: TextAlign,
-    _spans: &[TextSpan],
-) -> BezPath {
-    let mut out = BezPath::new();
-    let Some(line) = lines.first() else {
-        return out;
-    };
-    let baseline = tp.baseline();
-    let total = baseline.length();
-    if total <= 0.0 {
-        return out;
-    }
-    let text_w: f64 = line.glyphs.iter().map(|g| g.advance).sum();
-    let start = tp.offset
-        + match align {
-            TextAlign::Center => (total - text_w) / 2.0,
-            TextAlign::Right => total - text_w,
-            _ => 0.0,
-        };
-    // The line of the letters that sits on the path, as a shift of the
-    // letters (y up) before they are placed.
-    let m = &line.metrics;
-    let lift = match tp.vertical {
-        PathTextVertical::Baseline => 0.0,
-        PathTextVertical::Ascender => -m.ascent,
-        PathTextVertical::Descender => m.descent,
-        PathTextVertical::Center => (m.descent - m.ascent) / 2.0,
-    };
-    // One mirror on: the letters are flipped across the baseline.
-    let flip = if tp.flipped() {
-        Affine::scale_non_uniform(1.0, -1.0)
-    } else {
-        Affine::IDENTITY
-    };
-    let mut pen = start;
-    for g in &line.glyphs {
-        let mid = pen + g.advance / 2.0;
-        pen += g.advance;
-        let Some((p, dir)) = baseline.at(mid) else {
-            continue;
-        };
-        let along = letter_frame(tp.orientation, dir);
-        let place = Affine::translate(p.to_vec2())
-            * along
-            * flip
-            * Affine::translate((-g.advance / 2.0 + g.x_offset, g.y_offset + lift));
-        let gp = place * g.path.as_ref().clone();
-        out.extend(gp.elements().iter().copied());
-    }
-    out
-}
-
 /// How a letter centred at a point of the path with unit direction `dir`
 /// is turned or sheared there (before the letter's own flip).
 fn letter_frame(o: PathTextOrientation, dir: graphdraw_core::geometry::Vec2) -> Affine {
@@ -2835,7 +2787,9 @@ fn letter_frame(o: PathTextOrientation, dir: graphdraw_core::geometry::Vec2) -> 
         dir.x
     };
     match o {
-        PathTextOrientation::Rotate => Affine::rotate(dir.y.atan2(dir.x)),
+        PathTextOrientation::Rotate | PathTextOrientation::Warp => {
+            Affine::rotate(dir.y.atan2(dir.x))
+        }
         PathTextOrientation::Upright => Affine::IDENTITY,
         // x follows the path's slope, y stays vertical.
         PathTextOrientation::VerticalSkew => Affine::new([1.0, dir.y / cx, 0.0, 1.0, 0.0, 0.0]),
@@ -2882,6 +2836,7 @@ impl ttf_parser::OutlineBuilder for OutlineSink {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use graphdraw_core::document::{PathTextVertical, TextOnPath};
     use graphdraw_core::geometry::Size;
 
     fn span(text: &str) -> TextSpan {

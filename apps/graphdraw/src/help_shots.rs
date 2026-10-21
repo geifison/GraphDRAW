@@ -738,6 +738,39 @@ fn style_window_shots() {
         w.mark_changed();
     }
     shoot(&mut app, "contorno");
+    // Stage 2: inside and outside, see-through, dashes aligned at the
+    // corners, arrowheads scaled and turned.
+    for (name, pos) in [
+        ("contorno-dentro", graphdraw_core::StrokePosition::Inside),
+        ("contorno-fora", graphdraw_core::StrokePosition::Outside),
+    ] {
+        if let Some(w) = app.style_windows.outline.as_mut() {
+            w.draft.width = 4.0;
+            w.draft.dash.clear();
+            w.draft.position = pos;
+            w.draft.opacity = 0.6;
+            w.mark_changed();
+        }
+        shoot(&mut app, name);
+    }
+    if let Some(w) = app.style_windows.outline.as_mut() {
+        w.draft.width = 1.5;
+        w.draft.opacity = 1.0;
+        w.draft.position = graphdraw_core::StrokePosition::Center;
+        w.draft.dash = vec![6.0, 3.0];
+        w.draft.dash_corners = graphdraw_core::DashCorners::Align;
+        w.draft.miter_limit = 10.0;
+        w.draft.start_arrow = graphdraw_core::Arrowhead::Circle;
+        w.draft.end_arrow = graphdraw_core::Arrowhead::Arrow;
+        w.draft.end_arrow_options = graphdraw_core::ArrowOptions {
+            scale: 2.0,
+            rotation: 25.0,
+            mirror: false,
+            offset: 1.0,
+        };
+        w.mark_changed();
+    }
+    shoot(&mut app, "contorno-cantos-setas");
     app.open_fill_window();
     if let Some(w) = app.style_windows.fill.as_mut() {
         w.set_mode(Mode::TwoColor);

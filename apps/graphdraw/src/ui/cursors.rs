@@ -274,6 +274,22 @@ pub fn for_tool(
     if app.pending_clip_frame {
         return ToolCursor::PlaceInside;
     }
+    // Fit Text to Path waiting for its guide: the same sideways arrow.
+    if app.pending_text_path {
+        return ToolCursor::PlaceInside;
+    }
+    // The handles of a text on a path.
+    if let Drag::PathHandle { .. } = app.drag {
+        return ToolCursor::System(egui::CursorIcon::Grabbing);
+    }
+    if let Some(h) = pos.and_then(|s| app.path_handle_at(s)) {
+        use crate::text_path_handles::PathHandle;
+        return ToolCursor::System(match h {
+            PathHandle::Flip => egui::CursorIcon::PointingHand,
+            PathHandle::Distance => egui::CursorIcon::Grab,
+            PathHandle::Slide | PathHandle::Spacing => egui::CursorIcon::ResizeHorizontal,
+        });
+    }
     if matches!(app.tool, Tool::Pick | Tool::FreeformPick) {
         if let Some(c) = pick_cursor(app, pos) {
             return c;
@@ -294,6 +310,10 @@ pub fn for_tool(
         // The I-beam where a click edits text, else the cross hair with the
         // tool's sign (a click starts a new text, a drag a frame).
         Tool::Text if over_text(app, pos) => ToolCursor::System(egui::CursorIcon::Text),
+        // Near a curve's outline a click starts the text on it.
+        Tool::Text if pos.is_some_and(|s| app.text_curve_at(app.view.to_page(s)).is_some()) => {
+            ToolCursor::CurveBadge(Tool::Text, CurveMark::Join)
+        }
         Tool::Text => ToolCursor::Badge(Tool::Text),
         Tool::Pick | Tool::FreeformPick if app.settings.crosshair_cursor => {
             ToolCursor::System(egui::CursorIcon::Crosshair)

@@ -5,17 +5,20 @@
 
 #![allow(clippy::field_reassign_with_default)]
 mod image_cache;
+mod pattern;
 
-use tiny_skia::{
-    Color as SkColor, FillRule, GradientStop, LineCap, LineJoin, LinearGradient, Paint,
-    Path as SkPath, PathBuilder, Pixmap, RadialGradient, SpreadMode, Stroke as SkStroke,
-    StrokeDash, Transform,
-};
+pub use pattern::texture_value_of;
+
 use graphdraw_core::geometry::Shape as _;
 use graphdraw_core::{
     document::{Shape, ShapeKind},
     geometry::{Affine, BezPath, PathEl, Point, Rect},
     Color, Document, Fill, LineCap as LCap, LineJoin as LJoin, PageId, ShapeId, Stroke,
+};
+use tiny_skia::{
+    Color as SkColor, FillRule, GradientStop, LineCap, LineJoin, LinearGradient, Paint,
+    Path as SkPath, PathBuilder, Pixmap, RadialGradient, SpreadMode, Stroke as SkStroke,
+    StrokeDash, Transform,
 };
 
 /// Page (mm, Y up) to pixel mapping for one render.
@@ -205,6 +208,7 @@ pub fn render_page(doc: &Document, page: PageId, opts: &RenderOptions) -> Option
         flags,
         symbols: &doc.symbols,
         preview: opts.preview.as_ref(),
+        fill_object: Affine::IDENTITY,
     };
     if let Some(bg) = &page.background {
         let mut bg_shape = Shape::new(
@@ -261,6 +265,9 @@ struct Renderer<'a> {
     /// Objects drawn displaced (the live drag preview), on a layer or
     /// inside a group or a clip frame.
     preview: Option<&'a Preview>,
+    /// The transform of the object whose fill or outline is being drawn
+    /// (patterns that follow their object use it).
+    fill_object: Affine,
 }
 
 impl Renderer<'_> {
@@ -276,6 +283,7 @@ impl Renderer<'_> {
             flags: self.flags,
             symbols: self.symbols,
             preview: self.preview,
+            fill_object: self.fill_object,
         }
     }
 
@@ -303,7 +311,8 @@ impl Renderer<'_> {
         if let Some(pic) = shape.drawn_as().filter(|_| !self.flags.wireframe) {
             return self.draw_shape(&pic, parent);
         }
-        if !shape.visible {
+        // Construction lines show on screen only, not in exports or print.
+        if !shape.visible || (shape.construction && !self.flags.draft) {
             return;
         }
         // Character backgrounds go under the text, in its transform.
@@ -631,6 +640,9 @@ impl Renderer<'_> {
             if let Some(stroke) = &shape.stroke {
                 let (mut paint, sk_stroke) = self.stroke_paint(stroke, transform);
                 paint.blend_mode = self.blend_for(shape.overprint_outline);
+                let mut c = sk_color(stroke.color);
+                c.apply_opacity(stroke.safe_opacity() as f32);
+                paint.set_color(c);
                 self.pixmap
                     .stroke_path(&sk, &paint, &sk_stroke, Transform::identity(), None);
             } else if self.flags.wireframe {
@@ -665,7 +677,14 @@ impl Renderer<'_> {
             return;
         }
 
-        if !self.flags.wireframe {
+        self.fill_object = transform;
+        // The fill's own transparency (NaN reads as opaque).
+        let fill_alpha = if shape.fill_opacity.is_nan() {
+            1.0
+        } else {
+            shape.fill_opacity.clamp(0.0, 1.0) as f32
+        };
+        if !self.flags.wireframe && fill_alpha > 0.0 {
             let rule = fill_rule_of(shape);
             let blend = self.blend_for(shape.overprint_fill);
             if let Fill::Mesh(m) = &shape.fill {
@@ -674,7 +693,24 @@ impl Renderer<'_> {
                 for n in pm.nodes.iter_mut() {
                     n.pos = transform * n.pos;
                 }
-                self.fill_mesh(&pm, &sk, rule, blend);
+                if fill_alpha < 1.0 {
+                    let (w, h) = (self.pixmap.width(), self.pixmap.height());
+                    if let Some(mut layer) = Pixmap::new(w, h) {
+                        {
+                            let mut sub = self.sub(&mut layer);
+                            sub.fill_mesh(&pm, &sk, rule, tiny_skia::BlendMode::SourceOver);
+                        }
+                        let pp = tiny_skia::PixmapPaint {
+                            opacity: fill_alpha,
+                            blend_mode: blend,
+                            ..Default::default()
+                        };
+                        self.pixmap
+                            .draw_pixmap(0, 0, layer.as_ref(), &pp, Transform::identity(), None);
+                    }
+                } else {
+                    self.fill_mesh(&pm, &sk, rule, blend);
+                }
             } else if !self.flags.fill_open_curves
                 && matches!(shape.kind, ShapeKind::Path { closed: false, .. })
                 && !matches!(shape.fill, Fill::None)
@@ -682,92 +718,33 @@ impl Renderer<'_> {
                 // Only the closed subpaths of a curve get the fill.
                 let closed = closed_subpaths(&page_path);
                 if let Some(sk_fill) = to_sk_path(&(self.screen * closed.clone())) {
-                    self.draw_fill_blended(&shape.fill, &closed, &sk_fill, rule, blend);
+                    self.draw_fill_alpha(&shape.fill, &closed, &sk_fill, rule, blend, fill_alpha);
                 }
             } else {
-                self.draw_fill_blended(&shape.fill, &page_path, &sk, rule, blend);
+                self.draw_fill_alpha(&shape.fill, &page_path, &sk, rule, blend, fill_alpha);
             }
         }
         if let Some(stroke) = &shape.stroke {
-            let (mut paint, sk_stroke) = self.stroke_paint(stroke, transform);
-            paint.blend_mode = self.blend_for(shape.overprint_outline);
-            if let Some(brush) = stroke.painterly.as_ref().filter(|_| !self.flags.wireframe) {
-                // Painterly brush: its marks, each with its own opacity.
-                let c = transform.as_coeffs();
-                let scale = if stroke.scale_with_object {
-                    ((c[0] * c[3] - c[1] * c[2]).abs()).sqrt().max(1e-6)
-                } else {
-                    1.0
-                };
-                let [r, g, b] = stroke.color.to_rgb8();
-                for mark in
-                    graphdraw_core::painterly::marks(&page_path, stroke.width * scale, brush)
-                {
-                    let Some(mp) = to_sk_path(&(self.screen * mark.path)) else {
-                        continue;
-                    };
-                    paint.set_color_rgba8(r, g, b, (mark.alpha * 255.0).round() as u8);
-                    self.pixmap.fill_path(
-                        &mp,
-                        &paint,
-                        FillRule::Winding,
-                        Transform::identity(),
-                        None,
-                    );
-                }
-                return;
-            }
-            let object_scale = if stroke.scale_with_object {
-                let c = transform.as_coeffs();
-                ((c[0] * c[3] - c[1] * c[2]).abs()).sqrt().max(1e-6)
-            } else {
-                1.0
-            };
-            if let Some(band) =
-                graphdraw_core::shaping::outline_band(&page_path, stroke, object_scale)
-            {
-                // Calligraphic nib or variable width: fill the band instead
-                // of stroking, with the outline's own fill when it has one.
-                if let Some(bp) = to_sk_path(&(self.screen * band.clone())) {
-                    match outline_paint(stroke, transform) {
-                        Some(fill) => {
-                            use graphdraw_core::geometry::Shape as _;
-                            let b = bbox(&band).to_path(0.01);
-                            self.draw_fill(&fill, &b, &bp, FillRule::Winding);
-                        }
-                        None => self.pixmap.fill_path(
-                            &bp,
-                            &paint,
-                            FillRule::Winding,
-                            Transform::identity(),
-                            None,
-                        ),
+            // A see-through outline goes through a layer of its own, so
+            // its arrowheads and the stroke do not double up where they
+            // overlap.
+            let alpha = stroke.safe_opacity() as f32;
+            if alpha >= 1.0 {
+                self.draw_outline(shape, stroke, transform, &page_path, &sk);
+            } else if alpha > 0.0 {
+                let (w, h) = (self.pixmap.width(), self.pixmap.height());
+                if let Some(mut layer) = Pixmap::new(w, h) {
+                    {
+                        let mut sub = self.sub(&mut layer);
+                        sub.draw_outline(shape, stroke, transform, &page_path, &sk);
                     }
-                }
-            } else if let Some(fill) =
-                outline_paint(stroke, transform).filter(|_| sk_stroke.width > 0.0)
-            {
-                // A filled outline: the stroke's area painted with the fill,
-                // spread over the outline's bounds.
-                if let Some(band) = sk.stroke(&sk_stroke, 1.0) {
-                    use graphdraw_core::geometry::Shape as _;
-                    let pad = (sk_stroke.width as f64 / self.zoom.max(1e-9)) / 2.0;
-                    let b = bbox(&page_path).inflate(pad, pad);
-                    self.draw_fill(&fill, &b.to_path(0.01), &band, FillRule::Winding);
-                }
-            } else {
-                self.pixmap
-                    .stroke_path(&sk, &paint, &sk_stroke, Transform::identity(), None);
-            }
-            for head in graphdraw_core::style::arrowhead_paths(&page_path, stroke) {
-                if let Some(hp) = to_sk_path(&(self.screen * head)) {
-                    self.pixmap.fill_path(
-                        &hp,
-                        &paint,
-                        FillRule::Winding,
-                        Transform::identity(),
-                        None,
-                    );
+                    let pp = tiny_skia::PixmapPaint {
+                        opacity: alpha,
+                        blend_mode: self.blend_for(shape.overprint_outline),
+                        ..Default::default()
+                    };
+                    self.pixmap
+                        .draw_pixmap(0, 0, layer.as_ref(), &pp, Transform::identity(), None);
                 }
             }
         } else if self.flags.wireframe {
@@ -780,6 +757,88 @@ impl Renderer<'_> {
             };
             self.pixmap
                 .stroke_path(&sk, &paint, &s, Transform::identity(), None);
+        }
+    }
+
+    /// The outline of `shape` (page path `page_path`, the same on screen
+    /// as `sk`), fully opaque: a painterly brush, a band (calligraphic,
+    /// variable width, outside or inside, dashes through corners) or a
+    /// plain stroke, then the arrowheads.
+    fn draw_outline(
+        &mut self,
+        shape: &Shape,
+        stroke: &Stroke,
+        transform: Affine,
+        page_path: &BezPath,
+        sk: &SkPath,
+    ) {
+        let (mut paint, sk_stroke) = self.stroke_paint(stroke, transform);
+        paint.blend_mode = self.blend_for(shape.overprint_outline);
+        if let Some(brush) = stroke.painterly.as_ref().filter(|_| !self.flags.wireframe) {
+            // Painterly brush: its marks, each with its own opacity.
+            let c = transform.as_coeffs();
+            let scale = if stroke.scale_with_object {
+                ((c[0] * c[3] - c[1] * c[2]).abs()).sqrt().max(1e-6)
+            } else {
+                1.0
+            };
+            let [r, g, b] = stroke.color.to_rgb8();
+            for mark in graphdraw_core::painterly::marks(page_path, stroke.width * scale, brush) {
+                let Some(mp) = to_sk_path(&(self.screen * mark.path)) else {
+                    continue;
+                };
+                paint.set_color_rgba8(r, g, b, (mark.alpha * 255.0).round() as u8);
+                self.pixmap
+                    .fill_path(&mp, &paint, FillRule::Winding, Transform::identity(), None);
+            }
+            return;
+        }
+        let object_scale = if stroke.scale_with_object {
+            let c = transform.as_coeffs();
+            ((c[0] * c[3] - c[1] * c[2]).abs()).sqrt().max(1e-6)
+        } else {
+            1.0
+        };
+        if let Some(band) = graphdraw_core::shaping::outline_band(page_path, stroke, object_scale) {
+            // A band (calligraphic, variable, outside or inside, dashes
+            // through corners): fill it instead
+            // of stroking, with the outline's own fill when it has one.
+            if let Some(bp) = to_sk_path(&(self.screen * band.clone())) {
+                match outline_paint(stroke, transform) {
+                    Some(fill) => {
+                        use graphdraw_core::geometry::Shape as _;
+                        let b = bbox(&band).to_path(0.01);
+                        self.draw_fill(&fill, &b, &bp, FillRule::Winding);
+                    }
+                    None => self.pixmap.fill_path(
+                        &bp,
+                        &paint,
+                        FillRule::Winding,
+                        Transform::identity(),
+                        None,
+                    ),
+                }
+            }
+        } else if let Some(fill) =
+            outline_paint(stroke, transform).filter(|_| sk_stroke.width > 0.0)
+        {
+            // A filled outline: the stroke's area painted with the fill,
+            // spread over the outline's bounds.
+            if let Some(band) = sk.stroke(&sk_stroke, 1.0) {
+                use graphdraw_core::geometry::Shape as _;
+                let pad = (sk_stroke.width as f64 / self.zoom.max(1e-9)) / 2.0;
+                let b = bbox(page_path).inflate(pad, pad);
+                self.draw_fill(&fill, &b.to_path(0.01), &band, FillRule::Winding);
+            }
+        } else {
+            self.pixmap
+                .stroke_path(sk, &paint, &sk_stroke, Transform::identity(), None);
+        }
+        for head in graphdraw_core::style::arrowhead_paths(page_path, stroke) {
+            if let Some(hp) = to_sk_path(&(self.screen * head)) {
+                self.pixmap
+                    .fill_path(&hp, &paint, FillRule::Winding, Transform::identity(), None);
+            }
         }
     }
 
@@ -998,8 +1057,8 @@ impl Renderer<'_> {
                 *px = np;
             }
         }
-        use tiny_skia::BlendMode as B;
         use graphdraw_core::live::MergeMode as M;
+        use tiny_skia::BlendMode as B;
         let blend = match merge {
             M::Normal | M::Red | M::Green | M::Blue => B::SourceOver,
             M::Add => B::Plus,
@@ -1039,6 +1098,42 @@ impl Renderer<'_> {
         rule: FillRule,
         blend: tiny_skia::BlendMode,
     ) {
+        self.draw_fill_alpha(fill, page_path, sk, rule, blend, 1.0);
+    }
+
+    /// `draw_fill_blended` with the fill's own transparency `alpha`
+    /// (0..1): a solid colour painted with that alpha, any other fill
+    /// rendered into a scratch layer composited with it.
+    fn draw_fill_alpha(
+        &mut self,
+        fill: &Fill,
+        page_path: &BezPath,
+        sk: &SkPath,
+        rule: FillRule,
+        blend: tiny_skia::BlendMode,
+        alpha: f32,
+    ) {
+        if alpha <= 0.0 || matches!(fill, Fill::None) {
+            return;
+        }
+        if alpha < 1.0 && !matches!(fill, Fill::Solid(_)) {
+            let (w, h) = (self.pixmap.width(), self.pixmap.height());
+            let Some(mut layer) = Pixmap::new(w, h) else {
+                return;
+            };
+            {
+                let mut sub = self.sub(&mut layer);
+                sub.draw_fill(fill, page_path, sk, rule);
+            }
+            let pp = tiny_skia::PixmapPaint {
+                opacity: alpha,
+                blend_mode: blend,
+                ..Default::default()
+            };
+            self.pixmap
+                .draw_pixmap(0, 0, layer.as_ref(), &pp, Transform::identity(), None);
+            return;
+        }
         if blend != tiny_skia::BlendMode::SourceOver && !matches!(fill, Fill::Solid(_)) {
             let (w, h) = (self.pixmap.width(), self.pixmap.height());
             let Some(mut layer) = Pixmap::new(w, h) else {
@@ -1062,7 +1157,9 @@ impl Renderer<'_> {
         match fill {
             Fill::None => {}
             Fill::Solid(c) => {
-                paint.set_color(sk_color(*c));
+                let mut color = sk_color(*c);
+                color.apply_opacity(alpha.min(1.0));
+                paint.set_color(color);
                 self.pixmap
                     .fill_path(sk, &paint, rule, Transform::identity(), None);
             }
@@ -1158,10 +1255,11 @@ impl Renderer<'_> {
                 // cheap), then blended per pixel as `lerp_color` does.
                 let ca = t.color_a.to_rgb8();
                 let cb = t.color_b.to_rgb8();
-                self.fill_procedural(page_path, sk, rule, &key, move |u, v| {
+                let ppi = Some(t.safe_resolution());
+                self.fill_procedural_at(page_path, sk, rule, &key, ppi, move |u, v| {
                     let x = u * b.width() / t2.scale.max(0.1);
                     let y = v * b.height() / t2.scale.max(0.1);
-                    let n = texture_value(t2.kind, x, y, t2.seed) as f32;
+                    let n = texture_value_of(&t2, x, y) as f32;
                     let l = |x: u8, y: u8| {
                         (x as f32 + (y as f32 - x as f32) * n)
                             .round()
@@ -1398,24 +1496,42 @@ impl Renderer<'_> {
             .fill_path(area, &paint, rule, Transform::identity(), None);
     }
 
-    fn fill_procedural(
+    /// [`Self::fill_procedural_full`] worked out at most `ppi` pixels per inch:
+    /// zoomed in past it, each worked out pixel covers several on screen
+    /// (the texture's own resolution, as an export shows it).
+    fn fill_procedural_at(
         &mut self,
         page_path: &BezPath,
         sk: &SkPath,
         rule: FillRule,
         key: &str,
+        ppi: Option<f64>,
         f: impl Fn(f64, f64) -> Color + Sync,
     ) {
-        self.fill_procedural_alpha(page_path, sk, rule, key, move |u, v| (f(u, v), 1.0));
+        self.fill_procedural_full(page_path, sk, rule, key, ppi, move |u, v| (f(u, v), 1.0));
     }
 
-    /// [`Self::fill_procedural`] with an opacity (0..1) for each point.
+    /// [`Self::fill_procedural_full`] with an opacity (0..1) for each point.
     fn fill_procedural_alpha(
         &mut self,
         page_path: &BezPath,
         sk: &SkPath,
         rule: FillRule,
         key: &str,
+        f: impl Fn(f64, f64) -> (Color, f32) + Sync,
+    ) {
+        self.fill_procedural_full(page_path, sk, rule, key, None, f);
+    }
+
+    /// The procedural fill itself: a colour and an opacity for each point,
+    /// worked out at most `ppi` pixels per inch when given.
+    fn fill_procedural_full(
+        &mut self,
+        page_path: &BezPath,
+        sk: &SkPath,
+        rule: FillRule,
+        key: &str,
+        ppi: Option<f64>,
         f: impl Fn(f64, f64) -> (Color, f32) + Sync,
     ) {
         use graphdraw_core::geometry::Shape as _;
@@ -1442,6 +1558,28 @@ impl Renderer<'_> {
             procedural_step(full_w, full_h)
         } else {
             1
+        };
+        // Screen pixels per texture pixel at the texture's resolution.
+        let res_step = ppi
+            .filter(|p| p.is_finite() && *p > 0.0)
+            .map(|p| ((self.zoom * 25.4 / p).floor() as u32).clamp(1, 64))
+            .unwrap_or(1);
+        let step = step.max(res_step);
+        // Several screen pixels per worked out pixel: the grid lines up
+        // with the object, not the window, so a part of it shows the same
+        // pixels however the view is scrolled.
+        let (x0, y0, full_w, full_h) = if step > 1 {
+            let st = step as f64;
+            let ax = sb.x0 + ((x0 - sb.x0) / st).floor() * st;
+            let ay = sb.y0 + ((y0 - sb.y0) / st).floor() * st;
+            (
+                ax,
+                ay,
+                full_w + (x0 - ax).ceil() as u32,
+                full_h + (y0 - ay).ceil() as u32,
+            )
+        } else {
+            (x0, y0, full_w, full_h)
         };
         let w = full_w.div_ceil(step).max(1);
         let h = full_h.div_ceil(step).max(1);
@@ -1485,93 +1623,92 @@ impl Renderer<'_> {
             .fill_path(sk, &paint, rule, Transform::identity(), None);
     }
 
+    /// Pattern fill: the tile (two colours, an image or vector objects)
+    /// as pixels at the screen's density, arranged into a 2 by 2 block
+    /// when rows or columns are offset or tiles mirrored, and repeated
+    /// along the pattern space of its layout (on the page, or with the
+    /// object's transform).
     fn fill_pattern(&mut self, p: &graphdraw_core::Pattern, sk: &SkPath, rule: FillRule) {
-        let mut paint = Paint::default();
-        paint.anti_alias = self.flags.anti_alias;
-        match p {
+        let layout = *p.layout();
+        let to_screen = self.screen * layout.pattern_to_page(self.fill_object);
+        let density = pattern::length_scale(to_screen);
+        if !(density.is_finite() && density > 1e-9) {
+            return;
+        }
+        let size = p.tile_size();
+        let max = if layout.needs_super_tile() {
+            pattern::MAX_TILE_PX / 2
+        } else {
+            pattern::MAX_TILE_PX
+        };
+        let tw = pattern::tile_px(size.width, density, max);
+        let th = pattern::tile_px(size.height, density, max);
+        let (base, crisp) = match p {
             graphdraw_core::Pattern::TwoColor {
-                tile,
-                front,
-                back,
-                size_mm,
-            } => {
-                let px = ((size_mm * self.zoom).round() as u32).clamp(2, 1024);
-                let Some(mut pm) = Pixmap::new(px, px) else {
-                    return;
-                };
-                let [fr, fg, fb] = front.to_rgb8();
-                let [br, bg, bb] = back.to_rgb8();
-                let data = pm.pixels_mut();
-                for y in 0..px {
-                    for x in 0..px {
-                        let u = (x as f64 + 0.5) / px as f64;
-                        let v = 1.0 - (y as f64 + 0.5) / px as f64;
-                        let c = if tile.front(u, v) {
-                            (fr, fg, fb)
-                        } else {
-                            (br, bg, bb)
-                        };
-                        data[(y * px + x) as usize] =
-                            tiny_skia::ColorU8::from_rgba(c.0, c.1, c.2, 255).premultiply();
-                    }
-                }
-                paint.shader = tiny_skia::Pattern::new(
-                    pm.as_ref(),
-                    SpreadMode::Repeat,
-                    tiny_skia::FilterQuality::Nearest,
-                    1.0,
-                    Transform::identity(),
-                );
-                self.pixmap
-                    .fill_path(sk, &paint, rule, Transform::identity(), None);
-            }
-            graphdraw_core::Pattern::Bitmap {
-                png,
-                width_px,
-                size_mm,
-                ..
-            } => {
+                tile, front, back, ..
+            } => (
+                pattern::two_color_tile(*tile, *front, *back, tw, th).map(std::sync::Arc::new),
+                true,
+            ),
+            graphdraw_core::Pattern::Bitmap { png, .. } => {
                 let Some(img) = image_cache::decode(png) else {
                     return;
                 };
-                let scale = (size_mm * self.zoom) as f32 / (*width_px).max(1) as f32;
-                paint.shader = tiny_skia::Pattern::new(
-                    Pixmap::as_ref(&img),
-                    SpreadMode::Repeat,
-                    tiny_skia::FilterQuality::Bilinear,
-                    1.0,
-                    Transform::from_scale(scale, scale),
-                );
-                self.pixmap
-                    .fill_path(sk, &paint, rule, Transform::identity(), None);
-            }
-            graphdraw_core::Pattern::Vector { shapes, tile } => {
-                let Some(pm) = self.render_vector_tile(shapes, *tile) else {
-                    return;
+                // The image's own pixels; a very large one is scaled down.
+                let img = if img.width() > max || img.height() > max {
+                    pattern::fit(&img, max).map(std::sync::Arc::new)
+                } else {
+                    Some(img)
                 };
-                paint.shader = tiny_skia::Pattern::new(
-                    pm.as_ref(),
-                    SpreadMode::Repeat,
-                    tiny_skia::FilterQuality::Bilinear,
-                    1.0,
-                    Transform::identity(),
-                );
-                self.pixmap
-                    .fill_path(sk, &paint, rule, Transform::identity(), None);
+                (img, false)
             }
-        }
+            graphdraw_core::Pattern::Vector { shapes, .. } => (
+                self.render_vector_tile(shapes, size, tw, th)
+                    .map(std::sync::Arc::new),
+                false,
+            ),
+        };
+        let Some(base) = base else {
+            return;
+        };
+        let (pm, cover) = if layout.needs_super_tile() {
+            let Some(sup) = pattern::super_tile(&base, &layout) else {
+                return;
+            };
+            (std::sync::Arc::new(sup), graphdraw_core::geometry::Size::new(size.width * 2.0, size.height * 2.0))
+        } else {
+            (base, size)
+        };
+        let m = to_screen * pattern::pixel_to_pattern(pm.width(), pm.height(), cover);
+        let Some(t) = pattern::sk_transform(m) else {
+            return;
+        };
+        // Two-colour cells stay sharp while the grid is square to the
+        // screen; turned, or for images and drawings, pixels blend.
+        let quality = if crisp && pattern::axis_aligned(m) {
+            tiny_skia::FilterQuality::Nearest
+        } else {
+            tiny_skia::FilterQuality::Bilinear
+        };
+        let mut paint = Paint::default();
+        paint.anti_alias = self.flags.anti_alias;
+        paint.shader = tiny_skia::Pattern::new(Pixmap::as_ref(&pm), SpreadMode::Repeat, quality, 1.0, t);
+        self.pixmap
+            .fill_path(sk, &paint, rule, Transform::identity(), None);
     }
 
-    /// Rasterise a vector pattern tile at the current zoom. The tile's
-    /// shapes go through the ordinary shape drawing, so nested groups,
-    /// fills, outlines and text in the tile render exactly as on the page.
-    /// The pixmap is a whole number of pixels, so the repeat is seamless;
-    /// the tile's millimetre size is stretched to fit by at most half a
-    /// pixel on each axis.
+    /// Rasterise a vector pattern tile (`tile` millimetres) into `tw` by
+    /// `th` pixels. The tile's shapes go through the ordinary shape
+    /// drawing, so nested groups, fills, outlines and text in the tile
+    /// render exactly as on the page. The pixmap is a whole number of
+    /// pixels, so the repeat is seamless; the tile's millimetre size is
+    /// stretched to fit by at most half a pixel on each axis.
     fn render_vector_tile(
         &self,
         shapes: &[Shape],
         tile: graphdraw_core::geometry::Size,
+        tw: u32,
+        th: u32,
     ) -> Option<Pixmap> {
         if !(tile.width.is_finite() && tile.height.is_finite())
             || tile.width <= 0.0
@@ -1579,9 +1716,7 @@ impl Renderer<'_> {
         {
             return None;
         }
-        let tw = ((tile.width * self.zoom).round() as u32).clamp(1, 2048);
-        let th = ((tile.height * self.zoom).round() as u32).clamp(1, 2048);
-        let mut pm = Pixmap::new(tw, th)?;
+        let mut pm = Pixmap::new(tw.max(1), th.max(1))?;
         // Tile space (mm, Y up, origin bottom-left) to tile pixels (Y down).
         let screen = Affine::new([
             tw as f64 / tile.width,
@@ -1594,13 +1729,14 @@ impl Renderer<'_> {
         let mut sub = Renderer {
             pixmap: &mut pm,
             screen,
-            zoom: self.zoom,
+            zoom: tw as f64 / tile.width,
             flags: Flags {
                 wireframe: false,
                 ..self.flags
             },
             symbols: self.symbols,
             preview: None,
+            fill_object: Affine::IDENTITY,
         };
         for s in shapes {
             sub.draw_shape(s, Affine::IDENTITY);
@@ -1643,7 +1779,7 @@ impl Renderer<'_> {
         };
         let sk = SkStroke {
             width: width_px,
-            miter_limit: 4.0,
+            miter_limit: stroke.safe_miter_limit() as f32,
             line_cap: match stroke.cap {
                 LCap::Butt => LineCap::Butt,
                 LCap::Round => LineCap::Round,
@@ -1888,50 +2024,15 @@ fn procedural_cache_put(key: String, pm: Pixmap) {
     })
 }
 
-fn noise(x: f64, y: f64, seed: u32) -> f64 {
-    fn hash(ix: i64, iy: i64, seed: u32) -> f64 {
-        let mut h = (ix as u64).wrapping_mul(0x9E3779B97F4A7C15)
-            ^ (iy as u64).wrapping_mul(0xC2B2AE3D27D4EB4F)
-            ^ (seed as u64).wrapping_mul(0x165667B19E3779F9);
-        h ^= h >> 31;
-        h = h.wrapping_mul(0x9E3779B97F4A7C15);
-        h ^= h >> 29;
-        (h & 0xFFFF) as f64 / 65535.0
-    }
-    let (ix, iy) = (x.floor() as i64, y.floor() as i64);
-    let (fx, fy) = (x - x.floor(), y - y.floor());
-    let (sx, sy) = (fx * fx * (3.0 - 2.0 * fx), fy * fy * (3.0 - 2.0 * fy));
-    let a = hash(ix, iy, seed);
-    let b = hash(ix + 1, iy, seed);
-    let c = hash(ix, iy + 1, seed);
-    let d = hash(ix + 1, iy + 1, seed);
-    let top = a + (b - a) * sx;
-    let bot = c + (d - c) * sx;
-    top + (bot - top) * sy
-}
-
-fn fbm(x: f64, y: f64, seed: u32) -> f64 {
-    let mut v = 0.0;
-    let mut amp = 0.5;
-    let mut f = 1.0;
-    for _ in 0..5 {
-        v += amp * noise(x * f, y * f, seed);
-        amp *= 0.5;
-        f *= 2.0;
-    }
-    v
-}
-
+/// The value (0..1) of a texture of `kind` with the settings textures
+/// had before detail and contrast could be set (see [`texture_value_of`]).
 pub fn texture_value(kind: graphdraw_core::TextureKind, x: f64, y: f64, seed: u32) -> f64 {
-    match kind {
-        graphdraw_core::TextureKind::Clouds => fbm(x, y, seed).clamp(0.0, 1.0),
-        graphdraw_core::TextureKind::Marble => ((x + 4.0 * fbm(x, y, seed)) * 2.0).sin().abs(),
-        graphdraw_core::TextureKind::Noise => noise(x * 8.0, y * 8.0, seed),
-        graphdraw_core::TextureKind::Wood => {
-            let r = ((x - 0.5).powi(2) + (y * 0.2).powi(2)).sqrt() * 6.0 + fbm(x, y, seed) * 1.5;
-            r.fract()
-        }
-    }
+    let t = graphdraw_core::Texture {
+        kind,
+        seed,
+        ..graphdraw_core::Texture::default()
+    };
+    texture_value_of(&t, x, y)
 }
 
 fn bbox(p: &BezPath) -> Rect {
@@ -2006,6 +2107,46 @@ pub fn to_sk_path(path: &BezPath) -> Option<SkPath> {
 /// rows top-down. Used by exporters that have no native pattern or
 /// texture support (PDF, SVG fallback).
 pub fn render_fill_image(fill: &Fill, bounds: Rect, dpi: f64) -> Option<Pixmap> {
+    render_fill_image_placed(fill, bounds, Affine::IDENTITY, dpi)
+}
+
+/// The resolution (pixels per inch) an exporter turns `fill` into an
+/// image at over `bounds` (page mm): the texture's or the pattern's own
+/// resolution (a bitmap pattern: its image's pixel density, at least
+/// 150), 150 for other fills, lowered so the image stays within the
+/// renderer's 8192 pixels a side.
+pub fn export_fill_resolution(fill: &Fill, bounds: Rect) -> f64 {
+    use graphdraw_core::TileLayout;
+    let wanted = match fill {
+        Fill::Texture(t) => t.safe_resolution(),
+        Fill::Pattern(p @ graphdraw_core::Pattern::Bitmap { width_px, .. }) => {
+            let mm = p.tile_size().width * p.layout().safe_scale();
+            let own = *width_px as f64 / (mm / 25.4);
+            if own.is_finite() {
+                own.clamp(TileLayout::DEFAULT_RESOLUTION, 600.0)
+            } else {
+                TileLayout::DEFAULT_RESOLUTION
+            }
+        }
+        Fill::Pattern(p) => p.layout().safe_resolution(),
+        _ => TileLayout::DEFAULT_RESOLUTION,
+    };
+    let side = bounds.width().max(bounds.height());
+    if side.is_finite() && side > 0.0 {
+        wanted.min(8000.0 * 25.4 / side).max(1.0)
+    } else {
+        wanted
+    }
+}
+
+/// [`render_fill_image`] for the fill of an object whose transform is
+/// `object`: a pattern that follows its object is placed with it.
+pub fn render_fill_image_placed(
+    fill: &Fill,
+    bounds: Rect,
+    object: Affine,
+    dpi: f64,
+) -> Option<Pixmap> {
     let zoom = dpi / 25.4;
     let w = (bounds.width() * zoom).ceil().max(1.0) as u32;
     let h = (bounds.height() * zoom).ceil().max(1.0) as u32;
@@ -2028,7 +2169,9 @@ pub fn render_fill_image(fill: &Fill, bounds: Rect, dpi: f64) -> Option<Pixmap> 
         flags: Flags::default(),
         symbols: &[],
         preview: None,
+        fill_object: Affine::IDENTITY,
     };
+    r.fill_object = object;
     r.draw_fill(fill, &page_path, &sk, FillRule::Winding);
     Some(pixmap)
 }
@@ -2068,6 +2211,7 @@ pub fn render_fill_image_in(fill: &Fill, path: &BezPath, dpi: f64) -> Option<Pix
         flags: Flags::default(),
         symbols: &[],
         preview: None,
+        fill_object: Affine::IDENTITY,
     };
     r.fill_shaped(f, &mask, &rect, FillRule::EvenOdd);
     Some(pixmap)
@@ -2862,6 +3006,7 @@ mod tests {
             front: Color::rgb8(0, 0, 0),
             back: Color::rgb8(255, 255, 255),
             size_mm: 20.0,
+            layout: Default::default(),
         });
         let pm = render_fill_image(&fill, Rect::new(0.0, 0.0, 40.0, 40.0), 25.4).unwrap();
         let a = px(&pm, 5, 5);
@@ -2878,6 +3023,7 @@ mod tests {
         s.fill = Fill::Pattern(Pattern::Vector {
             shapes: vec![tile_square],
             tile: graphdraw_core::geometry::Size::new(10.0, 10.0),
+            layout: Default::default(),
         });
         let mut doc = Document::new("t", graphdraw_core::geometry::Size::new(20.0, 20.0));
         let page = doc.pages[0].id;
@@ -2912,6 +3058,7 @@ mod tests {
         let fill = Fill::Pattern(Pattern::Vector {
             shapes: vec![group],
             tile: graphdraw_core::geometry::Size::new(10.0, 10.0),
+            layout: Default::default(),
         });
         let pm = render_fill_image(&fill, Rect::new(0.0, 0.0, 10.0, 10.0), 254.0).unwrap();
         // 10 px per mm: the centre is blue, the 2 mm outline band is green.
@@ -2936,6 +3083,7 @@ mod tests {
             let fill = Fill::Pattern(Pattern::Vector {
                 shapes: vec![rect(1, Rect::new(0.0, 0.0, 1.0, 1.0), Color::BLACK)],
                 tile,
+                layout: Default::default(),
             });
             assert!(render_fill_image(&fill, Rect::new(0.0, 0.0, 10.0, 10.0), 96.0).is_some());
         }
@@ -2949,6 +3097,7 @@ mod tests {
             color_b: Color::rgb8(255, 255, 255),
             scale: 10.0,
             seed: 7,
+            ..Default::default()
         });
         let a = render_fill_image(&t, Rect::new(0.0, 0.0, 30.0, 30.0), 25.4).unwrap();
         let b = render_fill_image(&t, Rect::new(0.0, 0.0, 30.0, 30.0), 25.4).unwrap();
@@ -2981,6 +3130,7 @@ mod tests {
             color_b: Color::rgb8(255, 255, 255),
             scale: 40.0,
             seed: 11,
+            ..Default::default()
         });
         s.stroke = None;
         doc.layer_mut(layer).unwrap().shapes.push(s);
@@ -3228,6 +3378,7 @@ mod tests {
             front: red,
             back: blue,
             size_mm: 4.0,
+            layout: Default::default(),
         }));
         let row: Vec<_> = (6..94).map(|x| img.pixel(x, 10).unwrap()).collect();
         assert!(row.iter().all(|p| p.green() < 30));
@@ -3241,6 +3392,7 @@ mod tests {
             color_b: blue,
             scale: 2.0,
             seed: 3,
+            ..Default::default()
         }));
         let p = img.pixel(50, 10).unwrap();
         assert!(p.green() < 30 && p.red() + p.blue() > 150, "{p:?}");
@@ -3287,6 +3439,7 @@ mod tests {
             color_b: Color::rgb8(255, 255, 255),
             scale: 0.5,
             seed: 3,
+            ..Default::default()
         });
         s.stroke = None;
         doc.layer_mut(layer).unwrap().shapes.push(s);
@@ -3458,5 +3611,207 @@ mod tests {
         doc.layer_mut(layer).unwrap().shapes.push(s);
         let page = doc.pages[0].id;
         assert!(render_page_image(&doc, page, 96.0).is_some());
+    }
+
+    #[test]
+    fn fill_transparency_leaves_the_outline_opaque() {
+        // A red square at 50 % fill transparency with a 10 mm black outline.
+        let near = |a: u8, b: u8| (a as i32 - b as i32).abs() <= 3;
+        let mut s = rect(1, Rect::new(20.0, 20.0, 80.0, 80.0), Color::rgb8(255, 0, 0));
+        s.stroke = Some(Stroke::new(Color::BLACK, 10.0));
+        s.fill_opacity = 0.5;
+        let (doc, page) = doc_with(vec![s.clone()]);
+        let pm = render_page_image(&doc, page, 25.4).unwrap();
+        let mid = px(&pm, 50, 50);
+        assert!(mid.0 == 255 && near(mid.1, 128) && near(mid.2, 128), "{mid:?}");
+        assert_eq!(px(&pm, 20, 50), (0, 0, 0), "the outline stays opaque");
+        // With the object's own opacity too, the two multiply (25 % red).
+        s.opacity = 0.5;
+        let (doc, page) = doc_with(vec![s.clone()]);
+        let pm = render_page_image(&doc, page, 25.4).unwrap();
+        let mid = px(&pm, 50, 50);
+        assert!(mid.0 == 255 && near(mid.1, 191) && near(mid.2, 191), "{mid:?}");
+        let edge = px(&pm, 20, 50);
+        assert!(near(edge.0, 128), "the outline at the object's opacity: {edge:?}");
+        // No fill at all with a fill transparency of 100 %.
+        s.opacity = 1.0;
+        s.fill_opacity = 0.0;
+        let (doc, page) = doc_with(vec![s]);
+        let pm = render_page_image(&doc, page, 25.4).unwrap();
+        assert_eq!(px(&pm, 50, 50), (255, 255, 255));
+    }
+
+    #[test]
+    fn fill_transparency_applies_to_every_fill_kind() {
+        let near = |a: u8, b: u8| (a as i32 - b as i32).abs() <= 3;
+        let black = Color::rgb8(0, 0, 0);
+        let fills = [
+            Fill::Fountain(graphdraw_core::Fountain::two(
+                graphdraw_core::FountainKind::Linear,
+                black,
+                black,
+                0.0,
+            )),
+            Fill::Mesh(graphdraw_core::Mesh::new(
+                Rect::new(20.0, 20.0, 80.0, 80.0),
+                2,
+                2,
+                black,
+            )),
+        ];
+        for fill in fills {
+            let mut s = rect(1, Rect::new(20.0, 20.0, 80.0, 80.0), Color::WHITE);
+            s.stroke = None;
+            s.fill = fill.clone();
+            s.fill_opacity = 0.5;
+            let (doc, page) = doc_with(vec![s]);
+            let pm = render_page_image(&doc, page, 25.4).unwrap();
+            let mid = px(&pm, 50, 50);
+            assert!(
+                near(mid.0, 128) && near(mid.1, 128) && near(mid.2, 128),
+                "{fill:?}: {mid:?}"
+            );
+        }
+    }
+}
+
+/// The outline's transparency, position and dashes through corners on
+/// screen.
+#[cfg(test)]
+mod outline_option_tests {
+    use super::*;
+    use graphdraw_core::{DashCorners, StrokePosition};
+
+    fn px(pm: &Pixmap, x: u32, y: u32) -> (u8, u8, u8) {
+        let p = pm.pixel(x, y).unwrap().demultiply();
+        (p.red(), p.green(), p.blue())
+    }
+
+    fn page(shapes: Vec<Shape>) -> Pixmap {
+        let mut doc = Document::new("t", graphdraw_core::geometry::Size::new(100.0, 100.0));
+        let page = doc.pages[0].id;
+        let layer = doc.pages[0].layers[0].id;
+        for s in shapes {
+            doc.layer_mut(layer).unwrap().shapes.push(s);
+        }
+        // One pixel per millimetre.
+        render_page_image(&doc, page, 25.4).unwrap()
+    }
+
+    /// A 60 mm square from 20 to 80 with a 10 mm black outline, no fill.
+    fn square(stroke: Stroke) -> Shape {
+        let mut s = Shape::new(
+            graphdraw_core::ShapeId(1),
+            ShapeKind::Rect {
+                rect: Rect::new(20.0, 20.0, 80.0, 80.0),
+                radius: 0.0,
+                corners: None,
+            },
+        );
+        s.fill = Fill::None;
+        s.stroke = Some(stroke);
+        s
+    }
+
+    fn line(stroke: Stroke) -> Shape {
+        let mut p = BezPath::new();
+        p.move_to((10.0, 50.5));
+        p.line_to((90.0, 50.5));
+        let mut s = Shape::new(
+            graphdraw_core::ShapeId(1),
+            ShapeKind::Path {
+                path: p,
+                closed: false,
+            },
+        );
+        s.fill = Fill::None;
+        s.stroke = Some(stroke);
+        s
+    }
+
+    fn dark(c: (u8, u8, u8)) -> bool {
+        c.0 < 60 && c.1 < 60 && c.2 < 60
+    }
+
+    fn white(c: (u8, u8, u8)) -> bool {
+        c.0 > 230 && c.1 > 230 && c.2 > 230
+    }
+
+    #[test]
+    fn outside_and_inside_outlines_lie_on_one_side_of_the_path() {
+        let black = Stroke::new(Color::BLACK, 10.0);
+        // Centred: 5 mm each side of x = 20.
+        let pm = page(vec![square(black.clone())]);
+        assert!(dark(px(&pm, 17, 50)) && dark(px(&pm, 23, 50)));
+        assert!(white(px(&pm, 12, 50)) && white(px(&pm, 28, 50)));
+        // Outside: 10 mm out, nothing in.
+        let out = Stroke {
+            position: StrokePosition::Outside,
+            ..black.clone()
+        };
+        let pm = page(vec![square(out)]);
+        assert!(dark(px(&pm, 12, 50)) && dark(px(&pm, 17, 50)));
+        assert!(white(px(&pm, 23, 50)) && white(px(&pm, 8, 50)));
+        // Outside corners stay sharp (mitred).
+        assert!(dark(px(&pm, 12, 12)));
+        // Inside: 10 mm in, nothing out.
+        let inside = Stroke {
+            position: StrokePosition::Inside,
+            ..black.clone()
+        };
+        let pm = page(vec![square(inside)]);
+        assert!(dark(px(&pm, 23, 50)) && dark(px(&pm, 28, 50)));
+        assert!(white(px(&pm, 17, 50)) && white(px(&pm, 32, 50)));
+        // An open line is always centred.
+        let pm = page(vec![line(Stroke {
+            position: StrokePosition::Inside,
+            ..black
+        })]);
+        assert!(dark(px(&pm, 50, 47)) && dark(px(&pm, 50, 53)));
+    }
+
+    #[test]
+    fn a_see_through_outline_does_not_double_up_under_its_arrowhead() {
+        let half = Stroke {
+            opacity: 0.5,
+            end_arrow: graphdraw_core::Arrowhead::Square,
+            ..Stroke::new(Color::BLACK, 4.0)
+        };
+        let pm = page(vec![line(half)]);
+        let (r, g, b) = px(&pm, 50, 50);
+        assert!((115..=140).contains(&r) && r == g && g == b, "{r} {g} {b}");
+        // Where the head covers the line's end: the same grey.
+        let (r2, _, _) = px(&pm, 88, 50);
+        assert!((r2 as i32 - r as i32).abs() <= 4, "{r} {r2}");
+        // Transparent: nothing.
+        let none = Stroke {
+            opacity: 0.0,
+            ..Stroke::new(Color::BLACK, 4.0)
+        };
+        assert!(white(px(&page(vec![line(none)]), 50, 50)));
+    }
+
+    #[test]
+    fn aligned_dashes_put_a_dash_through_every_corner() {
+        // 8 mm dashes and 6 mm gaps (2 mm wide) around a 60 mm square:
+        // standard dashes leave a corner bare, aligned and fixed ones
+        // cover every corner.
+        let mut s = Stroke::new(Color::BLACK, 2.0);
+        s.dash = vec![4.0, 3.0];
+        let corner = |mode| {
+            let st = Stroke {
+                dash_corners: mode,
+                ..s.clone()
+            };
+            let pm = page(vec![square(st)]);
+            // The four corners (image y down).
+            [(20, 20), (80, 20), (20, 80), (80, 80)]
+                .iter()
+                .filter(|(x, y)| dark(px(&pm, *x, *y)))
+                .count()
+        };
+        assert_eq!(corner(DashCorners::Align), 4);
+        assert_eq!(corner(DashCorners::Fixed), 4);
+        assert!(corner(DashCorners::Standard) < 4);
     }
 }

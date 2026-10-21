@@ -8,12 +8,10 @@
 //! scale with object and overprint. The drawing shows the new outline on
 //! the objects while the window is open (see `style_windows`); with
 //! several objects selected, OK changes only what was changed in the
-//! window, each object keeping the rest of its own outline.
-//!
-//! Controls whose settings the drawing does not keep yet (outline
-//! transparency, how dashes go through corners, the miter limit, the
-//! position, the arrowheads' size, rotation, mirror and offset) are shown
-//! dimmed.
+//! window, each object keeping the rest of its own outline. The colour
+//! row has the outline's own transparency, the line style how dashes go
+//! through corners, the corners the miter limit, and the arrowheads'
+//! Options each end's size, turn, mirror and offset.
 
 use std::collections::HashMap;
 
@@ -21,14 +19,14 @@ use crate::app::{App, Units};
 use crate::i18n::tr;
 use crate::theme::Tokens;
 use crate::ui::style_windows::{
-    self as sw, color_popup, heading, icon_button, later, note, Cached, ColorPicker, Eyedropper,
-    Footer, Outcome, PaletteList,
+    self as sw, color_popup, heading, icon_button, note, Cached, ColorPicker, Eyedropper, Footer,
+    Outcome, PaletteList,
 };
 use egui::{Color32, Context, Rect, Sense, Stroke as EStroke, Ui, Vec2};
 use graphdraw_core::geometry::{BezPath, Point, Size};
 use graphdraw_core::{
-    Arrowhead, Color, Command, Document, Fill, LineCap, LineJoin, Shape, ShapeId, ShapeKind,
-    Stroke, WidthNode,
+    ArrowOptions, Arrowhead, Color, Command, DashCorners, Document, Fill, LineCap, LineJoin, Shape,
+    ShapeId, ShapeKind, Stroke, StrokePosition, WidthNode,
 };
 use serde::{Deserialize, Serialize};
 
@@ -60,7 +58,10 @@ const DASHES: [(&str, &[f64]); 5] = [
 const WIDTH_SHAPES: [(&str, &[(f64, f64)]); 4] = [
     ("outlinewin.taper_end", &[(0.0, 1.0), (1.0, 0.0)]),
     ("outlinewin.taper_start", &[(0.0, 0.0), (1.0, 1.0)]),
-    ("outlinewin.taper_both", &[(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)]),
+    (
+        "outlinewin.taper_both",
+        &[(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)],
+    ),
     ("outlinewin.bulge", &[(0.0, 0.3), (0.5, 1.6), (1.0, 0.3)]),
 ];
 /// A cell of the line style editor.
@@ -261,7 +262,8 @@ impl OutlineWindow {
 
     fn detect_style(&self, user: &[LineStyle]) -> Style {
         let d = &self.draft.dash;
-        let same = |p: &[f64]| p.len() == d.len() && p.iter().zip(d).all(|(a, b)| (a - b).abs() < 1e-6);
+        let same =
+            |p: &[f64]| p.len() == d.len() && p.iter().zip(d).all(|(a, b)| (a - b).abs() < 1e-6);
         if let Some(i) = DASHES.iter().position(|(_, p)| same(p)) {
             return Style::Builtin(i);
         }
@@ -443,11 +445,15 @@ impl OutlineWindow {
             if eye {
                 self.eye.start();
             }
-            later(ui, |ui| {
-                ui.label(tr("fillwin.transparency"));
-                let mut tp = 0.0;
-                ui.add(egui::Slider::new(&mut tp, 0.0..=100.0).suffix(" %"));
-            });
+            ui.label(tr("fillwin.transparency"))
+                .on_hover_text(tr("outlinewin.transparency_tip"));
+            let tp = ((1.0 - self.draft.safe_opacity()) * 100.0).round();
+            if let Some(v) =
+                crate::measure_field::number_field(ui, "outline_transparency", tp, 0, " %", 64.0)
+            {
+                self.draft.opacity = 1.0 - (v / 100.0).clamp(0.0, 1.0);
+                self.touch();
+            }
         });
         ui.horizontal(|ui| {
             ui.label(tr("outlinewin.width"));
@@ -574,17 +580,27 @@ impl OutlineWindow {
             }
         });
         ui.horizontal(|ui| {
+            let dashed = !self.draft.dash.is_empty();
             ui.label(tr("outlinewin.at_corners"));
-            later(ui, |ui| {
-                ui.spacing_mut().item_spacing.x = 2.0;
-                for k in [
-                    "outlinewin.dash_standard",
-                    "outlinewin.dash_align",
-                    "outlinewin.dash_fixed",
-                ] {
-                    icon_button(ui, k, &tr(k), k == "outlinewin.dash_standard", true);
+            ui.spacing_mut().item_spacing.x = 2.0;
+            for (mode, k) in [
+                (DashCorners::Standard, "outlinewin.dash_standard"),
+                (DashCorners::Align, "outlinewin.dash_align"),
+                (DashCorners::Fixed, "outlinewin.dash_fixed"),
+            ] {
+                let tip = if dashed {
+                    tr(k)
+                } else {
+                    format!("{} ({})", tr(k), tr("outlinewin.dashed_only"))
+                };
+                if icon_button(ui, k, &tip, self.draft.dash_corners == mode, dashed).clicked()
+                    && dashed
+                    && self.draft.dash_corners != mode
+                {
+                    self.draft.dash_corners = mode;
+                    self.touch();
                 }
-            });
+            }
         });
         heading(ui, &tr("outlinewin.corners"));
         ui.horizontal(|ui| {
@@ -602,10 +618,20 @@ impl OutlineWindow {
                 }
             }
             ui.add_space(8.0);
-            later(ui, |ui| {
-                ui.label(tr("outlinewin.miter_limit"));
-                let mut l = 4.0;
-                ui.add(egui::DragValue::new(&mut l));
+            ui.add_enabled_ui(self.draft.join == LineJoin::Miter, |ui| {
+                ui.label(tr("outlinewin.miter_limit"))
+                    .on_hover_text(tr("outlinewin.miter_limit_tip"));
+                if let Some(v) = crate::measure_field::number_field(
+                    ui,
+                    "outline_miter_limit",
+                    self.draft.safe_miter_limit(),
+                    1,
+                    "",
+                    52.0,
+                ) {
+                    self.draft.miter_limit = v.clamp(1.0, 100.0);
+                    self.touch();
+                }
             });
         });
         heading(ui, &tr("outlinewin.caps"));
@@ -625,17 +651,20 @@ impl OutlineWindow {
             }
         });
         heading(ui, &tr("outlinewin.position"));
-        later(ui, |ui| {
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 2.0;
-                for (key, on) in [
-                    ("outlinewin.pos_outside_tip", false),
-                    ("outlinewin.pos_center_tip", true),
-                    ("outlinewin.pos_inside_tip", false),
-                ] {
-                    icon_button(ui, key, &tr(key), on, true);
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 2.0;
+            for (pos, key) in [
+                (StrokePosition::Outside, "outlinewin.pos_outside_tip"),
+                (StrokePosition::Center, "outlinewin.pos_center_tip"),
+                (StrokePosition::Inside, "outlinewin.pos_inside_tip"),
+            ] {
+                if icon_button(ui, key, &tr(key), self.draft.position == pos, true).clicked()
+                    && self.draft.position != pos
+                {
+                    self.draft.position = pos;
+                    self.touch();
                 }
-            });
+            }
         });
         note(ui, &tr("outlinewin.open_centered"));
     }
@@ -652,36 +681,37 @@ impl OutlineWindow {
 
     /// The variable width preset the outline has, if any.
     fn width_shape(&self) -> Option<usize> {
-        (0..WIDTH_SHAPES.len()).find(|i| {
-            let n = width_nodes(*i, self.draft.width);
-            !self.draft.widths.is_empty()
-                && n.len() == self.draft.widths.len()
-                && n.iter().zip(&self.draft.widths).all(|(a, b)| {
-                    (a.at - b.at).abs() < 1e-6
-                        && relative(a.left, b.left)
-                        && relative(a.right, b.right)
-                })
-        })
-        .or_else(|| {
-            // The nodes of a preset at another width (before a change).
-            (0..WIDTH_SHAPES.len()).find(|i| {
-                let p = WIDTH_SHAPES[*i].1;
-                let w = &self.draft.widths;
-                p.len() == w.len()
-                    && !w.is_empty()
-                    && p.iter().zip(w).all(|(a, b)| (a.0 - b.at).abs() < 1e-6)
-                    && {
-                        let k0 = w.iter().zip(p).find(|(_, q)| q.1 > 0.0);
-                        match k0 {
-                            Some((n, q)) => {
-                                let half = n.left / q.1;
-                                w.iter().zip(p).all(|(n, q)| relative(n.left, q.1 * half))
-                            }
-                            None => false,
-                        }
-                    }
+        (0..WIDTH_SHAPES.len())
+            .find(|i| {
+                let n = width_nodes(*i, self.draft.width);
+                !self.draft.widths.is_empty()
+                    && n.len() == self.draft.widths.len()
+                    && n.iter().zip(&self.draft.widths).all(|(a, b)| {
+                        (a.at - b.at).abs() < 1e-6
+                            && relative(a.left, b.left)
+                            && relative(a.right, b.right)
+                    })
             })
-        })
+            .or_else(|| {
+                // The nodes of a preset at another width (before a change).
+                (0..WIDTH_SHAPES.len()).find(|i| {
+                    let p = WIDTH_SHAPES[*i].1;
+                    let w = &self.draft.widths;
+                    p.len() == w.len()
+                        && !w.is_empty()
+                        && p.iter().zip(w).all(|(a, b)| (a.0 - b.at).abs() < 1e-6)
+                        && {
+                            let k0 = w.iter().zip(p).find(|(_, q)| q.1 > 0.0);
+                            match k0 {
+                                Some((n, q)) => {
+                                    let half = n.left / q.1;
+                                    w.iter().zip(p).all(|(n, q)| relative(n.left, q.1 * half))
+                                }
+                                None => false,
+                            }
+                        }
+                })
+            })
     }
 
     /// The right column: arrowheads, calligraphic pen, variable width and
@@ -701,6 +731,9 @@ impl OutlineWindow {
             }
             let r = ui.button(tr("outlinewin.arrow_options"));
             let mut swap = false;
+            let mut changed = false;
+            let unit = self.unit;
+            let draft = &mut self.draft;
             egui::Popup::menu(&r)
                 .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
                 .show(|ui| {
@@ -708,32 +741,37 @@ impl OutlineWindow {
                         swap = true;
                     }
                     ui.separator();
-                    for (key, a) in [
-                        ("outlinewin.start", &self.draft.start_arrow),
-                        ("outlinewin.end", &self.draft.end_arrow),
+                    for (key, a, o) in [
+                        (
+                            "outlinewin.start",
+                            &draft.start_arrow,
+                            &mut draft.start_arrow_options,
+                        ),
+                        (
+                            "outlinewin.end",
+                            &draft.end_arrow,
+                            &mut draft.end_arrow_options,
+                        ),
                     ] {
                         ui.strong(tr(key));
                         if matches!(a, Arrowhead::None) {
                             note(ui, &tr("outlinewin.arrow_none"));
                         } else {
-                            later(ui, |ui| {
-                                ui.horizontal(|ui| {
-                                    let (mut s, mut r, mut m) = (100.0, 0.0, false);
-                                    ui.add(egui::DragValue::new(&mut s).suffix(" %"))
-                                        .on_hover_text(tr("outlinewin.arrow_size"));
-                                    ui.add(egui::DragValue::new(&mut r).suffix("°"))
-                                        .on_hover_text(tr("outlinewin.arrow_rotation"));
-                                    ui.checkbox(&mut m, tr("outlinewin.arrow_mirror"));
-                                    let mut o = 0.0;
-                                    ui.add(egui::DragValue::new(&mut o).suffix(" mm"))
-                                        .on_hover_text(tr("outlinewin.arrow_offset"));
-                                });
+                            ui.push_id(key, |ui| {
+                                changed |= arrow_options_ui(ui, o, unit);
                             });
                         }
                     }
                 });
             if swap {
                 std::mem::swap(&mut self.draft.start_arrow, &mut self.draft.end_arrow);
+                std::mem::swap(
+                    &mut self.draft.start_arrow_options,
+                    &mut self.draft.end_arrow_options,
+                );
+                changed = true;
+            }
+            if changed {
                 self.touch();
             }
         });
@@ -897,8 +935,11 @@ impl OutlineWindow {
                     let label = arrow_name(&h, custom);
                     if ui
                         .add(
-                            egui::Button::image_and_text(egui::Image::new((tex, ARROW_THUMB)), label)
-                                .selected(*a == h),
+                            egui::Button::image_and_text(
+                                egui::Image::new((tex, ARROW_THUMB)),
+                                label,
+                            )
+                            .selected(*a == h),
                         )
                         .clicked()
                         && *a != h
@@ -987,9 +1028,11 @@ impl OutlineWindow {
         let px = (ppp * 4.0).round().max(1.0) as u32;
         let key = (self.result(), px);
         let stroke = self.result();
-        let tex = self.preview.get(ui.ctx(), "outline_window_preview", key, || {
-            Some(stroke_preview(stroke.as_ref(), px as f64))
-        });
+        let tex = self
+            .preview
+            .get(ui.ctx(), "outline_window_preview", key, || {
+                Some(stroke_preview(stroke.as_ref(), px as f64))
+            });
         if let Some(t) = tex {
             let w = ui.available_width().min(280.0);
             ui.add(egui::Image::new((t, Vec2::new(w, w * 42.0 / 70.0))));
@@ -1005,84 +1048,97 @@ impl OutlineWindow {
         };
         let styles = app.settings.line_styles.clone();
         let mut out = EditorOut::None;
-        let (_, closed, _) = sw::floating(ctx, "line_style_editor", &tr("outlinewin.editor_title"), |ui| {
-            note(ui, &tr("outlinewin.editor_text"));
-            let n = ed.cells.len();
-            let (rect, resp) =
-                ui.allocate_exact_size(Vec2::new(DASH_CELL * n as f32, DASH_CELL), Sense::click());
-            for (i, c) in ed.cells.iter().enumerate() {
-                let r = Rect::from_min_size(
-                    rect.min + Vec2::new(i as f32 * DASH_CELL, 0.0),
-                    Vec2::splat(DASH_CELL),
-                )
-                .shrink(1.0);
-                ui.painter()
-                    .rect_filled(r, 0.0, if *c { Tokens::text() } else { Color32::WHITE });
-                ui.painter().rect_stroke(
-                    r,
-                    0.0,
-                    EStroke::new(1.0, Tokens::text_dim()),
-                    egui::StrokeKind::Inside,
+        let (_, closed, _) = sw::floating(
+            ctx,
+            "line_style_editor",
+            &tr("outlinewin.editor_title"),
+            |ui| {
+                note(ui, &tr("outlinewin.editor_text"));
+                let n = ed.cells.len();
+                let (rect, resp) = ui.allocate_exact_size(
+                    Vec2::new(DASH_CELL * n as f32, DASH_CELL),
+                    Sense::click(),
                 );
-            }
-            if resp.clicked() {
-                if let Some(q) = resp.interact_pointer_pos() {
-                    let i = ((q.x - rect.left()) / DASH_CELL) as usize;
-                    if let Some(c) = ed.cells.get_mut(i) {
-                        *c = !*c;
-                    }
-                }
-            }
-            ui.horizontal(|ui| {
-                ui.label(tr("outlinewin.cells"));
-                let mut k = ed.cells.len();
-                if ui.add(egui::DragValue::new(&mut k).range(2..=48)).changed() {
-                    ed.cells.resize(k, false);
-                }
-            });
-            let p = cells_to_pattern(&ed.cells);
-            ui.horizontal(|ui| {
-                ui.label(tr("outlinewin.preview"));
-                pattern_sample(ui, &p);
-            });
-            ui.horizontal(|ui| {
-                ui.label(tr("outlinewin.style_name"));
-                ui.add(egui::TextEdit::singleline(&mut ed.name).desired_width(180.0));
-            });
-            ui.add_space(8.0);
-            ui.horizontal(|ui| {
-                if ui.button(tr("outlinewin.use")).clicked() {
-                    out = EditorOut::Use(p.clone());
-                }
-                let replace = match self.style {
-                    Style::User(i) if i < styles.len() => Some(i),
-                    _ => None,
-                };
-                if ui
-                    .add_enabled(replace.is_some(), egui::Button::new(tr("outlinewin.replace")))
-                    .on_disabled_hover_text(tr("outlinewin.replace_tip"))
-                    .clicked()
-                {
-                    if let Some(i) = replace {
-                        out = EditorOut::Replace(i, p.clone());
-                    }
-                }
-                let name = ed.name.trim().to_string();
-                if ui
-                    .add_enabled(
-                        !name.is_empty() && !p.is_empty(),
-                        egui::Button::new(tr("outlinewin.add")),
+                for (i, c) in ed.cells.iter().enumerate() {
+                    let r = Rect::from_min_size(
+                        rect.min + Vec2::new(i as f32 * DASH_CELL, 0.0),
+                        Vec2::splat(DASH_CELL),
                     )
-                    .on_disabled_hover_text(tr("outlinewin.add_tip"))
-                    .clicked()
-                {
-                    out = EditorOut::Add(name, p.clone());
+                    .shrink(1.0);
+                    ui.painter().rect_filled(
+                        r,
+                        0.0,
+                        if *c { Tokens::text() } else { Color32::WHITE },
+                    );
+                    ui.painter().rect_stroke(
+                        r,
+                        0.0,
+                        EStroke::new(1.0, Tokens::text_dim()),
+                        egui::StrokeKind::Inside,
+                    );
                 }
-                if ui.button(tr("outlinewin.close")).clicked() {
-                    out = EditorOut::Close;
+                if resp.clicked() {
+                    if let Some(q) = resp.interact_pointer_pos() {
+                        let i = ((q.x - rect.left()) / DASH_CELL) as usize;
+                        if let Some(c) = ed.cells.get_mut(i) {
+                            *c = !*c;
+                        }
+                    }
                 }
-            });
-        });
+                ui.horizontal(|ui| {
+                    ui.label(tr("outlinewin.cells"));
+                    let mut k = ed.cells.len();
+                    if ui.add(egui::DragValue::new(&mut k).range(2..=48)).changed() {
+                        ed.cells.resize(k, false);
+                    }
+                });
+                let p = cells_to_pattern(&ed.cells);
+                ui.horizontal(|ui| {
+                    ui.label(tr("outlinewin.preview"));
+                    pattern_sample(ui, &p);
+                });
+                ui.horizontal(|ui| {
+                    ui.label(tr("outlinewin.style_name"));
+                    ui.add(egui::TextEdit::singleline(&mut ed.name).desired_width(180.0));
+                });
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    if ui.button(tr("outlinewin.use")).clicked() {
+                        out = EditorOut::Use(p.clone());
+                    }
+                    let replace = match self.style {
+                        Style::User(i) if i < styles.len() => Some(i),
+                        _ => None,
+                    };
+                    if ui
+                        .add_enabled(
+                            replace.is_some(),
+                            egui::Button::new(tr("outlinewin.replace")),
+                        )
+                        .on_disabled_hover_text(tr("outlinewin.replace_tip"))
+                        .clicked()
+                    {
+                        if let Some(i) = replace {
+                            out = EditorOut::Replace(i, p.clone());
+                        }
+                    }
+                    let name = ed.name.trim().to_string();
+                    if ui
+                        .add_enabled(
+                            !name.is_empty() && !p.is_empty(),
+                            egui::Button::new(tr("outlinewin.add")),
+                        )
+                        .on_disabled_hover_text(tr("outlinewin.add_tip"))
+                        .clicked()
+                    {
+                        out = EditorOut::Add(name, p.clone());
+                    }
+                    if ui.button(tr("outlinewin.close")).clicked() {
+                        out = EditorOut::Close;
+                    }
+                });
+            },
+        );
         if closed {
             out = EditorOut::Close;
         }
@@ -1165,8 +1221,72 @@ pub fn merge_changes(s: &mut Stroke, old: &Stroke, new: &Stroke) {
         nib_angle,
         fill,
         widths,
-        painterly
+        painterly,
+        opacity,
+        miter_limit,
+        position,
+        dash_corners,
+        start_arrow_options,
+        end_arrow_options
     );
+}
+
+/// One arrowhead's size (%), turn (degrees), mirror and offset (a length
+/// in `unit`), with Reset. True when one changed.
+fn arrow_options_ui(ui: &mut Ui, o: &mut ArrowOptions, unit: Units) -> bool {
+    let mut changed = false;
+    ui.horizontal(|ui| {
+        ui.label(tr("outlinewin.arrow_size"));
+        let pct = (o.safe_scale() * 100.0).round();
+        if let Some(v) = crate::measure_field::number_field(ui, "arrow_size", pct, 0, " %", 64.0) {
+            o.scale = (v / 100.0).clamp(ArrowOptions::SCALE_MIN, ArrowOptions::SCALE_MAX);
+            changed = true;
+        }
+        ui.label(tr("outlinewin.arrow_rotation"));
+        if let Some(v) =
+            crate::measure_field::number_field(ui, "arrow_rotation", o.rotation, 0, "°", 56.0)
+        {
+            o.rotation = if v.is_finite() {
+                (v + 180.0).rem_euclid(360.0) - 180.0
+            } else {
+                0.0
+            };
+            changed = true;
+        }
+        if ui
+            .checkbox(&mut o.mirror, tr("outlinewin.arrow_mirror"))
+            .changed()
+        {
+            changed = true;
+        }
+    });
+    ui.horizontal(|ui| {
+        ui.label(tr("outlinewin.arrow_offset"))
+            .on_hover_text(tr("outlinewin.arrow_offset_tip"));
+        if let Some(v) = crate::measure_field::length_field_decimals(
+            ui,
+            "arrow_offset",
+            o.offset,
+            unit,
+            96.0,
+            2,
+            80.0,
+        ) {
+            o.offset = v.clamp(-1000.0, 1000.0);
+            changed = true;
+        }
+        if ui
+            .add_enabled(
+                !o.is_default(),
+                egui::Button::new(tr("outlinewin.arrow_reset")),
+            )
+            .clicked()
+        {
+            *o = ArrowOptions::default();
+            changed = true;
+        }
+    });
+    changed
 }
 
 /// The name of an arrowhead (custom ones are numbered when unnamed).
@@ -1277,7 +1397,10 @@ fn stroke_preview(stroke: Option<&Stroke>, px: f64) -> egui::ColorImage {
                 stroke.cloned(),
             ),
             (
-                poly(&[(40.0, 10.0), (47.0, 32.0), (55.0, 12.0), (63.0, 32.0)], false),
+                poly(
+                    &[(40.0, 10.0), (47.0, 32.0), (55.0, 12.0), (63.0, 32.0)],
+                    false,
+                ),
                 false,
                 Fill::None,
                 stroke.cloned(),
@@ -1298,7 +1421,12 @@ fn arrow_thumb(a: &Arrowhead, start: bool) -> egui::ColorImage {
         16.0,
         5.0,
         4.0,
-        vec![(poly(&[(2.5, 2.5), (13.5, 2.5)], false), false, Fill::None, Some(st))],
+        vec![(
+            poly(&[(2.5, 2.5), (13.5, 2.5)], false),
+            false,
+            Fill::None,
+            Some(st),
+        )],
     )
 }
 
@@ -1368,6 +1496,70 @@ mod tests {
         assert_eq!(own.cap, LineCap::Round);
         assert_eq!(own.width, 2.0);
         assert_eq!(own.color, Color::rgb8(0, 0, 255));
+    }
+
+    /// The transparency, miter limit, position, dashes through corners
+    /// and arrowhead options reach each object only when changed.
+    #[test]
+    fn merge_takes_the_new_outline_settings() {
+        let old = Stroke::new(Color::BLACK, 0.5);
+        let mut new = old.clone();
+        new.opacity = 0.3;
+        new.miter_limit = 10.0;
+        new.position = StrokePosition::Outside;
+        new.dash_corners = DashCorners::Fixed;
+        new.end_arrow_options = ArrowOptions {
+            scale: 2.0,
+            rotation: 45.0,
+            mirror: true,
+            offset: 1.0,
+        };
+        let mut own = Stroke::new(Color::rgb8(0, 0, 255), 2.0);
+        own.start_arrow_options.scale = 3.0;
+        merge_changes(&mut own, &old, &new);
+        assert_eq!(own.opacity, 0.3);
+        assert_eq!(own.miter_limit, 10.0);
+        assert_eq!(own.position, StrokePosition::Outside);
+        assert_eq!(own.dash_corners, DashCorners::Fixed);
+        assert_eq!(own.end_arrow_options, new.end_arrow_options);
+        assert_eq!(own.start_arrow_options.scale, 3.0, "unchanged, kept");
+        assert_eq!(own.width, 2.0);
+    }
+
+    /// The window draws with every new setting set, and the preview shows
+    /// an outline inside the triangle differently from one outside it.
+    #[test]
+    fn outline_pen_draws_the_new_settings() {
+        let mut app = App::headless();
+        let mut s = Stroke::new(Color::BLACK, 1.5);
+        s.dash = vec![4.0, 2.0];
+        s.dash_corners = DashCorners::Align;
+        s.opacity = 0.5;
+        s.miter_limit = 8.0;
+        s.position = StrokePosition::Inside;
+        s.end_arrow = Arrowhead::Arrow;
+        s.end_arrow_options.scale = 1.5;
+        let mut d = OutlineWindow::new(Some(s.clone()), false, Vec::new(), Units::Millimeters);
+        let ctx = Context::default();
+        let screen = Rect::from_min_size(egui::Pos2::ZERO, Vec2::new(1366.0, 768.0));
+        for k in 0..3 {
+            let input = egui::RawInput {
+                screen_rect: Some(screen),
+                time: Some(k as f64 / 30.0),
+                ..Default::default()
+            };
+            let mut out = ctx.run_ui(input, |ui| {
+                let _ = d.show(&mut app, ui.ctx());
+            });
+            out.textures_delta.clear();
+        }
+        assert_eq!(d.draft.position, StrokePosition::Inside);
+        let mut solid = Stroke::new(Color::BLACK, 3.0);
+        solid.position = StrokePosition::Inside;
+        let inside = stroke_preview(Some(&solid), 4.0);
+        solid.position = StrokePosition::Outside;
+        let outside = stroke_preview(Some(&solid), 4.0);
+        assert_ne!(inside.pixels, outside.pixels);
     }
 
     /// The preview and the arrowhead thumbnails render.

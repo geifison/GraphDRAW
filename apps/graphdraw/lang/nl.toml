@@ -1127,6 +1127,7 @@ fillwin.blend_ccw = "Around the color wheel, counterclockwise"
 fillwin.blend_cw = "Around the color wheel, clockwise"
 fillwin.blend_direct = "Straight between the colors"
 fillwin.cells_later = "Clicking the cells to swap front and back comes in a later step; pick a tile for now."
+fillwin.cells_tip = "Click a cell to swap front and back."
 fillwin.center_tip = "Center offset from the object's center (100% = edge)"
 fillwin.center_x = "Center X"
 fillwin.center_y = "Center Y"
@@ -1136,6 +1137,7 @@ fillwin.continuous = "continuous"
 fillwin.contrast = "Contrast"
 fillwin.copy_first = "Copy (Ctrl+C) the tile objects first"
 fillwin.detail = "Detail"
+fillwin.detail_tip = "Layers of grain: each adds finer detail"
 fillwin.elliptic = "Elliptical"
 fillwin.granite = "Granite"
 fillwin.help_bitmap = "Bitmap pattern: choose an image; it becomes the tile, repeated side by side."
@@ -1171,6 +1173,7 @@ fillwin.reflect_tip = "Repeat and mirror (A → B → A)"
 fillwin.repeat = "Repeat"
 fillwin.repeat_tip = "Repeat (A → B, A → B)"
 fillwin.resolution = "Resolution"
+fillwin.resolution_tip = "Pixels per inch when the pattern becomes an image (exports, textures)"
 fillwin.reverse = "Reverse"
 fillwin.reverse_tip = "The start node goes to the end, and the order mirrors"
 fillwin.rotation = "Rotation"
@@ -1186,6 +1189,7 @@ fillwin.tile = "Tile"
 fillwin.tile_bricks = "Bricks"
 fillwin.tile_checker = "Checker"
 fillwin.tile_crosshatch = "Crosshatch"
+fillwin.tile_custom = "Custom"
 fillwin.tile_diagonal = "Diagonal"
 fillwin.tile_dots = "Dots"
 fillwin.tile_grid = "Grid"
@@ -1194,7 +1198,10 @@ fillwin.tile_waves = "Waves"
 fillwin.title = "Edit fill"
 fillwin.title_defaults = "Fill for new objects"
 fillwin.transform_with_object = "Transform with object"
+fillwin.transform_with_object_tip = "On, the pattern follows the object when it is moved, scaled or turned; off, it stays fixed to the page"
 fillwin.transparency = "Transparency"
+fillwin.transparency_objects = "Select objects to give their fill a transparency"
+fillwin.transparency_tip = "How much the fill lets through what lies beneath; the outline keeps its own"
 fillwin.use_copied = "Use copied objects"
 font_list.bold = "Vet"
 font_list.bold_italic = "Vet cursief"
@@ -2680,8 +2687,10 @@ outlinewin.arrow_end = "End arrowhead"
 outlinewin.arrow_mirror = "Mirror"
 outlinewin.arrow_none = "None"
 outlinewin.arrow_offset = "Offset"
+outlinewin.arrow_offset_tip = "Moves the tip away from the curve end along its direction (negative: back along the curve)"
 outlinewin.arrow_open = "Open arrow"
 outlinewin.arrow_options = "Options…"
+outlinewin.arrow_reset = "Reset"
 outlinewin.arrow_rotation = "Rotation"
 outlinewin.arrow_size = "Size"
 outlinewin.arrow_square = "Square"
@@ -2709,6 +2718,7 @@ outlinewin.dash_fixed = "Fixed dashes: restarts at every corner, with exact leng
 outlinewin.dash_long = "Long dash"
 outlinewin.dash_solid = "Solid"
 outlinewin.dash_standard = "Standard dashes: follow the path without corner compensation"
+outlinewin.dashed_only = "dashed lines only"
 outlinewin.edit_style = "Edit…"
 outlinewin.edit_style_tip = "Line style editor: build the rhythm of dashes and gaps"
 outlinewin.editor_text = "Each cell is one line width. Click to swap dash (filled) and gap (empty)."
@@ -2716,12 +2726,13 @@ outlinewin.editor_title = "Edit line style"
 outlinewin.end = "End"
 outlinewin.hairline_tip = "The thinnest line the output device can print"
 outlinewin.has_outline = "Has outline"
-outlinewin.help = "Left: color, width (with unit and preset widths), line style (Edit… builds your own dashes), corners, caps and position. Right: arrowheads (Options swaps start and end), calligraphic pen (drag the ellipse tip to rotate and its side to flatten), variable width and the preview. Bottom: behind fill, scale with object and overprint. The drawing shows the change while the window is open; with no selection, it applies to new objects."
+outlinewin.help = "Left: color, width (with unit and preset widths), line style (Edit… builds your own dashes), corners, caps and position. Right: arrowheads (Options: size, rotation, mirror and offset of each end, or swap start and end), calligraphic pen (drag the ellipse tip to rotate and its side to flatten), variable width and the preview. Bottom: behind fill, scale with object and overprint. The drawing shows the change while the window is open; with no selection, it applies to new objects."
 outlinewin.join_bevel_tip = "Beveled corner"
 outlinewin.join_miter_tip = "Mitered corner"
 outlinewin.join_round_tip = "Round corner"
 outlinewin.line_style = "Line style"
 outlinewin.miter_limit = "Limit"
+outlinewin.miter_limit_tip = "Longest sharp corner, in outline widths (1 to 100); sharper corners are bevelled"
 outlinewin.nib_default = "Default"
 outlinewin.nib_default_tip = "Round nib, even stroke"
 outlinewin.nib_tip = "Drag the tip square to rotate the nib and the side one to flatten it"
@@ -2748,6 +2759,7 @@ outlinewin.taper_end = "Taper end"
 outlinewin.taper_start = "Taper start"
 outlinewin.title = "Outline pen"
 outlinewin.title_defaults = "Outline pen for new objects"
+outlinewin.transparency_tip = "0 % opaque, 100 % invisible; it adds to the object's own transparency"
 outlinewin.uniform = "Uniform"
 outlinewin.unit = "Unit of the width"
 outlinewin.use = "Use"
@@ -4844,3 +4856,61 @@ options.clipboard_svg_text = "Ook kopiëren als SVG-tekst (voor teksteditors en 
 options.clipboard_png = "Ook kopiëren als afbeelding (PNG)"
 drop.hint = "Loslaten om te importeren"
 drop.hint_many = "Loslaten om {n} bestanden te importeren"
+
+# Text on a path.
+# mt
+toolbar.path_warp = "Warp: the base follows the stroke and the top the outer arc"
+# mt
+toolbar.path_on_xheight = "x-height on path"
+# mt
+toolbar.path_on_cap = "Cap height on path"
+# mt
+toolbar.path_place_justify = "Justify along the whole path"
+# mt
+toolbar.path_mirror_h = "Mirror horizontally: reverse the reading direction keeping the text in place (rights upside-down text, as at the bottom of a circle)"
+# mt
+toolbar.path_mirror_v = "Mirror vertically: the text moves to the other side of the stroke, reading the same way"
+# mt
+toolbar.path_offset_tip = "Move along the path (drag the icon or the diamond on the canvas)"
+# mt
+toolbar.path_distance_tip = "Distance from the stroke: positive moves away, negative closer (drag the icon)"
+# mt
+toolbar.path_corner_jump = "Corners: a letter landing on a corner jumps whole to the next side"
+# mt
+toolbar.path_corner_wrap = "Corners: the letter bends around the corner"
+# mt
+toolbar.path_corner_split = "Corners: each side gets an equal part of the text"
+# mt
+toolbar.path_relax = "Anti-collision: on tight curves the spacing opens so the letter tops do not touch"
+# mt
+toolbar.letter_spacing = "Letter spacing"
+# mt
+toolbar.letter_spacing_tip = "Letter spacing, in % of the size (drag the icon; on text on a path, also the blue handle at the end of the text)"
+# mt
+toolbar.path_badge = "Badge: a top text reading outside and a bottom one reading inside, both left to right, on the same path"
+# mt
+toolbar.path_construction = "Stroke as construction: the guide shows on screen but not in print, PDF, SVG or cutting"
+# mt
+toolbar.path_unlink = "Unlink: text and path become independent objects; the text keeps the curve (Ctrl+K)"
+# mt
+toolbar.path_straighten = "Straighten: back to straight text; the path is kept (Reactivate Source Path)"
+# mt
+context.put_text_on_path = "Put Text on Path"
+# mt
+context.reactivate_text_path = "Reactivate Source Path"
+# mt
+drop.fit_to_path = "Fit to Path"
+# mt
+dialog.try_again = "Try Again"
+# mt
+dialog.text_path_missed = "The click did not land on a curve, a line or a shape that can guide the text. Try again?"
+# mt
+text_path.bottom_text = "BOTTOM TEXT"
+# mt
+text_path.handle_slide = "Drag: slide along the path"
+# mt
+text_path.handle_distance = "Drag: move away from the stroke"
+# mt
+text_path.handle_flip = "Click: move to the other side"
+# mt
+text_path.handle_spacing = "Drag: letter spacing"

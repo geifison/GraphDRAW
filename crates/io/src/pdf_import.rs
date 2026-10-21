@@ -1733,6 +1733,7 @@ impl<'a> Importer<'a> {
             return Some(Fill::Pattern(graphdraw_core::Pattern::Vector {
                 shapes,
                 tile: tile_size,
+                layout: Default::default(),
             }));
         }
         None

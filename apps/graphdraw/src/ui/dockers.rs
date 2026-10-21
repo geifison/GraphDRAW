@@ -1067,6 +1067,7 @@ fn fill_editor(ui: &mut Ui, fill: &mut Fill) -> bool {
                 front: base,
                 back: Color::WHITE,
                 size_mm: 10.0,
+                layout: Default::default(),
             }),
             4 => Fill::Texture(Texture {
                 kind: TextureKind::Clouds,
@@ -1074,6 +1075,7 @@ fn fill_editor(ui: &mut Ui, fill: &mut Fill) -> bool {
                 color_b: Color::WHITE,
                 scale: 20.0,
                 seed: 1,
+                ..Default::default()
             }),
             _ => Fill::Mesh(graphdraw_core::Mesh::new(
                 graphdraw_core::geometry::Rect::new(0.0, 0.0, 100.0, 100.0),
@@ -1431,6 +1433,7 @@ fn pattern_editor(ui: &mut Ui, p: &mut Pattern) -> bool {
             front,
             back,
             size_mm,
+            ..
         } => {
             egui::ComboBox::from_label(tr("docker.tile"))
                 .selected_text(tile.name())
@@ -1470,7 +1473,7 @@ fn pattern_editor(ui: &mut Ui, p: &mut Pattern) -> bool {
                 ))
                 .drag_stopped();
         }
-        Pattern::Vector { shapes, tile } => {
+        Pattern::Vector { shapes, tile, .. } => {
             ui.label(trf(
                 "docker.vector_tile_n",
                 &[("n", &shapes.len().to_string())],
@@ -1878,6 +1881,7 @@ mod tests {
             color_b: graphdraw_core::Color::WHITE,
             scale: 5.0,
             seed: 1,
+            ..Default::default()
         });
         for paint in [
             Fill::linear(red, graphdraw_core::Color::WHITE, 0.0),
@@ -1886,6 +1890,7 @@ mod tests {
                 front: red,
                 back: graphdraw_core::Color::WHITE,
                 size_mm: 4.0,
+                layout: Default::default(),
             }),
             texture,
             Fill::Mesh(graphdraw_core::Mesh::new(
@@ -1979,6 +1984,7 @@ mod tests {
                 color_b: graphdraw_core::Color::WHITE,
                 scale: 5.0,
                 seed: 1,
+                ..Default::default()
             }),
             Fill::Mesh(graphdraw_core::Mesh::new(
                 graphdraw_core::geometry::Rect::new(10.0, 10.0, 60.0, 40.0),

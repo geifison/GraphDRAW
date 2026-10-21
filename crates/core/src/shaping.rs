@@ -3,7 +3,7 @@
 //! so curves become dense polylines (0.02 mm tolerance). A curve-preserving
 //! version is on the roadmap.
 
-use crate::geometry::{BezPath, PathEl, Point};
+use crate::geometry::{BezPath, PathEl, PathSeg, Point};
 use i_overlay::core::fill_rule::FillRule as IFill;
 use i_overlay::core::overlay_rule::OverlayRule;
 use i_overlay::float::single::SingleFloatOverlay;
@@ -506,7 +506,9 @@ pub fn variable_band(path: &BezPath, base: f64, nodes: &[crate::style::WidthNode
 }
 
 /// The filled area that stands for an outline that cannot be drawn as a
-/// plain stroke (a calligraphic nib or a variable width), for a path in
+/// plain stroke (a calligraphic nib, a variable width, an outline set
+/// outside or inside a closed path, dashes aligned or fixed at the
+/// corners), for a path in
 /// page space and the object's scale (1 when the outline does not scale
 /// with the object).
 pub fn outline_band(path: &BezPath, stroke: &crate::style::Stroke, scale: f64) -> Option<BezPath> {
@@ -530,16 +532,95 @@ pub fn outline_band(path: &BezPath, stroke: &crate::style::Stroke, scale: f64) -
             stroke.nib_angle,
         ));
     }
-    None
+    positioned_band(path, stroke, scale)
+}
+
+/// Every subpath of `path` is closed (and there is at least one).
+pub fn all_closed(path: &BezPath) -> bool {
+    let mut open = false;
+    let mut any = false;
+    for el in path.elements() {
+        match el {
+            PathEl::MoveTo(_) => {
+                if open {
+                    return false;
+                }
+                open = true;
+                any = true;
+            }
+            PathEl::ClosePath => open = false,
+            _ => {}
+        }
+    }
+    any && !open
+}
+
+/// The band of an outline set outside or inside a closed path, or of one
+/// whose dashes go through the corners in their own way (aligned or
+/// fixed): None for an outline a plain centred stroke draws.
+///
+/// Outside and inside: the outline is stroked twice as wide (the dashes
+/// keep their lengths) and the path's inside is cut away (outside) or
+/// kept alone (inside), so the band is exactly `width` wide on one side.
+/// Open paths stay centred. Hairlines and painterly outlines are never
+/// banded.
+fn positioned_band(path: &BezPath, stroke: &crate::style::Stroke, scale: f64) -> Option<BezPath> {
+    use crate::style::StrokePosition;
+    if stroke.is_hairline() || stroke.painterly.is_some() || !stroke.width.is_finite() {
+        return None;
+    }
+    let positioned = stroke.position != StrokePosition::Center && all_closed(path);
+    if !positioned && !stroke.has_corner_dashes() {
+        return None;
+    }
+    let scale = if scale.is_finite() && scale > 0.0 {
+        scale
+    } else {
+        1.0
+    };
+    let mut s = stroke.clone();
+    s.width = stroke.width * scale;
+    if positioned {
+        s.width *= 2.0;
+        for d in s.dash.iter_mut() {
+            *d /= 2.0;
+        }
+    }
+    let area = stroke_area(path, &s);
+    if !positioned {
+        return Some(area);
+    }
+    let clean = simplify(&area);
+    let op = if stroke.position == StrokePosition::Inside {
+        Op::Intersect
+    } else {
+        Op::Trim
+    };
+    Some(overlay(&clean, path, op))
 }
 
 /// The area a plain outline covers along `path` (page space), as a path
-/// to fill with the non-zero rule: its width, caps, joins (miter limit
-/// 4) and dashes. A hairline covers no area: the result is empty.
+/// to fill with the non-zero rule: its width, caps, joins (with the
+/// outline's miter limit) and dashes, cut at the corners when they go
+/// through corners aligned or fixed. A hairline covers no area: the
+/// result is empty. The outline's position is not applied here (see
+/// [`outline_band`]).
 pub fn stroke_area(path: &BezPath, stroke: &crate::style::Stroke) -> BezPath {
     use kurbo::{Cap, Join};
     if !stroke.width.is_finite() || stroke.width <= crate::style::Stroke::HAIRLINE + 1e-9 {
         return BezPath::new();
+    }
+    if stroke.has_corner_dashes() {
+        let lengths: Vec<f64> = stroke
+            .dash
+            .iter()
+            .map(|d| (d * stroke.width).max(0.0))
+            .collect();
+        let pieces = corner_dashes(path, &lengths, stroke.dash_corners);
+        let mut solid = stroke.clone();
+        solid.dash.clear();
+        solid.dash_corners = crate::style::DashCorners::Standard;
+        return stroke_area(&pieces, &solid);
     }
     let cap = match stroke.cap {
         crate::style::LineCap::Butt => Cap::Butt,
@@ -554,7 +635,7 @@ pub fn stroke_area(path: &BezPath, stroke: &crate::style::Stroke) -> BezPath {
     let mut style = kurbo::Stroke::new(stroke.width)
         .with_caps(cap)
         .with_join(join)
-        .with_miter_limit(4.0);
+        .with_miter_limit(stroke.safe_miter_limit());
     let dashes: Vec<f64> = stroke
         .dash
         .iter()
@@ -569,6 +650,238 @@ pub fn stroke_area(path: &BezPath, stroke: &crate::style::Stroke) -> BezPath {
         &kurbo::StrokeOpts::default(),
         (stroke.width / 100.0).max(1e-3),
     )
+}
+
+/// Length accuracy of the corner dashes, mm.
+const DASH_ACC: f64 = 1e-3;
+
+/// The stretches between corners of each subpath of `path`, and whether
+/// the subpath is closed (with at least one corner; a closed subpath with
+/// no corner, such as a circle, is one open stretch that loops).
+fn corner_runs(path: &BezPath) -> Vec<(Vec<Vec<PathSeg>>, bool)> {
+    use kurbo::{ParamCurve, ParamCurveDeriv};
+    let mut subs: Vec<(Vec<PathSeg>, bool)> = Vec::new();
+    let mut cur: Vec<PathSeg> = Vec::new();
+    let (mut start, mut last) = (Point::ORIGIN, Point::ORIGIN);
+    for el in path.elements() {
+        match *el {
+            PathEl::MoveTo(p) => {
+                if !cur.is_empty() {
+                    subs.push((std::mem::take(&mut cur), false));
+                }
+                start = p;
+                last = p;
+            }
+            PathEl::LineTo(p) => {
+                cur.push(PathSeg::Line(kurbo::Line::new(last, p)));
+                last = p;
+            }
+            PathEl::QuadTo(a, p) => {
+                cur.push(PathSeg::Quad(kurbo::QuadBez::new(last, a, p)));
+                last = p;
+            }
+            PathEl::CurveTo(a, b, p) => {
+                cur.push(PathSeg::Cubic(kurbo::CubicBez::new(last, a, b, p)));
+                last = p;
+            }
+            PathEl::ClosePath => {
+                if (last - start).hypot() > 1e-9 {
+                    cur.push(PathSeg::Line(kurbo::Line::new(last, start)));
+                }
+                if !cur.is_empty() {
+                    subs.push((std::mem::take(&mut cur), true));
+                }
+                last = start;
+            }
+        }
+    }
+    if !cur.is_empty() {
+        subs.push((cur, false));
+    }
+    let tangent = |s: &PathSeg, t: f64| -> kurbo::Vec2 {
+        let d = match s {
+            PathSeg::Line(l) => l.p1 - l.p0,
+            PathSeg::Quad(q) => q.deriv().eval(t).to_vec2(),
+            PathSeg::Cubic(c) => c.deriv().eval(t).to_vec2(),
+        };
+        if d.hypot() < 1e-12 {
+            // A collapsed handle: the chord.
+            s.eval(1.0) - s.eval(0.0)
+        } else {
+            d
+        }
+    };
+    let corner = |a: &PathSeg, b: &PathSeg| {
+        let (u, v) = (tangent(a, 1.0), tangent(b, 0.0));
+        let (lu, lv) = (u.hypot(), v.hypot());
+        lu > 0.0 && lv > 0.0 && (u.dot(v) / (lu * lv)) < 1.0f64.to_radians().cos()
+    };
+    subs.into_iter()
+        .map(|(segs, closed)| {
+            let n = segs.len();
+            let cut: Vec<bool> = (0..n)
+                .map(|i| match (segs.get(i), segs.get(i + 1)) {
+                    (Some(a), Some(b)) => corner(a, b),
+                    (Some(a), None) => closed && segs.first().is_some_and(|b| corner(a, b)),
+                    _ => false,
+                })
+                .collect();
+            // A closed subpath with corners starts just after one.
+            let begin = if closed {
+                cut.iter().position(|c| *c).map_or(0, |i| (i + 1) % n)
+            } else {
+                0
+            };
+            let mut out: Vec<Vec<PathSeg>> = vec![Vec::new()];
+            for k in 0..n {
+                let i = (begin + k) % n;
+                if let (Some(run), Some(seg)) = (out.last_mut(), segs.get(i)) {
+                    run.push(*seg);
+                }
+                if cut.get(i).copied().unwrap_or(false) && k + 1 < n {
+                    out.push(Vec::new());
+                }
+            }
+            let looped = closed && !cut.iter().any(|c| *c);
+            (out, closed && !looped)
+        })
+        .collect()
+}
+
+/// The dash intervals [a, b] along a stretch `len` long. Aligned: the
+/// pattern is scaled so the stretch holds whole repeats plus one more
+/// dash, starting and ending with a dash.
+fn dash_intervals(len: f64, dash: &[f64], corners: crate::style::DashCorners) -> Vec<(f64, f64)> {
+    let total: f64 = dash.iter().sum();
+    if total.is_nan() || total <= 0.0 || len.is_nan() || len <= 0.0 {
+        return vec![(0.0, len.max(0.0))];
+    }
+    // An even number of entries (dash, gap).
+    let pat: Vec<f64> = if dash.len() % 2 == 1 {
+        dash.iter().chain(dash).copied().collect()
+    } else {
+        dash.to_vec()
+    };
+    let total: f64 = pat.iter().sum();
+    let first = pat.first().copied().unwrap_or(0.0);
+    let k = if corners == crate::style::DashCorners::Align {
+        let n = ((len - first) / total).round().max(0.0);
+        let span = n * total + first;
+        if span > 1e-12 {
+            len / span
+        } else {
+            1.0
+        }
+    } else {
+        1.0
+    };
+    let mut out = Vec::new();
+    let (mut x, mut i) = (0.0, 0usize);
+    // Patterns of tiny entries would never end: at most a million steps.
+    while x < len - 1e-9 && i < 1_000_000 {
+        let d = pat.get(i % pat.len()).copied().unwrap_or(0.0) * k;
+        if i % 2 == 0 && d > 0.0 {
+            out.push((x, (x + d).min(len)));
+        }
+        x += d.max(1e-6);
+        i += 1;
+    }
+    out
+}
+
+/// The piece [a, b] (by length) of a run of segments.
+fn run_piece(segs: &[PathSeg], lens: &[f64], a: f64, b: f64) -> Vec<PathSeg> {
+    use kurbo::{ParamCurve, ParamCurveArclen};
+    let mut out = Vec::new();
+    let mut s0 = 0.0;
+    for (seg, l) in segs.iter().zip(lens) {
+        let s1 = s0 + l;
+        if s1 > a + 1e-9 && s0 < b - 1e-9 && *l > 0.0 {
+            let t0 = if a <= s0 {
+                0.0
+            } else {
+                seg.inv_arclen(a - s0, DASH_ACC)
+            };
+            let t1 = if b >= s1 {
+                1.0
+            } else {
+                seg.inv_arclen(b - s0, DASH_ACC)
+            };
+            if t1 > t0 {
+                out.push(seg.subsegment(t0..t1));
+            }
+        }
+        s0 = s1;
+    }
+    out
+}
+
+/// The dashes of `path` (lengths in mm, alternating dash and gap) with
+/// the pattern starting again at every corner: `Fixed` keeps the exact
+/// lengths, `Align` stretches or squeezes the pattern on each stretch so
+/// that a whole dash runs through every corner. Each dash is an open
+/// subpath, to be stroked solid; the dashes on both sides of a corner are
+/// one subpath, so the corner has its join. `Standard` gives the path
+/// back unchanged.
+pub fn corner_dashes(path: &BezPath, dash: &[f64], corners: crate::style::DashCorners) -> BezPath {
+    use kurbo::{ParamCurve, ParamCurveArclen};
+    if corners == crate::style::DashCorners::Standard
+        || dash.iter().any(|d| !d.is_finite() || *d < 0.0)
+    {
+        return path.clone();
+    }
+    let mut out = BezPath::new();
+    for (runs, closed) in corner_runs(path) {
+        // Each dash: its segments, whether it starts at the start of its
+        // stretch and whether it ends at its end.
+        let mut dashes: Vec<(Vec<PathSeg>, bool, bool)> = Vec::new();
+        for run in &runs {
+            let lens: Vec<f64> = run.iter().map(|s| s.arclen(DASH_ACC)).collect();
+            let len: f64 = lens.iter().sum();
+            for (a, b) in dash_intervals(len, dash, corners) {
+                let p = run_piece(run, &lens, a, b);
+                if !p.is_empty() {
+                    dashes.push((p, a <= 1e-6, b >= len - 1e-6));
+                }
+            }
+        }
+        // The dash reaching a corner joins the one leaving it.
+        let mut merged: Vec<(Vec<PathSeg>, bool, bool)> = Vec::new();
+        for d in dashes {
+            match merged.last_mut() {
+                Some(last) if last.2 && d.1 => {
+                    last.0.extend(d.0);
+                    last.2 = d.2;
+                }
+                _ => merged.push(d),
+            }
+        }
+        if closed && merged.len() > 1 {
+            let wraps = merged.last().is_some_and(|l| l.2) && merged.first().is_some_and(|f| f.1);
+            if wraps {
+                if let Some((mut tail, _, _)) = merged.pop() {
+                    if let Some(first) = merged.first_mut() {
+                        tail.append(&mut first.0);
+                        first.0 = tail;
+                    }
+                }
+            }
+        }
+        for (segs, _, _) in merged {
+            let Some(first) = segs.first() else {
+                continue;
+            };
+            out.move_to(first.start());
+            for s in segs {
+                match s {
+                    PathSeg::Line(l) => out.line_to(l.p1),
+                    PathSeg::Quad(q) => out.quad_to(q.p1, q.p2),
+                    PathSeg::Cubic(c) => out.curve_to(c.p1, c.p2, c.p3),
+                }
+            }
+        }
+    }
+    out
 }
 
 /// Union of one path with itself: removes self-overlaps (Simplify).
@@ -745,5 +1058,164 @@ mod tests {
         let t = overlay(&square(0.0), &square(5.0), Op::Trim);
         assert!((t.area().abs() - 50.0).abs() < 1e-3);
         assert!((t.bounding_box().x1 - 5.0).abs() < 1e-6);
+    }
+}
+
+#[cfg(test)]
+mod outline_option_tests {
+    use super::*;
+    use crate::geometry::{Rect, Shape as _};
+    use crate::style::{DashCorners, LineJoin, Stroke, StrokePosition};
+    use crate::Color;
+
+    fn square() -> BezPath {
+        Rect::new(0.0, 0.0, 40.0, 40.0).to_path(0.01)
+    }
+
+    #[test]
+    fn outside_and_inside_bands_are_the_width_on_one_side() {
+        let s = Stroke::new(Color::BLACK, 2.0);
+        assert!(
+            outline_band(&square(), &s, 1.0).is_none(),
+            "centred is a plain stroke"
+        );
+        let out = Stroke {
+            position: StrokePosition::Outside,
+            ..s.clone()
+        };
+        let band = outline_band(&square(), &out, 1.0).expect("band");
+        let b = band.bounding_box();
+        assert!(
+            (b.x0 + 2.0).abs() < 0.05 && (b.x1 - 42.0).abs() < 0.05,
+            "{b:?}"
+        );
+        // 44 x 44 less 40 x 40, mitred corners.
+        assert!((band.area().abs() - 336.0).abs() < 1.0, "{}", band.area());
+        assert!(!band.contains(Point::new(1.0, 20.0)));
+        assert!(band.contains(Point::new(-1.0, 20.0)));
+        let inside = Stroke {
+            position: StrokePosition::Inside,
+            ..s.clone()
+        };
+        let band = outline_band(&square(), &inside, 1.0).expect("band");
+        let b = band.bounding_box();
+        assert!(b.x0.abs() < 0.05 && (b.x1 - 40.0).abs() < 0.05, "{b:?}");
+        assert!((band.area().abs() - (1600.0 - 1296.0)).abs() < 1.0);
+        assert!(band.contains(Point::new(1.0, 20.0)));
+        assert!(!band.contains(Point::new(-1.0, 20.0)));
+        // The object's scale doubles the width.
+        let band = outline_band(&square(), &inside, 2.0).expect("band");
+        assert!(band.contains(Point::new(3.0, 20.0)));
+        // Open paths stay centred; hairlines are never banded.
+        let mut open = BezPath::new();
+        open.move_to((0.0, 0.0));
+        open.line_to((10.0, 0.0));
+        assert!(outline_band(&open, &inside, 1.0).is_none());
+        let hair = Stroke {
+            position: StrokePosition::Outside,
+            ..Stroke::hairline(Color::BLACK)
+        };
+        assert!(outline_band(&square(), &hair, 1.0).is_none());
+        assert!(all_closed(&square()) && !all_closed(&open) && !all_closed(&BezPath::new()));
+    }
+
+    #[test]
+    fn the_miter_limit_bevels_sharp_corners() {
+        // A spike of about 20 degrees: its mitre is about 5.8 widths long.
+        let mut spike = BezPath::new();
+        spike.move_to((0.0, 0.0));
+        spike.line_to((50.0, 0.0));
+        spike.line_to((0.0, 18.2));
+        let mut s = Stroke::new(Color::BLACK, 1.0);
+        s.join = LineJoin::Miter;
+        let reach = |limit: f64| {
+            let st = Stroke {
+                miter_limit: limit,
+                ..s.clone()
+            };
+            stroke_area(&spike, &st).bounding_box().x1
+        };
+        // Limit 4 (the default) bevels it; limit 10 keeps the point.
+        assert!(reach(4.0) < 51.0, "{}", reach(4.0));
+        assert!(reach(10.0) > 52.0, "{}", reach(10.0));
+    }
+
+    fn subpaths(p: &BezPath) -> Vec<Vec<Point>> {
+        let mut out: Vec<Vec<Point>> = Vec::new();
+        for el in p.elements() {
+            match *el {
+                PathEl::MoveTo(q) => out.push(vec![q]),
+                PathEl::LineTo(q) | PathEl::QuadTo(_, q) | PathEl::CurveTo(_, _, q) => {
+                    if let Some(s) = out.last_mut() {
+                        s.push(q)
+                    }
+                }
+                PathEl::ClosePath => {}
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn aligned_dashes_run_through_every_corner() {
+        let sq = Rect::new(0.0, 0.0, 100.0, 100.0).to_path(0.1);
+        let d = corner_dashes(&sq, &[12.0, 7.0], DashCorners::Align);
+        let subs = subpaths(&d);
+        for c in [
+            Point::new(0.0, 0.0),
+            Point::new(100.0, 0.0),
+            Point::new(100.0, 100.0),
+            Point::new(0.0, 100.0),
+        ] {
+            assert!(
+                subs.iter()
+                    .any(|s| s.len() >= 3
+                        && s[1..s.len() - 1].iter().any(|q| (*q - c).hypot() < 1e-6)),
+                "corner {c:?} inside a dash"
+            );
+        }
+        // Standard gives the path back.
+        assert_eq!(corner_dashes(&sq, &[12.0, 7.0], DashCorners::Standard), sq);
+    }
+
+    #[test]
+    fn fixed_dashes_restart_at_each_corner_with_their_lengths() {
+        let mut l = BezPath::new();
+        l.move_to((0.0, 0.0));
+        l.line_to((100.0, 0.0));
+        l.line_to((100.0, 50.0));
+        let d = corner_dashes(&l, &[10.0, 5.0], DashCorners::Fixed);
+        let subs = subpaths(&d);
+        assert!(
+            (subs[0][1] - Point::new(10.0, 0.0)).hypot() < 1e-6,
+            "{:?}",
+            subs[0]
+        );
+        // After the corner at (100, 0) the pattern starts again: a dash
+        // to (100, 10).
+        assert!(subs.iter().any(|s| s
+            .iter()
+            .any(|q| (*q - Point::new(100.0, 10.0)).hypot() < 1e-6)));
+        // A circle has no corners: one loop of dashes.
+        let c = crate::geometry::Circle::new((0.0, 0.0), 50.0).to_path(0.1);
+        assert!(subpaths(&corner_dashes(&c, &[10.0, 10.0], DashCorners::Align)).len() > 5);
+        // Bad lengths give the path back; tiny ones do not hang.
+        assert_eq!(corner_dashes(&l, &[f64::NAN, 1.0], DashCorners::Fixed), l);
+        let _ = corner_dashes(&l, &[1e-12, 1e-12], DashCorners::Fixed);
+        // Through the outline: the dashes become a band.
+        let s = Stroke {
+            dash: vec![2.0, 1.0],
+            dash_corners: DashCorners::Fixed,
+            ..Stroke::new(Color::BLACK, 1.0)
+        };
+        assert!(outline_band(&l, &s, 1.0).is_some());
+        let solid = Stroke {
+            dash_corners: DashCorners::Fixed,
+            ..Stroke::new(Color::BLACK, 1.0)
+        };
+        assert!(
+            outline_band(&l, &solid, 1.0).is_none(),
+            "a solid line has no dashes to place"
+        );
     }
 }

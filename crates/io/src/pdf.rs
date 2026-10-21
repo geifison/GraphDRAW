@@ -3,12 +3,12 @@
 //! outlines with width, caps, joins and dashes, bitmaps as images, and
 //! uniform transparency via ExtGState. Written by hand; no dependency.
 
-use std::fmt::Write as _;
 use graphdraw_core::{
     document::{Shape, ShapeKind},
     geometry::{Affine, PathEl, Rect},
     Color, Document, Fill, FountainKind, LineCap, LineJoin,
 };
+use std::fmt::Write as _;
 
 const MM_PT: f64 = 72.0 / 25.4;
 
@@ -336,6 +336,9 @@ struct PageWriter<'a> {
     /// The drawing's spot inks, and the colour spaces this page uses.
     inks: &'a [graphdraw_core::document::Ink],
     spaces: Vec<(String, usize)>,
+    /// The transform of the object being painted (patterns that follow
+    /// their object are placed with it).
+    fill_object: Affine,
 }
 
 /// A PDF name: `#xx` for bytes outside `!` to `~` and for delimiters.
@@ -506,7 +509,7 @@ impl PageWriter<'_> {
                 } else {
                     bounds
                 };
-                if let Some((png, w, h)) = rasterise_fill(fill, path, bounds) {
+                if let Some((png, w, h)) = rasterise_fill(fill, path, bounds, self.fill_object) {
                     if let Some(rgb) = decode_png_rgb(&png) {
                         let name = format!("Im{}", self.images.len());
                         let id = self.pdf.add_image(w, h, &rgb);
@@ -537,7 +540,7 @@ impl PageWriter<'_> {
         if let Some(pic) = shape.drawn_as() {
             return self.shape(&pic, parent);
         }
-        if !shape.visible {
+        if !shape.visible || shape.construction {
             return;
         }
         if !shape.effects.is_empty() {
@@ -714,9 +717,32 @@ impl PageWriter<'_> {
             return;
         }
 
-        // Fill.
+        // Fill, with its own transparency in a graphics state of its own
+        // (the fill alpha only; the object's opacity times the fill's, as
+        // the state replaces the one above).
         let text = matches!(shape.kind, ShapeKind::Text { .. });
-        self.paint_area(&shape.fill, &path, bounds, text);
+        self.fill_object = transform;
+        let fill_alpha = if shape.fill_opacity.is_nan() {
+            1.0
+        } else {
+            shape.fill_opacity.clamp(0.0, 1.0)
+        };
+        if fill_alpha < 1.0 && self.pdf.allow_alpha && !matches!(shape.fill, Fill::None) {
+            self.content.push_str("q
+");
+            let name = format!("GS{}", self.gstates.len());
+            let id = self.pdf.add_str(format!(
+                "<< /Type /ExtGState /ca {} >>",
+                f(shape.opacity.clamp(0.0, 1.0) * fill_alpha)
+            ));
+            self.gstates.push((name.clone(), id));
+            let _ = writeln!(self.content, "/{name} gs");
+            self.paint_area(&shape.fill, &path, bounds, text);
+            self.content.push_str("Q
+");
+        } else {
+            self.paint_area(&shape.fill, &path, bounds, text);
+        }
 
         // Outline.
         if let Some(s) = &shape.stroke {
@@ -747,6 +773,22 @@ impl PageWriter<'_> {
                 let arr: Vec<String> = s.dash.iter().map(|d| f(d * w)).collect();
                 let _ = writeln!(self.content, "[{}] 0 d", arr.join(" "));
             }
+            // PDF's own miter limit is 10: always give ours.
+            if s.join == LineJoin::Miter {
+                let _ = writeln!(self.content, "{} M", f(s.safe_miter_limit()));
+            }
+            // The outline's own opacity, times the object's (the fill is
+            // already drawn).
+            let alpha = s.safe_opacity();
+            if alpha < 1.0 && self.pdf.allow_alpha {
+                let a = alpha * shape.opacity.clamp(0.0, 1.0);
+                let name = format!("GS{}", self.gstates.len());
+                let id =
+                    self.pdf
+                        .add_str(format!("<< /Type /ExtGState /CA {} /ca {} >>", f(a), f(a)));
+                self.gstates.push((name.clone(), id));
+                let _ = writeln!(self.content, "/{name} gs");
+            }
             if let Some(brush) = &s.painterly {
                 // Painterly brush: the marks, one filled path per opacity.
                 for (alpha, marks) in graphdraw_core::painterly::marks_by_opacity(
@@ -774,7 +816,8 @@ impl PageWriter<'_> {
             } else if let Some(band) =
                 graphdraw_core::shaping::outline_band(&shape.page_path(), s, 1.0)
             {
-                // Calligraphic nib or variable width: the band, filled.
+                // Calligraphic nib, variable width, outside or inside,
+                // dashes through corners: the band, filled.
                 let band = parent * band;
                 if let Some(paint) = outline_paint(s, transform) {
                     let b = band.bounding_box();
@@ -894,15 +937,21 @@ fn outline_paint(s: &graphdraw_core::Stroke, transform: Affine) -> Option<Fill> 
 }
 
 /// Rasterise a pattern, texture, mesh or shaped gradient fill over
-/// `bounds` at 150 dpi (a shaped gradient follows `path`).
+/// `bounds`: gradients at 150 dpi (a shaped gradient follows `path`),
+/// patterns and textures at their own resolution, placed with `object`
+/// (the transform of the object they fill) when they follow it.
 fn rasterise_fill(
     fill: &Fill,
     path: &graphdraw_core::BezPath,
     bounds: graphdraw_core::geometry::Rect,
+    object: Affine,
 ) -> Option<(Vec<u8>, u32, u32)> {
     let pm = match fill {
         Fill::Fountain(_) => graphdraw_render::render_fill_image_in(fill, path, 150.0)?,
-        _ => graphdraw_render::render_fill_image(fill, bounds, 150.0)?,
+        _ => {
+            let dpi = graphdraw_render::export_fill_resolution(fill, bounds);
+            graphdraw_render::render_fill_image_placed(fill, bounds, object, dpi)?
+        }
     };
     let (w, h) = (pm.width(), pm.height());
     Some((pm.encode_png().ok()?, w, h))
@@ -945,7 +994,7 @@ fn link_areas(
 ) {
     use graphdraw_core::geometry::Shape as _;
     for s in shapes {
-        if !s.visible {
+        if !s.visible || s.construction {
             continue;
         }
         let transform = parent * s.transform;
@@ -1205,6 +1254,7 @@ pub fn document_to_pdf_with(doc: &Document, opts: &PdfOptions) -> Vec<u8> {
             symbols: &doc.symbols,
             inks: &doc.inks,
             spaces: Vec::new(),
+            fill_object: Affine::IDENTITY,
         };
         if let Some(bg) = &page.background {
             let mut bg_shape = Shape::new(
@@ -1643,6 +1693,32 @@ mod tests {
         text
     }
 
+    /// The outline's transparency, miter limit and position reach the PDF.
+    #[test]
+    fn outline_options_reach_the_pdf() {
+        use graphdraw_core::StrokePosition;
+        let plain = graphdraw_core::Stroke::new(Color::BLACK, 2.0);
+        let text = one_rect_pdf(Fill::None, Some(plain.clone()));
+        assert!(text.contains("\n4 M\n"), "{text}");
+        assert!(!text.contains("/CA "), "{text}");
+        let st = graphdraw_core::Stroke {
+            opacity: 0.5,
+            miter_limit: 20.0,
+            ..plain.clone()
+        };
+        let text = one_rect_pdf(Fill::None, Some(st));
+        assert!(text.contains("\n20 M\n"), "{text}");
+        assert!(text.contains("/CA 0.5 /ca 0.5"), "{text}");
+        // Outside: the band is filled, the path is not stroked.
+        let st = graphdraw_core::Stroke {
+            position: StrokePosition::Outside,
+            ..plain
+        };
+        let text = one_rect_pdf(Fill::None, Some(st));
+        assert!(!text.contains("\nS\n"), "{text}");
+        assert!(text.contains("\nf\n"), "{text}");
+    }
+
     #[test]
     fn gradient_options_and_outline_paints_reach_the_pdf() {
         use graphdraw_core::{Fountain, FountainRepeat};
@@ -1675,6 +1751,7 @@ mod tests {
             color_b: blue,
             scale: 4.0,
             seed: 2,
+            ..Default::default()
         })));
         let text = one_rect_pdf(Fill::None, Some(st.clone()));
         assert!(text.contains("/Subtype /Image"), "{text}");
@@ -1701,6 +1778,7 @@ mod tests {
             front: Color::BLACK,
             back: Color::WHITE,
             size_mm: 5.0,
+            layout: Default::default(),
         });
         s.stroke = Some(graphdraw_core::Stroke {
             end_arrow: graphdraw_core::Arrowhead::Arrow,
@@ -1738,6 +1816,7 @@ mod tests {
         s.fill = Fill::Pattern(graphdraw_core::Pattern::Vector {
             shapes: vec![tile_square],
             tile: graphdraw_core::geometry::Size::new(10.0, 10.0),
+            layout: Default::default(),
         });
         s.stroke = None;
         doc.layer_mut(layer).unwrap().shapes.push(s);

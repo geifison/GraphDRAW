@@ -528,15 +528,40 @@ stand-in next to each missing family: "Arial (Liberation Sans)".
   offset half the path's length); Mirror puts it inside, reading the
   other way.
 - With the Pick tool, a text fitted to a path shows its own property
-  bar after the object fields: Text orientation (Rotated letters,
-  Vertical skew, Horizontal skew, Upright letters), Vertical placement
-  (Baseline, Ascender, Descender on path, Centred on path), Text
-  placement (start, centre or end of the path, the text's alignment),
-  Distance from path and Offset along path in the document's units,
-  Mirror horizontally and Mirror vertically (pressed while on) and
-  Straighten Text. Each change is one undo step and is stored with the
-  text, so the bar shows it again when the text is selected again
+  bar after the object fields (then the font fields), groups stacked two
+  rows high with an icon button each: orientation (Rotated letters,
+  Upright letters, Vertical skew, Horizontal skew, Warp: every point of a
+  letter follows the path, its base along the stroke and its top along
+  the outer arc) over the line of the letters on the stroke (baseline,
+  descender, x-height at half the body, cap height at 72 % of the body,
+  centre, ascender); placement along the path (start, centre, end,
+  justify along the whole path) over Mirror horizontally and Mirror
+  vertically; the offset along the path (an icon dragged left and right,
+  its value in the tip) and the distance from the stroke (a draggable
+  icon and the length in its field, unit inside) over the corner rule
+  (skip the corner: a letter that would fall on a corner goes whole to
+  the next side; bend at the corner: that letter is warped round it;
+  equal parts per side: the text is shared out evenly between the sides
+  between corners; a corner is a turn of more than 0.45 rad) and
+  Anti-collision (on concave stretches the step after each letter grows
+  by 1 / r - 1 of itself, r the ratio between the path's width at the
+  letters' cap height and at their baseline, at most four times); the
+  letter spacing (% of the body, a draggable icon and a field) over
+  Badge (closed paths), Stroke as Construction (when the guide is in the
+  drawing), Unlink and Straighten Text. Each change is one undo step, a
+  drag of an icon too, and is stored with the text, so the bar shows it
+  again when the text is selected again
   (`text_path::tests::the_bar_settings_edit_the_text_with_undo_and_come_back_on_reselect`).
+- Mirror horizontally reads the text the other way without moving it:
+  both mirrors toggle, the distance becomes -(d + l + b + 0.72 s) - l - b
+  (d the distance, l the shift of the line on the stroke, b the side
+  shift, s the body) so the letters keep the band they filled, and the
+  offset keeps the middle of the text where it was; twice is the start
+  again (`text_path::tests::mirror_horizontally_keeps_the_text_in_place`).
+  Mirror vertically (and the double arrow on the canvas) hangs the
+  letters below the stroke, their cap height on it, reading the same way.
+  The mirrors as stored (`mirror_h`, `mirror_v`) keep their own meaning
+  for files and scripts.
 - A selected fitted text draws as usual, in its fill, with the selection
   handles. Dragging it with the Pick tool slides it along the path and
   away from it instead of moving it off the path: while the button is
@@ -559,6 +584,72 @@ stand-in next to each missing family: "Arial (Liberation Sans)".
   `ops2::tests::text_fitted_to_an_ellipse_sits_centred_on_its_top_outside`,
   `ops2::tests::text_on_a_straight_line_stands_on_it_from_the_start`,
   `ops2::tests::the_text_tool_on_a_paths_outline_starts_text_on_it`).
+  The text starts at the point clicked (centred on it for centred text),
+  and near an outline the Text tool's pointer shows the curve mark.
+
+## Text on a path: link, handles and the kept path
+
+- Live link: a fitted text remembers its guide curve (`TextOnPath::guide`).
+  After every command the engine lays each linked text on its guide
+  again (`Document::refresh_text_paths`): changing or moving the guide
+  moves the text, and a text moved without its guide goes back onto it.
+  A text whose guide is deleted keeps its path
+  (`text_path::tests::moving_the_guide_lays_the_text_on_it_again_and_undo_takes_both_back`,
+  `text_path::tests::a_deleted_guide_leaves_the_text_where_it_is`, core).
+  Duplicated or pasted with its guide, the copy follows the copy of the
+  guide; copied alone it is unlinked
+  (`text_path::tests::copies_follow_a_copied_guide_or_are_unlinked`, core).
+- Linking: a text and a curve selected and Fit Text to Path; one text
+  alone (or being typed) and the command: the pointer becomes the
+  sideways arrow and the object under it is outlined in green when it can
+  guide the text, red when not; the click picks it and the text starts
+  there. A click off any curve, line or shape opens a window asking to
+  Try Again or Cancel; Esc and a right click cancel. A text dragged with
+  the right button onto a curve offers Fit to Path first in the drop
+  menu, starting at the point nearest the drop. The context menu has Put
+  Text on Path with one text selected (alone or with one other object)
+  (`text_path::tests::a_missed_pick_asks_to_try_again_and_a_drop_on_a_curve_fits_there`).
+- New fits skip corners and have Anti-collision on; texts fitted before
+  (and imported ones) keep placing each letter by its centre with no
+  corner rule.
+- Unlink (bar, or Break Apart, Ctrl+K, on the text): text and path
+  become independent, the text keeping its curve; a guide that is gone
+  is drawn again (0.25 mm black) below the text
+  (`text_path::tests::the_guide_lays_the_text_again_and_unlink_keeps_the_curve`).
+- Ghost path: Straighten Text keeps the path with the text; Reactivate
+  Source Path (context menu, on a straightened text or one on a path
+  without its guide) puts it back on the path and the link, drawing the
+  guide again below the text when it no longer exists; one undo step
+  (`text_path::tests::straighten_keeps_a_ghost_path_and_reactivate_redraws_a_lost_guide`).
+- Badge (closed path): the text becomes the top one, reading outside
+  centred on the highest point, and a bottom one ("BOTTOM TEXT") reads
+  left to right inside, centred on the lowest point, its cap height on
+  the stroke, so both fill the same band. Stroke as Construction marks
+  the guide as a construction line: shown on screen, left out of
+  printing, bitmap export, PDF, SVG, EPS, EMF, DXF and plotter cutting
+  (`text_path::tests::badge_makes_a_top_and_a_bottom_text_and_the_guide_can_be_construction`,
+  `svg::tests::construction_lines_are_left_out`).
+- Canvas handles (Pick tool, the text selected alone), each with its
+  pointer and its action named beside it: a red diamond at the start of
+  the text slides it along the path, drawn to the start, the middle and
+  the end of the path within 8 screen points; a green dot 1.1 bodies
+  above the start moves it away from the stroke; a double arrow beside
+  it puts it on the other side (a click); a blue dot at the end opens or
+  closes the letter spacing, the way the end went shared between the
+  letters (100 x ds / (n s) % for n gaps). On a closed path a drag does
+  not jump when it passes the start. While dragging the letters show
+  outlined where they would go with the value by the pointer; the
+  release is one undo step. Spacing a justified text first makes it
+  start where it started with the spacing the justification gave, so the
+  spacing can come down
+  (`text_path::tests::handles_slide_with_a_magnet_move_away_flip_and_space_letters`,
+  `text_path::tests::letter_spacing_unjustifies_and_is_one_step`).
+- Several lines on a path run parallel to the first, one leading apart,
+  and the text crate reports where the letters lie along the path
+  (`TextLayout::path_span`)
+  (`on_path::tests::alignment_along_the_path_justify_and_the_way_round_a_closed_one`,
+  `on_path::tests::anti_collision_opens_concave_stretches_and_corners_follow_their_rule`,
+  `on_path::tests::the_side_the_line_on_the_stroke_and_further_lines`).
 - Change Case opens a dialog with Sentence case, lowercase, UPPERCASE,
   Title Case and tOGGLE cASE; it needs a text selected.
 

@@ -32,6 +32,7 @@ mod press;
 pub mod shaping;
 pub mod style;
 pub mod text_flow;
+pub mod text_path;
 
 pub use color::Color;
 pub use command::Command;
@@ -40,7 +41,7 @@ pub use document::{
     split_spans_at, Baseline, BitmapEffect, BitmapFxStack, ColorStyle, CornerKind, Corners,
     DefaultKind, DefaultProperties, Document, DocumentFont, DocumentProfile, EllipseArc, Layer,
     LeadingUnit, MasterScope, Metadata, ObjectDefaults, ObjectStyle, Page, ParagraphStyle,
-    PathTextOrientation, PathTextVertical, QrCode, QrKind, Shadow, Shape, ShapeKind, StyleParts,
+    PathTextCorners, PathTextOrientation, PathTextVertical, QrCode, QrKind, Shadow, Shape, ShapeKind, StyleParts,
     Symbol, Table, TableCell, TextAlign, TextOnPath, TextSpan, TimeTracker, TrackedTask,
     VerticalAlign,
 };
@@ -50,10 +51,11 @@ pub use icc::{Intent as RenderingIntent, Profile as IccProfile, Transform as Icc
 pub use id::{LayerId, PageId, ShapeId};
 pub use paragraphs::ParagraphFormat;
 pub use style::{
-    arrowhead_paths, Arrowhead, Fill, Fountain, FountainBlend, FountainKind, FountainRepeat, LineCap,
-    LineJoin,
-    Mesh, MeshNode, Pattern, PatternTile, Stop, Stroke, Texture, TextureKind, WidthNode,
+    arrowhead_paths, ArrowOptions, Arrowhead, DashCorners, Fill, Fountain, FountainBlend,
+    FountainKind, FountainRepeat, LineCap, LineJoin, Mesh, MeshNode, Pattern, PatternTile, Stop,
+    Stroke, StrokePosition, Texture, TextureKind, WidthNode,
 };
+pub use style::TileLayout;
 pub use text_flow::{TextWrap, WrapMode, WrapSide};
 
 /// Convenience result type for the core crate.

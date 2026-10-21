@@ -20,14 +20,14 @@ use crate::app::App;
 use crate::i18n::tr;
 use crate::theme::Tokens;
 use crate::ui::style_windows::{
-    self as sw, checker, color32, color_popup, icon_button, later, none_mark, note,
+    self as sw, checker, color32, color_popup, icon_button, none_mark, note,
     Cached, ColorPicker, Eyedropper, Footer, Outcome, PaletteList, SwatchDrop,
 };
 use egui::{Color32, Context, Rect, Sense, Stroke, Ui, Vec2};
 use graphdraw_core::geometry::Size;
 use graphdraw_core::{
     Color, Command, Document, Fill, Fountain, FountainKind, FountainRepeat, Mesh, Pattern,
-    PatternTile, ShapeId, Stop, Texture, TextureKind,
+    PatternTile, ShapeId, Stop, Texture, TextureKind, TileLayout,
 };
 
 /// The body's width.
@@ -87,8 +87,8 @@ impl Mode {
     ];
 }
 
-/// The gradient types of the sub-bar: kind (none for the elliptical type,
-/// which comes later) and name key, which also names the icon.
+/// The gradient types of the sub-bar: kind (always present) and name
+/// key, which also names the icon.
 const KINDS: [(Option<FountainKind>, &str); 6] = [
     (Some(FountainKind::Linear), "fill.linear"),
     (Some(FountainKind::Radial), "fill.radial"),
@@ -109,6 +109,7 @@ fn tile_key(t: PatternTile) -> &'static str {
         PatternTile::Bricks => "fillwin.tile_bricks",
         PatternTile::Crosshatch => "fillwin.tile_crosshatch",
         PatternTile::Waves => "fillwin.tile_waves",
+        PatternTile::Cells(_) => "fillwin.tile_custom",
     }
 }
 
@@ -128,6 +129,7 @@ struct TwoColor {
     front: Color,
     back: Color,
     size_mm: f64,
+    layout: TileLayout,
 }
 
 pub struct FillWindow {
@@ -137,6 +139,10 @@ pub struct FillWindow {
     seen: Vec<ShapeId>,
     initial: Fill,
     initial_overprint: bool,
+    /// The fill's own opacity when the window opened (1.0 opaque).
+    initial_fill_opacity: f64,
+    /// The fill's own opacity (Transparency is 1 less it, in percent).
+    pub(crate) fill_opacity: f64,
     pub(crate) mode: Mode,
     pub(crate) color: Color,
     pub(crate) fountain: Fountain,
@@ -190,7 +196,12 @@ impl FillWindow {
                 Size::new(60.0, 30.0),
             ),
         };
+        let fill_opacity = app
+            .selected_shapes()
+            .first()
+            .map_or(1.0, |s| sw::first_leaf(s).fill_opacity);
         let mut w = FillWindow::new(initial, overprint, targets, size);
+        w.set_initial_fill_opacity(fill_opacity);
         w.seen = app.selection.clone();
         w.palettes = sw::palettes_of(app);
         Box::new(w)
@@ -204,6 +215,8 @@ impl FillWindow {
             seen: Vec::new(),
             initial: initial.clone(),
             initial_overprint: overprint,
+            initial_fill_opacity: 1.0,
+            fill_opacity: 1.0,
             mode: Mode::None,
             color: white,
             fountain: Fountain::two(FountainKind::Linear, black, white, 0.0),
@@ -213,6 +226,7 @@ impl FillWindow {
                 front: black,
                 back: white,
                 size_mm: 10.0,
+                layout: TileLayout::default(),
             },
             bitmap: None,
             vector: None,
@@ -222,6 +236,7 @@ impl FillWindow {
                 color_b: white,
                 scale: 20.0,
                 seed: 1,
+                ..Default::default()
             },
             mesh: Mesh::new(
                 graphdraw_core::geometry::Rect::new(0.0, 0.0, 100.0, 100.0),
@@ -264,6 +279,7 @@ impl FillWindow {
                     front,
                     back,
                     size_mm,
+                    layout,
                 } = p
                 {
                     w.mode = Mode::TwoColor;
@@ -272,6 +288,7 @@ impl FillWindow {
                         front,
                         back,
                         size_mm,
+                        layout,
                     };
                 }
             }
@@ -293,6 +310,13 @@ impl FillWindow {
             }
         }
         w
+    }
+
+    /// The fill transparency the edited objects have (1.0 opaque).
+    pub(crate) fn set_initial_fill_opacity(&mut self, o: f64) {
+        let o = if o.is_nan() { 1.0 } else { o.clamp(0.0, 1.0) };
+        self.initial_fill_opacity = o;
+        self.fill_opacity = o;
     }
 
     pub fn revision(&self) -> u64 {
@@ -320,11 +344,13 @@ impl FillWindow {
                 front: self.two_color.front,
                 back: self.two_color.back,
                 size_mm: self.two_color.size_mm,
+                layout: self.two_color.layout,
             }),
             Mode::Bitmap => self.bitmap.clone().map_or(Fill::None, Fill::Pattern),
             Mode::Vector => Fill::Pattern(self.vector.clone().unwrap_or(Pattern::Vector {
                 shapes: Vec::new(),
                 tile: Size::new(10.0, 10.0),
+                layout: Default::default(),
             })),
             Mode::Texture => Fill::Texture(self.texture.clone()),
             Mode::Mesh => Fill::Mesh(self.mesh.clone()),
@@ -346,6 +372,12 @@ impl FillWindow {
                 shapes: self.targets.clone(),
                 fill: Some(self.overprint),
                 outline: None,
+            });
+        }
+        if (self.fill_opacity - self.initial_fill_opacity).abs() > 1e-9 {
+            v.push(Command::SetFillOpacity {
+                shapes: self.targets.clone(),
+                opacity: self.fill_opacity,
             });
         }
         v
@@ -648,14 +680,31 @@ impl FillWindow {
             self.eye_target = Target::Solid;
         }
         ui.add_space(8.0);
-        ui.horizontal(|ui| {
-            later(ui, |ui| {
-                ui.label(tr("fillwin.transparency"));
-                let mut tp = 0.0;
-                ui.add(egui::Slider::new(&mut tp, 0.0..=100.0).suffix(" %"));
-            });
-        });
+        self.transparency_slider(ui);
         self.overprint_box(ui);
+    }
+
+    /// The fill's own transparency, 0 (opaque) to 100 %; objects only
+    /// (new objects get an opaque fill).
+    fn transparency_slider(&mut self, ui: &mut Ui) {
+        let objects = !self.targets.is_empty();
+        let r = ui
+            .add_enabled_ui(objects, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(tr("fillwin.transparency"));
+                    let mut tp = ((1.0 - self.fill_opacity) * 100.0).clamp(0.0, 100.0);
+                    let changed = ui
+                        .add(egui::Slider::new(&mut tp, 0.0..=100.0).suffix(" %"))
+                        .on_hover_text(tr("fillwin.transparency_tip"))
+                        .changed();
+                    if changed {
+                        self.fill_opacity = (1.0 - tp / 100.0).clamp(0.0, 1.0);
+                        self.touch();
+                    }
+                });
+            })
+            .response;
+        r.on_disabled_hover_text(tr("fillwin.transparency_objects"));
     }
 
     fn overprint_box(&mut self, ui: &mut Ui) {
@@ -1150,6 +1199,7 @@ impl FillWindow {
                                     width_px: img.width(),
                                     height_px: img.height(),
                                     size_mm,
+                                    layout: Default::default(),
                                 });
                                 ch = true;
                             }
@@ -1194,15 +1244,13 @@ impl FillWindow {
                         (TextureKind::Marble, "texture.marble"),
                         (TextureKind::Wood, "texture.wood"),
                         (TextureKind::Noise, "texture.noise"),
+                        (TextureKind::Granite, "fillwin.granite"),
                     ] {
                         if ui.selectable_label(t.kind == k, tr(key)).clicked() && t.kind != k {
                             t.kind = k;
                             ch = true;
                         }
                     }
-                    later(ui, |ui| {
-                        let _ = ui.selectable_label(false, tr("fillwin.granite"));
-                    });
                 });
                 egui::Grid::new("fill_window_texture")
                     .num_columns(4)
@@ -1231,15 +1279,41 @@ impl FillWindow {
                         }
                         ui.end_row();
                         ui.label(tr("fillwin.detail"));
-                        later(ui, |ui| {
-                            let mut d = 4u32;
-                            ui.add(egui::DragValue::new(&mut d));
-                        });
+                        let mut d = t.safe_detail();
+                        if ui
+                            .add(
+                                egui::DragValue::new(&mut d)
+                                    .range(Texture::MIN_DETAIL..=Texture::MAX_DETAIL),
+                            )
+                            .on_hover_text(tr("fillwin.detail_tip"))
+                            .changed()
+                        {
+                            t.detail = d;
+                            ch = true;
+                        }
                         ui.label(tr("fillwin.contrast"));
-                        later(ui, |ui| {
-                            let mut c = 50.0;
-                            ui.add(egui::Slider::new(&mut c, 0.0..=100.0).suffix(" %"));
-                        });
+                        let mut c = (t.safe_contrast() * 100.0).round();
+                        if ui
+                            .add(egui::Slider::new(&mut c, 0.0..=100.0).suffix(" %"))
+                            .changed()
+                        {
+                            t.contrast = c / 100.0;
+                            ch = true;
+                        }
+                        ui.end_row();
+                        ui.label(tr("fillwin.resolution"));
+                        if let Some(v) = crate::measure_field::number_field(
+                            ui,
+                            "texture_ppi",
+                            t.safe_resolution(),
+                            0,
+                            " ppp",
+                            72.0,
+                        ) {
+                            t.resolution =
+                                v.clamp(TileLayout::MIN_RESOLUTION, TileLayout::MAX_RESOLUTION);
+                            ch = true;
+                        }
                         ui.end_row();
                     });
                 self.front_back(ui);
@@ -1258,8 +1332,11 @@ impl FillWindow {
                     }
                 });
                 ui.horizontal_top(|ui| {
-                    cell_picture(ui, &self.two_color);
-                    note(ui, &tr("fillwin.cells_later"));
+                    if let Some((x, y)) = cell_picture(ui, &self.two_color) {
+                        self.two_color.tile = self.two_color.tile.toggled(x, y);
+                        ch = true;
+                    }
+                    note(ui, &tr("fillwin.cells_tip"));
                 });
                 self.front_back(ui);
             }
@@ -1274,7 +1351,7 @@ impl FillWindow {
         asked
     }
 
-    /// Tile size, and the tile settings that come later.
+    /// Tile size and the tile layout (scale, rotation, offsets, mirroring).
     fn tile_ui(&mut self, ui: &mut Ui) -> bool {
         let mut ch = false;
         let units = crate::app::Units::Millimeters;
@@ -1316,7 +1393,7 @@ impl FillWindow {
                     }
                 }
                 Mode::Vector => {
-                    if let Some(Pattern::Vector { shapes, tile }) = &mut self.vector {
+                    if let Some(Pattern::Vector { shapes, tile, .. }) = &mut self.vector {
                         let (mut w, mut h) = (tile.width, tile.height);
                         if let Some(v) =
                             crate::measure_field::length_field(ui, "tile_w", w, units, 96.0, 80.0)
@@ -1347,36 +1424,23 @@ impl FillWindow {
                 _ => {}
             }
         });
-        later(ui, |ui| {
-            egui::Grid::new("fill_window_tile")
-                .num_columns(4)
-                .spacing([12.0, 8.0])
-                .show(ui, |ui| {
-                    let mut v = 100.0;
-                    ui.label(tr("fillwin.scale"));
-                    ui.add(egui::DragValue::new(&mut v).suffix(" %"));
-                    ui.label(tr("fillwin.rotation"));
-                    let mut r = 0.0;
-                    ui.add(egui::DragValue::new(&mut r).suffix("°"));
-                    ui.end_row();
-                    ui.label(tr("fillwin.resolution"));
-                    let mut d = 300.0;
-                    ui.add(egui::DragValue::new(&mut d).suffix(" ppp"));
-                    ui.end_row();
-                    ui.label(tr("fillwin.row_offset"));
-                    let mut a = 0.0;
-                    ui.add(egui::DragValue::new(&mut a).suffix(" %"));
-                    ui.label(tr("fillwin.column_offset"));
-                    let mut b = 0.0;
-                    ui.add(egui::DragValue::new(&mut b).suffix(" %"));
-                    ui.end_row();
-                });
-            let mut m = false;
-            ui.checkbox(&mut m, tr("fillwin.mirror_tiles"));
-            let mut t = true;
-            ui.checkbox(&mut t, tr("fillwin.transform_with_object"));
-        });
+        // Vector tiles stay vectors except in exports that rasterise
+        // them; the resolution is the picture's for the others.
+        let vector = self.mode == Mode::Vector;
+        if let Some(l) = self.layout_mut() {
+            ch |= layout_ui(ui, l, vector);
+        }
         ch
+    }
+
+    /// The tile layout of the pattern being edited.
+    fn layout_mut(&mut self) -> Option<&mut TileLayout> {
+        match self.mode {
+            Mode::TwoColor => Some(&mut self.two_color.layout),
+            Mode::Bitmap => self.bitmap.as_mut().map(Pattern::layout_mut),
+            Mode::Vector => self.vector.as_mut().map(Pattern::layout_mut),
+            _ => None,
+        }
     }
 
     /// Front and back colours (two colours, texture).
@@ -1502,24 +1566,82 @@ fn band(p: &egui::Painter, r: Rect, stops: &[Stop]) {
 }
 
 /// The two-colour tile as a grid of cells (front and back).
-fn cell_picture(ui: &mut Ui, t: &TwoColor) {
-    let n = 8;
-    let (r, _) = ui.allocate_exact_size(Vec2::splat(n as f32 * PATTERN_CELL), Sense::hover());
+fn cell_picture(ui: &mut Ui, t: &TwoColor) -> Option<(usize, usize)> {
+    let n = PatternTile::CELLS;
+    let (r, resp) =
+        ui.allocate_exact_size(Vec2::splat(n as f32 * PATTERN_CELL), Sense::click());
     let (fg, bg) = (color32(t.front), color32(t.back));
     for y in 0..n {
         for x in 0..n {
-            let (u, v) = ((x as f64 + 0.5) / n as f64, (y as f64 + 0.5) / n as f64);
             let cr = Rect::from_min_size(
                 r.min + Vec2::new(x as f32 * PATTERN_CELL, y as f32 * PATTERN_CELL),
                 Vec2::splat(PATTERN_CELL),
             );
-            ui.painter().rect_filled(
-                cr.shrink(0.5),
-                0.0,
-                if t.tile.front(u, 1.0 - v) { fg } else { bg },
-            );
+            ui.painter()
+                .rect_filled(cr.shrink(0.5), 0.0, if t.tile.cell(x, y) { fg } else { bg });
         }
     }
+    // A click swaps the cell under the pointer between front and back.
+    let q = resp.interact_pointer_pos().filter(|_| resp.clicked())?;
+    let x = ((q.x - r.left()) / PATTERN_CELL).floor();
+    let y = ((q.y - r.top()) / PATTERN_CELL).floor();
+    (x >= 0.0 && y >= 0.0).then_some((x as usize, y as usize))
+}
+
+/// Scale, rotation, resolution, row and column offsets, mirroring and
+/// following the object, for any pattern's tiles. True when changed.
+fn layout_ui(ui: &mut Ui, l: &mut TileLayout, vector: bool) -> bool {
+    let mut ch = false;
+    let field = |ui: &mut Ui, id: &str, v: f64, suffix: &str| {
+        crate::measure_field::number_field(ui, id, v, 1, suffix, 72.0)
+    };
+    egui::Grid::new("fill_window_tile")
+        .num_columns(4)
+        .spacing([12.0, 8.0])
+        .show(ui, |ui| {
+            ui.label(tr("fillwin.scale"));
+            if let Some(v) = field(ui, "tile_scale", l.safe_scale() * 100.0, " %") {
+                l.scale = (v / 100.0).clamp(TileLayout::MIN_SCALE, TileLayout::MAX_SCALE);
+                ch = true;
+            }
+            ui.label(tr("fillwin.rotation"));
+            if let Some(v) = field(ui, "tile_rotation", l.rotation, "°") {
+                l.rotation = v.rem_euclid(360.0);
+                ch = true;
+            }
+            ui.end_row();
+            ui.label(tr("fillwin.resolution"));
+            ui.add_enabled_ui(!vector, |ui| {
+                if let Some(v) = field(ui, "tile_ppi", l.safe_resolution(), " ppp") {
+                    l.resolution =
+                        v.clamp(TileLayout::MIN_RESOLUTION, TileLayout::MAX_RESOLUTION);
+                    ch = true;
+                }
+            })
+            .response
+            .on_hover_text(tr("fillwin.resolution_tip"));
+            ui.end_row();
+            let (row, col) = l.safe_offsets();
+            ui.label(tr("fillwin.row_offset"));
+            if let Some(v) = field(ui, "tile_row", row * 100.0, " %") {
+                l.row_offset = (v / 100.0).clamp(0.0, 1.0);
+                ch = true;
+            }
+            ui.label(tr("fillwin.column_offset"));
+            if let Some(v) = field(ui, "tile_col", col * 100.0, " %") {
+                l.column_offset = (v / 100.0).clamp(0.0, 1.0);
+                ch = true;
+            }
+            ui.end_row();
+        });
+    ch |= ui
+        .checkbox(&mut l.mirror, tr("fillwin.mirror_tiles"))
+        .changed();
+    ch |= ui
+        .checkbox(&mut l.with_object, tr("fillwin.transform_with_object"))
+        .on_hover_text(tr("fillwin.transform_with_object_tip"))
+        .changed();
+    ch
 }
 
 /// The Help text of a mode.
@@ -1699,5 +1821,56 @@ mod tests {
         ));
         f.set_mode(Mode::None);
         assert_eq!(f.result(), Fill::None);
+    }
+
+    /// The fill transparency opens as the object has it, goes into the
+    /// commands only when changed, and OK applies it as one undo step.
+    #[test]
+    fn fill_transparency_opens_changes_and_applies() {
+        let mut app = App::headless();
+        let id = app
+            .new_shape(graphdraw_core::ShapeKind::Rect {
+                rect: graphdraw_core::Rect::new(0.0, 0.0, 10.0, 10.0),
+                radius: 0.0,
+                corners: None,
+            })
+            .expect("shape");
+        app.select(vec![id]);
+        app.run(Command::SetFill {
+            shapes: vec![id],
+            fill: Fill::Solid(Color::rgb8(255, 0, 0)),
+        });
+        app.run(Command::SetFillOpacity {
+            shapes: vec![id],
+            opacity: 0.3,
+        });
+        let mut f = FillWindow::open(&app);
+        assert_eq!(f.mode, Mode::Solid);
+        assert!((f.fill_opacity - 0.3).abs() < 1e-9);
+        run(&mut f, &mut app, 2);
+        // A colour change alone leaves the transparency out.
+        f.color = Color::rgb8(0, 0, 255);
+        f.touch();
+        let cmds = f.commands(app.doc());
+        assert!(!cmds
+            .iter()
+            .any(|c| matches!(c, Command::SetFillOpacity { .. })));
+        f.fill_opacity = 0.6;
+        let cmds = f.commands(app.doc());
+        assert!(cmds.iter().any(|c| matches!(
+            c,
+            Command::SetFillOpacity { shapes, opacity } if shapes == &vec![id] && (*opacity - 0.6).abs() < 1e-9
+        )));
+        f.apply(&mut app);
+        let fo = |app: &App| app.doc().find_shape(id).map(|s| s.fill_opacity);
+        assert_eq!(fo(&app), Some(0.6));
+        app.undo();
+        assert_eq!(fo(&app), Some(0.3), "one undo step for fill and transparency");
+        // With nothing selected the slider is off and nothing changes it.
+        let mut d = FillWindow::new(Fill::None, false, Vec::new(), Size::new(10.0, 10.0));
+        d.set_mode(Mode::Solid);
+        run(&mut d, &mut app, 2);
+        assert_eq!(d.fill_opacity, 1.0);
+        assert!(d.commands(app.doc()).is_empty());
     }
 }
