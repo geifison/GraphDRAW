@@ -1278,6 +1278,7 @@ impl App {
                 draft: false,
                 focus: None,
                 hidden: Vec::new(),
+                editing: Vec::new(),
                 ..graphdraw_render::RenderOptions::default()
             },
         )?;

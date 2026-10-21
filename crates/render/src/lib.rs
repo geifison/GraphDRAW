@@ -93,6 +93,10 @@ pub struct RenderOptions {
     /// clip frame whose contents are being edited, shown as a hairline
     /// by the app instead). Exports leave it empty.
     pub hidden: Vec<graphdraw_core::ShapeId>,
+    /// On screen only: the contents of a clip frame being edited, on the
+    /// layers. Everything else fades to half under a white veil and these
+    /// are drawn again over it as they are. Exports leave it empty.
+    pub editing: Vec<graphdraw_core::ShapeId>,
 }
 
 impl Default for RenderOptions {
@@ -113,6 +117,28 @@ impl Default for RenderOptions {
             draft: false,
             focus: None,
             hidden: Vec::new(),
+            editing: Vec::new(),
+        }
+    }
+}
+
+/// How much of the drawing around a clip frame's contents shows while
+/// they are edited.
+pub const CLIP_EDIT_VISIBILITY: f32 = 0.5;
+
+/// Fade everything drawn so far to `visibility` (0 to 1): on the white
+/// page and desk it reads as a white veil.
+fn fade(pixmap: &mut Pixmap, visibility: f32) {
+    let v = visibility.clamp(0.0, 1.0);
+    for px in pixmap.pixels_mut() {
+        let c = |x: u8| (x as f32 * v).round() as u8;
+        if let Some(faded) = tiny_skia::PremultipliedColorU8::from_rgba(
+            c(px.red()),
+            c(px.green()),
+            c(px.blue()),
+            c(px.alpha()),
+        ) {
+            *px = faded;
         }
     }
 }
@@ -233,22 +259,25 @@ pub fn render_page(doc: &Document, page: PageId, opts: &RenderOptions) -> Option
             r.draw_shape(shape, extra);
         }
     }
+    // Editing a clip frame's contents: the rest fades, then the contents
+    // are drawn again over it, in their stacking order.
+    if !opts.editing.is_empty() {
+        fade(r.pixmap, CLIP_EDIT_VISIBILITY);
+        for layer in doc.layers_for_page(page.id).ok()? {
+            if !layer.visible {
+                continue;
+            }
+            for shape in layer.shapes.iter().filter(|s| opts.editing.contains(&s.id)) {
+                let extra = r.child_transform(shape, Affine::IDENTITY);
+                r.draw_shape(shape, extra);
+            }
+        }
+    }
     // Focus mode: everything fades, then the object in focus is drawn
     // again over it as it is.
     if let Some((id, visibility)) = opts.focus {
         if let (Some(shape), Some(parent)) = (doc.find_shape(id), doc.parent_transform(id)) {
-            let v = visibility.clamp(0.0, 1.0);
-            for px in r.pixmap.pixels_mut() {
-                let c = |x: u8| (x as f32 * v).round() as u8;
-                if let Some(faded) = tiny_skia::PremultipliedColorU8::from_rgba(
-                    c(px.red()),
-                    c(px.green()),
-                    c(px.blue()),
-                    c(px.alpha()),
-                ) {
-                    *px = faded;
-                }
-            }
+            fade(r.pixmap, visibility);
             let extra = r.child_transform(shape, parent);
             r.draw_shape(shape, extra);
         }
@@ -2255,6 +2284,7 @@ pub fn render_page_image_with(
             draft: false,
             focus: None,
             hidden: Vec::new(),
+            editing: Vec::new(),
         },
     )?;
     let mut out = Pixmap::new(w, h)?;

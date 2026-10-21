@@ -175,5 +175,15 @@ mod tests {
         assert_eq!(img.pixel(15, 25).expect("px").alpha(), 255);
         let faded = img.pixel(35, 25).expect("px").alpha();
         assert!((40..=60).contains(&faded), "{faded}");
+        // Editing a clip frame's contents: they are drawn as they are and
+        // everything around them shows at half.
+        let editing = graphdraw_render::RenderOptions {
+            editing: vec![a],
+            ..opts(None)
+        };
+        let img = graphdraw_render::render_page(&doc, page, &editing).expect("render");
+        assert_eq!(img.pixel(15, 25).expect("px").alpha(), 255);
+        let veiled = img.pixel(35, 25).expect("px").alpha();
+        assert!((125..=130).contains(&veiled), "{veiled}");
     }
 }

@@ -16,6 +16,9 @@ pub struct Raster {
     proof: Option<ProofLut>,
     /// Objects left out of the drawing (see `RenderOptions::hidden`).
     pub hidden: Vec<ShapeId>,
+    /// The contents of a clip frame being edited (see
+    /// `RenderOptions::editing`).
+    pub editing: Vec<ShapeId>,
     /// Keep a copy of the drawn pixels (the eyedroppers read the screen).
     pub keep_pixels: bool,
     /// The pixels of the last drawing while `keep_pixels` is on.
@@ -119,6 +122,7 @@ struct Key {
     proof: bool,
     focus: Option<(ShapeId, u32)>,
     hidden: Vec<ShapeId>,
+    editing: Vec<ShapeId>,
     /// The Pixels view: the document pixels drawn (dpi, first column, top
     /// row).
     pixels: Option<(u64, i64, i64)>,
@@ -226,6 +230,7 @@ impl Raster {
             proof,
             focus: focus.map(|(id, v)| (id, (v * 1000.0) as u32)),
             hidden: self.hidden.clone(),
+            editing: self.editing.clone(),
             pixels: window
                 .zip(pixel_dpi)
                 .map(|(win, dpi)| ((dpi * 1000.0).round() as u64, win.ix0, win.iy1)),
@@ -264,6 +269,7 @@ impl Raster {
             draft: true,
             focus,
             hidden: self.hidden.clone(),
+            editing: self.editing.clone(),
         };
         let pixmap = render_page(doc, page, &opts)?;
         let lut = if proof {

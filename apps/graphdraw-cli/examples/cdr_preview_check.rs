@@ -90,6 +90,7 @@ fn main() {
             draft: false,
             focus: None,
             hidden: Vec::new(),
+            editing: Vec::new(),
         },
     ) else {
         std::process::exit(1);
@@ -152,6 +153,7 @@ fn visible_area(
             draft: true,
             focus: None,
             hidden: Vec::new(),
+            editing: Vec::new(),
         },
     )?;
     let (mut x0, mut y0, mut x1, mut y1) = (u32::MAX, u32::MAX, 0u32, 0u32);

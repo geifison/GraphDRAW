@@ -958,6 +958,7 @@ pub fn page_to_psd(doc: &Document, page_index: usize, dpi: f64) -> Option<Vec<u8
         draft: false,
         focus: None,
         hidden: Vec::new(),
+        editing: Vec::new(),
     };
 
     // One render per visible layer, with every other layer hidden.

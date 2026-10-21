@@ -449,6 +449,12 @@ fn draw_page(app: &App, painter: &Painter, rect: ERect, preview: Option<Affine>)
         .chain(app.clip_frame_edit.iter())
         .map(|(id, _)| *id)
         .collect();
+    // ...and everything around its contents fades under a white veil.
+    app.raster.borrow_mut().editing = app
+        .clip_frame_edit
+        .as_ref()
+        .map(|(_, ids)| ids.clone())
+        .unwrap_or_default();
     if let Some(tex) = app.raster.borrow_mut().texture(
         painter.ctx(),
         doc,

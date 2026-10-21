@@ -1037,11 +1037,16 @@ impl Command {
                 let s = doc.layer_mut(lid)?.shapes.remove(i);
                 match s.kind {
                     ShapeKind::ClipFrame { frame, contents } => {
+                        // The clip frame's own transform (it was moved,
+                        // scaled...) passes to what comes out, so nothing
+                        // moves on the page.
                         let layer = doc.layer_mut(lid)?;
                         let mut f = *frame;
                         f.id = *clip;
+                        f.absorb(s.transform);
                         layer.shapes.insert(i, f);
-                        for (k, c) in contents.into_iter().enumerate() {
+                        for (k, mut c) in contents.into_iter().enumerate() {
+                            c.absorb(s.transform);
                             layer.shapes.insert(i + 1 + k, c);
                         }
                     }
@@ -1763,6 +1768,45 @@ mod tests {
             .unwrap();
         assert_eq!(doc.layer(layer).unwrap().shapes.len(), 2);
         assert!(doc.shape(ia).is_ok());
+    }
+
+    /// Extracting the contents of a clip frame that was moved leaves the
+    /// contents and the frame where they were seen: nothing jumps back.
+    #[test]
+    fn extracting_from_a_moved_clip_frame_moves_nothing() {
+        let mut doc = Document::default();
+        let layer = doc.pages[0].layers[0].id;
+        let a = rect(&mut doc, 0.0);
+        let b = rect(&mut doc, 5.0);
+        let (ia, ib) = (a.id, b.id);
+        for shape in [a, b] {
+            Command::AddShape { layer, shape }.apply(&mut doc).unwrap();
+        }
+        Command::PlaceInside {
+            contents: vec![ia],
+            frame: ib,
+        }
+        .apply(&mut doc)
+        .unwrap();
+        Command::TransformShapes {
+            shapes: vec![ib],
+            transform: Affine::translate((30.0, 20.0)),
+        }
+        .apply(&mut doc)
+        .unwrap();
+        let seen_a = doc.shape_on_page(ia).unwrap().bounds();
+        let seen_b = doc.shape(ib).unwrap().1.bounds();
+        Command::ExtractContents { clip: ib }
+            .apply(&mut doc)
+            .unwrap();
+        let close = |p: crate::geometry::Rect, q: crate::geometry::Rect| {
+            (p.x0 - q.x0).abs() < 1e-9
+                && (p.y0 - q.y0).abs() < 1e-9
+                && (p.x1 - q.x1).abs() < 1e-9
+                && (p.y1 - q.y1).abs() < 1e-9
+        };
+        assert!(close(doc.shape(ia).unwrap().1.bounds(), seen_a));
+        assert!(close(doc.shape(ib).unwrap().1.bounds(), seen_b));
     }
 
     /// An outline or fill given to a clip frame reaches its frame object
