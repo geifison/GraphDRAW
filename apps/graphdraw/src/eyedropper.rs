@@ -384,6 +384,12 @@ pub fn fountain_t(f: &Fountain, b: Rect, p: Point) -> Option<f64> {
             let radius = (w.max(h) / 2.0) * std::f64::consts::SQRT_2;
             (radius > 0.0).then(|| (p - cr).hypot() / radius)
         }
+        FountainKind::Elliptical => {
+            if w <= 0.0 || h <= 0.0 {
+                return Some(0.0);
+            }
+            Some(f.raw_param_uv((p.x - b.x0) / w, (p.y - b.y0) / h, w, h))
+        }
         FountainKind::Conical | FountainKind::Square => {
             if w <= 0.0 || h <= 0.0 {
                 return Some(0.0);
@@ -444,6 +450,9 @@ pub fn stop_points(f: &Fountain, b: Rect) -> Vec<(usize, Point)> {
                 let cr = Point::new(c.x + f.offset.x * w / 2.0, c.y + f.offset.y * h / 2.0);
                 let radius = (w.max(h) / 2.0) * std::f64::consts::SQRT_2;
                 Some(Point::new(cr.x + radius * t, cr.y))
+            }
+            FountainKind::Elliptical => {
+                graphdraw_core::gradient::axis(f, b).map(|(a, z)| a + (z - a) * t)
             }
             FountainKind::Square => {
                 let u = 0.5 + f.offset.x / 2.0 + t / 2.0;
