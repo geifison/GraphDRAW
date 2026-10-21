@@ -1474,6 +1474,11 @@ pub struct Shape {
     pub overprint_fill: bool,
     #[serde(default)]
     pub overprint_outline: bool,
+    /// 1.0 = opaque, 0.0 = invisible: the uniform transparency of the main
+    /// fill alone (`fill`, of any kind). The outline keeps its own; the
+    /// object's `opacity` applies over both, so the two multiply.
+    #[serde(default = "one", skip_serializing_if = "is_one")]
+    pub fill_opacity: f64,
     /// Hyperlink attached to the object (exported to PDF and SVG).
     #[serde(default)]
     pub link: Option<String>,
@@ -1770,6 +1775,10 @@ fn one() -> f64 {
     1.0
 }
 
+fn is_one(v: &f64) -> bool {
+    *v == 1.0
+}
+
 impl Shape {
     pub fn new(id: ShapeId, kind: ShapeKind) -> Self {
         Shape {
@@ -1785,6 +1794,7 @@ impl Shape {
             shadow: None,
             overprint_fill: false,
             overprint_outline: false,
+            fill_opacity: 1.0,
             link: None,
             data: Vec::new(),
             effects: Vec::new(),
@@ -1930,6 +1940,8 @@ impl Shape {
         for f in &self.extra_fills {
             let mut s = plain.clone();
             s.fill = f.clone();
+            // The fill transparency belongs to the main fill only.
+            s.fill_opacity = 1.0;
             s.stroke = None;
             out.push(s);
         }
@@ -2350,6 +2362,9 @@ pub struct ObjectStyle {
     /// The transparency part: opacity, 1 being opaque.
     #[serde(default = "one")]
     pub opacity: f64,
+    /// The fill's own transparency, set with the fill part.
+    #[serde(default = "one", skip_serializing_if = "is_one")]
+    pub fill_opacity: f64,
 }
 
 /// Which properties an object style sets.
@@ -2387,6 +2402,7 @@ impl ObjectStyle {
                 transparency: shape.opacity < 1.0,
             },
             opacity: shape.opacity,
+            fill_opacity: shape.fill_opacity,
         }
     }
 
@@ -2394,6 +2410,7 @@ impl ObjectStyle {
     pub fn apply_to(&self, shape: &mut Shape) {
         if self.parts.fill {
             shape.fill = self.fill.clone();
+            shape.fill_opacity = self.fill_opacity.clamp(0.0, 1.0);
         }
         if self.parts.outline {
             shape.stroke = self.stroke.clone();

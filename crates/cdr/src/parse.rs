@@ -2751,9 +2751,16 @@ impl<'a> Ctx<'a> {
         let mask = style_string
             .as_deref()
             .and_then(text::object_transparency_mask);
+        let mut fill_opacity = 1.0;
         if opacity >= 1.0 && mask.is_none() {
-            if let Some(o) = style_string.as_deref().and_then(text::object_opacity) {
-                opacity = o;
+            if let Some(style) = style_string.as_deref() {
+                if let Some(o) = text::object_opacity(style) {
+                    if text::object_transparency_fill_only(style) {
+                        fill_opacity = o;
+                    } else {
+                        opacity = o;
+                    }
+                }
             }
         }
 
@@ -2773,6 +2780,7 @@ impl<'a> Ctx<'a> {
         shape.stroke = stroke;
         shape.name = name;
         shape.opacity = opacity;
+        shape.fill_opacity = fill_opacity;
         if let Some((mask, target)) = mask {
             shape
                 .effects

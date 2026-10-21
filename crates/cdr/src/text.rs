@@ -1567,6 +1567,27 @@ pub(crate) fn object_opacity(style: &str) -> Option<f64> {
     Some((1.0 - amount).clamp(0.0, 1.0))
 }
 
+/// Whether an object's version 16+ style string gives a uniform
+/// transparency to the fill alone: its `transparency` section has no
+/// fountain `fill` and `appliesTo` 0 (the target as graded
+/// transparencies give it; assumed alike for uniform ones, written so by
+/// GraphDraw for a fill transparency).
+pub(crate) fn object_transparency_fill_only(style: &str) -> bool {
+    let t = style.trim_matches(|c: char| c == '\0' || c.is_whitespace());
+    let Some(Json::Obj(items)) = parse_json(t) else {
+        return false;
+    };
+    let Some((_, Json::Obj(tr))) = items.iter().find(|(k, _)| k == "transparency") else {
+        return false;
+    };
+    let graded = tr.iter().any(|(k, v)| k == "fill" && matches!(v, Json::Obj(_)));
+    let target = tr
+        .iter()
+        .find(|(k, _)| k == "appliesTo")
+        .and_then(|(_, v)| v.num());
+    !graded && target == Some(0.0)
+}
+
 /// A graded transparency from an object's version 16+ style string: its
 /// `transparency` section with a fountain `fill` (`type` 2) becomes a
 /// mask whose lightness is the opacity, with the target it applies to

@@ -298,10 +298,22 @@ fn write_unlinked(
     let d = path_data(&path);
     let bounds = path.bounding_box();
 
-    let fill_attr = format!(
+    let mut fill_attr = format!(
         "fill=\"{}\"",
         paint_value(&shape.fill, bounds, symbols, defs, next_grad)
     );
+    // The fill's own transparency, and the object's over fill and
+    // outline together.
+    if shape.fill_opacity < 1.0 && !matches!(shape.fill, Fill::None) {
+        let _ = write!(
+            fill_attr,
+            " fill-opacity=\"{}\"",
+            fmt(shape.fill_opacity.clamp(0.0, 1.0))
+        );
+    }
+    if shape.opacity < 1.0 {
+        let _ = write!(fill_attr, " opacity=\"{}\"", fmt(shape.opacity.clamp(0.0, 1.0)));
+    }
 
     // A calligraphic outline has no SVG equivalent: the swept band is
     // written as a filled path after the object.
@@ -1058,5 +1070,60 @@ mod tests {
         saw.repeats = 3;
         let svg = one_shape_svg(Fill::Fountain(saw), None);
         assert_eq!(svg.matches("<stop ").count(), 6, "{svg}");
+    }
+
+    #[test]
+    fn fill_transparency_is_fill_opacity_in_svg_and_a_fill_alpha_in_pdf() {
+        let mut doc = Document::default();
+        let layer = doc.pages[0].layers[0].id;
+        let id = doc.ids_mut().shape();
+        let mut s = Shape::new(
+            id,
+            ShapeKind::Rect {
+                rect: graphdraw_core::Rect::new(10.0, 10.0, 60.0, 40.0),
+                radius: 0.0,
+                corners: None,
+            },
+        );
+        s.fill = Fill::Solid(Color::rgb8(255, 0, 0));
+        s.stroke = Some(Stroke::new(Color::BLACK, 1.0));
+        s.fill_opacity = 0.25;
+        doc.layer_mut(layer).unwrap().shapes.push(s);
+        let svg = page_to_svg(&doc, 0);
+        assert!(svg.contains("fill-opacity=\"0.25\""), "{svg}");
+        assert!(!svg.contains("stroke-opacity"), "{svg}");
+        assert!(!svg.contains(" opacity="), "{svg}");
+        // Read back, the fill keeps its own transparency.
+        let mut ids = graphdraw_core::id::IdSource::default();
+        let back = crate::svg_import::parse(&svg, &mut ids).unwrap();
+        let mut found = Vec::new();
+        for sh in &back.shapes {
+            collect_fill_opacity(sh, &mut found);
+        }
+        assert!(found.iter().any(|o| (o - 0.25).abs() < 1e-6), "{found:?}");
+        // PDF: a graphics state with the fill alpha only.
+        let pdf = crate::pdf::document_to_pdf(&doc);
+        let text = String::from_utf8_lossy(&pdf);
+        assert!(text.contains("<< /Type /ExtGState /ca 0.25 >>"), "fill alpha");
+        assert!(!text.contains("/CA 0.25"), "the outline stays opaque");
+        // With the object's opacity too, the fill alpha is their product.
+        if let Some(sh) = doc.layer_mut(layer).unwrap().shapes.first_mut() {
+            sh.opacity = 0.5;
+        }
+        let svg = page_to_svg(&doc, 0);
+        assert!(svg.contains("fill-opacity=\"0.25\" opacity=\"0.5\""), "{svg}");
+        let pdf = crate::pdf::document_to_pdf(&doc);
+        let text = String::from_utf8_lossy(&pdf);
+        assert!(text.contains("/CA 0.5 /ca 0.5"), "object opacity");
+        assert!(text.contains("<< /Type /ExtGState /ca 0.125 >>"), "fill alpha");
+    }
+
+    fn collect_fill_opacity(s: &Shape, out: &mut Vec<f64>) {
+        out.push(s.fill_opacity);
+        if let ShapeKind::Group { children } = &s.kind {
+            for c in children {
+                collect_fill_opacity(c, out);
+            }
+        }
     }
 }

@@ -665,7 +665,13 @@ impl Renderer<'_> {
             return;
         }
 
-        if !self.flags.wireframe {
+        // The fill's own transparency (NaN reads as opaque).
+        let fill_alpha = if shape.fill_opacity.is_nan() {
+            1.0
+        } else {
+            shape.fill_opacity.clamp(0.0, 1.0) as f32
+        };
+        if !self.flags.wireframe && fill_alpha > 0.0 {
             let rule = fill_rule_of(shape);
             let blend = self.blend_for(shape.overprint_fill);
             if let Fill::Mesh(m) = &shape.fill {
@@ -674,7 +680,24 @@ impl Renderer<'_> {
                 for n in pm.nodes.iter_mut() {
                     n.pos = transform * n.pos;
                 }
-                self.fill_mesh(&pm, &sk, rule, blend);
+                if fill_alpha < 1.0 {
+                    let (w, h) = (self.pixmap.width(), self.pixmap.height());
+                    if let Some(mut layer) = Pixmap::new(w, h) {
+                        {
+                            let mut sub = self.sub(&mut layer);
+                            sub.fill_mesh(&pm, &sk, rule, tiny_skia::BlendMode::SourceOver);
+                        }
+                        let pp = tiny_skia::PixmapPaint {
+                            opacity: fill_alpha,
+                            blend_mode: blend,
+                            ..Default::default()
+                        };
+                        self.pixmap
+                            .draw_pixmap(0, 0, layer.as_ref(), &pp, Transform::identity(), None);
+                    }
+                } else {
+                    self.fill_mesh(&pm, &sk, rule, blend);
+                }
             } else if !self.flags.fill_open_curves
                 && matches!(shape.kind, ShapeKind::Path { closed: false, .. })
                 && !matches!(shape.fill, Fill::None)
@@ -682,10 +705,10 @@ impl Renderer<'_> {
                 // Only the closed subpaths of a curve get the fill.
                 let closed = closed_subpaths(&page_path);
                 if let Some(sk_fill) = to_sk_path(&(self.screen * closed.clone())) {
-                    self.draw_fill_blended(&shape.fill, &closed, &sk_fill, rule, blend);
+                    self.draw_fill_alpha(&shape.fill, &closed, &sk_fill, rule, blend, fill_alpha);
                 }
             } else {
-                self.draw_fill_blended(&shape.fill, &page_path, &sk, rule, blend);
+                self.draw_fill_alpha(&shape.fill, &page_path, &sk, rule, blend, fill_alpha);
             }
         }
         if let Some(stroke) = &shape.stroke {
@@ -1039,6 +1062,42 @@ impl Renderer<'_> {
         rule: FillRule,
         blend: tiny_skia::BlendMode,
     ) {
+        self.draw_fill_alpha(fill, page_path, sk, rule, blend, 1.0);
+    }
+
+    /// `draw_fill_blended` with the fill's own transparency `alpha`
+    /// (0..1): a solid colour painted with that alpha, any other fill
+    /// rendered into a scratch layer composited with it.
+    fn draw_fill_alpha(
+        &mut self,
+        fill: &Fill,
+        page_path: &BezPath,
+        sk: &SkPath,
+        rule: FillRule,
+        blend: tiny_skia::BlendMode,
+        alpha: f32,
+    ) {
+        if alpha <= 0.0 || matches!(fill, Fill::None) {
+            return;
+        }
+        if alpha < 1.0 && !matches!(fill, Fill::Solid(_)) {
+            let (w, h) = (self.pixmap.width(), self.pixmap.height());
+            let Some(mut layer) = Pixmap::new(w, h) else {
+                return;
+            };
+            {
+                let mut sub = self.sub(&mut layer);
+                sub.draw_fill(fill, page_path, sk, rule);
+            }
+            let pp = tiny_skia::PixmapPaint {
+                opacity: alpha,
+                blend_mode: blend,
+                ..Default::default()
+            };
+            self.pixmap
+                .draw_pixmap(0, 0, layer.as_ref(), &pp, Transform::identity(), None);
+            return;
+        }
         if blend != tiny_skia::BlendMode::SourceOver && !matches!(fill, Fill::Solid(_)) {
             let (w, h) = (self.pixmap.width(), self.pixmap.height());
             let Some(mut layer) = Pixmap::new(w, h) else {
@@ -1062,7 +1121,9 @@ impl Renderer<'_> {
         match fill {
             Fill::None => {}
             Fill::Solid(c) => {
-                paint.set_color(sk_color(*c));
+                let mut color = sk_color(*c);
+                color.apply_opacity(alpha.min(1.0));
+                paint.set_color(color);
                 self.pixmap
                     .fill_path(sk, &paint, rule, Transform::identity(), None);
             }
@@ -3383,5 +3444,66 @@ mod tests {
         doc.layer_mut(layer).unwrap().shapes.push(s);
         let page = doc.pages[0].id;
         assert!(render_page_image(&doc, page, 96.0).is_some());
+    }
+
+    #[test]
+    fn fill_transparency_leaves_the_outline_opaque() {
+        // A red square at 50 % fill transparency with a 10 mm black outline.
+        let near = |a: u8, b: u8| (a as i32 - b as i32).abs() <= 3;
+        let mut s = rect(1, Rect::new(20.0, 20.0, 80.0, 80.0), Color::rgb8(255, 0, 0));
+        s.stroke = Some(Stroke::new(Color::BLACK, 10.0));
+        s.fill_opacity = 0.5;
+        let (doc, page) = doc_with(vec![s.clone()]);
+        let pm = render_page_image(&doc, page, 25.4).unwrap();
+        let mid = px(&pm, 50, 50);
+        assert!(mid.0 == 255 && near(mid.1, 128) && near(mid.2, 128), "{mid:?}");
+        assert_eq!(px(&pm, 20, 50), (0, 0, 0), "the outline stays opaque");
+        // With the object's own opacity too, the two multiply (25 % red).
+        s.opacity = 0.5;
+        let (doc, page) = doc_with(vec![s.clone()]);
+        let pm = render_page_image(&doc, page, 25.4).unwrap();
+        let mid = px(&pm, 50, 50);
+        assert!(mid.0 == 255 && near(mid.1, 191) && near(mid.2, 191), "{mid:?}");
+        let edge = px(&pm, 20, 50);
+        assert!(near(edge.0, 128), "the outline at the object's opacity: {edge:?}");
+        // No fill at all with a fill transparency of 100 %.
+        s.opacity = 1.0;
+        s.fill_opacity = 0.0;
+        let (doc, page) = doc_with(vec![s]);
+        let pm = render_page_image(&doc, page, 25.4).unwrap();
+        assert_eq!(px(&pm, 50, 50), (255, 255, 255));
+    }
+
+    #[test]
+    fn fill_transparency_applies_to_every_fill_kind() {
+        let near = |a: u8, b: u8| (a as i32 - b as i32).abs() <= 3;
+        let black = Color::rgb8(0, 0, 0);
+        let fills = [
+            Fill::Fountain(graphdraw_core::Fountain::two(
+                graphdraw_core::FountainKind::Linear,
+                black,
+                black,
+                0.0,
+            )),
+            Fill::Mesh(graphdraw_core::Mesh::new(
+                Rect::new(20.0, 20.0, 80.0, 80.0),
+                2,
+                2,
+                black,
+            )),
+        ];
+        for fill in fills {
+            let mut s = rect(1, Rect::new(20.0, 20.0, 80.0, 80.0), Color::WHITE);
+            s.stroke = None;
+            s.fill = fill.clone();
+            s.fill_opacity = 0.5;
+            let (doc, page) = doc_with(vec![s]);
+            let pm = render_page_image(&doc, page, 25.4).unwrap();
+            let mid = px(&pm, 50, 50);
+            assert!(
+                near(mid.0, 128) && near(mid.1, 128) && near(mid.2, 128),
+                "{fill:?}: {mid:?}"
+            );
+        }
     }
 }

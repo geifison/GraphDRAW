@@ -206,6 +206,7 @@ impl HostInner {
             "locked": s.locked,
             "visible": s.visible,
             "opacity": s.opacity,
+            "fill_opacity": s.fill_opacity,
             "overprint_fill": s.overprint_fill,
             "overprint_outline": s.overprint_outline,
             "layer": layer.map(|l| l.raw()),
@@ -349,6 +350,12 @@ impl HostInner {
                 }
                 if let Some(o) = a.get("opacity").and_then(|v| v.as_f64()) {
                     self.run(Command::SetOpacity {
+                        shapes: shapes.clone(),
+                        opacity: o.clamp(0.0, 1.0),
+                    })?;
+                }
+                if let Some(o) = a.get("fill_opacity").and_then(|v| v.as_f64()) {
+                    self.run(Command::SetFillOpacity {
                         shapes: shapes.clone(),
                         opacity: o.clamp(0.0, 1.0),
                     })?;

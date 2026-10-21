@@ -2441,12 +2441,39 @@ fn graded_transparency_json(g: (&graphdraw_core::Fountain, u8)) -> Option<String
     ))
 }
 
+/// The transparency an object is written with: its opacity and whether
+/// it applies to the fill alone. A fill transparency on an object with no
+/// outline (or no fill) is the same as an object transparency, so the two
+/// multiply; with an outline, from version 16 a uniform transparency
+/// that applies to the fill (`appliesTo` 0, as graded ones have it) when
+/// the object has no transparency of its own. Otherwise the fill's own
+/// transparency is not kept (one transparency per object).
+fn written_opacity(s: &Shape, fill: &Fill, style_strings: bool) -> (f64, bool) {
+    let fo = if s.fill_opacity.is_nan() {
+        1.0
+    } else {
+        s.fill_opacity.clamp(0.0, 1.0)
+    };
+    if fo >= 0.999 || matches!(fill, Fill::None) {
+        return (s.opacity, false);
+    }
+    if s.stroke.is_none() {
+        return (s.opacity * fo, false);
+    }
+    if s.opacity >= 0.999 && style_strings {
+        return (fo, true);
+    }
+    log::warn!("fill transparency on an outlined, transparent object is not kept in .cdr");
+    (s.opacity, false)
+}
+
 /// The style string of an object (versions 16+): its fill, outline and
-/// transparency.
+/// transparency (`fill_only`: a uniform transparency of the fill alone).
 fn object_style_json(
     fill: &Fill,
     stroke: Option<&Stroke>,
     opacity: f64,
+    fill_only: bool,
     graded: Option<(&graphdraw_core::Fountain, u8)>,
 ) -> String {
     let fill_part = match fill_colour(fill) {
@@ -2470,8 +2497,9 @@ fn object_style_json(
     let transparency = if let Some(g) = graded.and_then(graded_transparency_json) {
         g
     } else if opacity < 0.999 {
+        let target = if fill_only { r#","appliesTo":"0""# } else { "" };
         format!(
-            r#"{{"type":"1","uniformTransparency":"{}"}}"#,
+            r#"{{"type":"1","uniformTransparency":"{}"{target}}}"#,
             ((1.0 - opacity.clamp(0.0, 1.0)) * 1000.0).round() / 1000.0
         )
     } else {
@@ -3196,9 +3224,10 @@ impl<'a> Writer<'a> {
         if !s.visible && v.0 >= 21 {
             args.push((ARG_HIDDEN, 1u32.to_le_bytes().to_vec()));
         }
+        let (opacity, fill_only) = written_opacity(s, fill, v.style_strings());
         if v.style_strings() {
             let graded = self.graded.get(&s.id).map(|(f, t)| (f, *t));
-            let mut json = object_style_json(fill, s.stroke.as_ref(), s.opacity, graded);
+            let mut json = object_style_json(fill, s.stroke.as_ref(), opacity, fill_only, graded);
             if let Some((_, character, _)) = &text {
                 // Text objects keep their character settings there too.
                 json.pop();
@@ -3234,8 +3263,8 @@ impl<'a> Writer<'a> {
         // older bare value made a version 15 file "contain an invalid
         // object" in the program that wrote the samples. Style strings
         // carry the transparency from 16.
-        if s.opacity < 0.999 && !v.tagged() {
-            args.push((ARG_OPACITY, opacity_arg(v, s.opacity)));
+        if opacity < 0.999 && !v.tagged() {
+            args.push((ARG_OPACITY, opacity_arg(v, opacity)));
         }
         let outline = s.stroke.as_ref().map(|st| st.width / 2.0).unwrap_or(0.0);
         // Text objects start with a number of their own (`spnd`: 1, 2, ...
