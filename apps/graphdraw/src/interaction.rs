@@ -2354,9 +2354,12 @@ impl App {
         if (pressed(Key::X, cmd) || cut_event) && !(segments && self.cut_segments()) {
             self.cut();
         }
-        if pressed(Key::V, cmd) || (paste_event && !shift_held) {
+        // Without text on the clipboard no paste event comes: the key
+        // itself is read (pictures and files copied elsewhere).
+        let swallowed = crate::clip_system::swallowed_paste_key(input.modifiers, input.focused);
+        if pressed(Key::V, cmd) || (paste_event && !shift_held) || swallowed == Some(false) {
             self.paste_any();
-        } else if paste_event && shift_held {
+        } else if (paste_event && shift_held) || swallowed == Some(true) {
             self.paste_in_view();
         }
         if pressed(Key::D, cmd) && !(segments && self.duplicate_segments()) {

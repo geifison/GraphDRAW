@@ -46,6 +46,42 @@ pub fn sequence() -> Option<u32> {
     real::sequence()
 }
 
+/// Whether a paste key was pressed this frame that the windowing layer
+/// swallowed: it turns Ctrl+V into a paste event only while the clipboard
+/// holds text, so a picture or files copied elsewhere would never reach
+/// Paste. `Some(true)` for Ctrl+Shift+V (Paste in View), `Some(false)` for
+/// Ctrl+V and Shift+Insert. Each press counts once. Windows only; tests
+/// and other systems read no keyboard here.
+pub fn swallowed_paste_key(m: egui::Modifiers, focused: bool) -> Option<bool> {
+    #[cfg(all(windows, not(test)))]
+    {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        #[link(name = "user32")]
+        extern "system" {
+            fn GetAsyncKeyState(key: i32) -> i16;
+        }
+        const VK_V: i32 = 0x56;
+        const VK_INSERT: i32 = 0x2D;
+        static HELD: AtomicBool = AtomicBool::new(false);
+        // SAFETY: GetAsyncKeyState only reads the key state; any key code
+        // is valid input.
+        let down = |k: i32| unsafe { GetAsyncKeyState(k) } < 0;
+        let ctrl_v = m.command && down(VK_V);
+        let shift_insert = m.shift && !m.command && down(VK_INSERT);
+        let now = focused && (ctrl_v || shift_insert);
+        let was = HELD.swap(now, Ordering::Relaxed);
+        if now && !was {
+            return Some(ctrl_v && m.shift);
+        }
+        None
+    }
+    #[cfg(not(all(windows, not(test))))]
+    {
+        let _ = (m, focused);
+        None
+    }
+}
+
 /// A flavour larger than this is left unread.
 #[cfg(windows)]
 const MAX_FLAVOUR_BYTES: usize = crate::clip_native::MAX_BYTES;
