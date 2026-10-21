@@ -56,11 +56,15 @@ pub enum DropAction {
     CopyOutline,
     CopyProperties,
     PlaceInside,
+    /// A text dropped on a curve goes onto it, starting at the point of
+    /// the curve nearest the drop.
+    FitToPath,
     Cancel,
 }
 
 impl DropAction {
-    pub const ALL: [DropAction; 7] = [
+    pub const ALL: [DropAction; 8] = [
+        DropAction::FitToPath,
         DropAction::Move,
         DropAction::Copy,
         DropAction::CopyFill,
@@ -78,6 +82,7 @@ impl DropAction {
             DropAction::CopyOutline => "drop.copy_outline_here",
             DropAction::CopyProperties => "drop.copy_all_properties",
             DropAction::PlaceInside => "drop.place_inside",
+            DropAction::FitToPath => "drop.fit_to_path",
             DropAction::Cancel => "drop.cancel",
         }
     }
@@ -90,7 +95,21 @@ impl DropAction {
                 | DropAction::CopyOutline
                 | DropAction::CopyProperties
                 | DropAction::PlaceInside
+                | DropAction::FitToPath
         )
+    }
+}
+
+impl App {
+    /// The drop menu offers Fit to Path: one text dropped on a curve.
+    pub fn drop_fits_to_path(&self, menu: &DropMenu) -> bool {
+        let [id] = self.selection.as_slice() else {
+            return false;
+        };
+        let is_text = self.doc().shape(*id).is_ok_and(|(_, s)| {
+            matches!(s.kind, graphdraw_core::document::ShapeKind::Text { .. })
+        });
+        is_text && menu.target.is_some_and(|t| self.can_guide_text(t))
     }
 }
 
@@ -208,6 +227,12 @@ impl App {
                     self.select(vec![target]);
                 }
             }
+            DropAction::FitToPath => {
+                if let Some(target) = menu.target.filter(|_| self.drop_fits_to_path(&menu)) {
+                    let at = self.view.to_page(menu.screen);
+                    self.fit_text_to_path_at(first.id, target, at);
+                }
+            }
             DropAction::Cancel => {}
         }
     }
@@ -248,7 +273,18 @@ pub fn drop_menu_ui(app: &mut App, ui: &mut Ui) {
     .show(|ui| {
         ui.set_min_width(190.0);
         crate::ui::menus::body(ui, |ui| {
+            let fits = app.drop_fits_to_path(&menu);
             for action in DropAction::ALL {
+                // A text on a curve: Fit to Path first, apart.
+                if action == DropAction::FitToPath {
+                    if fits && crate::ui::menus::item(ui, action.key(), "", true) {
+                        chosen = Some(action);
+                    }
+                    if fits {
+                        crate::ui::menus::sep(ui);
+                    }
+                    continue;
+                }
                 if matches!(action, DropAction::CopyFill | DropAction::Cancel) {
                     crate::ui::menus::sep(ui);
                 }

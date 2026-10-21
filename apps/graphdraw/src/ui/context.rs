@@ -142,6 +142,23 @@ pub(crate) fn object_menu(app: &mut App, ui: &mut Ui, close: &mut bool) {
         if ci(ui, close, "menu.text.convert", "Ctrl+F8", true) {
             app.toggle_text_kind();
         }
+        // Text on a path: one text (the next click picks the curve) or a
+        // text and the curve; a straightened text goes back to its path.
+        let texts = shapes
+            .iter()
+            .filter(|s| matches!(s.kind, ShapeKind::Text { .. }))
+            .count();
+        if texts == 1
+            && shapes.len() <= 2
+            && ci(ui, close, "context.put_text_on_path", "", true)
+        {
+            app.begin_fit_text_to_path();
+        }
+        if app.can_reactivate_text_path()
+            && ci(ui, close, "context.reactivate_text_path", "", true)
+        {
+            app.reactivate_text_path();
+        }
         sep(ui);
     }
     if is_bitmap {
@@ -215,7 +232,8 @@ pub(crate) fn object_menu(app: &mut App, ui: &mut Ui, close: &mut bool) {
         close,
         "menu.object.break_apart",
         "Ctrl+K",
-        is_curve || is_group,
+        // On a text on a path it unlinks the text from its guide.
+        is_curve || is_group || app.fitted_text().is_some(),
     ) {
         app.break_apart();
     }

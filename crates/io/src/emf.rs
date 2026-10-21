@@ -2703,7 +2703,7 @@ impl EmfWriter<'_> {
         if let Some(pic) = shape.drawn_as() {
             return self.shape(&pic, parent);
         }
-        if !shape.visible {
+        if !shape.visible || shape.construction {
             return;
         }
         if !shape.effects.is_empty() {
@@ -3333,7 +3333,7 @@ impl WmfWriter<'_> {
         if let Some(pic) = shape.drawn_as() {
             return self.shape(&pic, parent);
         }
-        if !shape.visible {
+        if !shape.visible || shape.construction {
             return;
         }
         if !shape.effects.is_empty() {

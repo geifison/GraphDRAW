@@ -537,7 +537,7 @@ impl PageWriter<'_> {
         if let Some(pic) = shape.drawn_as() {
             return self.shape(&pic, parent);
         }
-        if !shape.visible {
+        if !shape.visible || shape.construction {
             return;
         }
         if !shape.effects.is_empty() {
@@ -945,7 +945,7 @@ fn link_areas(
 ) {
     use graphdraw_core::geometry::Shape as _;
     for s in shapes {
-        if !s.visible {
+        if !s.visible || s.construction {
             continue;
         }
         let transform = parent * s.transform;

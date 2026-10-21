@@ -84,9 +84,18 @@ impl App {
             }
         } else if self.pending_text_path {
             self.pending_text_path = false;
-            if let Some(t) = target {
-                self.fit_text_to_picked_path(t);
-                return true;
+            // The click picks the guide and the text starts there; a click
+            // off any curve asks whether to try again.
+            let picked = target.filter(|t| !self.selection.contains(t) && self.can_guide_text(*t));
+            match picked {
+                Some(t) => {
+                    self.fit_text_to_picked_path_at(t, Some(p));
+                    return true;
+                }
+                None => {
+                    self.text_path_pick_missed();
+                    return true;
+                }
             }
         }
         self.status.clear();
