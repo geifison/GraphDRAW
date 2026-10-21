@@ -441,13 +441,6 @@ pub fn note(ui: &mut Ui, text: &str) {
     ui.label(egui::RichText::new(text).color(Tokens::text_dim()).size(11.0));
 }
 
-/// A control that comes in a later step: drawn dimmed, with a tip saying
-/// so. `add` draws the control (its changes are ignored).
-pub fn later(ui: &mut Ui, add: impl FnOnce(&mut Ui)) {
-    let r = ui.add_enabled_ui(false, add).response;
-    r.on_disabled_hover_text(tr("stylewin.coming"));
-}
-
 /// The angle dial: dragging turns the pointer (Shift: 15 degree steps).
 /// True when the angle changed.
 pub fn angle_dial(ui: &mut Ui, angle: &mut f64) -> bool {

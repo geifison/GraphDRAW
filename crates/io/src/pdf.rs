@@ -3,12 +3,12 @@
 //! outlines with width, caps, joins and dashes, bitmaps as images, and
 //! uniform transparency via ExtGState. Written by hand; no dependency.
 
-use std::fmt::Write as _;
 use graphdraw_core::{
     document::{Shape, ShapeKind},
     geometry::{Affine, PathEl, Rect},
     Color, Document, Fill, FountainKind, LineCap, LineJoin,
 };
+use std::fmt::Write as _;
 
 const MM_PT: f64 = 72.0 / 25.4;
 
@@ -773,6 +773,22 @@ impl PageWriter<'_> {
                 let arr: Vec<String> = s.dash.iter().map(|d| f(d * w)).collect();
                 let _ = writeln!(self.content, "[{}] 0 d", arr.join(" "));
             }
+            // PDF's own miter limit is 10: always give ours.
+            if s.join == LineJoin::Miter {
+                let _ = writeln!(self.content, "{} M", f(s.safe_miter_limit()));
+            }
+            // The outline's own opacity, times the object's (the fill is
+            // already drawn).
+            let alpha = s.safe_opacity();
+            if alpha < 1.0 && self.pdf.allow_alpha {
+                let a = alpha * shape.opacity.clamp(0.0, 1.0);
+                let name = format!("GS{}", self.gstates.len());
+                let id =
+                    self.pdf
+                        .add_str(format!("<< /Type /ExtGState /CA {} /ca {} >>", f(a), f(a)));
+                self.gstates.push((name.clone(), id));
+                let _ = writeln!(self.content, "/{name} gs");
+            }
             if let Some(brush) = &s.painterly {
                 // Painterly brush: the marks, one filled path per opacity.
                 for (alpha, marks) in graphdraw_core::painterly::marks_by_opacity(
@@ -800,7 +816,8 @@ impl PageWriter<'_> {
             } else if let Some(band) =
                 graphdraw_core::shaping::outline_band(&shape.page_path(), s, 1.0)
             {
-                // Calligraphic nib or variable width: the band, filled.
+                // Calligraphic nib, variable width, outside or inside,
+                // dashes through corners: the band, filled.
                 let band = parent * band;
                 if let Some(paint) = outline_paint(s, transform) {
                     let b = band.bounding_box();
@@ -1674,6 +1691,32 @@ mod tests {
             rest = data;
         }
         text
+    }
+
+    /// The outline's transparency, miter limit and position reach the PDF.
+    #[test]
+    fn outline_options_reach_the_pdf() {
+        use graphdraw_core::StrokePosition;
+        let plain = graphdraw_core::Stroke::new(Color::BLACK, 2.0);
+        let text = one_rect_pdf(Fill::None, Some(plain.clone()));
+        assert!(text.contains("\n4 M\n"), "{text}");
+        assert!(!text.contains("/CA "), "{text}");
+        let st = graphdraw_core::Stroke {
+            opacity: 0.5,
+            miter_limit: 20.0,
+            ..plain.clone()
+        };
+        let text = one_rect_pdf(Fill::None, Some(st));
+        assert!(text.contains("\n20 M\n"), "{text}");
+        assert!(text.contains("/CA 0.5 /ca 0.5"), "{text}");
+        // Outside: the band is filled, the path is not stroked.
+        let st = graphdraw_core::Stroke {
+            position: StrokePosition::Outside,
+            ..plain
+        };
+        let text = one_rect_pdf(Fill::None, Some(st));
+        assert!(!text.contains("\nS\n"), "{text}");
+        assert!(text.contains("\nf\n"), "{text}");
     }
 
     #[test]

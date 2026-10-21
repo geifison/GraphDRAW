@@ -1,12 +1,12 @@
 //! SVG export. One page per SVG, in millimetres, with the Y axis flipped
 //! from our bottom-up page space to SVG's top-down space.
 
-use std::fmt::Write;
 use graphdraw_core::{
     document::{Shape, ShapeKind},
     geometry::{Affine, PathEl, Shape as _},
     Color, Document, Fill, LineCap, LineJoin,
 };
+use std::fmt::Write;
 
 pub fn page_to_svg(doc: &Document, page_index: usize) -> String {
     let doc = &*crate::resolve_open_fills(doc);
@@ -325,8 +325,9 @@ fn write_unlinked(
         let _ = write!(fill_attr, " opacity=\"{}\"", fmt(shape.opacity.clamp(0.0, 1.0)));
     }
 
-    // A calligraphic outline has no SVG equivalent: the swept band is
-    // written as a filled path after the object.
+    // A calligraphic, variable, outside or inside outline, or one whose
+    // dashes go through corners in their own way, has no SVG equivalent:
+    // its band is written as a filled path after the object.
     let calligraphic = shape.stroke.as_ref().and_then(|s| {
         graphdraw_core::shaping::outline_band(&shape.page_path(), s, 1.0).map(|b| {
             let band = parent * b;
@@ -361,6 +362,11 @@ fn write_unlinked(
                 let dashes: Vec<String> = s.dash.iter().map(|d| fmt(d * s.width)).collect();
                 let _ = write!(a, " stroke-dasharray=\"{}\"", dashes.join(" "));
             }
+            // SVG's own miter limit is 4, as ours.
+            if s.join == LineJoin::Miter && s.safe_miter_limit() != 4.0 {
+                let _ = write!(a, " stroke-miterlimit=\"{}\"", fmt(s.safe_miter_limit()));
+            }
+            a.push_str(&opacity_attr("stroke-opacity", s));
             a
         }
     };
@@ -385,8 +391,13 @@ fn write_unlinked(
     if let Some((band, paint)) = calligraphic {
         let _ = writeln!(
             out,
-            "{pad}<path d=\"{}\" fill=\"{paint}\" stroke=\"none\"/>",
-            path_data(&band)
+            "{pad}<path d=\"{}\" fill=\"{paint}\"{} stroke=\"none\"/>",
+            path_data(&band),
+            shape
+                .stroke
+                .as_ref()
+                .map(|s| opacity_attr("fill-opacity", s))
+                .unwrap_or_default()
         );
     }
     // A painterly outline: its marks, one path per opacity step.
@@ -414,11 +425,23 @@ fn write_unlinked(
         for head in graphdraw_core::arrowhead_paths(&shape.page_path(), s) {
             let _ = writeln!(
                 out,
-                "{pad}<path d=\"{}\" fill=\"{}\" stroke=\"none\"/>",
+                "{pad}<path d=\"{}\" fill=\"{}\"{} stroke=\"none\"/>",
                 path_data(&(parent * head)),
-                s.color.to_hex()
+                s.color.to_hex(),
+                opacity_attr("fill-opacity", s)
             );
         }
+    }
+}
+
+/// ` name="opacity"` for an outline that is not opaque, nothing for an
+/// opaque one.
+fn opacity_attr(name: &str, s: &graphdraw_core::Stroke) -> String {
+    let o = s.safe_opacity();
+    if o < 1.0 {
+        format!(" {name}=\"{}\"", fmt(o))
+    } else {
+        String::new()
     }
 }
 
@@ -1148,6 +1171,45 @@ mod tests {
         s.stroke = stroke;
         doc.layer_mut(layer).unwrap().shapes.push(s);
         page_to_svg(&doc, 0)
+    }
+
+    /// The outline's transparency, miter limit, position and dashes
+    /// through corners reach the SVG.
+    #[test]
+    fn outline_options_reach_the_svg() {
+        use graphdraw_core::{DashCorners, StrokePosition};
+        let plain = Stroke::new(Color::BLACK, 2.0);
+        let svg = one_shape_svg(Fill::None, Some(plain.clone()));
+        assert!(!svg.contains("stroke-opacity") && !svg.contains("stroke-miterlimit"));
+        let st = Stroke {
+            opacity: 0.25,
+            miter_limit: 9.0,
+            ..plain.clone()
+        };
+        let svg = one_shape_svg(Fill::None, Some(st));
+        assert!(svg.contains(" stroke-opacity=\"0.25\""), "{svg}");
+        assert!(svg.contains(" stroke-miterlimit=\"9\""), "{svg}");
+        // Inside: no stroke on the rectangle, a filled band inside it.
+        let st = Stroke {
+            position: StrokePosition::Inside,
+            opacity: 0.5,
+            ..plain.clone()
+        };
+        let svg = one_shape_svg(Fill::None, Some(st));
+        assert!(svg.contains("stroke=\"none\""), "{svg}");
+        assert!(
+            svg.contains("fill=\"#000000\" fill-opacity=\"0.5\" stroke=\"none\""),
+            "{svg}"
+        );
+        // Dashes aligned at the corners: a band too.
+        let st = Stroke {
+            dash: vec![3.0, 2.0],
+            dash_corners: DashCorners::Align,
+            ..plain
+        };
+        let svg = one_shape_svg(Fill::None, Some(st));
+        assert!(!svg.contains("stroke-dasharray"), "{svg}");
+        assert!(svg.contains("fill=\"#000000\" stroke=\"none\""), "{svg}");
     }
 
     #[test]

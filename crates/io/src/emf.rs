@@ -10,7 +10,6 @@
 //! public Windows metafile specifications. Nothing in the input can panic
 //! the reader: every read is bounds-checked and record counts are capped.
 
-use std::collections::HashMap;
 use graphdraw_core::{
     document::{ParagraphStyle, Shape, ShapeKind, TextSpan},
     geometry::{Affine, BezPath, PathEl, Point, Rect, Shape as _, Size, Vec2},
@@ -18,6 +17,7 @@ use graphdraw_core::{
     style::{LineCap, LineJoin},
     Color, Fill, ShapeId, Stroke, TextAlign,
 };
+use std::collections::HashMap;
 
 const PT_MM: f64 = 25.4 / 72.0;
 const MAX_RECORDS: usize = 2_000_000;
@@ -2768,7 +2768,22 @@ impl EmfWriter<'_> {
                     .iter()
                     .any(|(k, v)| k == "fill.rule" && v == "evenodd")
                     || !matches!(shape.kind, ShapeKind::Text { .. });
-                self.fill_and_stroke(&path, &shape.fill, shape.stroke.as_ref(), scale, even_odd);
+                // A band (calligraphic, variable, outside or inside,
+                // dashes through corners) is filled in the outline colour.
+                let band = shape.stroke.as_ref().and_then(|st| {
+                    graphdraw_core::shaping::outline_band(&shape.page_path(), st, 1.0)
+                });
+                let stroke = shape.stroke.as_ref().filter(|_| band.is_none());
+                self.fill_and_stroke(&path, &shape.fill, stroke, scale, even_odd);
+                if let (Some(st), Some(band)) = (&shape.stroke, &band) {
+                    self.fill_and_stroke(
+                        &(parent * band.clone()),
+                        &Fill::Solid(st.color),
+                        None,
+                        1.0,
+                        false,
+                    );
+                }
                 if let Some(st) = &shape.stroke {
                     for head in graphdraw_core::style::arrowhead_paths(&shape.page_path(), st) {
                         self.fill_and_stroke(
@@ -3395,7 +3410,20 @@ impl WmfWriter<'_> {
                     Fill::None => None,
                     other => other.preview_color().or(Some(Color::Gray { v: 0.5 })),
                 };
-                self.fill_and_stroke(&path, fill, shape.stroke.as_ref(), scale, even_odd);
+                let band = shape.stroke.as_ref().and_then(|st| {
+                    graphdraw_core::shaping::outline_band(&shape.page_path(), st, 1.0)
+                });
+                let stroke = shape.stroke.as_ref().filter(|_| band.is_none());
+                self.fill_and_stroke(&path, fill, stroke, scale, even_odd);
+                if let (Some(st), Some(band)) = (&shape.stroke, &band) {
+                    self.fill_and_stroke(
+                        &(parent * band.clone()),
+                        Some(st.color),
+                        None,
+                        1.0,
+                        false,
+                    );
+                }
                 if let Some(st) = &shape.stroke {
                     for head in graphdraw_core::style::arrowhead_paths(&shape.page_path(), st) {
                         self.fill_and_stroke(&(parent * head), Some(st.color), None, 1.0, false);

@@ -1210,6 +1210,81 @@ pub enum LineJoin {
     Bevel,
 }
 
+/// Where the outline lies on a closed path: centred on it (half inside,
+/// half outside), all outside or all inside it. Open paths are always
+/// centred.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum StrokePosition {
+    #[default]
+    Center,
+    Outside,
+    Inside,
+}
+
+/// How a dashed outline goes through the corners of its path.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum DashCorners {
+    /// The pattern runs on along the whole path, ignoring the corners.
+    #[default]
+    Standard,
+    /// Every stretch between corners starts and ends with a dash, the
+    /// pattern stretched or squeezed a little so that a whole dash runs
+    /// through each corner.
+    Align,
+    /// The pattern starts again at every corner with its exact lengths.
+    Fixed,
+}
+
+/// The size, turn, mirror and offset of one arrowhead.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct ArrowOptions {
+    /// Size as a fraction of the preset size (1 = 100 %), 0.05 to 50.
+    #[serde(default = "one")]
+    pub scale: f64,
+    /// Turn in degrees, counter-clockwise, about the tip.
+    #[serde(default)]
+    pub rotation: f64,
+    /// Flipped across the curve's direction.
+    #[serde(default)]
+    pub mirror: bool,
+    /// Distance in millimetres from the curve's end to the tip, outwards
+    /// along the curve's direction (negative: back along the curve).
+    #[serde(default)]
+    pub offset: f64,
+}
+
+impl Default for ArrowOptions {
+    fn default() -> Self {
+        ArrowOptions {
+            scale: 1.0,
+            rotation: 0.0,
+            mirror: false,
+            offset: 0.0,
+        }
+    }
+}
+
+impl ArrowOptions {
+    /// The size range, as a fraction of the preset size.
+    pub const SCALE_MIN: f64 = 0.05;
+    pub const SCALE_MAX: f64 = 50.0;
+
+    pub fn is_default(&self) -> bool {
+        *self == ArrowOptions::default()
+    }
+
+    /// The scale clamped to its range (1 for a value that is not a number).
+    pub fn safe_scale(&self) -> f64 {
+        if self.scale.is_finite() {
+            self.scale.clamp(Self::SCALE_MIN, Self::SCALE_MAX)
+        } else {
+            1.0
+        }
+    }
+}
+
 /// The preset arrowhead size in outline widths (the head-space unit; see
 /// [`Arrowhead`]). Hairlines count as 0.25 mm and the size is at least 1 mm.
 pub const HEAD_SIZE_PER_WIDTH: f64 = 4.0;
@@ -1375,6 +1450,40 @@ pub struct Stroke {
     /// Drawn as painterly brush marks along the path instead of a line.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub painterly: Option<crate::painterly::Painterly>,
+    /// The outline's own opacity, 0 (invisible) to 1 (opaque); it
+    /// multiplies the object's opacity.
+    #[serde(default = "one", skip_serializing_if = "is_one_f64")]
+    pub opacity: f64,
+    /// Longest mitre at a corner, in outline widths, before the corner is
+    /// bevelled instead (1 to 100).
+    #[serde(
+        default = "default_miter_limit",
+        skip_serializing_if = "is_default_miter_limit"
+    )]
+    pub miter_limit: f64,
+    /// Centred on the path, outside or inside it (closed paths only).
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub position: StrokePosition,
+    /// How dashes go through the path's corners.
+    #[serde(default, skip_serializing_if = "is_default")]
+    pub dash_corners: DashCorners,
+    /// Size, turn, mirror and offset of the start arrowhead.
+    #[serde(default, skip_serializing_if = "ArrowOptions::is_default")]
+    pub start_arrow_options: ArrowOptions,
+    /// Size, turn, mirror and offset of the end arrowhead.
+    #[serde(default, skip_serializing_if = "ArrowOptions::is_default")]
+    pub end_arrow_options: ArrowOptions,
+}
+
+/// The miter limit outlines have unless set otherwise.
+pub const DEFAULT_MITER_LIMIT: f64 = 4.0;
+
+fn default_miter_limit() -> f64 {
+    DEFAULT_MITER_LIMIT
+}
+
+fn is_default_miter_limit(v: &f64) -> bool {
+    *v == DEFAULT_MITER_LIMIT
 }
 
 /// A point of a variable-width outline: where it is along the path and
@@ -1464,6 +1573,39 @@ impl Stroke {
             ..Default::default()
         }
     }
+
+    /// The opacity clamped to 0..1 (1 for a value that is not a number).
+    pub fn safe_opacity(&self) -> f64 {
+        if self.opacity.is_finite() {
+            self.opacity.clamp(0.0, 1.0)
+        } else {
+            1.0
+        }
+    }
+
+    /// The miter limit clamped to 1..100 (the default for a value that is
+    /// not a number).
+    pub fn safe_miter_limit(&self) -> f64 {
+        if self.miter_limit.is_finite() {
+            self.miter_limit.clamp(1.0, 100.0)
+        } else {
+            DEFAULT_MITER_LIMIT
+        }
+    }
+
+    /// A hairline: one device pixel at every zoom.
+    pub fn is_hairline(&self) -> bool {
+        self.width <= Self::HAIRLINE + 1e-9
+    }
+
+    /// The dashes go through corners in their own way (aligned or fixed),
+    /// which plain strokes cannot draw: the dashes are then cut out of the
+    /// path first ([`crate::shaping::corner_dashes`]).
+    pub fn has_corner_dashes(&self) -> bool {
+        self.dash_corners != DashCorners::Standard
+            && !self.is_hairline()
+            && self.dash.iter().sum::<f64>() > 1e-9
+    }
 }
 
 impl Default for Stroke {
@@ -1483,6 +1625,12 @@ impl Default for Stroke {
             fill: None,
             widths: Vec::new(),
             painterly: None,
+            opacity: 1.0,
+            miter_limit: DEFAULT_MITER_LIMIT,
+            position: StrokePosition::Center,
+            dash_corners: DashCorners::Standard,
+            start_arrow_options: ArrowOptions::default(),
+            end_arrow_options: ArrowOptions::default(),
         }
     }
 }
@@ -1918,7 +2066,9 @@ mod tests {
 }
 
 /// Arrowhead outlines (page space) for an open path's ends, sized by the
-/// outline width (hairlines use 0.25 mm). Filled with the outline colour.
+/// outline width (hairlines use 0.25 mm) and each end's [`ArrowOptions`]
+/// (size, turn about the tip, mirror across the curve's direction, the
+/// tip moved along that direction). Filled with the outline colour.
 pub fn arrowhead_paths(
     path: &crate::geometry::BezPath,
     stroke: &Stroke,
@@ -1929,7 +2079,7 @@ pub fn arrowhead_paths(
     } else {
         stroke.width
     };
-    let size = (w * HEAD_SIZE_PER_WIDTH).max(1.0);
+    let base = (w * HEAD_SIZE_PER_WIDTH).max(1.0);
     let mut pts: Vec<Point> = Vec::new();
     let mut closed = false;
     kurbo::flatten(path.elements().iter().copied(), 0.05, &mut |el| match el {
@@ -1945,12 +2095,30 @@ pub fn arrowhead_paths(
     if closed || pts.len() < 2 {
         return Vec::new();
     }
-    let head = |tip: Point, dir: Vec2, kind: &Arrowhead| -> Option<BezPath> {
+    let head = |tip: Point, dir: Vec2, kind: &Arrowhead, o: &ArrowOptions| -> Option<BezPath> {
         let dir = dir.normalize();
         if !dir.x.is_finite() {
             return None;
         }
-        let n = Vec2::new(-dir.y, dir.x);
+        let size = base * o.safe_scale();
+        let offset = if o.offset.is_finite() {
+            o.offset.clamp(-1000.0, 1000.0)
+        } else {
+            0.0
+        };
+        let tip = tip + dir * offset;
+        let turn = if o.rotation.is_finite() {
+            o.rotation.to_radians()
+        } else {
+            0.0
+        };
+        let (sin, cos) = turn.sin_cos();
+        let dir = Vec2::new(dir.x * cos - dir.y * sin, dir.x * sin + dir.y * cos);
+        let n = if o.mirror {
+            Vec2::new(dir.y, -dir.x)
+        } else {
+            Vec2::new(-dir.y, dir.x)
+        };
         let mut p = BezPath::new();
         match kind {
             Arrowhead::None => return None,
@@ -2014,10 +2182,20 @@ pub fn arrowhead_paths(
     use crate::geometry::Shape as _;
     let mut out = Vec::new();
     let n = pts.len();
-    if let Some(p) = head(pts[0], pts[0] - pts[1.min(n - 1)], &stroke.start_arrow) {
+    if let Some(p) = head(
+        pts[0],
+        pts[0] - pts[1.min(n - 1)],
+        &stroke.start_arrow,
+        &stroke.start_arrow_options,
+    ) {
         out.push(p);
     }
-    if let Some(p) = head(pts[n - 1], pts[n - 1] - pts[n - 2], &stroke.end_arrow) {
+    if let Some(p) = head(
+        pts[n - 1],
+        pts[n - 1] - pts[n - 2],
+        &stroke.end_arrow,
+        &stroke.end_arrow_options,
+    ) {
         out.push(p);
     }
     out
@@ -2180,5 +2358,184 @@ mod arrowhead_tests {
         assert_eq!(heads.len(), 1);
         let b = heads[0].bounding_box();
         assert!(b.x0.abs() < 1e-6 && (b.x1 - 4.0).abs() < 1e-6, "{b:?}");
+    }
+}
+
+#[cfg(test)]
+mod outline_option_tests {
+    use super::*;
+    use crate::geometry::{BezPath, Shape as _};
+
+    #[test]
+    fn new_outline_settings_round_trip_and_old_files_load_with_defaults() {
+        // An outline with none of the new settings writes none of them.
+        let plain = Stroke::new(Color::BLACK, 1.0);
+        let json = serde_json::to_string(&plain).unwrap();
+        for key in [
+            "opacity",
+            "miter_limit",
+            "position",
+            "dash_corners",
+            "arrow_options",
+        ] {
+            assert!(!json.contains(key), "{key} in {json}");
+        }
+        // A file written before them loads with the defaults.
+        let old = r#"{"color":{"model":"gray","v":0.0},"width":1.0,"cap":"butt","join":"miter","dash":[],"scale_with_object":false,"behind_fill":false,"start_arrow":"none","end_arrow":"arrow","stretch":1.0,"nib_angle":0.0}"#;
+        let back: Stroke = serde_json::from_str(old).unwrap();
+        assert_eq!(back.opacity, 1.0);
+        assert_eq!(back.miter_limit, DEFAULT_MITER_LIMIT);
+        assert_eq!(back.position, StrokePosition::Center);
+        assert_eq!(back.dash_corners, DashCorners::Standard);
+        assert!(back.start_arrow_options.is_default() && back.end_arrow_options.is_default());
+        // Every setting round trips.
+        let full = Stroke {
+            opacity: 0.4,
+            miter_limit: 12.5,
+            position: StrokePosition::Inside,
+            dash_corners: DashCorners::Align,
+            end_arrow: Arrowhead::Arrow,
+            end_arrow_options: ArrowOptions {
+                scale: 2.0,
+                rotation: 30.0,
+                mirror: true,
+                offset: -1.5,
+            },
+            ..Stroke::new(Color::BLACK, 1.0)
+        };
+        let json = serde_json::to_string(&full).unwrap();
+        assert!(json.contains("\"position\":\"inside\""), "{json}");
+        assert!(json.contains("\"dash_corners\":\"align\""), "{json}");
+        let back: Stroke = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, full);
+        // Partial options fill in the rest.
+        let o: ArrowOptions = serde_json::from_str(r#"{"mirror":true}"#).unwrap();
+        assert_eq!(o.scale, 1.0);
+        assert!(o.mirror);
+    }
+
+    #[test]
+    fn bad_values_are_tamed() {
+        let s = Stroke {
+            opacity: f64::NAN,
+            miter_limit: f64::INFINITY,
+            ..Stroke::default()
+        };
+        assert_eq!(s.safe_opacity(), 1.0);
+        assert_eq!(s.safe_miter_limit(), DEFAULT_MITER_LIMIT);
+        let s = Stroke {
+            opacity: 7.0,
+            miter_limit: 0.2,
+            ..Stroke::default()
+        };
+        assert_eq!(s.safe_opacity(), 1.0);
+        assert_eq!(s.safe_miter_limit(), 1.0);
+        let o = ArrowOptions {
+            scale: f64::NAN,
+            ..ArrowOptions::default()
+        };
+        assert_eq!(o.safe_scale(), 1.0);
+    }
+
+    fn line() -> BezPath {
+        let mut l = BezPath::new();
+        l.move_to((0.0, 0.0));
+        l.line_to((50.0, 0.0));
+        l
+    }
+
+    fn end_head(o: ArrowOptions) -> crate::geometry::Rect {
+        let s = Stroke {
+            end_arrow: Arrowhead::Square,
+            end_arrow_options: o,
+            ..Stroke::new(Color::BLACK, 1.0)
+        };
+        let heads = arrowhead_paths(&line(), &s);
+        assert_eq!(heads.len(), 1);
+        heads[0].bounding_box()
+    }
+
+    #[test]
+    fn arrowheads_take_their_size_turn_mirror_and_offset() {
+        // The preset square: 0.7 of 4 mm, its front at the end point.
+        let b = end_head(ArrowOptions::default());
+        assert!(
+            (b.width() - 2.8).abs() < 1e-9 && (b.x1 - 50.0).abs() < 1e-9,
+            "{b:?}"
+        );
+        // Twice the size.
+        let b = end_head(ArrowOptions {
+            scale: 2.0,
+            ..ArrowOptions::default()
+        });
+        assert!((b.width() - 5.6).abs() < 1e-9 && (b.height() - 5.6).abs() < 1e-9);
+        // Moved 3 mm on past the end.
+        let b = end_head(ArrowOptions {
+            offset: 3.0,
+            ..ArrowOptions::default()
+        });
+        assert!((b.x1 - 53.0).abs() < 1e-9, "{b:?}");
+        // Turned 90 degrees about the tip: it now points up, its body below.
+        let b = end_head(ArrowOptions {
+            rotation: 90.0,
+            ..ArrowOptions::default()
+        });
+        assert!(b.y1.abs() < 1e-9 && (b.y0 + 2.8).abs() < 1e-9, "{b:?}");
+        // A custom head off the axis flips to the other side when mirrored.
+        let mut tri = BezPath::new();
+        tri.move_to((0.0, 0.0));
+        tri.line_to((-1.0, 0.0));
+        tri.line_to((-1.0, 1.0));
+        tri.close_path();
+        let custom = Arrowhead::from_shape_path(&tri, "half");
+        let mut lop = BezPath::new();
+        lop.move_to((0.0, 0.0));
+        lop.line_to((-1.0, 0.0));
+        lop.line_to((-1.0, 3.0));
+        lop.close_path();
+        let lopsided = Arrowhead::from_shape_path(&lop, "lopsided");
+        assert!(custom.is_custom() && lopsided.is_custom());
+        let side = |mirror: bool| {
+            let s = Stroke {
+                end_arrow: lopsided.clone(),
+                end_arrow_options: ArrowOptions {
+                    mirror,
+                    ..ArrowOptions::default()
+                },
+                ..Stroke::new(Color::BLACK, 1.0)
+            };
+            let heads = arrowhead_paths(&line(), &s);
+            // The head's widest part (the base, at its back) is off the
+            // axis on one side: compare where its area's centre lies.
+            let p = &heads[0];
+            let b = p.bounding_box();
+            let mut above = 0;
+            for i in 0..40 {
+                for j in 0..40 {
+                    let q = Point::new(
+                        b.x0 + b.width() * (i as f64 + 0.5) / 40.0,
+                        b.y0 + b.height() * (j as f64 + 0.5) / 40.0,
+                    );
+                    if p.contains(q) {
+                        above += if q.y > 0.0 { 1 } else { -1 };
+                    }
+                }
+            }
+            above
+        };
+        assert!(
+            side(false) * side(true) < 0,
+            "{} {}",
+            side(false),
+            side(true)
+        );
+        // Absurd values never break the head.
+        let b = end_head(ArrowOptions {
+            scale: 1e9,
+            rotation: f64::NAN,
+            mirror: false,
+            offset: f64::INFINITY,
+        });
+        assert!(b.width().is_finite() && b.width() <= 2.8 * 50.0 + 1e-6);
     }
 }

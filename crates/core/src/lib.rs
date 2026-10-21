@@ -51,9 +51,9 @@ pub use icc::{Intent as RenderingIntent, Profile as IccProfile, Transform as Icc
 pub use id::{LayerId, PageId, ShapeId};
 pub use paragraphs::ParagraphFormat;
 pub use style::{
-    arrowhead_paths, Arrowhead, Fill, Fountain, FountainBlend, FountainKind, FountainRepeat, LineCap,
-    LineJoin,
-    Mesh, MeshNode, Pattern, PatternTile, Stop, Stroke, Texture, TextureKind, WidthNode,
+    arrowhead_paths, ArrowOptions, Arrowhead, DashCorners, Fill, Fountain, FountainBlend,
+    FountainKind, FountainRepeat, LineCap, LineJoin, Mesh, MeshNode, Pattern, PatternTile, Stop,
+    Stroke, StrokePosition, Texture, TextureKind, WidthNode,
 };
 pub use style::TileLayout;
 pub use text_flow::{TextWrap, WrapMode, WrapSide};

@@ -9,16 +9,16 @@ mod pattern;
 
 pub use pattern::texture_value_of;
 
-use tiny_skia::{
-    Color as SkColor, FillRule, GradientStop, LineCap, LineJoin, LinearGradient, Paint,
-    Path as SkPath, PathBuilder, Pixmap, RadialGradient, SpreadMode, Stroke as SkStroke,
-    StrokeDash, Transform,
-};
 use graphdraw_core::geometry::Shape as _;
 use graphdraw_core::{
     document::{Shape, ShapeKind},
     geometry::{Affine, BezPath, PathEl, Point, Rect},
     Color, Document, Fill, LineCap as LCap, LineJoin as LJoin, PageId, ShapeId, Stroke,
+};
+use tiny_skia::{
+    Color as SkColor, FillRule, GradientStop, LineCap, LineJoin, LinearGradient, Paint,
+    Path as SkPath, PathBuilder, Pixmap, RadialGradient, SpreadMode, Stroke as SkStroke,
+    StrokeDash, Transform,
 };
 
 /// Page (mm, Y up) to pixel mapping for one render.
@@ -640,6 +640,9 @@ impl Renderer<'_> {
             if let Some(stroke) = &shape.stroke {
                 let (mut paint, sk_stroke) = self.stroke_paint(stroke, transform);
                 paint.blend_mode = self.blend_for(shape.overprint_outline);
+                let mut c = sk_color(stroke.color);
+                c.apply_opacity(stroke.safe_opacity() as f32);
+                paint.set_color(c);
                 self.pixmap
                     .stroke_path(&sk, &paint, &sk_stroke, Transform::identity(), None);
             } else if self.flags.wireframe {
@@ -722,85 +725,26 @@ impl Renderer<'_> {
             }
         }
         if let Some(stroke) = &shape.stroke {
-            let (mut paint, sk_stroke) = self.stroke_paint(stroke, transform);
-            paint.blend_mode = self.blend_for(shape.overprint_outline);
-            if let Some(brush) = stroke.painterly.as_ref().filter(|_| !self.flags.wireframe) {
-                // Painterly brush: its marks, each with its own opacity.
-                let c = transform.as_coeffs();
-                let scale = if stroke.scale_with_object {
-                    ((c[0] * c[3] - c[1] * c[2]).abs()).sqrt().max(1e-6)
-                } else {
-                    1.0
-                };
-                let [r, g, b] = stroke.color.to_rgb8();
-                for mark in
-                    graphdraw_core::painterly::marks(&page_path, stroke.width * scale, brush)
-                {
-                    let Some(mp) = to_sk_path(&(self.screen * mark.path)) else {
-                        continue;
-                    };
-                    paint.set_color_rgba8(r, g, b, (mark.alpha * 255.0).round() as u8);
-                    self.pixmap.fill_path(
-                        &mp,
-                        &paint,
-                        FillRule::Winding,
-                        Transform::identity(),
-                        None,
-                    );
-                }
-                return;
-            }
-            let object_scale = if stroke.scale_with_object {
-                let c = transform.as_coeffs();
-                ((c[0] * c[3] - c[1] * c[2]).abs()).sqrt().max(1e-6)
-            } else {
-                1.0
-            };
-            if let Some(band) =
-                graphdraw_core::shaping::outline_band(&page_path, stroke, object_scale)
-            {
-                // Calligraphic nib or variable width: fill the band instead
-                // of stroking, with the outline's own fill when it has one.
-                if let Some(bp) = to_sk_path(&(self.screen * band.clone())) {
-                    match outline_paint(stroke, transform) {
-                        Some(fill) => {
-                            use graphdraw_core::geometry::Shape as _;
-                            let b = bbox(&band).to_path(0.01);
-                            self.draw_fill(&fill, &b, &bp, FillRule::Winding);
-                        }
-                        None => self.pixmap.fill_path(
-                            &bp,
-                            &paint,
-                            FillRule::Winding,
-                            Transform::identity(),
-                            None,
-                        ),
+            // A see-through outline goes through a layer of its own, so
+            // its arrowheads and the stroke do not double up where they
+            // overlap.
+            let alpha = stroke.safe_opacity() as f32;
+            if alpha >= 1.0 {
+                self.draw_outline(shape, stroke, transform, &page_path, &sk);
+            } else if alpha > 0.0 {
+                let (w, h) = (self.pixmap.width(), self.pixmap.height());
+                if let Some(mut layer) = Pixmap::new(w, h) {
+                    {
+                        let mut sub = self.sub(&mut layer);
+                        sub.draw_outline(shape, stroke, transform, &page_path, &sk);
                     }
-                }
-            } else if let Some(fill) =
-                outline_paint(stroke, transform).filter(|_| sk_stroke.width > 0.0)
-            {
-                // A filled outline: the stroke's area painted with the fill,
-                // spread over the outline's bounds.
-                if let Some(band) = sk.stroke(&sk_stroke, 1.0) {
-                    use graphdraw_core::geometry::Shape as _;
-                    let pad = (sk_stroke.width as f64 / self.zoom.max(1e-9)) / 2.0;
-                    let b = bbox(&page_path).inflate(pad, pad);
-                    self.draw_fill(&fill, &b.to_path(0.01), &band, FillRule::Winding);
-                }
-            } else {
-                self.pixmap
-                    .stroke_path(&sk, &paint, &sk_stroke, Transform::identity(), None);
-            }
-            for head in graphdraw_core::style::arrowhead_paths(&page_path, stroke) {
-                if let Some(hp) = to_sk_path(&(self.screen * head)) {
-                    self.pixmap.fill_path(
-                        &hp,
-                        &paint,
-                        FillRule::Winding,
-                        Transform::identity(),
-                        None,
-                    );
+                    let pp = tiny_skia::PixmapPaint {
+                        opacity: alpha,
+                        blend_mode: self.blend_for(shape.overprint_outline),
+                        ..Default::default()
+                    };
+                    self.pixmap
+                        .draw_pixmap(0, 0, layer.as_ref(), &pp, Transform::identity(), None);
                 }
             }
         } else if self.flags.wireframe {
@@ -813,6 +757,88 @@ impl Renderer<'_> {
             };
             self.pixmap
                 .stroke_path(&sk, &paint, &s, Transform::identity(), None);
+        }
+    }
+
+    /// The outline of `shape` (page path `page_path`, the same on screen
+    /// as `sk`), fully opaque: a painterly brush, a band (calligraphic,
+    /// variable width, outside or inside, dashes through corners) or a
+    /// plain stroke, then the arrowheads.
+    fn draw_outline(
+        &mut self,
+        shape: &Shape,
+        stroke: &Stroke,
+        transform: Affine,
+        page_path: &BezPath,
+        sk: &SkPath,
+    ) {
+        let (mut paint, sk_stroke) = self.stroke_paint(stroke, transform);
+        paint.blend_mode = self.blend_for(shape.overprint_outline);
+        if let Some(brush) = stroke.painterly.as_ref().filter(|_| !self.flags.wireframe) {
+            // Painterly brush: its marks, each with its own opacity.
+            let c = transform.as_coeffs();
+            let scale = if stroke.scale_with_object {
+                ((c[0] * c[3] - c[1] * c[2]).abs()).sqrt().max(1e-6)
+            } else {
+                1.0
+            };
+            let [r, g, b] = stroke.color.to_rgb8();
+            for mark in graphdraw_core::painterly::marks(page_path, stroke.width * scale, brush) {
+                let Some(mp) = to_sk_path(&(self.screen * mark.path)) else {
+                    continue;
+                };
+                paint.set_color_rgba8(r, g, b, (mark.alpha * 255.0).round() as u8);
+                self.pixmap
+                    .fill_path(&mp, &paint, FillRule::Winding, Transform::identity(), None);
+            }
+            return;
+        }
+        let object_scale = if stroke.scale_with_object {
+            let c = transform.as_coeffs();
+            ((c[0] * c[3] - c[1] * c[2]).abs()).sqrt().max(1e-6)
+        } else {
+            1.0
+        };
+        if let Some(band) = graphdraw_core::shaping::outline_band(page_path, stroke, object_scale) {
+            // A band (calligraphic, variable, outside or inside, dashes
+            // through corners): fill it instead
+            // of stroking, with the outline's own fill when it has one.
+            if let Some(bp) = to_sk_path(&(self.screen * band.clone())) {
+                match outline_paint(stroke, transform) {
+                    Some(fill) => {
+                        use graphdraw_core::geometry::Shape as _;
+                        let b = bbox(&band).to_path(0.01);
+                        self.draw_fill(&fill, &b, &bp, FillRule::Winding);
+                    }
+                    None => self.pixmap.fill_path(
+                        &bp,
+                        &paint,
+                        FillRule::Winding,
+                        Transform::identity(),
+                        None,
+                    ),
+                }
+            }
+        } else if let Some(fill) =
+            outline_paint(stroke, transform).filter(|_| sk_stroke.width > 0.0)
+        {
+            // A filled outline: the stroke's area painted with the fill,
+            // spread over the outline's bounds.
+            if let Some(band) = sk.stroke(&sk_stroke, 1.0) {
+                use graphdraw_core::geometry::Shape as _;
+                let pad = (sk_stroke.width as f64 / self.zoom.max(1e-9)) / 2.0;
+                let b = bbox(page_path).inflate(pad, pad);
+                self.draw_fill(&fill, &b.to_path(0.01), &band, FillRule::Winding);
+            }
+        } else {
+            self.pixmap
+                .stroke_path(sk, &paint, &sk_stroke, Transform::identity(), None);
+        }
+        for head in graphdraw_core::style::arrowhead_paths(page_path, stroke) {
+            if let Some(hp) = to_sk_path(&(self.screen * head)) {
+                self.pixmap
+                    .fill_path(&hp, &paint, FillRule::Winding, Transform::identity(), None);
+            }
         }
     }
 
@@ -1031,8 +1057,8 @@ impl Renderer<'_> {
                 *px = np;
             }
         }
-        use tiny_skia::BlendMode as B;
         use graphdraw_core::live::MergeMode as M;
+        use tiny_skia::BlendMode as B;
         let blend = match merge {
             M::Normal | M::Red | M::Green | M::Blue => B::SourceOver,
             M::Add => B::Plus,
@@ -1753,7 +1779,7 @@ impl Renderer<'_> {
         };
         let sk = SkStroke {
             width: width_px,
-            miter_limit: 4.0,
+            miter_limit: stroke.safe_miter_limit() as f32,
             line_cap: match stroke.cap {
                 LCap::Butt => LineCap::Butt,
                 LCap::Round => LineCap::Round,
@@ -3646,5 +3672,146 @@ mod tests {
                 "{fill:?}: {mid:?}"
             );
         }
+    }
+}
+
+/// The outline's transparency, position and dashes through corners on
+/// screen.
+#[cfg(test)]
+mod outline_option_tests {
+    use super::*;
+    use graphdraw_core::{DashCorners, StrokePosition};
+
+    fn px(pm: &Pixmap, x: u32, y: u32) -> (u8, u8, u8) {
+        let p = pm.pixel(x, y).unwrap().demultiply();
+        (p.red(), p.green(), p.blue())
+    }
+
+    fn page(shapes: Vec<Shape>) -> Pixmap {
+        let mut doc = Document::new("t", graphdraw_core::geometry::Size::new(100.0, 100.0));
+        let page = doc.pages[0].id;
+        let layer = doc.pages[0].layers[0].id;
+        for s in shapes {
+            doc.layer_mut(layer).unwrap().shapes.push(s);
+        }
+        // One pixel per millimetre.
+        render_page_image(&doc, page, 25.4).unwrap()
+    }
+
+    /// A 60 mm square from 20 to 80 with a 10 mm black outline, no fill.
+    fn square(stroke: Stroke) -> Shape {
+        let mut s = Shape::new(
+            graphdraw_core::ShapeId(1),
+            ShapeKind::Rect {
+                rect: Rect::new(20.0, 20.0, 80.0, 80.0),
+                radius: 0.0,
+                corners: None,
+            },
+        );
+        s.fill = Fill::None;
+        s.stroke = Some(stroke);
+        s
+    }
+
+    fn line(stroke: Stroke) -> Shape {
+        let mut p = BezPath::new();
+        p.move_to((10.0, 50.5));
+        p.line_to((90.0, 50.5));
+        let mut s = Shape::new(
+            graphdraw_core::ShapeId(1),
+            ShapeKind::Path {
+                path: p,
+                closed: false,
+            },
+        );
+        s.fill = Fill::None;
+        s.stroke = Some(stroke);
+        s
+    }
+
+    fn dark(c: (u8, u8, u8)) -> bool {
+        c.0 < 60 && c.1 < 60 && c.2 < 60
+    }
+
+    fn white(c: (u8, u8, u8)) -> bool {
+        c.0 > 230 && c.1 > 230 && c.2 > 230
+    }
+
+    #[test]
+    fn outside_and_inside_outlines_lie_on_one_side_of_the_path() {
+        let black = Stroke::new(Color::BLACK, 10.0);
+        // Centred: 5 mm each side of x = 20.
+        let pm = page(vec![square(black.clone())]);
+        assert!(dark(px(&pm, 17, 50)) && dark(px(&pm, 23, 50)));
+        assert!(white(px(&pm, 12, 50)) && white(px(&pm, 28, 50)));
+        // Outside: 10 mm out, nothing in.
+        let out = Stroke {
+            position: StrokePosition::Outside,
+            ..black.clone()
+        };
+        let pm = page(vec![square(out)]);
+        assert!(dark(px(&pm, 12, 50)) && dark(px(&pm, 17, 50)));
+        assert!(white(px(&pm, 23, 50)) && white(px(&pm, 8, 50)));
+        // Outside corners stay sharp (mitred).
+        assert!(dark(px(&pm, 12, 12)));
+        // Inside: 10 mm in, nothing out.
+        let inside = Stroke {
+            position: StrokePosition::Inside,
+            ..black.clone()
+        };
+        let pm = page(vec![square(inside)]);
+        assert!(dark(px(&pm, 23, 50)) && dark(px(&pm, 28, 50)));
+        assert!(white(px(&pm, 17, 50)) && white(px(&pm, 32, 50)));
+        // An open line is always centred.
+        let pm = page(vec![line(Stroke {
+            position: StrokePosition::Inside,
+            ..black
+        })]);
+        assert!(dark(px(&pm, 50, 47)) && dark(px(&pm, 50, 53)));
+    }
+
+    #[test]
+    fn a_see_through_outline_does_not_double_up_under_its_arrowhead() {
+        let half = Stroke {
+            opacity: 0.5,
+            end_arrow: graphdraw_core::Arrowhead::Square,
+            ..Stroke::new(Color::BLACK, 4.0)
+        };
+        let pm = page(vec![line(half)]);
+        let (r, g, b) = px(&pm, 50, 50);
+        assert!((115..=140).contains(&r) && r == g && g == b, "{r} {g} {b}");
+        // Where the head covers the line's end: the same grey.
+        let (r2, _, _) = px(&pm, 88, 50);
+        assert!((r2 as i32 - r as i32).abs() <= 4, "{r} {r2}");
+        // Transparent: nothing.
+        let none = Stroke {
+            opacity: 0.0,
+            ..Stroke::new(Color::BLACK, 4.0)
+        };
+        assert!(white(px(&page(vec![line(none)]), 50, 50)));
+    }
+
+    #[test]
+    fn aligned_dashes_put_a_dash_through_every_corner() {
+        // 8 mm dashes and 6 mm gaps (2 mm wide) around a 60 mm square:
+        // standard dashes leave a corner bare, aligned and fixed ones
+        // cover every corner.
+        let mut s = Stroke::new(Color::BLACK, 2.0);
+        s.dash = vec![4.0, 3.0];
+        let corner = |mode| {
+            let st = Stroke {
+                dash_corners: mode,
+                ..s.clone()
+            };
+            let pm = page(vec![square(st)]);
+            // The four corners (image y down).
+            [(20, 20), (80, 20), (20, 80), (80, 80)]
+                .iter()
+                .filter(|(x, y)| dark(px(&pm, *x, *y)))
+                .count()
+        };
+        assert_eq!(corner(DashCorners::Align), 4);
+        assert_eq!(corner(DashCorners::Fixed), 4);
+        assert!(corner(DashCorners::Standard) < 4);
     }
 }

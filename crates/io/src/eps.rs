@@ -3,12 +3,12 @@
 //! `colorimage`, text as outlines. One page per EPS file; PostScript files
 //! (`.ps`, and `.prn` print files, which are the same) hold every page.
 
-use std::fmt::Write as _;
 use graphdraw_core::{
     document::{Shape, ShapeKind},
     geometry::{Affine, PathEl, Shape as _},
     Color, Document, Fill, FountainKind, LineCap, LineJoin,
 };
+use std::fmt::Write as _;
 
 const MM_PT: f64 = 72.0 / 25.4;
 
@@ -478,8 +478,21 @@ impl Writer<'_> {
             } else {
                 let _ = writeln!(self.out, "[] 0 setdash");
             }
-            self.path_ops(&path);
-            let _ = writeln!(self.out, "stroke");
+            // PostScript's own miter limit is 10: always give ours.
+            let _ = writeln!(self.out, "{} setmiterlimit", f(s.safe_miter_limit()));
+            // A band (calligraphic, variable, outside or inside, dashes
+            // through corners) is filled; EPS has no transparency, so the
+            // outline's opacity is left out.
+            match graphdraw_core::shaping::outline_band(&shape.page_path(), s, 1.0) {
+                Some(band) => {
+                    self.path_ops(&(parent * band));
+                    let _ = writeln!(self.out, "fill");
+                }
+                None => {
+                    self.path_ops(&path);
+                    let _ = writeln!(self.out, "stroke");
+                }
+            }
             // Arrowheads (presets and custom): the page-space path already
             // carries the shape's own transform, so only the parent applies.
             for head in graphdraw_core::arrowhead_paths(&shape.page_path(), s) {
@@ -660,5 +673,32 @@ mod tests {
         assert!(eps.contains("119 119 8 [119 0 0 -119 0 119]"), "{eps}");
         // Red pixels from the tile appear in the hex data.
         assert!(eps.contains("ff0000ff0000"));
+    }
+
+    /// The miter limit is written and a band (here an outline inside the
+    /// path) is filled, not stroked.
+    #[test]
+    fn outline_options_reach_the_eps() {
+        let mut doc = Document::default();
+        let layer = doc.pages[0].layers[0].id;
+        let id = doc.ids_mut().shape();
+        let mut s = Shape::new(
+            id,
+            ShapeKind::Rect {
+                rect: Rect::new(10.0, 10.0, 60.0, 40.0),
+                radius: 0.0,
+                corners: None,
+            },
+        );
+        s.fill = Fill::None;
+        s.stroke = Some(graphdraw_core::Stroke {
+            miter_limit: 7.0,
+            position: graphdraw_core::StrokePosition::Inside,
+            ..graphdraw_core::Stroke::new(Color::BLACK, 2.0)
+        });
+        doc.layer_mut(layer).unwrap().shapes.push(s);
+        let eps = page_to_eps(&doc, 0);
+        assert!(eps.contains("7 setmiterlimit"), "{eps}");
+        assert!(!eps.contains("\nstroke\n"), "{eps}");
     }
 }

@@ -43,14 +43,16 @@ selected).
 | Part | What it does |
 |---|---|
 | Has outline | Off removes the outline |
-| Colour | Pop-up picker with eyedropper |
+| Colour | Pop-up picker with eyedropper; Transparency 0..100 % (the outline's own, on top of the object's) |
 | Width | Typed with the unit inside the field (pt, mm, cm, in, px, m; 3 decimals), Presets (hairline, 0.1 to 36 pt), Hairline (0.0762 mm) |
 | Line style | Solid, Dashed (4, 2), Long dash (8, 3), Dotted (1, 2, round caps), Dash-dot (5, 2, 1, 2), the user's styles; Edit... opens the line style editor (2..48 cells, one cell = one width; Use, Add, Replace, Close); user styles are kept in the settings |
-| Corners | Miter, Round, Bevel |
+| Corners | Miter, Round, Bevel; miter limit 1..100 (default 4), for mitred corners |
+| At corners | Standard, Align (a whole dash through every corner), Fixed (the pattern starts again at every corner); dashed lines only |
 | Caps | Flat, Round, Extended |
-| Arrowheads | Start and end with thumbnails (the presets and the custom heads); Options... swaps start and end |
+| Arrowheads | Start and end with thumbnails (the presets and the custom heads); Options... has each end's size (5..5000 %), rotation (degrees), mirror and offset (a length, out past the end; negative goes back along the curve), Reset, and swaps start and end (with their options) |
 | Calligraphic pen | Nib view (drag the tip to turn, the side to flatten), stretch 1..100%, angle 0..360 degrees, Default |
 | Variable width | Uniform, Taper end, Taper start, Taper both, Bulge; the shape follows a new width |
+| Position | Outside, Centred, Inside (closed paths; open curves are always centred) |
 | Options | Behind fill, Scale with object, Overprint outline |
 
 With several objects selected and an outline before, OK changes on each
@@ -58,7 +60,5 @@ object only the settings changed in the window.
 
 ## Next step
 
-Shown dimmed with the tip "comes in the next step", because the drawing
-does not keep these settings yet: outline transparency, how dashes go through
-corners, the miter limit, the outline position, and the arrowheads' size,
-rotation, mirror and offset.
+Nothing is left: every setting the earlier windows had now works (the
+outline ones are described in `outline-pen.md`).

@@ -13,13 +13,59 @@ Colour (Shift+F12) opens the Colour panel. The model is
 | Colour | black (C0 M0 Y0 K100 for new objects) | any colour model |
 | Width | 0.2 mm (0.567 pt) for new objects; imported outlines keep theirs | a hairline (0.0762 mm, 0.216 pt) draws one device pixel at every zoom |
 | Caps | butt | butt, round, square |
-| Corners | mitre | mitre (limit 4), round, bevel |
+| Corners | mitre | mitre, round, bevel |
+| Miter limit | 4 | 1 to 100 outline widths: a mitre longer than that is bevelled (`miter_limit`) |
+| Dashes at corners | standard | standard, align, fixed (`dash_corners`) |
+| Position | centred | centred, outside, inside; closed paths only (`position`) |
+| Transparency | 0 % | the outline's own opacity 0..1 (`opacity`), times the object's |
 | Dash | solid | presets dashed 4:2, dotted 1:1, dash dot 6:2:1:2, in multiples of the width |
 | Arrowheads | none / none | start and end; presets and custom heads, filled in the outline colour |
+| Arrowhead options | 100 %, 0 degrees, not mirrored, 0 mm | per end (`start_arrow_options`, `end_arrow_options`): size 5 to 5000 % of the preset size, turn about the tip, mirror across the curve's direction, the tip moved along the curve's direction by the offset |
 | Nib stretch | 1.0 | 0.1 to 1: the calligraphic nib's thickness across its axis |
 | Nib angle | 0 | degrees |
 | Behind fill | off | the outline is drawn under the fill |
 | Scale with object | off | the width follows the object's scale factor `sqrt(|det|)` |
+
+Old files load with these defaults, and an outline that keeps them
+writes none of the new fields, so `.gdr` files stay as they were.
+
+## Position, dashes at corners, transparency
+
+- Outside and inside: the outline is stroked twice as wide (dash
+  lengths kept) and the path's inside is cut away (outside) or kept
+  alone (inside) with the polygon operations of `shaping`, so the whole
+  width lies on one side; the band is filled
+  (`shaping::outline_band`). Open curves, hairlines and painterly
+  outlines stay centred; a calligraphic or variable outline keeps its
+  own band and ignores the position.
+- Align and fixed: the path is cut into its dashes first
+  (`shaping::corner_dashes`), restarting at every corner (a turn of
+  more than 1 degree). Fixed keeps the exact lengths; align scales the
+  pattern on each stretch so it holds whole repeats plus one dash,
+  which puts a whole dash through each corner. The dashes on both sides
+  of a corner form one piece, so the corner keeps its join. A closed
+  path with no corner (a circle) is one loop. The pieces are stroked
+  solid and filled as a band.
+- Transparency: on screen the outline (stroke or band, and its
+  arrowheads) is drawn into a layer of its own and laid over at its
+  opacity, so the heads do not darken the line where they overlap.
+
+Exports:
+
+| Format | Transparency | Miter limit | Outside, inside, dashes at corners | Arrowhead options |
+|---|---|---|---|---|
+| SVG | `stroke-opacity`, `fill-opacity` on bands and heads | `stroke-miterlimit` when not 4 | filled band path | in the head outlines |
+| PDF | ExtGState `CA`/`ca` (outline opacity times the object's) | `M` with every mitred outline | filled band | in the head outlines |
+| EPS | left out (no transparency) | `setmiterlimit` | filled band | in the head outlines |
+| EMF, WMF | left out | the format's default | filled band in the outline colour | in the head outlines |
+| DXF | left out | not written | centred path | not written |
+| `.cdr` | not written | not written | not written (centred, standard dashes) | not written (arrowheads are not written at all) |
+
+Checked by `style::outline_option_tests`, `shaping::outline_option_tests`,
+the renderer's `outline_option_tests`, `svg::tests::outline_options_reach_the_svg`,
+`pdf::tests::outline_options_reach_the_pdf`,
+`eps::tests::outline_options_reach_the_eps` and
+`ui::outline_window::tests::merge_takes_the_new_outline_settings`.
 
 ## Calligraphic outline
 
@@ -66,7 +112,7 @@ Exports:
 | Format | Outline with its own paint |
 |---|---|
 | SVG | `stroke` refers to the gradient or pattern (linear, radial; conical and square as linear, shaped as radial); a texture or mesh strokes with a representative colour (the mean of its colours). A calligraphic band is filled with the paint. |
-| PDF | the outline's area (`shaping::stroke_area`: width, caps, joins, miter limit 4, dashes) clipped with the non-zero rule and shaded (gradients) or painted with the renderer's pixels at 150 dpi (patterns, textures, meshes, shaped gradients). |
+| PDF | the outline's area (`shaping::stroke_area`: width, caps, joins, the miter limit, dashes) clipped with the non-zero rule and shaded (gradients) or painted with the renderer's pixels at 150 dpi (patterns, textures, meshes, shaped gradients). |
 | EPS, EMF and the rest | the outline colour. |
 | `.cdr` | the outline colour (outline fills are not written). |
 
