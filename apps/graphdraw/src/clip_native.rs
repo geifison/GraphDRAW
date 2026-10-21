@@ -1,8 +1,6 @@
 //! The private clipboard format: the copied objects with every property
 //! and the object styles they link to, as versioned JSON. Only GraphDraw
 //! reads it, so it keeps what the public formats (SVG, PNG) lose.
-// Used by the clipboard backend (next tasks).
-#![allow(dead_code)]
 
 use graphdraw_core::{ObjectStyle, Shape, ShapeKind, Symbol};
 use serde::{Deserialize, Serialize};

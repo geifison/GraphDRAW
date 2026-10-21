@@ -2996,20 +2996,12 @@ impl App {
     }
 
     /// Edit > Paste in View: paste centred on the visible area.
+    /// One undo step with the paste.
     pub fn paste_in_view(&mut self) {
         let before: Vec<_> = self.selection.clone();
-        self.paste();
-        if self.selection == before {
-            return;
-        }
-        if let Some(b) = self.selection_bounds() {
-            let view_rect = self.view.visible_page_rect(self.canvas_rect);
-            let d = view_rect.center() - b.center();
-            let shapes = self.selection.clone();
-            self.run(Command::TransformShapes {
-                shapes,
-                transform: Affine::translate(d),
-            });
+        self.paste_best();
+        if self.selection != before && !self.selection.is_empty() {
+            self.centre_selection_in_view();
         }
     }
 
@@ -3605,30 +3597,44 @@ impl App {
         self.delete_selection();
     }
 
+    /// Paste the internal clipboard, at the copied position.
     pub fn paste(&mut self) {
         let Some(cb) = self.clipboard.clone() else {
             return;
         };
+        self.paste_shapes(cb.shapes, &cb.styles);
+    }
+
+    /// Add copies of `shapes` to the active layer as one undo step and
+    /// select them. `styles` are the object styles of the drawing they
+    /// come from: links stay only to the same styles here.
+    pub(crate) fn paste_shapes(
+        &mut self,
+        shapes: Vec<Shape>,
+        styles: &[graphdraw_core::ObjectStyle],
+    ) -> Vec<ShapeId> {
         let Some(layer) = self.active_layer() else {
-            return;
+            return Vec::new();
         };
         let mut ids = Vec::new();
         let mut cmds = Vec::new();
         let here = self.doc().object_styles.clone();
-        for s in cb.shapes {
+        for s in shapes {
             let id = self.engine.new_shape_id();
             let mut shape = reid(s, id, &mut self.engine);
-            crate::styles::keep_links_to(&mut shape, &cb.styles, &here);
+            crate::styles::keep_links_to(&mut shape, styles, &here);
             ids.push(id);
             cmds.push(Command::AddShape { layer, shape });
         }
         if let Err(e) = self.engine.run_batch("Paste", &cmds) {
             self.status = e.to_string();
+            return Vec::new();
         }
         if self.settings.hyphens_when_pasting && !self.settings.custom_hyphens.is_empty() {
             crate::ui::writing_tools::apply_custom_hyphens(self, &ids);
         }
-        self.select(ids);
+        self.select(ids.clone());
+        ids
     }
 
     pub fn duplicate(&mut self) {

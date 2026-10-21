@@ -165,3 +165,245 @@ fn copying_nothing_publishes_nothing() {
     app.copy_with_system();
     assert!(app.published.is_none());
 }
+
+fn offer() -> crate::clip_offer::Offer {
+    crate::clip_offer::Offer::default()
+}
+
+fn shape_count(app: &App) -> usize {
+    app.doc().all_layers().map(|l| l.shapes.len()).sum()
+}
+
+fn png_bytes(w: u32, h: u32) -> Vec<u8> {
+    let mut png = Vec::new();
+    image::DynamicImage::ImageRgba8(image::RgbaImage::new(w, h))
+        .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+        .expect("png");
+    png
+}
+
+#[test]
+fn system_content_wins_over_an_older_internal_copy() {
+    let mut app = app_with_selected_rect();
+    app.copy_with_system();
+    crate::clip_system::fake::set(crate::clip_offer::Offer {
+        text: Some("hello".into()),
+        ..offer()
+    });
+    app.paste_any();
+    assert!(matches!(
+        app.selected_shapes()[0].kind,
+        ShapeKind::Text { .. }
+    ));
+}
+
+#[test]
+fn our_own_publication_pastes_from_the_internal_copy() {
+    let mut app = app_with_selected_rect();
+    app.copy_with_system();
+    let n = shape_count(&app);
+    let steps = undo_depth(&app);
+    app.paste_any();
+    assert_eq!(shape_count(&app), n + 1);
+    assert!(matches!(
+        app.selected_shapes()[0].kind,
+        ShapeKind::Rect { .. }
+    ));
+    assert_eq!(undo_depth(&app), steps + 1);
+}
+
+#[test]
+fn native_payload_from_another_window_keeps_the_object() {
+    let src = app_with_selected_rect();
+    let bytes = crate::clip_native::encode(&src.selected_shapes(), &[], &[]).expect("encodes");
+    let mut app = app();
+    crate::clip_system::fake::set(crate::clip_offer::Offer {
+        native: Some(bytes),
+        svg: Some("<svg xmlns=\"http://www.w3.org/2000/svg\"/>".into()),
+        ..offer()
+    });
+    app.paste_any();
+    assert_eq!(app.selected_shapes()[0].kind, src.selected_shapes()[0].kind);
+}
+
+#[test]
+fn a_broken_payload_falls_back_to_the_svg() {
+    let mut app = app();
+    crate::clip_system::fake::set(crate::clip_offer::Offer {
+        native: Some(b"garbage".to_vec()),
+        svg: Some(
+            r#"<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="4" height="4"/></svg>"#
+                .into(),
+        ),
+        ..offer()
+    });
+    app.paste_any();
+    assert!(!app.selection.is_empty());
+    assert!(matches!(app.dialog, Dialog::None));
+}
+
+#[test]
+fn html_image_from_a_browser_becomes_a_bitmap() {
+    use base64::Engine as _;
+    let html = format!(
+        r#"<img src="data:image/png;base64,{}">"#,
+        base64::engine::general_purpose::STANDARD.encode(png_bytes(3, 2))
+    );
+    let mut app = app();
+    crate::clip_system::fake::set(crate::clip_offer::Offer {
+        html: Some(html),
+        ..offer()
+    });
+    app.paste_any();
+    assert!(matches!(
+        app.selected_shapes()[0].kind,
+        ShapeKind::Bitmap {
+            width_px: 3,
+            height_px: 2,
+            ..
+        }
+    ));
+}
+
+#[test]
+fn png_flavour_becomes_a_bitmap_and_oversize_pictures_are_refused() {
+    let mut app = app();
+    crate::clip_system::fake::set(crate::clip_offer::Offer {
+        png: Some(png_bytes(5, 4)),
+        ..offer()
+    });
+    app.paste_any();
+    assert!(matches!(
+        app.selected_shapes()[0].kind,
+        ShapeKind::Bitmap { width_px: 5, .. }
+    ));
+    let mut app = self::app();
+    crate::clip_system::fake::set(crate::clip_offer::Offer {
+        image: Some(image::RgbaImage::new(
+            crate::clipboard::MAX_PICTURE_SIDE + 1,
+            1,
+        )),
+        ..offer()
+    });
+    app.paste_any();
+    assert!(app.selection.is_empty());
+    assert!(matches!(app.dialog, Dialog::Alert(_)));
+}
+
+#[test]
+fn copied_files_are_imported_and_unsupported_ones_named() {
+    let svg = temp_file(
+        "pasted.svg",
+        br#"<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="4" height="4"/></svg>"#,
+    );
+    let bad = temp_file("pasted.xyz", b"?");
+    let mut app = app();
+    crate::clip_system::fake::set(crate::clip_offer::Offer {
+        files: vec![svg, bad],
+        ..offer()
+    });
+    app.paste_any();
+    assert!(!app.selection.is_empty());
+    match &app.dialog {
+        Dialog::Alert(t) => assert!(t.contains("pasted.xyz")),
+        other => panic!("expected the alert, got {other:?}"),
+    }
+}
+
+#[test]
+fn unknown_clipboard_formats_raise_the_alert_and_empty_does_nothing() {
+    let mut app = app();
+    crate::clip_system::fake::set(crate::clip_offer::Offer {
+        other_formats: true,
+        ..offer()
+    });
+    app.paste_any();
+    match &app.dialog {
+        Dialog::Alert(t) => assert_eq!(t, &tr("alert.clipboard_unsupported")),
+        other => panic!("expected the alert, got {other:?}"),
+    }
+    let mut app = self::app();
+    crate::clip_system::fake::set(offer());
+    let n = shape_count(&app);
+    app.paste_any();
+    assert_eq!(shape_count(&app), n);
+    assert!(matches!(app.dialog, Dialog::None));
+}
+
+#[test]
+fn view_centre_preference_pastes_centred_in_one_step() {
+    let mut app = app_with_selected_rect();
+    app.settings.clipboard.paste_place = crate::prefs::PastePlace::ViewCenter;
+    app.copy_with_system();
+    let steps = undo_depth(&app);
+    app.paste_any();
+    let c = app.selection_bounds().expect("pasted").center();
+    let v = app.view.visible_page_rect(app.canvas_rect).center();
+    assert!((c - v).hypot() < 1e-6, "{c:?} {v:?}");
+    assert_eq!(undo_depth(&app), steps + 1);
+}
+
+#[test]
+fn paste_in_view_is_one_step_too() {
+    let mut app = app_with_selected_rect();
+    app.copy_with_system();
+    let steps = undo_depth(&app);
+    app.paste_in_view();
+    let c = app.selection_bounds().expect("pasted").center();
+    let v = app.view.visible_page_rect(app.canvas_rect).center();
+    assert!((c - v).hypot() < 1e-6);
+    assert_eq!(undo_depth(&app), steps + 1);
+}
+
+#[test]
+fn pasted_text_is_one_step() {
+    let mut app = app();
+    crate::clip_system::fake::set(crate::clip_offer::Offer {
+        text: Some("words".into()),
+        ..offer()
+    });
+    let steps = undo_depth(&app);
+    app.paste_any();
+    assert_eq!(undo_depth(&app), steps + 1);
+}
+
+#[test]
+fn pasted_svg_text_is_sanitised() {
+    let mut app = app();
+    let secret = temp_file("secret.png", &png_bytes(2, 2));
+    let svg = format!(
+        r#"<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><script>alert(1)</script><image width="5" height="5" href="{}"/><rect width="4" height="4"/></svg>"#,
+        secret.display().to_string().replace('\\', "/")
+    );
+    crate::clip_system::fake::set(crate::clip_offer::Offer {
+        text: Some(svg),
+        ..offer()
+    });
+    app.paste_any();
+    let shapes = app.selected_shapes();
+    assert!(!shapes.is_empty());
+    fn has_bitmap(shapes: &[graphdraw_core::Shape]) -> bool {
+        shapes.iter().any(|s| match &s.kind {
+            ShapeKind::Bitmap { .. } => true,
+            ShapeKind::Group { children } => has_bitmap(children),
+            _ => false,
+        })
+    }
+    assert!(!has_bitmap(&shapes));
+}
+
+#[test]
+fn paste_special_forces_a_flavour() {
+    let mut app = app();
+    let svg = r#"<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="4" height="4"/></svg>"#;
+    let o = crate::clip_offer::Offer {
+        text: Some(svg.into()),
+        ..offer()
+    };
+    let text = crate::ui::dialogs::PASTE_SPECIAL[4].1;
+    assert!(app.paste_with(&o, text));
+    assert!(matches!(
+        app.selected_shapes()[0].kind,
+        ShapeKind::Text { .. }
+    ));
+}

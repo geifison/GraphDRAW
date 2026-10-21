@@ -784,6 +784,25 @@ fn edit_page(app: &mut App, ui: &mut Ui) {
         });
         ui.end_row();
     });
+    // Copy and paste.
+    crate::ui::chrome::section(ui, &tr("options.clipboard_section"));
+    {
+        use crate::prefs::PastePlace;
+        let c = &mut app.settings.clipboard;
+        ui.label(tr("options.paste_place"));
+        ui.radio_value(
+            &mut c.paste_place,
+            PastePlace::AsCopied,
+            tr("options.paste_place.as_copied"),
+        );
+        ui.radio_value(
+            &mut c.paste_place,
+            PastePlace::ViewCenter,
+            tr("options.paste_place.view_center"),
+        );
+        ui.checkbox(&mut c.svg_as_text, tr("options.clipboard_svg_text"));
+        ui.checkbox(&mut c.png, tr("options.clipboard_png"));
+    }
     // Focus mode.
     crate::ui::chrome::section(ui, &tr("options.focus_inactive"));
     ui.horizontal(|ui| {

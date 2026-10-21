@@ -1,68 +1,39 @@
-//! System clipboard and external bitmap editing.
+//! Copy and paste through the system clipboard, and external bitmap
+//! editing.
 //!
-//! Copy puts the selection on the system clipboard as SVG text next to the
-//! internal clipboard, so other applications can paste it. Paste Special
-//! offers the system clipboard's content as text, as a bitmap or as vector
-//! objects (SVG). Bitmaps > Edit Bitmap hands a PNG to the system's image
-//! editor and Update from Link reads it back.
+//! Copy keeps the selection on the internal clipboard and publishes it
+//! for every program: the private payload (full fidelity, for GraphDraw
+//! windows), SVG, the SVG as text and a picture. Paste takes the best
+//! flavour the system clipboard offers (see [`crate::clip_offer`]); the
+//! internal clipboard serves while the system one still holds our own
+//! copy, or nothing. Content from outside is sanitised: SVG reads no
+//! files or network, pictures are size-limited. Bitmaps > Edit Bitmap
+//! hands a PNG to the system's image editor and Update from Link reads
+//! it back.
 
 use crate::app::App;
+use crate::clip_offer::{Choice, Offer};
 use crate::i18n::{tr, trf};
 use graphdraw_core::{
     document::{ShapeKind, TextSpan},
-    geometry::Point,
+    geometry::{Affine, Point},
     Command, ShapeId,
 };
 
-/// What the system clipboard currently offers.
-#[derive(Debug, Clone, Default)]
-pub struct ClipboardContent {
-    pub text: Option<String>,
-    pub image: Option<image::RgbaImage>,
-}
+/// Largest picture side accepted from the clipboard, pixels.
+pub(crate) const MAX_PICTURE_SIDE: u32 = 16_384;
 
-impl ClipboardContent {
-    pub fn is_svg(&self) -> bool {
-        self.text
-            .as_deref()
-            .map(|t| t.trim_start().starts_with('<') && t.contains("<svg"))
-            .unwrap_or(false)
-    }
-}
-
-/// The system clipboard as seen by the browser build: empty, because
-/// browsers only hand clipboard contents to paste events.
-#[cfg(target_arch = "wasm32")]
-pub fn read_system() -> ClipboardContent {
-    ClipboardContent::default()
-}
-
-/// Read text and image from the system clipboard; failures yield `None`
-/// fields (headless sessions have no clipboard).
-#[cfg(not(target_arch = "wasm32"))]
-pub fn read_system() -> ClipboardContent {
-    let Ok(mut cb) = arboard::Clipboard::new() else {
-        return ClipboardContent::default();
-    };
-    let text = cb.get_text().ok().filter(|t| !t.is_empty());
-    let image = cb.get_image().ok().and_then(|img| {
-        image::RgbaImage::from_raw(img.width as u32, img.height as u32, img.bytes.into_owned())
-    });
-    ClipboardContent { text, image }
-}
-
-/// Put text on the system clipboard (best effort).
-#[cfg(not(target_arch = "wasm32"))]
-pub fn write_text(text: &str) {
-    if let Ok(mut cb) = arboard::Clipboard::new() {
-        let _ = cb.set_text(text.to_string());
-    }
-}
-
-/// Put text on the system clipboard through egui (browser build).
-#[cfg(target_arch = "wasm32")]
-pub fn write_text(text: &str) {
-    crate::web::copy_text(text);
+/// Decode a picture from outside, refusing oversize ones.
+fn decode_picture(bytes: &[u8]) -> Option<image::RgbaImage> {
+    let mut reader = image::ImageReader::new(std::io::Cursor::new(bytes))
+        .with_guessed_format()
+        .ok()?;
+    let mut limits = image::Limits::default();
+    limits.max_image_width = Some(MAX_PICTURE_SIDE);
+    limits.max_image_height = Some(MAX_PICTURE_SIDE);
+    limits.max_alloc = Some(1 << 30);
+    reader.limits(limits);
+    reader.decode().ok().map(|i| i.to_rgba8())
 }
 
 impl App {
@@ -169,8 +140,8 @@ fn fit_publication(p: &mut crate::clip_system::Publication, limit: usize) {
 
 impl App {
 
-    /// Paste the system clipboard's text as artistic text at the page centre.
-    pub fn paste_as_text(&mut self, text: &str) {
+    /// Paste text as artistic text at the page centre, one undo step.
+    pub fn paste_as_text(&mut self, text: &str) -> bool {
         let c = self.page_rect().center();
         let span = TextSpan {
             bold: self.text_bold,
@@ -185,66 +156,179 @@ impl App {
             para: Default::default(),
             on_path: None,
         };
-        if let Some(id) = self.new_shape(kind) {
-            self.run(Command::SetFill {
+        let Some(id) = self.new_shape(kind) else {
+            return false;
+        };
+        for cmd in [
+            Command::SetFill {
                 shapes: vec![id],
                 fill: graphdraw_core::Fill::Solid(graphdraw_core::Color::BLACK),
-            });
-            self.run(Command::SetStroke {
+            },
+            Command::SetStroke {
                 shapes: vec![id],
                 stroke: None,
-            });
-            self.select(vec![id]);
-        }
-    }
-
-    /// Paste SVG text from the system clipboard as objects.
-    pub fn paste_as_svg(&mut self, svg: &str) {
-        let Some(layer) = self.active_layer() else {
-            return;
-        };
-        match graphdraw_io::svg_import::parse(svg, &mut graphdraw_core::id::IdSource::default()) {
-            Ok(imported) => {
-                let mut cmds = Vec::new();
-                let mut ids = Vec::new();
-                for s in imported.shapes {
-                    let id = self.engine.new_shape_id();
-                    let shape = crate::app::reid_pub(s, id, &mut self.engine);
-                    ids.push(id);
-                    cmds.push(Command::AddShape { layer, shape });
-                }
-                if let Err(e) = self.engine.run_batch("Paste", &cmds) {
-                    self.status = e.to_string();
-                }
-                self.select(ids);
+            },
+        ] {
+            if let Err(e) = self.engine.amend(&cmd) {
+                self.status = e.to_string();
             }
-            Err(e) => self.status = trf("status.import_failed", &[("e", &e)]),
+        }
+        self.select(vec![id]);
+        true
+    }
+
+    /// Paste SVG markup as objects. The markup comes from outside, so it
+    /// is read sanitised.
+    pub fn paste_as_svg(&mut self, svg: &str) -> bool {
+        let ids = &mut graphdraw_core::id::IdSource::default();
+        match graphdraw_io::svg_import::parse_untrusted(svg, ids) {
+            Ok(imported) if !imported.shapes.is_empty() => {
+                !self.paste_shapes(imported.shapes, &[]).is_empty()
+            }
+            Ok(_) => false,
+            Err(e) => {
+                self.status = trf("status.import_failed", &[("e", &e)]);
+                false
+            }
         }
     }
 
-    /// Paste the system clipboard's image as a bitmap object.
-    pub fn paste_as_bitmap(&mut self, img: image::RgbaImage) {
-        if let Some(id) = self.place_image(img, Some(tr("kind.bitmap_short"))) {
-            self.select(vec![id]);
+    /// Paste a picture as a bitmap object at the page centre.
+    pub fn paste_as_bitmap(&mut self, img: image::RgbaImage) -> bool {
+        match self.place_image(img, Some(tr("kind.bitmap_short"))) {
+            Some(id) => {
+                self.select(vec![id]);
+                true
+            }
+            None => false,
         }
     }
 
-    /// Ctrl+V: the internal clipboard first, then whatever the system offers
-    /// (SVG as objects, an image as a bitmap, text as artistic text).
+    /// Ctrl+V: the best flavour on the clipboard, placed as Options >
+    /// Workspace > Edit asks (one undo step with the paste).
     pub fn paste_any(&mut self) {
-        if self.clipboard.is_some() {
+        let before = self.selection.clone();
+        self.paste_best();
+        let pasted = self.selection != before && !self.selection.is_empty();
+        if pasted && self.settings.clipboard.paste_place == crate::prefs::PastePlace::ViewCenter
+        {
+            self.centre_selection_in_view();
+        }
+    }
+
+    /// Paste the internal clipboard while the system clipboard holds our
+    /// own copy or nothing; otherwise the best flavour the system offers,
+    /// falling back to the next when one cannot be read.
+    pub(crate) fn paste_best(&mut self) {
+        let offer = crate::clip_system::read();
+        let candidates = crate::clip_offer::candidates(&offer);
+        if self.clipboard.is_some() && (candidates.is_empty() || self.is_own_publication(&offer)) {
             self.paste();
             return;
         }
-        let content = read_system();
-        if content.is_svg() {
-            if let Some(t) = content.text {
-                self.paste_as_svg(&t);
+        if candidates.is_empty() {
+            if crate::clip_offer::choose(&offer) == Choice::Unsupported {
+                self.alert_clipboard_unsupported();
             }
-        } else if let Some(img) = content.image {
-            self.paste_as_bitmap(img);
-        } else if let Some(t) = content.text {
-            self.paste_as_text(&t);
+            return;
+        }
+        if !self.paste_with(&offer, &candidates) {
+            self.alert_clipboard_unsupported();
+        }
+    }
+
+    /// Paste the first of `choices` that `offer` holds and that reads.
+    pub(crate) fn paste_with(&mut self, offer: &Offer, choices: &[Choice]) -> bool {
+        choices.iter().any(|c| self.paste_choice(offer, *c))
+    }
+
+    fn paste_choice(&mut self, offer: &Offer, choice: Choice) -> bool {
+        match choice {
+            Choice::Native => match offer.native.as_deref().map(crate::clip_native::decode) {
+                Some(Ok(p)) => !self.paste_shapes(p.shapes, &p.styles).is_empty(),
+                Some(Err(e)) => {
+                    log::warn!("clipboard payload: {e}");
+                    false
+                }
+                None => false,
+            },
+            Choice::Svg => offer.svg.as_deref().is_some_and(|s| self.paste_as_svg(s)),
+            Choice::SvgText => offer.text.as_deref().is_some_and(|s| self.paste_as_svg(s)),
+            Choice::Files => self.paste_files(&offer.files),
+            Choice::Png => offer
+                .png
+                .as_deref()
+                .and_then(decode_picture)
+                .is_some_and(|img| self.paste_as_bitmap(img)),
+            Choice::Bitmap => offer
+                .image
+                .clone()
+                .filter(|i| i.width().max(i.height()) <= MAX_PICTURE_SIDE)
+                .is_some_and(|img| self.paste_as_bitmap(img)),
+            Choice::HtmlImage => offer
+                .html
+                .as_deref()
+                .and_then(crate::clip_offer::html_image_data)
+                .and_then(|b| decode_picture(&b))
+                .is_some_and(|img| self.paste_as_bitmap(img)),
+            Choice::Text => offer.text.as_deref().is_some_and(|t| self.paste_as_text(t)),
+            Choice::Unsupported | Choice::Nothing => false,
+        }
+    }
+
+    /// Files copied in the file manager, imported one by one (unsupported
+    /// ones are named in one alert); all that came in end up selected.
+    fn paste_files(&mut self, files: &[std::path::PathBuf]) -> bool {
+        let mut all = Vec::new();
+        for f in files {
+            if self.import_path(f) {
+                all.extend(self.selection.iter().copied());
+            }
+        }
+        if all.is_empty() {
+            return false;
+        }
+        self.select(all);
+        true
+    }
+
+    /// Whether the system clipboard still holds what our last copy put
+    /// there: by the change counter, else by the SVG text.
+    fn is_own_publication(&self, offer: &Offer) -> bool {
+        let Some(p) = &self.published else {
+            return false;
+        };
+        match (p.sequence, crate::clip_system::sequence()) {
+            (Some(ours), Some(now)) => ours == now,
+            _ => {
+                let svg = offer.svg.as_deref().or(offer.text.as_deref());
+                p.svg_hash.is_some() && svg.map(text_hash) == p.svg_hash
+            }
+        }
+    }
+
+    fn alert_clipboard_unsupported(&mut self) {
+        if matches!(self.dialog, crate::ui::dialogs::Dialog::None) {
+            self.dialog = crate::ui::dialogs::Dialog::Alert(tr("alert.clipboard_unsupported"));
+        }
+    }
+
+    /// Move the selection's centre to the centre of the view, inside the
+    /// undo step that made it.
+    pub(crate) fn centre_selection_in_view(&mut self) {
+        let Some(b) = self.selection_bounds() else {
+            return;
+        };
+        let d = self.view.visible_page_rect(self.canvas_rect).center() - b.center();
+        if !(d.x.is_finite() && d.y.is_finite()) {
+            return;
+        }
+        let cmd = Command::TransformShapes {
+            shapes: self.selection.clone(),
+            transform: Affine::translate(d),
+        };
+        if let Err(e) = self.engine.amend(&cmd) {
+            self.status = e.to_string();
         }
     }
 

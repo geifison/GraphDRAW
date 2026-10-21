@@ -469,12 +469,24 @@ pub struct FindReplaceState {
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct PasteSpecialState {
     pub loaded: bool,
-    pub has_text: bool,
-    pub is_svg: bool,
-    pub has_image: bool,
-    /// 0 objects, 1 svg, 2 text, 3 bitmap.
-    pub choice: u8,
+    /// Which of [`PASTE_SPECIAL`] the clipboard holds.
+    pub available: [bool; 5],
+    /// An index into [`PASTE_SPECIAL`].
+    pub choice: usize,
 }
+
+/// Paste Special's choices: the label and the clipboard flavours each
+/// one takes, best first.
+pub const PASTE_SPECIAL: [(&str, &[crate::clip_offer::Choice]); 5] = {
+    use crate::clip_offer::Choice::*;
+    [
+        ("dialog.paste_objects", &[Native]),
+        ("dialog.paste_svg", &[Svg, SvgText]),
+        ("dialog.paste_bitmap", &[Png, Bitmap, HtmlImage]),
+        ("dialog.paste_files", &[Files]),
+        ("dialog.paste_text", &[Text]),
+    ]
+};
 
 pub use crate::ui::barcode_wizard::BarcodeState;
 
@@ -1545,33 +1557,21 @@ pub fn show(app: &mut App, ctx: &Context) {
         }
         Dialog::PasteSpecial(st) => {
             if !st.loaded {
-                let c = crate::clipboard::read_system();
-                st.has_text = c.text.is_some();
-                st.is_svg = c.is_svg();
-                st.has_image = c.image.is_some();
-                st.choice = if app.clipboard.is_some() {
-                    0
-                } else if st.is_svg {
-                    1
-                } else if st.has_image {
-                    3
-                } else {
-                    2
-                };
+                let candidates = crate::clip_offer::candidates(&crate::clip_system::read());
+                for (i, (_, kinds)) in PASTE_SPECIAL.iter().enumerate() {
+                    st.available[i] = kinds.iter().any(|k| candidates.contains(k));
+                }
+                // The internal clipboard pastes as objects too.
+                st.available[0] |= app.clipboard.is_some();
+                st.choice = st.available.iter().position(|a| *a).unwrap_or(0);
                 st.loaded = true;
             }
             window(ctx, tr("dialog.paste_special")).show(ctx, |ui| {
                 ui.label(tr("dialog.paste_as"));
-                let options: [(u8, String, bool); 4] = [
-                    (0, tr("dialog.paste_objects"), app.clipboard.is_some()),
-                    (1, tr("dialog.paste_svg"), st.is_svg),
-                    (2, tr("dialog.paste_text"), st.has_text),
-                    (3, tr("dialog.paste_bitmap"), st.has_image),
-                ];
-                let any = options.iter().any(|(_, _, ok)| *ok);
-                for (v, label, ok) in &options {
-                    ui.add_enabled_ui(*ok, |ui| {
-                        ui.radio_value(&mut st.choice, *v, label);
+                let any = st.available.iter().any(|a| *a);
+                for (i, (label, _)) in PASTE_SPECIAL.iter().enumerate() {
+                    ui.add_enabled_ui(st.available[i], |ui| {
+                        ui.radio_value(&mut st.choice, i, tr(label));
                     });
                 }
                 if !any {
@@ -1580,24 +1580,10 @@ pub fn show(app: &mut App, ctx: &Context) {
                     );
                 }
                 if ok_cancel(ui, &mut close) && any {
-                    let c = crate::clipboard::read_system();
-                    match st.choice {
-                        0 => app.paste(),
-                        1 => {
-                            if let Some(t) = c.text {
-                                app.paste_as_svg(&t);
-                            }
-                        }
-                        2 => {
-                            if let Some(t) = c.text {
-                                app.paste_as_text(&t);
-                            }
-                        }
-                        _ => {
-                            if let Some(img) = c.image {
-                                app.paste_as_bitmap(img);
-                            }
-                        }
+                    let offer = crate::clip_system::read();
+                    let kinds = PASTE_SPECIAL.get(st.choice).map_or(&[][..], |(_, k)| *k);
+                    if !app.paste_with(&offer, kinds) && st.choice == 0 {
+                        app.paste();
                     }
                 }
             });

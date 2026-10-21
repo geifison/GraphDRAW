@@ -4,9 +4,6 @@
 //! editable: the private payload, then SVG, then copied files, then
 //! pictures, then SVG markup carried as text, then plain text.
 
-// Used by paste (next tasks).
-#![allow(dead_code)]
-
 use base64::Engine as _;
 
 /// Every flavour the system clipboard holds, read once per paste.
@@ -48,30 +45,41 @@ pub enum Choice {
 
 /// The best flavour of `o` (see the module notes for the order).
 pub fn choose(o: &Offer) -> Choice {
-    if o.native.is_some() {
-        return Choice::Native;
-    }
-    if o.svg.is_some() {
-        return Choice::Svg;
-    }
-    if !o.files.is_empty() {
-        return Choice::Files;
-    }
-    if o.png.is_some() {
-        return Choice::Png;
-    }
-    if o.image.is_some() {
-        return Choice::Bitmap;
-    }
-    if o.html.as_deref().and_then(html_image_data).is_some() {
-        return Choice::HtmlImage;
-    }
-    match o.text.as_deref() {
-        Some(t) if looks_like_svg(t) => Choice::SvgText,
-        Some(_) => Choice::Text,
+    match candidates(o).first() {
+        Some(c) => *c,
         None if o.other_formats || o.html.is_some() => Choice::Unsupported,
         None => Choice::Nothing,
     }
+}
+
+/// Every flavour of `o` a paste can use, best first; a paste falls back
+/// to the next when one cannot be read.
+pub fn candidates(o: &Offer) -> Vec<Choice> {
+    let mut c = Vec::new();
+    if o.native.is_some() {
+        c.push(Choice::Native);
+    }
+    if o.svg.is_some() {
+        c.push(Choice::Svg);
+    }
+    if !o.files.is_empty() {
+        c.push(Choice::Files);
+    }
+    if o.png.is_some() {
+        c.push(Choice::Png);
+    }
+    if o.image.is_some() {
+        c.push(Choice::Bitmap);
+    }
+    if o.html.as_deref().and_then(html_image_data).is_some() {
+        c.push(Choice::HtmlImage);
+    }
+    match o.text.as_deref() {
+        Some(t) if looks_like_svg(t) => c.extend([Choice::SvgText, Choice::Text]),
+        Some(_) => c.push(Choice::Text),
+        None => {}
+    }
+    c
 }
 
 /// Text that is an SVG document, optionally after an XML declaration,
