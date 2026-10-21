@@ -763,6 +763,11 @@ fn separations_doc(doc: &Document) -> Document {
 }
 
 pub fn open_with_system(path: &Path) -> Result<(), String> {
+    // Tests run commands that open pages and files (Help > Help Topics);
+    // they must not start the browser or other programs.
+    if cfg!(test) {
+        return Ok(());
+    }
     #[cfg(target_os = "windows")]
     let r = std::process::Command::new("cmd")
         .args(["/C", "start", "", &path.display().to_string()])
