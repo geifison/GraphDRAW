@@ -2575,3 +2575,47 @@ fn the_package_lists_the_text_faces_and_embeds_those_allowed() {
         .file_names()
         .any(|n| n.starts_with("font/") || n.starts_with("embed/")));
 }
+
+#[test]
+fn fill_transparency_is_kept_where_the_format_can_hold_it() {
+    let mut doc = Document::new("w", Size::new(200.0, 100.0));
+    let mut ids = doc.ids().clone();
+    let square = |ids: &mut graphdraw_core::id::IdSource, x: f64| {
+        let mut s = Shape::new(
+            ids.shape(),
+            ShapeKind::Rect {
+                rect: Rect::new(x, 10.0, x + 40.0, 50.0),
+                radius: 0.0,
+                corners: None,
+            },
+        );
+        s.fill = Fill::Solid(Color::rgb8(255, 0, 0));
+        s.fill_opacity = 0.4;
+        s
+    };
+    // No outline: the same as an object transparency.
+    let mut bare = square(&mut ids, 10.0);
+    bare.stroke = None;
+    // An outline: from version 16 a transparency of the fill alone.
+    let mut outlined = square(&mut ids, 100.0);
+    outlined.stroke = Some(Stroke::new(Color::BLACK, 1.0));
+    doc.pages[0].layers[0].shapes = vec![bare, outlined];
+    doc.set_ids(ids);
+    for v in versions() {
+        let bytes = document_to_cdr_version(&doc, v);
+        let (back, _) = crate::open_bytes(&bytes, "back").expect("reads back");
+        let shapes = &back.pages[0].layers[0].shapes;
+        assert_eq!(shapes.len(), 2, "{v}");
+        let kept = !(13..=15).contains(&v);
+        let total = |s: &Shape| s.opacity * s.fill_opacity;
+        let want = if kept { 0.4 } else { 1.0 };
+        assert!((total(&shapes[0]) - want).abs() < 0.01, "{v}: {}", total(&shapes[0]));
+        if v >= 16 {
+            assert!((shapes[1].fill_opacity - 0.4).abs() < 0.01, "{v}");
+            assert!((shapes[1].opacity - 1.0).abs() < 1e-9, "{v}: the outline stays");
+        } else {
+            assert_eq!(shapes[1].opacity, 1.0, "{v}");
+            assert_eq!(shapes[1].fill_opacity, 1.0, "{v}");
+        }
+    }
+}

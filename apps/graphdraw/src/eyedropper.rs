@@ -62,6 +62,8 @@ impl Default for AttrGroups {
 #[derive(Clone, Debug, PartialEq)]
 pub struct SampledAttrs {
     pub fill: Fill,
+    /// The fill's own transparency, copied with the fill.
+    pub fill_opacity: f64,
     pub stroke: Option<Stroke>,
     pub text: Option<TextSpan>,
     pub width: f64,
@@ -834,6 +836,7 @@ impl App {
         };
         Some(SampledAttrs {
             fill: s.fill.clone(),
+            fill_opacity: s.fill_opacity,
             stroke: s.stroke.clone(),
             text,
             width: b.width(),
@@ -879,6 +882,10 @@ impl App {
             cmds.push(Command::SetFill {
                 shapes: shapes.clone(),
                 fill: a.fill.clone(),
+            });
+            cmds.push(Command::SetFillOpacity {
+                shapes: shapes.clone(),
+                opacity: a.fill_opacity,
             });
         }
         if g.outline && !bitmap {

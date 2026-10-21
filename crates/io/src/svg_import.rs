@@ -184,6 +184,13 @@ fn convert_path(p: &usvg::Path, to_page: Affine, ids: &mut IdSource) -> Option<S
         Some(f) => convert_paint(f.paint(), f.opacity().get() as f64, bounds, to_page),
         None => Fill::None,
     };
+    // The fill's own transparency (`fill-opacity`).
+    if let Some(f) = p.fill() {
+        let o = f.opacity().get() as f64;
+        if o.is_finite() && o < 1.0 {
+            shape.fill_opacity = o.clamp(0.0, 1.0);
+        }
+    }
     shape.stroke = p.stroke().map(|s| convert_stroke(s, t));
     if !p.id().is_empty() {
         shape.name = Some(p.id().to_string());

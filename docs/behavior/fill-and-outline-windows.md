@@ -27,7 +27,7 @@ selected).
 | Part | What it does |
 |---|---|
 | Modes | No fill, Uniform, Gradient, Vector pattern, Bitmap pattern, Two-color pattern, Texture; Mesh when the fill is a mesh already; PostScript shown disabled |
-| Uniform | Colour picker inline (hue ring with saturation and brightness square, model list with sliders, hexadecimal, palettes with search, eyedropper); Overprint |
+| Uniform | Fill transparency 0..100% (the fill alone; multiplies with the object transparency; saved, drawn and exported as fill opacity in SVG and PDF); colour picker inline (hue ring with saturation and brightness square, model list with sliders, hexadecimal, palettes with search, eyedropper); Overprint |
 | Gradient types | Linear, Radial, Conical, Square, Shaped |
 | Ramp | Double click on the band: new node with the gradient's colour there; double click on a middle node: removes it (the ends stay); drag a node to move it; Delete removes the chosen node; a palette colour dragged from the picker onto the band becomes a node |
 | Node | Colour (pop-up picker), position (0..100%) |
@@ -58,7 +58,7 @@ object only the settings changed in the window.
 ## Next step
 
 Shown dimmed with the tip "comes in the next step", because the drawing
-does not keep these settings yet: fill and outline transparency, gradient
+does not keep these settings yet: outline transparency, gradient
 node transparency and midpoints, steps, blending around the colour wheel,
 smoothing, size, the elliptical type, editable two-colour cells, tile
 scale, rotation, resolution, offsets, mirroring and "transform with

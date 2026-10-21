@@ -714,9 +714,31 @@ impl PageWriter<'_> {
             return;
         }
 
-        // Fill.
+        // Fill, with its own transparency in a graphics state of its own
+        // (the fill alpha only; the object's opacity times the fill's, as
+        // the state replaces the one above).
         let text = matches!(shape.kind, ShapeKind::Text { .. });
-        self.paint_area(&shape.fill, &path, bounds, text);
+        let fill_alpha = if shape.fill_opacity.is_nan() {
+            1.0
+        } else {
+            shape.fill_opacity.clamp(0.0, 1.0)
+        };
+        if fill_alpha < 1.0 && self.pdf.allow_alpha && !matches!(shape.fill, Fill::None) {
+            self.content.push_str("q
+");
+            let name = format!("GS{}", self.gstates.len());
+            let id = self.pdf.add_str(format!(
+                "<< /Type /ExtGState /ca {} >>",
+                f(shape.opacity.clamp(0.0, 1.0) * fill_alpha)
+            ));
+            self.gstates.push((name.clone(), id));
+            let _ = writeln!(self.content, "/{name} gs");
+            self.paint_area(&shape.fill, &path, bounds, text);
+            self.content.push_str("Q
+");
+        } else {
+            self.paint_area(&shape.fill, &path, bounds, text);
+        }
 
         // Outline.
         if let Some(s) = &shape.stroke {

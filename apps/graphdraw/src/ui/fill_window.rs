@@ -137,6 +137,10 @@ pub struct FillWindow {
     seen: Vec<ShapeId>,
     initial: Fill,
     initial_overprint: bool,
+    /// The fill's own opacity when the window opened (1.0 opaque).
+    initial_fill_opacity: f64,
+    /// The fill's own opacity (Transparency is 1 less it, in percent).
+    pub(crate) fill_opacity: f64,
     pub(crate) mode: Mode,
     pub(crate) color: Color,
     pub(crate) fountain: Fountain,
@@ -190,7 +194,12 @@ impl FillWindow {
                 Size::new(60.0, 30.0),
             ),
         };
+        let fill_opacity = app
+            .selected_shapes()
+            .first()
+            .map_or(1.0, |s| sw::first_leaf(s).fill_opacity);
         let mut w = FillWindow::new(initial, overprint, targets, size);
+        w.set_initial_fill_opacity(fill_opacity);
         w.seen = app.selection.clone();
         w.palettes = sw::palettes_of(app);
         Box::new(w)
@@ -204,6 +213,8 @@ impl FillWindow {
             seen: Vec::new(),
             initial: initial.clone(),
             initial_overprint: overprint,
+            initial_fill_opacity: 1.0,
+            fill_opacity: 1.0,
             mode: Mode::None,
             color: white,
             fountain: Fountain::two(FountainKind::Linear, black, white, 0.0),
@@ -295,6 +306,13 @@ impl FillWindow {
         w
     }
 
+    /// The fill transparency the edited objects have (1.0 opaque).
+    pub(crate) fn set_initial_fill_opacity(&mut self, o: f64) {
+        let o = if o.is_nan() { 1.0 } else { o.clamp(0.0, 1.0) };
+        self.initial_fill_opacity = o;
+        self.fill_opacity = o;
+    }
+
     pub fn revision(&self) -> u64 {
         self.rev
     }
@@ -346,6 +364,12 @@ impl FillWindow {
                 shapes: self.targets.clone(),
                 fill: Some(self.overprint),
                 outline: None,
+            });
+        }
+        if (self.fill_opacity - self.initial_fill_opacity).abs() > 1e-9 {
+            v.push(Command::SetFillOpacity {
+                shapes: self.targets.clone(),
+                opacity: self.fill_opacity,
             });
         }
         v
@@ -648,14 +672,31 @@ impl FillWindow {
             self.eye_target = Target::Solid;
         }
         ui.add_space(8.0);
-        ui.horizontal(|ui| {
-            later(ui, |ui| {
-                ui.label(tr("fillwin.transparency"));
-                let mut tp = 0.0;
-                ui.add(egui::Slider::new(&mut tp, 0.0..=100.0).suffix(" %"));
-            });
-        });
+        self.transparency_slider(ui);
         self.overprint_box(ui);
+    }
+
+    /// The fill's own transparency, 0 (opaque) to 100 %; objects only
+    /// (new objects get an opaque fill).
+    fn transparency_slider(&mut self, ui: &mut Ui) {
+        let objects = !self.targets.is_empty();
+        let r = ui
+            .add_enabled_ui(objects, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(tr("fillwin.transparency"));
+                    let mut tp = ((1.0 - self.fill_opacity) * 100.0).clamp(0.0, 100.0);
+                    let changed = ui
+                        .add(egui::Slider::new(&mut tp, 0.0..=100.0).suffix(" %"))
+                        .on_hover_text(tr("fillwin.transparency_tip"))
+                        .changed();
+                    if changed {
+                        self.fill_opacity = (1.0 - tp / 100.0).clamp(0.0, 1.0);
+                        self.touch();
+                    }
+                });
+            })
+            .response;
+        r.on_disabled_hover_text(tr("fillwin.transparency_objects"));
     }
 
     fn overprint_box(&mut self, ui: &mut Ui) {
@@ -1699,5 +1740,56 @@ mod tests {
         ));
         f.set_mode(Mode::None);
         assert_eq!(f.result(), Fill::None);
+    }
+
+    /// The fill transparency opens as the object has it, goes into the
+    /// commands only when changed, and OK applies it as one undo step.
+    #[test]
+    fn fill_transparency_opens_changes_and_applies() {
+        let mut app = App::headless();
+        let id = app
+            .new_shape(graphdraw_core::ShapeKind::Rect {
+                rect: graphdraw_core::Rect::new(0.0, 0.0, 10.0, 10.0),
+                radius: 0.0,
+                corners: None,
+            })
+            .expect("shape");
+        app.select(vec![id]);
+        app.run(Command::SetFill {
+            shapes: vec![id],
+            fill: Fill::Solid(Color::rgb8(255, 0, 0)),
+        });
+        app.run(Command::SetFillOpacity {
+            shapes: vec![id],
+            opacity: 0.3,
+        });
+        let mut f = FillWindow::open(&app);
+        assert_eq!(f.mode, Mode::Solid);
+        assert!((f.fill_opacity - 0.3).abs() < 1e-9);
+        run(&mut f, &mut app, 2);
+        // A colour change alone leaves the transparency out.
+        f.color = Color::rgb8(0, 0, 255);
+        f.touch();
+        let cmds = f.commands(app.doc());
+        assert!(!cmds
+            .iter()
+            .any(|c| matches!(c, Command::SetFillOpacity { .. })));
+        f.fill_opacity = 0.6;
+        let cmds = f.commands(app.doc());
+        assert!(cmds.iter().any(|c| matches!(
+            c,
+            Command::SetFillOpacity { shapes, opacity } if shapes == &vec![id] && (*opacity - 0.6).abs() < 1e-9
+        )));
+        f.apply(&mut app);
+        let fo = |app: &App| app.doc().find_shape(id).map(|s| s.fill_opacity);
+        assert_eq!(fo(&app), Some(0.6));
+        app.undo();
+        assert_eq!(fo(&app), Some(0.3), "one undo step for fill and transparency");
+        // With nothing selected the slider is off and nothing changes it.
+        let mut d = FillWindow::new(Fill::None, false, Vec::new(), Size::new(10.0, 10.0));
+        d.set_mode(Mode::Solid);
+        run(&mut d, &mut app, 2);
+        assert_eq!(d.fill_opacity, 1.0);
+        assert!(d.commands(app.doc()).is_empty());
     }
 }

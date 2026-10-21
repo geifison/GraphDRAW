@@ -876,6 +876,10 @@ impl App {
                 shapes: shapes.clone(),
                 fill: src.fill.clone(),
             },
+            Command::SetFillOpacity {
+                shapes: shapes.clone(),
+                opacity: src.fill_opacity,
+            },
             Command::SetStroke {
                 shapes,
                 stroke: src.stroke.clone(),

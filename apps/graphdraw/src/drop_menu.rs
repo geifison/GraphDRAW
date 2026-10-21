@@ -190,6 +190,10 @@ impl App {
                         shapes: vec![target],
                         fill: first.fill.clone(),
                     });
+                    cmds.push(Command::SetFillOpacity {
+                        shapes: vec![target],
+                        opacity: first.fill_opacity,
+                    });
                 }
                 if action != DropAction::CopyFill {
                     cmds.push(Command::SetStroke {
