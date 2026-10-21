@@ -753,7 +753,7 @@ fn corner_runs(path: &BezPath) -> Vec<(Vec<Vec<PathSeg>>, bool)> {
 /// dash, starting and ending with a dash.
 fn dash_intervals(len: f64, dash: &[f64], corners: crate::style::DashCorners) -> Vec<(f64, f64)> {
     let total: f64 = dash.iter().sum();
-    if !(total > 0.0) || !(len > 0.0) {
+    if total.is_nan() || total <= 0.0 || len.is_nan() || len <= 0.0 {
         return vec![(0.0, len.max(0.0))];
     }
     // An even number of entries (dash, gap).
