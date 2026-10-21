@@ -160,7 +160,8 @@ pub struct App {
     pub(crate) lock_ratio: bool,
     /// Cantos do retângulo que a barra altera (ordem do modelo: inf.-esq.,
     /// inf.-dir., sup.-dir., sup.-esq.).
-    pub(crate) corners_sel: [bool; 4],
+    /// Cantos do retângulo travados: um raio muda os 4 (GD-BPC-04).
+    pub(crate) corner_lock: bool,
     message: Option<(String, String)>,
     confirm: Option<Pending>,
     allow_close: bool,
@@ -168,7 +169,7 @@ pub struct App {
     show_keys: bool,
     pub(crate) status: String,
     /// Deslocamento das setas (GD-FER-01): normal e com Shift.
-    nudge: (f64, f64),
+    pub(crate) nudge: (f64, f64),
     /// Janela de contorno ou preenchimento aberta.
     style_dlg: Option<crate::dialogs::StyleDialog>,
     /// Barra de páginas em abas (doc 21), do documento ativo.
@@ -275,7 +276,7 @@ impl App {
             align: AlignUi::default(),
             anchor: Anchor::Center,
             lock_ratio: true,
-            corners_sel: [true; 4],
+            corner_lock: true,
             message: None,
             confirm: None,
             allow_close: false,
@@ -4453,6 +4454,12 @@ impl App {
             match a {
                 Action::Run(c) => self.run_command(c, ctx),
                 Action::Dock(d) if !self.ws.bars_locked => self.ws.bar_dock = d,
+                Action::Panel(key) => {
+                    if let Some(t) = RightTab::from_key(key) {
+                        self.right_tab = t;
+                        self.show_right = true;
+                    }
+                }
                 _ => {}
             }
         }
@@ -5884,6 +5891,131 @@ mod tests {
         let s = bar_seen(&mut app, &ctx);
         assert_eq!(s.key, "main/text/none");
         assert!(s.groups.iter().any(|g| g.id == "B-FON"));
+    }
+
+    /// Grupos que a barra desenhou (com conteúdo), na ordem.
+    fn drawn(s: &crate::propbar::Seen) -> Vec<String> {
+        s.groups
+            .iter()
+            .filter(|g| g.width > 0.5)
+            .map(|g| g.id.clone())
+            .collect()
+    }
+
+    fn add(app: &mut App, kind: ObjectKind) -> String {
+        let d = app.doc.as_mut().unwrap();
+        let mut o = graphdraw_core::model::Object::new(kind);
+        o.stroke = Some(crate::doc::default_stroke());
+        ops::add_object(&mut d.editor, 0, 0, o, "o")
+    }
+
+    /// Doc 31, aceite geral: selecionar o tipo → a barra começa exatamente
+    /// pelos grupos do contexto, na ordem; os do GraphDraw vêm depois
+    /// (D-31-04).
+    #[test]
+    fn gd_bpc_selection_contexts_follow_catalog() {
+        use graphdraw_core::model::{EllipseData, Node, PathData, RectData, Subpath};
+        let ctx = crate::theme::test_ctx();
+        let mut app = App::with_ctx(&ctx, None);
+        let rect = || {
+            ObjectKind::Rectangle(RectData {
+                width: 10_000.0,
+                height: 10_000.0,
+                corners: None,
+                extra: Default::default(),
+            })
+        };
+        let ellipse = ObjectKind::Ellipse(EllipseData {
+            rx: 5_000.0,
+            ry: 3_000.0,
+            mode: "ellipse".into(),
+            start_angle: 0.0,
+            end_angle: 360.0,
+            extra: Default::default(),
+        });
+        let open = ObjectKind::Path(PathData {
+            subpaths: vec![Subpath {
+                closed: false,
+                nodes: vec![Node::corner(0.0, 0.0), Node::corner(10_000.0, 5_000.0)],
+                extra: Default::default(),
+            }],
+            fill_rule: Default::default(),
+            extra: Default::default(),
+        });
+        let polygon = |mode: &str| {
+            ObjectKind::Polygon(
+                serde_json::from_value(serde_json::json!({"rx": 5000.0, "ry": 5000.0,
+                    "sides": 5, "mode": mode}))
+                .unwrap(),
+            )
+        };
+        let spiral = ObjectKind::Spiral(
+            serde_json::from_value(serde_json::json!({"width": 10000.0, "height": 10000.0,
+                "turns": 3.0}))
+            .unwrap(),
+        );
+        let r = add(&mut app, rect());
+        let e = add(&mut app, ellipse);
+        let cases: Vec<(&str, Vec<String>)> = vec![
+            ("rect", vec![r.clone()]),
+            ("ellipse", vec![e.clone()]),
+            ("multi", vec![r.clone(), e.clone()]),
+            ("polygon", vec![add(&mut app, polygon("polygon"))]),
+            ("star", vec![add(&mut app, polygon("star"))]),
+            ("spiral", vec![add(&mut app, spiral)]),
+            ("curve", vec![add(&mut app, open)]),
+            ("none", vec![]),
+        ];
+        for (kind, sel) in cases {
+            app.doc.as_mut().unwrap().selection = sel;
+            let s = bar_seen(&mut app, &ctx);
+            assert!(s.key.ends_with(&format!("/{kind}")), "{}", s.key);
+            let want = crate::barcatalog::selection(kind).groups;
+            let got = drawn(&s);
+            assert!(got.len() >= want.len(), "{kind}: {got:?}");
+            assert_eq!(&got[..want.len()], want, "{kind}");
+            for extra in &got[want.len()..] {
+                assert!(
+                    crate::barcatalog::EXTRAS.contains(&extra.as_str()),
+                    "{kind}: {extra} fora do lugar"
+                );
+            }
+        }
+        // Grupo: o contexto próprio.
+        let a = add(&mut app, rect());
+        let b = add(&mut app, rect());
+        let g = ops::group(&mut app.doc.as_mut().unwrap().editor, &[a, b]).unwrap();
+        app.doc.as_mut().unwrap().selection = vec![g];
+        let s = bar_seen(&mut app, &ctx);
+        let want = crate::barcatalog::selection("group").groups;
+        assert_eq!(&drawn(&s)[..want.len()], want, "group");
+    }
+
+    /// GD-BPC-04 (aceite): travar cantos ligado + digitar 5 mm num canto →
+    /// os 4 cantos = 5 mm, num passo de desfazer.
+    #[test]
+    fn gd_bpc_04_locked_corners_change_together() {
+        let ctx = crate::theme::test_ctx();
+        let mut app = App::with_ctx(&ctx, None);
+        let id = add_rect(&mut app);
+        let d = app.doc.as_mut().unwrap();
+        let rev = d.editor.revision();
+        crate::panels::set_corner_radius(d, std::slice::from_ref(&id), 2, 5_000.0, true);
+        assert_eq!(d.editor.revision(), rev + 1, "um passo de desfazer");
+        let corners = |d: &crate::doc::DocState| match &d
+            .editor
+            .get(&d.editor.find(&id).unwrap())
+            .unwrap()
+            .kind
+        {
+            ObjectKind::Rectangle(r) => r.corners.clone().unwrap(),
+            _ => unreachable!(),
+        };
+        assert!(corners(d).iter().all(|c| c.radius == 5_000.0));
+        // Destravado: só aquele canto.
+        crate::panels::set_corner_radius(d, std::slice::from_ref(&id), 0, 1_000.0, false);
+        let c = corners(d);
+        assert_eq!((c[0].radius, c[1].radius), (1_000.0, 5_000.0));
     }
 
     /// GD-BPR-07 (aceite): ocultar "Rotação" na barra da Seleção → some só

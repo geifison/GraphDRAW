@@ -509,9 +509,12 @@ impl App {
                     ui,
                     &mut bar,
                     doc,
-                    &mut self.anchor,
-                    &mut self.lock_ratio,
-                    &mut self.corners_sel,
+                    &mut SelState {
+                        anchor: &mut self.anchor,
+                        lock: &mut self.lock_ratio,
+                        corner_lock: &mut self.corner_lock,
+                        nudge: &mut self.nudge,
+                    },
                     &mut text_params,
                 );
                 refit = r;
@@ -522,13 +525,6 @@ impl App {
                     bar.group(ui, "SIM", tr("Simetria", "Symmetry"), false, |ui, _| {
                         symmetry_bar(ui, doc)
                     });
-                    bar.group(
-                        ui,
-                        "B-ORG",
-                        tr("Contornar texto", "Wrap text"),
-                        false,
-                        |ui, _| wrap_bar(ui, doc),
-                    );
                     bar.group(
                         ui,
                         "BOOL-VIVA",
@@ -1641,99 +1637,6 @@ fn spiral_params(
     (*turns, *log, *expansion, *ribbon) != before
 }
 
-/// Seletor dos cantos do retângulo (2 × 2, como na tela): cada célula
-/// mostra o canto arredondado e alterna se aquele canto entra na
-/// alteração. Índices do modelo: 0 inf.-esq., 1 inf.-dir., 2 sup.-dir.,
-/// 3 sup.-esq.
-pub fn corner_picker(ui: &mut egui::Ui, sel: &mut [bool; 4]) {
-    let (cell, gap) = (theme::CORNER_CELL, theme::CORNER_GAP);
-    let side = 2.0 * cell + gap;
-    let (rect, resp) = ui.allocate_exact_size(Vec2::splat(side), egui::Sense::click());
-    // Posição na tela (linha, coluna) → índice do modelo.
-    let at = |row: usize, col: usize| match (row, col) {
-        (0, 0) => 3,
-        (0, _) => 2,
-        (_, 0) => 0,
-        _ => 1,
-    };
-    let cell_at = |p: egui::Pos2| {
-        let d = p - rect.min;
-        rect.contains(p).then(|| {
-            at(
-                (d.y > cell + gap / 2.0) as usize,
-                (d.x > cell + gap / 2.0) as usize,
-            )
-        })
-    };
-    let hovered = resp.hover_pos().and_then(cell_at);
-    let pal = theme::palette(ui);
-    for row in 0..2 {
-        for col in 0..2 {
-            let i = at(row, col);
-            let min = rect.min + Vec2::new(col as f32 * (cell + gap), row as f32 * (cell + gap));
-            let r = egui::Rect::from_min_size(min, Vec2::splat(cell));
-            let c = if sel[i] {
-                theme::ACCENT_PRIMARY
-            } else if hovered == Some(i) {
-                pal.fg_muted
-            } else {
-                pal.border_default
-            };
-            // Só o canto de fora fica arredondado: mostra qual canto é.
-            let big = (cell * 0.8) as u8;
-            let radius = egui::CornerRadius {
-                nw: if (row, col) == (0, 0) { big } else { 0 },
-                ne: if (row, col) == (0, 1) { big } else { 0 },
-                sw: if (row, col) == (1, 0) { big } else { 0 },
-                se: if (row, col) == (1, 1) { big } else { 0 },
-            };
-            ui.painter().rect_filled(r, radius, c);
-        }
-    }
-    let resp = resp.on_hover_text(tr(
-        "Cantos alterados (clique para marcar ou desmarcar cada um)",
-        "Corners to change (click to toggle each one)",
-    ));
-    if resp.clicked()
-        && let Some(i) = resp.interact_pointer_pos().and_then(cell_at)
-    {
-        sel[i] = !sel[i];
-        // Nenhum marcado não faria nada: volta a marcar só este.
-        if !sel.iter().any(|v| *v) {
-            sel[i] = true;
-        }
-    }
-}
-
-/// Aplica tipo e raio só aos cantos marcados (os outros ficam como estão).
-pub fn set_corners(corners: &mut Option<Vec<Corner>>, sel: &[bool; 4], kind: &str, radius: f64) {
-    let mut cs = corners.clone().unwrap_or_else(|| {
-        vec![
-            Corner {
-                kind: "round".into(),
-                radius: 0.0,
-            };
-            4
-        ]
-    });
-    cs.resize(
-        4,
-        Corner {
-            kind: "round".into(),
-            radius: 0.0,
-        },
-    );
-    for (i, c) in cs.iter_mut().enumerate() {
-        if sel[i] {
-            *c = Corner {
-                kind: kind.to_string(),
-                radius,
-            };
-        }
-    }
-    *corners = Some(cs);
-}
-
 /// Nome curto da ferramenta (a dica sem a explicação nem o atalho):
 /// rótulo do grupo no menu ⋯.
 fn tool_name(t: Tool) -> &'static str {
@@ -1742,29 +1645,249 @@ fn tool_name(t: Tool) -> &'static str {
     tip.split(" (").next().unwrap_or(tip).trim()
 }
 
-/// Barra da Seleção (DS 4.6, doc 31 seção 2): com objetos, os grupos na
-/// ordem fixa; sem seleção, a página (GD-BPC-01). Devolve (reajustar a
-/// vista, a seleção mudou — os grupos seguintes não valem mais).
+/// Estado da Seleção guardado na janela: ponto de referência, proporção
+/// travada, cantos travados e passo das setas.
+pub(crate) struct SelState<'a> {
+    pub anchor: &'a mut Anchor,
+    pub lock: &'a mut bool,
+    pub corner_lock: &'a mut bool,
+    pub nudge: &'a mut (f64, f64),
+}
+
+/// Barra da Seleção (doc 31, seção 2): os grupos do contexto na ordem do
+/// catálogo e, depois, os próprios do GraphDraw (D-31-04). Devolve
+/// (reajustar a vista, a seleção mudou — os grupos seguintes não valem).
 fn select_bar(
     ui: &mut egui::Ui,
     bar: &mut Bar,
     doc: &mut DocState,
-    anchor: &mut Anchor,
-    lock: &mut bool,
-    corners_sel: &mut [bool; 4],
+    st: &mut SelState,
     object_params: &mut dyn FnMut(&mut egui::Ui, &mut DocState),
 ) -> (bool, bool) {
-    let sel = doc.selection.clone();
-    let Some(b) = ops::selection_bounds(&doc.editor, &sel, false) else {
-        let mut refit = false;
-        bar.group(ui, "PAG", tr("Página", "Page"), true, |ui, _| {
-            refit = page_bar_props(ui, doc);
-        });
-        return (refit, false);
+    let kind = {
+        let objs = doc.selected_objects();
+        propbar::selection_kind(&objs)
     };
+    let sel = doc.selection.clone();
+    let mut refit = false;
+    for g in crate::barcatalog::selection(kind).groups {
+        let changed = match *g {
+            "PAG" => {
+                bar.group(ui, "PAG", tr("Página", "Page"), true, |ui, _| {
+                    refit = page_bar_props(ui, doc);
+                });
+                false
+            }
+            "PAG-SETAS" => {
+                nudge_group(ui, bar, st.nudge);
+                false
+            }
+            "B-TRF" => {
+                trf_group(ui, bar, doc, &sel, st);
+                false
+            }
+            "CMB" => {
+                let mut n = None;
+                bar.group(
+                    ui,
+                    "CMB",
+                    tr("Combinar e booleanas", "Combine and booleans"),
+                    false,
+                    |ui, _| n = combine_group(ui, doc, &sel),
+                );
+                n.map(|n| doc.selection = n).is_some()
+            }
+            "B-CTN" => {
+                ctn_group(ui, bar, doc, &sel);
+                false
+            }
+            "B-CTV" => {
+                command_group(
+                    ui,
+                    bar,
+                    "B-CTV",
+                    tr("Contorno variável", "Variable outline"),
+                    &[crate::keymap::Command::ToolWidth],
+                );
+                false
+            }
+            "B-SET" => {
+                set_group(ui, bar, doc, &sel);
+                false
+            }
+            "B-CUR" => cur_group(ui, bar, doc, &sel),
+            "GRP-TUDO" => group_buttons(ui, bar, doc, &sel, true),
+            "DESAGR" => group_buttons(ui, bar, doc, &sel, false),
+            "B-FOC" => {
+                command_group(
+                    ui,
+                    bar,
+                    "B-FOC",
+                    tr("Foco", "Focus"),
+                    &[crate::keymap::Command::FocusMode],
+                );
+                false
+            }
+            "ALI" => {
+                bar.group(
+                    ui,
+                    "ALI",
+                    tr("Alinhar e distribuir", "Align and distribute"),
+                    false,
+                    |ui, it| {
+                        if icons::button(
+                            ui,
+                            RightTab::Align.icon(),
+                            tr(
+                                "Alinhar e distribuir (abre o painel)",
+                                "Align and distribute (opens the panel)",
+                            ),
+                            false,
+                            true,
+                        )
+                        .clicked()
+                        {
+                            it.act(propbar::Action::Panel(RightTab::Align.key()));
+                        }
+                    },
+                );
+                false
+            }
+            "B-ORG" => {
+                org_group(ui, bar, doc, &sel);
+                false
+            }
+            "B-CNV" => {
+                bar.group(ui, "B-CNV", tr("Converter", "Convert"), false, |ui, _| {
+                    if icons::button(
+                        ui,
+                        "to-curves",
+                        crate::keymap::hint(
+                            tr("Converter em curvas", "Convert to curves"),
+                            crate::keymap::Command::ToCurves,
+                        ),
+                        false,
+                        true,
+                    )
+                    .clicked()
+                    {
+                        ops::convert_to_curves(&mut doc.editor, &sel);
+                    }
+                });
+                false
+            }
+            "RET-CANTOS" => {
+                corners_group(ui, bar, doc, &sel, st.corner_lock);
+                false
+            }
+            "ELI-MODO" => {
+                ellipse_mode_group(ui, bar, doc, &sel);
+                false
+            }
+            "ELI-ANG" => {
+                ellipse_angle_group(ui, bar, doc, &sel);
+                false
+            }
+            "POL" => {
+                polygon_group(ui, bar, doc, &sel);
+                false
+            }
+            "ESP" => {
+                spiral_group(ui, bar, doc, &sel);
+                false
+            }
+            "B-FON" => {
+                bar.group(ui, "B-FON", tr("Fonte", "Font"), true, |ui, _| {
+                    object_params(ui, doc)
+                });
+                false
+            }
+            other => {
+                debug_assert!(false, "grupo sem desenho: {other}");
+                false
+            }
+        };
+        if changed {
+            return (refit, true);
+        }
+    }
+    // Do GraphDraw, depois do contexto (D-31-04): passo de ordem e caneta.
+    if kind != "none" {
+        order_extra(ui, bar, doc, &sel, kind == "multi");
+        pen_extra(ui, bar, doc, &sel);
+    }
+    (refit, false)
+}
+
+/// Grupo de botões de comandos do catálogo (ícone e atalho do comando).
+fn command_group(
+    ui: &mut egui::Ui,
+    bar: &mut Bar,
+    id: &str,
+    label: &str,
+    commands: &[crate::keymap::Command],
+) {
+    bar.group(ui, id, label, false, |ui, it| {
+        for c in commands {
+            if icons::button(
+                ui,
+                c.icon(),
+                crate::keymap::hint(c.label(), *c),
+                false,
+                c.ready(),
+            )
+            .clicked()
+            {
+                it.act(propbar::Action::Run(*c));
+            }
+        }
+    });
+}
+
+/// Passo das setas (GD-BPC-01): deslocamento fino e com Shift.
+fn nudge_group(ui: &mut egui::Ui, bar: &mut Bar, nudge: &mut (f64, f64)) {
+    bar.group(
+        ui,
+        "PAG-SETAS",
+        tr("Passo das setas", "Arrow nudge"),
+        false,
+        |ui, _| {
+            widgets::stack(ui, |ui, row| {
+                let (icon, tip, v) = if row == 0 {
+                    ("nudge", tr("Passo das setas", "Arrow nudge"), &mut nudge.0)
+                } else {
+                    (
+                        "nudge-big",
+                        tr("Passo com Shift", "Shift nudge"),
+                        &mut nudge.1,
+                    )
+                };
+                if let Some(n) = widgets::icon_length(ui, icon, tip, &format!("passo-{row}"), *v) {
+                    *v = n.max(1.0);
+                }
+            });
+        },
+    );
+}
+
+/// B-TRF (doc 31): referência, X/Y, L/A, escala %, proporção, ângulo e
+/// espelhar.
+fn trf_group(
+    ui: &mut egui::Ui,
+    bar: &mut Bar,
+    doc: &mut DocState,
+    sel: &[String],
+    st: &mut SelState,
+) {
+    let Some(b) = ops::selection_bounds(&doc.editor, sel, false) else {
+        return;
+    };
+    let anchor = &mut *st.anchor;
+    let lock = &mut *st.lock;
     let mut p = anchor.point(b);
     let (mut nx, mut ny, mut nw, mut nh) = (None, None, None, None);
-    let current = selection_angle(doc, &sel);
+    let (mut sx, mut sy) = (None, None);
+    let current = selection_angle(doc, sel);
     let mut angle = None;
     let mut mirror = None;
     bar.group(
@@ -1793,6 +1916,29 @@ fn select_bar(
                         nw = widgets::labeled_world_length(ui, tr("L", "W"), "w", b.width(), None);
                     } else {
                         nh = widgets::labeled_world_length(ui, tr("A", "H"), "h", b.height(), None);
+                    }
+                });
+            }
+            if it.show("scale", tr("Escala X/Y %", "Scale X/Y %")) {
+                // Escala relativa ao tamanho atual: digitar 50 % reduz à metade.
+                widgets::stack(ui, |ui, row| {
+                    let tip = if row == 0 {
+                        tr("Escala horizontal", "Horizontal scale")
+                    } else {
+                        tr("Escala vertical", "Vertical scale")
+                    };
+                    let v = widgets::icon_number(
+                        ui,
+                        "scale-xy",
+                        tip,
+                        &format!("escala-{row}"),
+                        100.0,
+                        "%",
+                    );
+                    if row == 0 {
+                        sx = v;
+                    } else {
+                        sy = v;
                     }
                 });
             }
@@ -1857,23 +2003,43 @@ fn select_bar(
         },
     );
     if let Some(x) = nx {
-        ops::set_position(&mut doc.editor, &sel, *anchor, Point::new(x, p.y));
+        ops::set_position(&mut doc.editor, sel, *anchor, Point::new(x, p.y));
     }
     if let Some(y) = ny {
-        ops::set_position(&mut doc.editor, &sel, *anchor, Point::new(p.x, y));
+        ops::set_position(&mut doc.editor, sel, *anchor, Point::new(p.x, y));
     }
     if let Some(w) = nw {
-        ops::set_size(&mut doc.editor, &sel, *anchor, Some(w), None, *lock);
+        ops::set_size(&mut doc.editor, sel, *anchor, Some(w), None, *lock);
     }
     if let Some(h) = nh {
-        ops::set_size(&mut doc.editor, &sel, *anchor, None, Some(h), *lock);
+        ops::set_size(&mut doc.editor, sel, *anchor, None, Some(h), *lock);
+    }
+    if let Some(v) = sx.filter(|v| *v > 0.0) {
+        ops::set_size(
+            &mut doc.editor,
+            sel,
+            *anchor,
+            Some(b.width() * v / 100.0),
+            None,
+            *lock,
+        );
+    }
+    if let Some(v) = sy.filter(|v| *v > 0.0) {
+        ops::set_size(
+            &mut doc.editor,
+            sel,
+            *anchor,
+            None,
+            Some(b.height() * v / 100.0),
+            *lock,
+        );
     }
     if let Some(a) = angle {
         let delta = a - current;
         if delta.abs() > 1e-9 {
             ops::transform(
                 &mut doc.editor,
-                &sel,
+                sel,
                 ops::rotate_about(anchor.point(b), delta),
                 tr("Girar", "Rotate"),
             );
@@ -1882,79 +2048,441 @@ fn select_bar(
     if let Some(h) = mirror {
         ops::transform(
             &mut doc.editor,
-            &sel,
+            sel,
             ops::mirror_about(b.center(), h),
             tr("Espelhar", "Mirror"),
         );
     }
-    // ---- depois do ângulo: grupos do contexto (DESIGN-SYSTEM 4.6) ----
-    // 1. Parâmetros do objeto (primitivas e texto).
-    bar.group(
-        ui,
-        "OBJ",
-        tr("Parâmetros do objeto", "Object parameters"),
-        false,
-        |ui, _| object_group(ui, doc, &sel, corners_sel, object_params),
-    );
-    // 2. Contorno (edição rápida).
-    stroke_bar(ui, bar, doc, &sel);
-    // 3. Combinar/Separar e booleanas. Com um objeto só Separar faz
-    // sentido; as booleanas pedem dois ou mais (doc 09): alvo = último
-    // selecionado.
-    let mut changed = None;
-    bar.group(
-        ui,
-        "CMB",
-        tr("Combinar e booleanas", "Combine and booleans"),
-        false,
-        |ui, _| changed = combine_group(ui, doc, &sel),
-    );
-    if let Some(n) = changed {
-        doc.selection = n;
-        return (false, true);
+}
+
+/// Contorno dos objetos selecionados (sem imagens): o atual e a espessura,
+/// que pode diferir entre eles (GD-BPR-02).
+struct StrokeInfo {
+    current: Option<graphdraw_core::model::Stroke>,
+    width: propbar::Mixed<f64>,
+    open_path: bool,
+}
+
+fn stroke_info(doc: &DocState) -> Option<StrokeInfo> {
+    let objs = doc.selected_objects();
+    let eligible: Vec<_> = objs
+        .iter()
+        .filter(|o| !matches!(o.kind, ObjectKind::Image(_)))
+        .collect();
+    if eligible.is_empty() {
+        return None;
     }
-    // 4. Ordem e agrupar.
+    Some(StrokeInfo {
+        current: eligible.iter().find_map(|o| o.stroke.clone()),
+        width: propbar::Mixed::of(
+            eligible
+                .iter()
+                .map(|o| o.stroke.as_ref().map_or(0.0, |s| s.width)),
+        ),
+        open_path: eligible.iter().any(|o| match &o.kind {
+            ObjectKind::Path(p) => p.subpaths.iter().any(|s| !s.closed),
+            ObjectKind::Spiral(_) => true,
+            _ => false,
+        }),
+    })
+}
+
+type StrokeEdit = Box<dyn Fn(&mut graphdraw_core::model::Stroke)>;
+
+/// B-CTN (doc 31): espessura (vazia quando difere, GD-BPR-02) e estilo de
+/// linha ou "Sem contorno".
+fn ctn_group(ui: &mut egui::Ui, bar: &mut Bar, doc: &mut DocState, sel: &[String]) {
+    use crate::dialogs::{DASHES, dash_for, detect_dash};
+    let Some(info) = stroke_info(doc) else {
+        return;
+    };
+    let current = &info.current;
+    let mut edit: Option<StrokeEdit> = None;
+    let mut remove = false;
+    bar.group(ui, "B-CTN", tr("Contorno", "Outline"), false, |ui, it| {
+        let show_width = it.show("width", tr("Espessura", "Width"));
+        let show_style = it.show("style", tr("Estilo de linha", "Line style"));
+        widgets::stack(ui, |ui, row| {
+            if row == 0 && show_width {
+                if let Some(v) = widgets::labeled_mixed_length(
+                    ui,
+                    tr("Contorno", "Outline"),
+                    "contorno-espessura",
+                    info.width.value().copied(),
+                ) {
+                    let v = v.max(0.0);
+                    edit = Some(Box::new(move |s| s.width = v));
+                }
+            } else if row == 1 && show_style {
+                let preset = current.as_ref().map_or(0, detect_dash);
+                let text = if current.is_none() {
+                    tr("Sem contorno", "No outline")
+                } else {
+                    DASHES
+                        .get(preset)
+                        .map_or(tr("Personalizado", "Custom"), |d| tr(d.0, d.1))
+                };
+                egui::ComboBox::from_id_salt("contorno-estilo")
+                    .selected_text(text)
+                    .width(theme::ARROW_COMBO_WIDTH)
+                    .show_ui(ui, |ui| {
+                        if ui
+                            .selectable_label(current.is_none(), tr("Sem contorno", "No outline"))
+                            .clicked()
+                        {
+                            remove = true;
+                        }
+                        for (i, d) in DASHES.iter().enumerate() {
+                            if ui
+                                .selectable_label(current.is_some() && preset == i, tr(d.0, d.1))
+                                .clicked()
+                            {
+                                edit = Some(Box::new(move |s| s.dash = dash_for(i, s.width)));
+                            }
+                        }
+                    });
+            }
+        });
+    });
+    if remove {
+        ops::set_stroke(&mut doc.editor, sel, None);
+    } else if let Some(f) = edit {
+        ops::edit_stroke(&mut doc.editor, sel, f);
+    }
+}
+
+/// B-SET (doc 31): pontas de seta, só com curva aberta (ou espiral).
+fn set_group(ui: &mut egui::Ui, bar: &mut Bar, doc: &mut DocState, sel: &[String]) {
+    use crate::dialogs::arrow_label;
+    use graphdraw_core::model::Arrow;
+    let Some(info) = stroke_info(doc).filter(|i| i.open_path) else {
+        return;
+    };
+    let (start, end) = info.current.as_ref().map_or((None, None), |s| {
+        (s.start_arrow.clone(), s.end_arrow.clone())
+    });
+    let mut edit: Option<StrokeEdit> = None;
+    bar.group(ui, "B-SET", tr("Setas", "Arrows"), false, |ui, _| {
+        widgets::stack(ui, |ui, row| {
+            let (label, id, cur, is_start) = if row == 0 {
+                (tr("Início", "Start"), "barra-seta-inicio", &start, true)
+            } else {
+                (tr("Fim", "End"), "barra-seta-fim", &end, false)
+            };
+            ui.label(label);
+            let text = cur
+                .as_ref()
+                .map_or(tr("Nenhuma", "None"), |a| arrow_label(&a.shape));
+            egui::ComboBox::from_id_salt(id)
+                .selected_text(text)
+                .width(theme::ARROW_COMBO_WIDTH)
+                .show_ui(ui, |ui| {
+                    let mut pick = |shape: Option<&'static str>| {
+                        let f: StrokeEdit = Box::new(move |s| {
+                            let a = shape.map(Arrow::new);
+                            if is_start {
+                                s.start_arrow = a;
+                            } else {
+                                s.end_arrow = a;
+                            }
+                        });
+                        edit = Some(f);
+                    };
+                    if ui
+                        .selectable_label(cur.is_none(), tr("Nenhuma", "None"))
+                        .clicked()
+                    {
+                        pick(None);
+                    }
+                    for shape in graphdraw_core::render::arrows::SHAPES {
+                        let on = cur.as_ref().is_some_and(|a| a.shape == shape);
+                        if ui.selectable_label(on, arrow_label(shape)).clicked() {
+                            pick(Some(shape));
+                        }
+                    }
+                });
+        });
+    });
+    if let Some(f) = edit {
+        ops::edit_stroke(&mut doc.editor, sel, f);
+    }
+}
+
+/// Caneta caligráfica (do GraphDraw, depois do contexto): bico e ângulo.
+fn pen_extra(ui: &mut egui::Ui, bar: &mut Bar, doc: &mut DocState, sel: &[String]) {
+    let Some(s) = stroke_info(doc).and_then(|i| i.current) else {
+        return;
+    };
+    let mut pct = (s.nib_stretch * 100.0).round();
+    let mut angle = s.nib_angle;
+    let mut edit: Option<StrokeEdit> = None;
+    bar.group(
+        ui,
+        "CANETA",
+        tr("Caneta caligráfica", "Calligraphic pen"),
+        false,
+        |ui, _| {
+            widgets::stack(ui, |ui, row| {
+                if row == 0 {
+                    ui.label(tr("Bico", "Nib"));
+                    if ui
+                        .add(
+                            egui::DragValue::new(&mut pct)
+                                .range(1.0..=100.0)
+                                .suffix("%"),
+                        )
+                        .on_hover_text(tr(
+                            "Caneta caligráfica: largura do bico (100% = redondo)",
+                            "Calligraphic pen: nib width (100% = round)",
+                        ))
+                        .changed()
+                    {
+                        let v = pct / 100.0;
+                        edit = Some(Box::new(move |s| s.nib_stretch = v));
+                    }
+                } else {
+                    ui.label(tr("Âng.", "Ang."));
+                    if ui
+                        .add_enabled(
+                            s.nib_stretch < 0.999,
+                            egui::DragValue::new(&mut angle)
+                                .range(-360.0..=360.0)
+                                .suffix("°"),
+                        )
+                        .changed()
+                    {
+                        edit = Some(Box::new(move |s| s.nib_angle = angle));
+                    }
+                }
+            });
+        },
+    );
+    if let Some(f) = edit {
+        ops::edit_stroke(&mut doc.editor, sel, f);
+    }
+}
+
+/// B-CUR (doc 31): fechar curva e separar. Devolve se a seleção mudou.
+fn cur_group(ui: &mut egui::Ui, bar: &mut Bar, doc: &mut DocState, sel: &[String]) -> bool {
+    let closed = doc.selected_objects().iter().all(|o| match &o.kind {
+        ObjectKind::Path(p) => p.subpaths.iter().all(|s| s.closed),
+        _ => true,
+    });
+    let (mut toggle, mut split) = (false, false);
+    bar.group(
+        ui,
+        "B-CUR",
+        tr("Opções de curva", "Curve options"),
+        false,
+        |ui, it| {
+            if it.show("close", tr("Fechar curva", "Close curve")) {
+                toggle = icons::button(
+                    ui,
+                    "path-close",
+                    if closed {
+                        tr(
+                            "Curva fechada (clique para abrir)",
+                            "Closed curve (click to open)",
+                        )
+                    } else {
+                        tr(
+                            "Fechar curva (une as pontas)",
+                            "Close curve (joins the ends)",
+                        )
+                    },
+                    closed,
+                    true,
+                )
+                .clicked();
+            }
+            if it.show("break", tr("Separar", "Break apart")) {
+                split = icons::button(
+                    ui,
+                    "break-apart",
+                    crate::keymap::hint(
+                        tr("Separar", "Break apart"),
+                        crate::keymap::Command::BreakApart,
+                    ),
+                    false,
+                    true,
+                )
+                .clicked();
+            }
+        },
+    );
+    if toggle {
+        ops::modify(
+            &mut doc.editor,
+            sel,
+            if closed {
+                tr("Abrir curva", "Open curve")
+            } else {
+                tr("Fechar curva", "Close curve")
+            },
+            |o| {
+                if let ObjectKind::Path(p) = &mut o.kind {
+                    for i in 0..p.subpaths.len() {
+                        nodes::set_closed(p, i, !closed);
+                    }
+                    return true;
+                }
+                false
+            },
+        );
+    }
+    if split && let Some(n) = graphdraw_core::edit::breakapart::break_apart(&mut doc.editor, sel) {
+        doc.selection = n;
+        return true;
+    }
+    false
+}
+
+/// Agrupar · desagrupar · desagrupar tudo (GD-BPC-02) ou só desagrupar
+/// (GD-BPC-03). Devolve se a seleção mudou.
+fn group_buttons(
+    ui: &mut egui::Ui,
+    bar: &mut Bar,
+    doc: &mut DocState,
+    sel: &[String],
+    with_group: bool,
+) -> bool {
+    use crate::keymap::{Command as K, hint};
+    let any_group = doc
+        .selected_objects()
+        .iter()
+        .any(|o| matches!(o.kind, ObjectKind::Group(_)));
+    let (mut g, mut u) = (false, false);
+    let id = if with_group { "GRP-TUDO" } else { "DESAGR" };
+    bar.group(ui, id, tr("Agrupar", "Group"), false, |ui, it| {
+        if with_group {
+            g = icons::button(
+                ui,
+                "group",
+                hint(tr("Agrupar", "Group"), K::Group_),
+                false,
+                sel.len() > 1,
+            )
+            .clicked();
+        }
+        u = icons::button(
+            ui,
+            "ungroup",
+            hint(tr("Desagrupar", "Ungroup"), K::Ungroup),
+            false,
+            any_group,
+        )
+        .clicked();
+        if icons::button(
+            ui,
+            K::UngroupAll.icon(),
+            hint(tr("Desagrupar tudo", "Ungroup all"), K::UngroupAll),
+            false,
+            any_group,
+        )
+        .clicked()
+        {
+            it.act(propbar::Action::Run(K::UngroupAll));
+        }
+    });
+    if g && let Some(id) = ops::group(&mut doc.editor, sel) {
+        doc.selection = vec![id];
+        return true;
+    }
+    if u {
+        doc.selection = ops::ungroup(&mut doc.editor, sel);
+        return true;
+    }
+    false
+}
+
+/// B-ORG (doc 31): contornar texto, trazer para frente e enviar para trás
+/// na camada.
+fn org_group(ui: &mut egui::Ui, bar: &mut Bar, doc: &mut DocState, sel: &[String]) {
     let mut reorder = None;
-    bar.group(ui, "ORD", tr("Ordem", "Order"), false, |ui, _| {
-        let order_buttons = [
+    bar.group(
+        ui,
+        "B-ORG",
+        tr("Organização", "Arrange"),
+        false,
+        |ui, it| {
+            if it.show("wrap", tr("Contornar texto", "Wrap text")) {
+                wrap_bar(ui, doc);
+            }
+            if it.show(
+                "front-back",
+                tr("Frente e trás na camada", "Front and back in layer"),
+            ) {
+                widgets::stack(ui, |ui, row| {
+                    let (icon, tip, o) = if row == 0 {
+                        (
+                            "order-front",
+                            crate::keymap::hint(
+                                tr("Trazer para a frente da camada", "Bring to front of layer"),
+                                crate::keymap::Command::ToFront,
+                            ),
+                            Order::ToFront,
+                        )
+                    } else {
+                        (
+                            "order-back",
+                            crate::keymap::hint(
+                                tr("Enviar para trás da camada", "Send to back of layer"),
+                                crate::keymap::Command::ToBack,
+                            ),
+                            Order::ToBack,
+                        )
+                    };
+                    if icons::button(ui, icon, tip, false, true).clicked() {
+                        reorder = Some(o);
+                    }
+                });
+            }
+        },
+    );
+    if let Some(o) = reorder {
+        ops::reorder(&mut doc.editor, sel, o);
+    }
+}
+
+/// Ordem passo a passo (do GraphDraw, depois do contexto). Com vários
+/// objetos, que não têm B-ORG, também frente e trás.
+fn order_extra(ui: &mut egui::Ui, bar: &mut Bar, doc: &mut DocState, sel: &[String], all: bool) {
+    use crate::keymap::{Command as K, hint};
+    let mut buttons = vec![
+        (
+            "order-forward",
+            hint(tr("Um passo à frente", "Bring forward"), K::Forward),
+            Order::Forward,
+        ),
+        (
+            "order-backward",
+            hint(tr("Um passo atrás", "Send backward"), K::Backward),
+            Order::Backward,
+        ),
+    ];
+    if all {
+        buttons.insert(
+            0,
             (
                 "order-front",
-                crate::keymap::hint(
-                    tr("Trazer para frente", "Bring to front"),
-                    crate::keymap::Command::ToFront,
-                ),
+                hint(tr("Trazer para frente", "Bring to front"), K::ToFront),
                 Order::ToFront,
             ),
-            (
-                "order-forward",
-                crate::keymap::hint(
-                    tr("Um passo à frente", "Bring forward"),
-                    crate::keymap::Command::Forward,
-                ),
-                Order::Forward,
-            ),
-            (
-                "order-backward",
-                crate::keymap::hint(
-                    tr("Um passo atrás", "Send backward"),
-                    crate::keymap::Command::Backward,
-                ),
-                Order::Backward,
-            ),
-            (
-                "order-back",
-                crate::keymap::hint(
-                    tr("Enviar para trás", "Send to back"),
-                    crate::keymap::Command::ToBack,
-                ),
-                Order::ToBack,
-            ),
-        ];
+        );
+        buttons.push((
+            "order-back",
+            hint(tr("Enviar para trás", "Send to back"), K::ToBack),
+            Order::ToBack,
+        ));
+    }
+    let mut reorder = None;
+    bar.group(ui, "ORD", tr("Ordem", "Order"), false, |ui, _| {
+        let half = buttons.len() / 2;
         widgets::stack(ui, |ui, row| {
             let items = if row == 0 {
-                &order_buttons[..2]
+                &buttons[..half]
             } else {
-                &order_buttons[2..]
+                &buttons[half..]
             };
             for (icon, tip, order) in items {
                 if icons::button(ui, icon, tip, false, true).clicked() {
@@ -1964,285 +2492,368 @@ fn select_bar(
         });
     });
     if let Some(o) = reorder {
-        ops::reorder(&mut doc.editor, &sel, o);
+        ops::reorder(&mut doc.editor, sel, o);
     }
-    let any_group = doc
-        .selected_objects()
-        .iter()
-        .any(|o| matches!(o.kind, ObjectKind::Group(_)));
-    let (mut do_group, mut do_ungroup) = (false, false);
-    bar.group(ui, "GRP", tr("Agrupar", "Group"), false, |ui, _| {
-        widgets::stack(ui, |ui, row| {
-            if row == 0 {
-                do_group = icons::button(
-                    ui,
-                    "group",
-                    crate::keymap::hint(tr("Agrupar", "Group"), crate::keymap::Command::Group_),
-                    false,
-                    sel.len() > 1,
-                )
-                .clicked();
-            } else {
-                do_ungroup = icons::button(
-                    ui,
-                    "ungroup",
-                    crate::keymap::hint(
-                        tr("Desagrupar", "Ungroup"),
-                        crate::keymap::Command::Ungroup,
-                    ),
-                    false,
-                    any_group,
-                )
-                .clicked();
-            }
-        });
-    });
-    if do_group && let Some(id) = ops::group(&mut doc.editor, &sel) {
-        doc.selection = vec![id];
-        return (false, true);
-    }
-    if do_ungroup {
-        doc.selection = ops::ungroup(&mut doc.editor, &sel);
-        return (false, true);
-    }
-    (false, false)
 }
 
-/// Parâmetros do objeto (DS 4.6, grupo 2): converter em curvas, cantos do
-/// retângulo, polígono/estrela, espiral, elipse e os do texto.
-fn object_group(
+/// Cantos do retângulo (GD-BPC-04): tipo para os 4, raio por canto em duas
+/// colunas e travar cantos juntos.
+fn corners_group(
     ui: &mut egui::Ui,
+    bar: &mut Bar,
     doc: &mut DocState,
     sel: &[String],
-    corners_sel: &mut [bool; 4],
-    object_params: &mut dyn FnMut(&mut egui::Ui, &mut DocState),
+    locked: &mut bool,
 ) {
-    // Primitivas (GD-PRI-01/02): parâmetros editáveis até converter em curvas.
-    let objs = doc.selected_objects();
-    let has_primitive = objs.iter().any(|o| {
-        matches!(
-            o.kind,
-            ObjectKind::Rectangle(_)
-                | ObjectKind::Ellipse(_)
-                | ObjectKind::Polygon(_)
-                | ObjectKind::Spiral(_)
-        )
-    });
-    let single = (objs.len() == 1).then(|| objs[0].clone());
-    if has_primitive
-        && icons::button(
-            ui,
-            "to-curves",
-            crate::keymap::hint(
-                tr("Converter em curvas", "Convert to curves"),
-                crate::keymap::Command::ToCurves,
-            ),
-            false,
-            true,
-        )
-        .clicked()
-    {
-        ops::convert_to_curves(&mut doc.editor, sel);
-    }
-    if let Some(o) = single {
-        match &o.kind {
-            ObjectKind::Rectangle(r) => {
-                ui.separator();
-                // Valores mostrados: os do primeiro canto marcado.
-                let first = (0..4).find(|i| corners_sel[*i]).unwrap_or(0);
-                let corner = r
-                    .corners
-                    .as_ref()
-                    .and_then(|c| c.get(first))
-                    .cloned()
-                    .unwrap_or(Corner {
-                        kind: "round".into(),
-                        radius: 0.0,
-                    });
-                corner_picker(ui, corners_sel);
-                let mut kind = corner.kind.clone();
-                let mut new_radius = None;
-                let mut all = false;
-                widgets::stack(ui, |ui, row| {
-                    if row == 0 {
-                        egui::ComboBox::from_id_salt("canto")
-                            .selected_text(corner_label(&kind))
-                            .width(theme::CORNER_KIND_WIDTH)
-                            .show_ui(ui, |ui| {
-                                for k in ["round", "chamfer", "scallop"] {
-                                    ui.selectable_value(&mut kind, k.to_string(), corner_label(k));
-                                }
-                            });
-                        all = ui
-                            .add_enabled(
-                                corners_sel.iter().any(|v| !*v),
-                                egui::Button::new(tr("Todos", "All")).small(),
-                            )
-                            .on_hover_text(tr("Marcar os 4 cantos", "Select all 4 corners"))
-                            .clicked();
-                    } else {
-                        ui.label(tr("Raio", "Radius"));
-                        new_radius = length_field(
-                            ui,
-                            "raio",
-                            corner.radius,
-                            Some(r.width.min(r.height) / 2.0),
-                        );
+    let Some(r) = doc.selected_objects().iter().find_map(|o| match &o.kind {
+        ObjectKind::Rectangle(r) => Some(r.clone()),
+        _ => None,
+    }) else {
+        return;
+    };
+    let corner = |i: usize| {
+        r.corners
+            .as_ref()
+            .and_then(|c| c.get(i))
+            .cloned()
+            .unwrap_or(Corner {
+                kind: "round".into(),
+                radius: 0.0,
+            })
+    };
+    let kind_now = corner(0).kind;
+    let mut kind = None;
+    let mut radius = None;
+    let max = r.width.min(r.height) / 2.0;
+    bar.group(
+        ui,
+        "RET-CANTOS",
+        tr("Cantos", "Corners"),
+        false,
+        |ui, it| {
+            if it.show("kind", tr("Tipo de canto", "Corner type")) {
+                for (k, icon) in [
+                    ("round", "corner-round"),
+                    ("scallop", "corner-scallop"),
+                    ("chamfer", "corner-chamfer"),
+                ] {
+                    if icons::button(ui, icon, corner_label(k), kind_now == k, true).clicked() {
+                        kind = Some(k);
                     }
-                });
-                if all {
-                    *corners_sel = [true; 4];
                 }
-                if kind != corner.kind || new_radius.is_some() {
-                    let radius = new_radius.unwrap_or(corner.radius).max(0.0);
-                    let which = *corners_sel;
-                    ops::modify(
-                        &mut doc.editor,
-                        sel,
-                        tr("Alterar cantos", "Change corners"),
-                        |o| {
-                            if let ObjectKind::Rectangle(r) = &mut o.kind {
-                                set_corners(&mut r.corners, &which, &kind, radius);
-                                return true;
-                            }
-                            false
-                        },
-                    );
-                }
-            }
-            ObjectKind::Polygon(pd) => {
                 ui.separator();
-                let mut next = pd.clone();
-                let mut changed = polygon_controls(ui, &mut next);
-                if next.bend.is_some()
-                    && ui
-                        .button(tr("Lados retos", "Straight sides"))
-                        .on_hover_text(tr(
-                            "Tira a curvatura dos lados",
-                            "Removes the side curvature",
-                        ))
-                        .clicked()
-                {
-                    next.bend = None;
-                    changed = true;
-                }
-                if !next.free_nodes.is_empty()
-                    && ui
-                        .button(format!(
-                            "{} ({})",
-                            tr("Voltar à simetria", "Back to symmetry"),
-                            next.free_nodes.len()
-                        ))
-                        .on_hover_text(tr(
-                            "Os nós isolados voltam a seguir os outros",
-                            "Isolated nodes follow the others again",
-                        ))
-                        .clicked()
-                {
-                    next.free_nodes.clear();
-                    changed = true;
-                }
-                if changed {
-                    let count = if next.mode == "star" {
-                        2 * next.sides
-                    } else {
-                        next.sides
-                    };
-                    next.free_nodes.retain(|f| f.index < count);
-                    ops::modify(
-                        &mut doc.editor,
-                        sel,
-                        tr("Alterar polígono", "Change polygon"),
-                        |o| {
-                            if let ObjectKind::Polygon(p) = &mut o.kind {
-                                let (rx, ry) = (p.rx, p.ry);
-                                *p = next.clone();
-                                p.rx = rx;
-                                p.ry = ry;
-                                return true;
-                            }
-                            false
-                        },
-                    );
-                }
             }
-            ObjectKind::Spiral(sd) => {
-                ui.separator();
-                let mut n = sd.clone();
-                if spiral_params(
-                    ui,
-                    &mut n.turns,
-                    &mut n.logarithmic,
-                    &mut n.expansion,
-                    &mut n.ribbon,
-                ) {
-                    let ribbon_on = n.ribbon.is_some() && sd.ribbon.is_none();
-                    ops::modify(
-                        &mut doc.editor,
-                        sel,
-                        tr("Alterar espiral", "Change spiral"),
-                        |o| {
-                            if let ObjectKind::Spiral(s) = &mut o.kind {
-                                s.turns = n.turns;
-                                s.logarithmic = n.logarithmic;
-                                s.expansion = n.expansion;
-                                s.ribbon = n.ribbon;
-                                // Fita nova: preenchida com a cor do contorno.
-                                if ribbon_on && o.fill.is_none() {
-                                    o.fill = o.stroke.as_ref().map(|st| {
-                                        graphdraw_core::model::Fill::solid(st.color.clone())
-                                    });
-                                    o.stroke = None;
-                                }
-                                return true;
-                            }
-                            false
-                        },
-                    );
-                }
-            }
-            ObjectKind::Ellipse(e) => {
-                ui.separator();
-                let mut mode = e.mode.clone();
-                egui::ComboBox::from_id_salt("modo-elipse")
-                    .selected_text(ellipse_label(&mode))
-                    .width(80.0)
-                    .show_ui(ui, |ui| {
-                        for m in ["ellipse", "arc", "pie"] {
-                            ui.selectable_value(&mut mode, m.to_string(), ellipse_label(m));
+            if it.show("radius", tr("Raio por canto", "Radius per corner")) {
+                // Duas colunas como na forma: esquerda (sup./inf.) e direita.
+                for col in [[3, 0], [2, 1]] {
+                    widgets::stack(ui, |ui, row| {
+                        let i = col[row];
+                        if let Some(v) =
+                            length_field(ui, &format!("raio-{i}"), corner(i).radius, Some(max))
+                        {
+                            radius = Some((i, v.max(0.0)));
                         }
                     });
-                let mut start = None;
-                let mut end = None;
-                if e.mode != "ellipse" {
-                    start = number_field(ui, "ini", e.start_angle, "°");
-                    end = number_field(ui, "fim", e.end_angle, "°");
-                }
-                if mode != e.mode || start.is_some() || end.is_some() {
-                    ops::modify(
-                        &mut doc.editor,
-                        sel,
-                        tr("Alterar elipse", "Change ellipse"),
-                        |o| {
-                            if let ObjectKind::Ellipse(e) = &mut o.kind {
-                                e.mode = mode.clone();
-                                if let Some(s) = start {
-                                    e.start_angle = s;
-                                }
-                                if let Some(v) = end {
-                                    e.end_angle = v;
-                                }
-                                return true;
-                            }
-                            false
-                        },
-                    );
                 }
             }
-            _ => {}
-        }
+            if it.show("lock", tr("Travar cantos juntos", "Lock corners together")) {
+                let tip = if *locked {
+                    tr(
+                        "Cantos travados: um raio muda os 4",
+                        "Corners locked: one radius changes all 4",
+                    )
+                } else {
+                    tr(
+                        "Cantos livres: cada raio é só dele",
+                        "Corners free: each radius is its own",
+                    )
+                };
+                let icon = if *locked { "lock-on" } else { "lock-off" };
+                if icons::button(ui, icon, tip, *locked, true).clicked() {
+                    *locked = !*locked;
+                }
+            }
+        },
+    );
+    if let Some(k) = kind {
+        ops::modify(
+            &mut doc.editor,
+            sel,
+            tr("Tipo de canto", "Corner type"),
+            |o| {
+                if let ObjectKind::Rectangle(r) = &mut o.kind {
+                    let cs = r.corners.get_or_insert_with(|| {
+                        vec![
+                            Corner {
+                                kind: "round".into(),
+                                radius: 0.0
+                            };
+                            4
+                        ]
+                    });
+                    for c in cs.iter_mut() {
+                        c.kind = k.to_string();
+                    }
+                    return true;
+                }
+                false
+            },
+        );
     }
-    object_params(ui, doc);
+    if let Some((i, v)) = radius {
+        set_corner_radius(doc, sel, i, v, *locked);
+    }
+}
+
+/// Raio de um canto do retângulo (índices do modelo: 0 inf.-esq., 1
+/// inf.-dir., 2 sup.-dir., 3 sup.-esq.); com `locked`, os 4 juntos
+/// (GD-BPC-04). Um passo de desfazer.
+pub(crate) fn set_corner_radius(
+    doc: &mut DocState,
+    sel: &[String],
+    corner: usize,
+    radius: f64,
+    locked: bool,
+) {
+    ops::modify(
+        &mut doc.editor,
+        sel,
+        tr("Raio do canto", "Corner radius"),
+        |o| {
+            if let ObjectKind::Rectangle(r) = &mut o.kind {
+                let cs = r.corners.get_or_insert_with(|| {
+                    vec![
+                        Corner {
+                            kind: "round".into(),
+                            radius: 0.0
+                        };
+                        4
+                    ]
+                });
+                for (i, c) in cs.iter_mut().enumerate() {
+                    if locked || i == corner {
+                        c.radius = radius;
+                    }
+                }
+                return true;
+            }
+            false
+        },
+    );
+}
+
+/// Primeira elipse selecionada.
+fn first_ellipse(doc: &DocState) -> Option<graphdraw_core::model::EllipseData> {
+    doc.selected_objects().iter().find_map(|o| match &o.kind {
+        ObjectKind::Ellipse(e) => Some(e.clone()),
+        _ => None,
+    })
+}
+
+/// Elipse, fatia ou arco (GD-BPC-05).
+fn ellipse_mode_group(ui: &mut egui::Ui, bar: &mut Bar, doc: &mut DocState, sel: &[String]) {
+    let Some(e) = first_ellipse(doc) else {
+        return;
+    };
+    let mut mode = None;
+    bar.group(
+        ui,
+        "ELI-MODO",
+        tr("Elipse, fatia ou arco", "Ellipse, pie or arc"),
+        false,
+        |ui, _| {
+            for (m, icon) in [
+                ("ellipse", "ellipse-whole"),
+                ("pie", "ellipse-pie"),
+                ("arc", "ellipse-arc"),
+            ] {
+                if icons::button(ui, icon, ellipse_label(m), e.mode == m, true).clicked() {
+                    mode = Some(m);
+                }
+            }
+        },
+    );
+    if let Some(m) = mode.filter(|m| *m != e.mode) {
+        ops::modify(
+            &mut doc.editor,
+            sel,
+            tr("Alterar elipse", "Change ellipse"),
+            |o| {
+                if let ObjectKind::Ellipse(e) = &mut o.kind {
+                    e.mode = m.to_string();
+                    return true;
+                }
+                false
+            },
+        );
+    }
+}
+
+/// Ângulos inicial e final e inverter sentido (GD-BPC-05); na elipse
+/// inteira ficam desabilitados.
+fn ellipse_angle_group(ui: &mut egui::Ui, bar: &mut Bar, doc: &mut DocState, sel: &[String]) {
+    let Some(e) = first_ellipse(doc) else {
+        return;
+    };
+    let (mut start, mut end, mut flip) = (None, None, false);
+    bar.group(ui, "ELI-ANG", tr("Ângulos", "Angles"), false, |ui, _| {
+        ui.add_enabled_ui(e.mode != "ellipse", |ui| {
+            widgets::stack(ui, |ui, row| {
+                if row == 0 {
+                    start = number_field(ui, "ini", e.start_angle, "°");
+                } else {
+                    end = number_field(ui, "fim", e.end_angle, "°");
+                }
+            });
+            flip = icons::button(
+                ui,
+                "path-reverse",
+                tr(
+                    "Inverter sentido (troca início e fim)",
+                    "Reverse direction (swaps start and end)",
+                ),
+                false,
+                true,
+            )
+            .clicked();
+        });
+    });
+    if start.is_some() || end.is_some() || flip {
+        ops::modify(
+            &mut doc.editor,
+            sel,
+            tr("Alterar elipse", "Change ellipse"),
+            |o| {
+                if let ObjectKind::Ellipse(e) = &mut o.kind {
+                    if let Some(s) = start {
+                        e.start_angle = s;
+                    }
+                    if let Some(v) = end {
+                        e.end_angle = v;
+                    }
+                    if flip {
+                        std::mem::swap(&mut e.start_angle, &mut e.end_angle);
+                    }
+                    return true;
+                }
+                false
+            },
+        );
+    }
+}
+
+/// Polígono e estrelas (GD-BPC-06/07): modo, lados/pontas, nitidez e
+/// cantos; lados retos e voltar à simetria quando cabem.
+fn polygon_group(ui: &mut egui::Ui, bar: &mut Bar, doc: &mut DocState, sel: &[String]) {
+    let Some(pd) = doc.selected_objects().iter().find_map(|o| match &o.kind {
+        ObjectKind::Polygon(p) => Some(p.clone()),
+        _ => None,
+    }) else {
+        return;
+    };
+    let mut next = pd.clone();
+    let mut changed = false;
+    bar.group(ui, "POL", tr("Polígono", "Polygon"), false, |ui, _| {
+        changed = polygon_controls(ui, &mut next);
+        if next.bend.is_some()
+            && ui
+                .button(tr("Lados retos", "Straight sides"))
+                .on_hover_text(tr(
+                    "Tira a curvatura dos lados",
+                    "Removes the side curvature",
+                ))
+                .clicked()
+        {
+            next.bend = None;
+            changed = true;
+        }
+        if !next.free_nodes.is_empty()
+            && ui
+                .button(format!(
+                    "{} ({})",
+                    tr("Voltar à simetria", "Back to symmetry"),
+                    next.free_nodes.len()
+                ))
+                .on_hover_text(tr(
+                    "Os nós isolados voltam a seguir os outros",
+                    "Isolated nodes follow the others again",
+                ))
+                .clicked()
+        {
+            next.free_nodes.clear();
+            changed = true;
+        }
+    });
+    if changed {
+        let count = if next.mode == "star" {
+            2 * next.sides
+        } else {
+            next.sides
+        };
+        next.free_nodes.retain(|f| f.index < count);
+        ops::modify(
+            &mut doc.editor,
+            sel,
+            tr("Alterar polígono", "Change polygon"),
+            |o| {
+                if let ObjectKind::Polygon(p) = &mut o.kind {
+                    let (rx, ry) = (p.rx, p.ry);
+                    *p = next.clone();
+                    p.rx = rx;
+                    p.ry = ry;
+                    return true;
+                }
+                false
+            },
+        );
+    }
+}
+
+/// Espiral (GD-BPC-08): voltas, simétrica/logarítmica, expansão e fita.
+fn spiral_group(ui: &mut egui::Ui, bar: &mut Bar, doc: &mut DocState, sel: &[String]) {
+    let Some(sd) = doc.selected_objects().iter().find_map(|o| match &o.kind {
+        ObjectKind::Spiral(s) => Some(s.clone()),
+        _ => None,
+    }) else {
+        return;
+    };
+    let mut n = sd.clone();
+    let mut changed = false;
+    bar.group(ui, "ESP", tr("Espiral", "Spiral"), false, |ui, _| {
+        changed = spiral_params(
+            ui,
+            &mut n.turns,
+            &mut n.logarithmic,
+            &mut n.expansion,
+            &mut n.ribbon,
+        );
+    });
+    if changed {
+        let ribbon_on = n.ribbon.is_some() && sd.ribbon.is_none();
+        ops::modify(
+            &mut doc.editor,
+            sel,
+            tr("Alterar espiral", "Change spiral"),
+            |o| {
+                if let ObjectKind::Spiral(s) = &mut o.kind {
+                    s.turns = n.turns;
+                    s.logarithmic = n.logarithmic;
+                    s.expansion = n.expansion;
+                    s.ribbon = n.ribbon;
+                    // Fita nova: preenchida com a cor do contorno.
+                    if ribbon_on && o.fill.is_none() {
+                        o.fill = o
+                            .stroke
+                            .as_ref()
+                            .map(|st| graphdraw_core::model::Fill::solid(st.color.clone()));
+                        o.stroke = None;
+                    }
+                    return true;
+                }
+                false
+            },
+        );
+    }
 }
 
 /// Combinar, Separar e as booleanas. Devolve a seleção nova quando uma
@@ -2389,192 +3000,6 @@ fn combine_group(ui: &mut egui::Ui, doc: &mut DocState, sel: &[String]) -> Optio
         B::BreakApart => graphdraw_core::edit::breakapart::break_apart(&mut doc.editor, sel),
         B::Bool(op) => shapeops::boolean(&mut doc.editor, sel, op, op.default_options()),
         B::Shape(op) => shapeops::shape_op(&mut doc.editor, sel, op),
-    }
-}
-
-/// Contorno na barra de propriedades (edição rápida; a janela de contorno
-/// fica para o ajuste fino): B-CTN (espessura e estilo de linha), B-SET
-/// (pontas de seta, só com curva aberta) e a caneta caligráfica. A
-/// espessura que difere entre os objetos fica vazia (GD-BPR-02).
-fn stroke_bar(ui: &mut egui::Ui, bar: &mut Bar, doc: &mut DocState, sel: &[String]) {
-    use crate::dialogs::{DASHES, arrow_label, dash_for, detect_dash};
-    use graphdraw_core::model::{Arrow, Stroke};
-    let objs = doc.selected_objects();
-    let eligible: Vec<_> = objs
-        .iter()
-        .filter(|o| !matches!(o.kind, ObjectKind::Image(_)))
-        .collect();
-    if eligible.is_empty() {
-        return;
-    }
-    let current: Option<Stroke> = eligible.iter().find_map(|o| o.stroke.clone());
-    let width = crate::propbar::Mixed::of(
-        eligible
-            .iter()
-            .map(|o| o.stroke.as_ref().map_or(0.0, |s| s.width)),
-    );
-    let open_path = eligible.iter().any(|o| match &o.kind {
-        ObjectKind::Path(p) => p.subpaths.iter().any(|s| !s.closed),
-        _ => false,
-    });
-    drop(objs);
-    type Edit = Box<dyn Fn(&mut Stroke)>;
-    let mut edit: Option<(&str, Edit)> = None;
-    let mut remove = false;
-    bar.group(ui, "B-CTN", tr("Contorno", "Outline"), false, |ui, it| {
-        let show_width = it.show("width", tr("Espessura", "Width"));
-        let show_style = it.show("style", tr("Estilo de linha", "Line style"));
-        widgets::stack(ui, |ui, row| {
-            if row == 0 && show_width {
-                if let Some(v) = widgets::labeled_mixed_length(
-                    ui,
-                    tr("Contorno", "Outline"),
-                    "contorno-espessura",
-                    width.value().copied(),
-                ) {
-                    let v = v.max(0.0);
-                    edit = Some((
-                        tr("Espessura do contorno", "Outline width"),
-                        Box::new(move |s| s.width = v),
-                    ));
-                }
-            } else if row == 1 && show_style {
-                let preset = current.as_ref().map_or(0, detect_dash);
-                let text = if current.is_none() {
-                    tr("Sem contorno", "No outline")
-                } else {
-                    DASHES
-                        .get(preset)
-                        .map_or(tr("Personalizado", "Custom"), |d| tr(d.0, d.1))
-                };
-                egui::ComboBox::from_id_salt("contorno-estilo")
-                    .selected_text(text)
-                    .width(theme::ARROW_COMBO_WIDTH)
-                    .show_ui(ui, |ui| {
-                        if ui
-                            .selectable_label(current.is_none(), tr("Sem contorno", "No outline"))
-                            .clicked()
-                        {
-                            remove = true;
-                        }
-                        for (i, d) in DASHES.iter().enumerate() {
-                            if ui
-                                .selectable_label(current.is_some() && preset == i, tr(d.0, d.1))
-                                .clicked()
-                            {
-                                edit = Some((
-                                    tr("Estilo do contorno", "Outline style"),
-                                    Box::new(move |s| s.dash = dash_for(i, s.width)),
-                                ));
-                            }
-                        }
-                    });
-            }
-        });
-    });
-    // Pontas de seta: só com curva aberta.
-    if open_path {
-        let (start, end) = current.as_ref().map_or((None, None), |s| {
-            (s.start_arrow.clone(), s.end_arrow.clone())
-        });
-        bar.group(ui, "B-SET", tr("Setas", "Arrows"), false, |ui, _| {
-            widgets::stack(ui, |ui, row| {
-                let (label, id, cur, is_start) = if row == 0 {
-                    (tr("Início", "Start"), "barra-seta-inicio", &start, true)
-                } else {
-                    (tr("Fim", "End"), "barra-seta-fim", &end, false)
-                };
-                ui.label(label);
-                let text = cur
-                    .as_ref()
-                    .map_or(tr("Nenhuma", "None"), |a| arrow_label(&a.shape));
-                egui::ComboBox::from_id_salt(id)
-                    .selected_text(text)
-                    .width(theme::ARROW_COMBO_WIDTH)
-                    .show_ui(ui, |ui| {
-                        let mut pick = |shape: Option<&'static str>| {
-                            let f: Edit = Box::new(move |s| {
-                                let a = shape.map(Arrow::new);
-                                if is_start {
-                                    s.start_arrow = a;
-                                } else {
-                                    s.end_arrow = a;
-                                }
-                            });
-                            edit = Some((tr("Ponta de seta", "Arrowhead"), f));
-                        };
-                        if ui
-                            .selectable_label(cur.is_none(), tr("Nenhuma", "None"))
-                            .clicked()
-                        {
-                            pick(None);
-                        }
-                        for shape in graphdraw_core::render::arrows::SHAPES {
-                            let on = cur.as_ref().is_some_and(|a| a.shape == shape);
-                            if ui.selectable_label(on, arrow_label(shape)).clicked() {
-                                pick(Some(shape));
-                            }
-                        }
-                    });
-            });
-        });
-    }
-    // Caneta caligráfica: com contorno.
-    if let Some(s) = &current {
-        let mut pct = (s.nib_stretch * 100.0).round();
-        let mut angle = s.nib_angle;
-        bar.group(
-            ui,
-            "CANETA",
-            tr("Caneta caligráfica", "Calligraphic pen"),
-            false,
-            |ui, _| {
-                widgets::stack(ui, |ui, row| {
-                    if row == 0 {
-                        ui.label(tr("Bico", "Nib"));
-                        if ui
-                            .add(
-                                egui::DragValue::new(&mut pct)
-                                    .range(1.0..=100.0)
-                                    .suffix("%"),
-                            )
-                            .on_hover_text(tr(
-                                "Caneta caligráfica: largura do bico (100% = redondo)",
-                                "Calligraphic pen: nib width (100% = round)",
-                            ))
-                            .changed()
-                        {
-                            let v = pct / 100.0;
-                            edit = Some((
-                                tr("Caneta caligráfica", "Calligraphic pen"),
-                                Box::new(move |s| s.nib_stretch = v),
-                            ));
-                        }
-                    } else {
-                        ui.label(tr("Âng.", "Ang."));
-                        if ui
-                            .add_enabled(
-                                s.nib_stretch < 0.999,
-                                egui::DragValue::new(&mut angle)
-                                    .range(-360.0..=360.0)
-                                    .suffix("°"),
-                            )
-                            .changed()
-                        {
-                            edit = Some((
-                                tr("Caneta caligráfica", "Calligraphic pen"),
-                                Box::new(move |s| s.nib_angle = angle),
-                            ));
-                        }
-                    }
-                });
-            },
-        );
-    }
-    if remove {
-        ops::set_stroke(&mut doc.editor, sel, None);
-    } else if let Some((_, f)) = edit {
-        ops::edit_stroke(&mut doc.editor, sel, f);
     }
 }
 
@@ -5800,21 +6225,6 @@ mod tests {
         (panel, content)
     }
 
-    /// Cantos: alterar com só alguns marcados mexe só neles; "Todos" = os 4.
-    #[test]
-    fn corners_change_only_selected_ones() {
-        let mut cs = None;
-        set_corners(&mut cs, &[true; 4], "round", 2_000.0);
-        assert!(cs.as_ref().unwrap().iter().all(|c| c.radius == 2_000.0));
-        // Só o superior direito (índice 2) vira chanfro de 5 mm.
-        set_corners(&mut cs, &[false, false, true, false], "chamfer", 5_000.0);
-        let c = cs.unwrap();
-        assert_eq!((c[2].kind.as_str(), c[2].radius), ("chamfer", 5_000.0));
-        for i in [0, 1, 3] {
-            assert_eq!((c[i].kind.as_str(), c[i].radius), ("round", 2_000.0));
-        }
-    }
-
     /// Só mostrar a barra de seleção não altera o documento.
     #[test]
     fn showing_select_bar_does_not_modify() {
@@ -5841,15 +6251,14 @@ mod tests {
             let (mut a, mut l) = (Anchor::Center, true);
             let c = propbar::Customs::default();
             let mut bar = Bar::begin(ui, "t".into(), &c, Pass::Inline, false);
-            select_bar(
-                ui,
-                &mut bar,
-                d,
-                &mut a,
-                &mut l,
-                &mut [true; 4],
-                &mut |_, _| {},
-            );
+            let (mut cl, mut nu) = (true, (1_000.0, 10_000.0));
+            let mut st = SelState {
+                anchor: &mut a,
+                lock: &mut l,
+                corner_lock: &mut cl,
+                nudge: &mut nu,
+            };
+            select_bar(ui, &mut bar, d, &mut st, &mut |_, _| {});
             bar.end(ui, None);
         };
         let _ = bar(&mut doc, select);
@@ -5917,15 +6326,14 @@ mod tests {
             let (mut a, mut l) = (Anchor::Center, true);
             let c = propbar::Customs::default();
             let mut bar = Bar::begin(ui, "t".into(), &c, Pass::Inline, false);
-            select_bar(
-                ui,
-                &mut bar,
-                d,
-                &mut a,
-                &mut l,
-                &mut [true; 4],
-                &mut |_, _| {},
-            );
+            let (mut cl, mut nu) = (true, (1_000.0, 10_000.0));
+            let mut st = SelState {
+                anchor: &mut a,
+                lock: &mut l,
+                corner_lock: &mut cl,
+                nudge: &mut nu,
+            };
+            select_bar(ui, &mut bar, d, &mut st, &mut |_, _| {});
             bar.end(ui, None);
         };
         fits(bar(&mut doc, select), "seleção");

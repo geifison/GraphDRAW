@@ -299,8 +299,6 @@ pub const HEX_FIELD_WIDTH: f32 = 72.0;
 /// Seletor de cantos do retângulo (2 × 2): lado de cada célula e vão.
 pub const CORNER_CELL: f32 = 10.0;
 pub const CORNER_GAP: f32 = 4.0;
-/// Tipo de canto (Redondo/Chanfro/Recorte).
-pub const CORNER_KIND_WIDTH: f32 = 96.0;
 /// Réguas (GD-REG-01): largura da faixa, espaço mínimo entre números e
 /// comprimento das marcas.
 pub const RULER_SIZE: f32 = 20.0;

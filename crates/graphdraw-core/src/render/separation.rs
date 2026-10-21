@@ -18,7 +18,8 @@ use super::scene::{DecodedImage, ImageItem, Item, Paint, Scene, ShapeItem};
 use crate::model::{Color, Document};
 
 /// Chapa de impressão.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Plate {
     Cyan,
     Magenta,
