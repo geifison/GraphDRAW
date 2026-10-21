@@ -379,7 +379,7 @@ pub fn fountain_t(f: &Fountain, b: Rect, p: Point) -> Option<f64> {
             let start = c - dir * half;
             Some((p - start).dot(dir) / (2.0 * half))
         }
-        FountainKind::Radial => {
+        FountainKind::Radial | FountainKind::Elliptical => {
             let cr = Point::new(c.x + f.offset.x * w / 2.0, c.y + f.offset.y * h / 2.0);
             let radius = (w.max(h) / 2.0) * std::f64::consts::SQRT_2;
             (radius > 0.0).then(|| (p - cr).hypot() / radius)
@@ -440,7 +440,7 @@ pub fn stop_points(f: &Fountain, b: Rect) -> Vec<(usize, Point)> {
                 let half = (w * a.cos().abs() + h * a.sin().abs()) / 2.0;
                 Some(c - dir * half + dir * (2.0 * half * t))
             }
-            FountainKind::Radial => {
+            FountainKind::Radial | FountainKind::Elliptical => {
                 let cr = Point::new(c.x + f.offset.x * w / 2.0, c.y + f.offset.y * h / 2.0);
                 let radius = (w.max(h) / 2.0) * std::f64::consts::SQRT_2;
                 Some(Point::new(cr.x + radius * t, cr.y))
@@ -1517,10 +1517,7 @@ mod tests {
     #[test]
     fn stop_points_follow_inversion_and_edge_pad() {
         let mut f = red_blue();
-        f.stops.push(Stop {
-            pos: 0.5,
-            color: GREEN,
-        });
+        f.stops.push(Stop::new(0.5, GREEN));
         let b = Rect::new(0.0, 0.0, 100.0, 10.0);
         let pts = stop_points(&f, b);
         assert!((pts[2].1.x - 50.0).abs() < 1e-9);
