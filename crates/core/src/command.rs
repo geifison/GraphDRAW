@@ -1009,28 +1009,56 @@ impl Command {
                 if contents.contains(frame) {
                     return Ok(());
                 }
-                doc.shape(*frame)?;
+                // The frame may lie inside a group or another clip frame;
+                // the contents come from a layer.
+                let parent = doc
+                    .parent_transform(*frame)
+                    .ok_or(Error::ShapeNotFound(*frame))?;
                 for id in contents {
                     doc.shape(*id)?;
+                }
+                // A frame cannot go inside itself through its parents.
+                let ancestors = doc.ancestors(*frame);
+                if contents.iter().any(|c| ancestors.contains(c)) {
+                    return Ok(());
                 }
                 let mut inner = Vec::new();
                 for id in contents {
                     let (lid, i) = doc.locate(*id)?;
                     inner.push(doc.layer_mut(lid)?.shapes.remove(i));
                 }
-                let (flid, fi) = doc.locate(*frame)?;
-                let frame_shape = doc.layer_mut(flid)?.shapes.remove(fi);
-                let mut clip = Shape::new(
-                    *frame,
-                    ShapeKind::ClipFrame {
-                        frame: Box::new(frame_shape.clone()),
-                        contents: inner,
-                    },
-                );
-                clip.name = frame_shape.name.clone();
-                clip.opacity = frame_shape.opacity;
-                let target = &mut doc.layer_mut(flid)?.shapes;
-                target.insert(fi.min(target.len()), clip);
+                let target = doc
+                    .find_shape_mut(*frame)
+                    .ok_or(Error::ShapeNotFound(*frame))?;
+                // From the page into the space the contents are kept in,
+                // so they stay where they are.
+                let into = |space: Affine, inner: &mut Vec<Shape>| {
+                    if space != Affine::IDENTITY && space.determinant().abs() > 1e-12 {
+                        let back = space.inverse();
+                        for c in inner.iter_mut() {
+                            c.absorb(back);
+                        }
+                    }
+                };
+                if let ShapeKind::ClipFrame { contents: held, .. } = &mut target.kind {
+                    // Already a clip frame: the new objects join its
+                    // contents, on top.
+                    into(parent * target.transform, &mut inner);
+                    held.extend(inner);
+                } else {
+                    into(parent, &mut inner);
+                    let frame_shape = target.clone();
+                    let mut clip = Shape::new(
+                        *frame,
+                        ShapeKind::ClipFrame {
+                            frame: Box::new(frame_shape.clone()),
+                            contents: inner,
+                        },
+                    );
+                    clip.name = frame_shape.name.clone();
+                    clip.opacity = frame_shape.opacity;
+                    *target = clip;
+                }
             }
             Command::ExtractContents { clip } => {
                 let (lid, i) = doc.locate(*clip)?;

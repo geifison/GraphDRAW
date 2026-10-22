@@ -153,7 +153,7 @@ pub fn draw_canvas(app: &App, painter: &Painter, rect: ERect) {
             }
         },
         Drag::Marquee { start, current, .. } => {
-            // A dashed blue frame.
+            // A dashed frame in the selection line colour.
             let r = view.rect_to_screen(Rect::from_points(*start, *current));
             let pts = [
                 r.left_top(),
@@ -162,7 +162,7 @@ pub fn draw_canvas(app: &App, painter: &Painter, rect: ERect) {
                 r.left_bottom(),
                 r.left_top(),
             ];
-            dashed_selection_line(painter, &pts);
+            dashed_selection_line(app, painter, &pts);
         }
         Drag::Lasso { points, .. } => {
             let mut pts: Vec<Pos2> = points.iter().map(|p| view.to_screen(*p)).collect();
@@ -170,7 +170,7 @@ pub fn draw_canvas(app: &App, painter: &Painter, rect: ERect) {
                 pts.push(first);
             }
             if pts.len() > 2 {
-                dashed_selection_line(painter, &pts);
+                dashed_selection_line(app, painter, &pts);
             }
         }
         Drag::AlongPath { start, current } => {
@@ -455,11 +455,7 @@ fn draw_page(app: &App, painter: &Painter, rect: ERect, preview: Option<Affine>)
         .map(|(id, _)| *id)
         .collect();
     // ...and everything around its contents fades under a white veil.
-    app.raster.borrow_mut().editing = app
-        .clip_frame_edit
-        .as_ref()
-        .map(|(_, ids)| ids.clone())
-        .unwrap_or_default();
+    app.raster.borrow_mut().editing = app.clip_edit_ids();
     if let Some(tex) = app.raster.borrow_mut().texture(
         painter.ctx(),
         doc,
@@ -534,19 +530,10 @@ fn clip_segment(a: Pos2, b: Pos2, r: ERect) -> Option<(Pos2, Pos2)> {
     ))
 }
 
-/// The marquee's and the lasso's line: blue dashes on a white line so it
-/// shows on any drawing.
-fn dashed_selection_line(painter: &Painter, pts: &[Pos2]) {
-    painter.add(epaint::PathShape::line(
-        pts.to_vec(),
-        EStroke::new(1.0, Color32::from_white_alpha(200)),
-    ));
-    painter.extend(egui::Shape::dashed_line(
-        pts,
-        EStroke::new(1.0, Tokens::SELECTION),
-        4.0,
-        3.0,
-    ));
+/// The marquee's and the lasso's line: dashes in the selection line
+/// colour, cyan unless the drawing under them is too close to it.
+fn dashed_selection_line(app: &App, painter: &Painter, pts: &[Pos2]) {
+    crate::contrast::draw_polyline(app, painter, pts, true);
 }
 
 /// Outline of the shape a 3-point tool would create for base `a -> b` and third point `c`.

@@ -27,9 +27,9 @@ O que acontece com cada objeto:
   excluídos;
 - formas fechadas são cortadas na área, e curvas abertas são cortadas onde
   cruzam a borda; o texto vira curvas antes;
-- bitmaps, tabelas e símbolos são colocados dentro de uma moldura da área, de
+- bitmaps, tabelas e símbolos são colocados dentro de um clip frame da área, de
   modo que o conteúdo fica inteiro e pode ser retirado de novo (veja
-  [Molduras de recorte](../objects/clip-frames.md));
+  [Clip frames](../objects/clip-frames.md));
 - grupos são recortados membro a membro.
 
 ## Faca {#knife}
@@ -75,6 +75,6 @@ A ferramenta [[tool.eraser]] (<kbd>X</kbd>) apaga partes de objetos.
 
 Objetos apagados viram curvas; um objeto apagado por inteiro é excluído.
 Clique duas vezes em um objeto com a ferramenta para excluí-lo inteiro.
-Bitmaps, grupos e molduras de recorte não são apagados. Os padrões da borracha
+Bitmaps, grupos e clip frames não são apagados. Os padrões da borracha
 ficam na página [[tool.eraser]] das opções de ferramentas; veja
 [Opções das ferramentas](../customize/tool-options.md#eraser).

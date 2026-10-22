@@ -54,8 +54,16 @@ reads on black objects as well as on the white page: black where the
 pixels under it are light, white where they are dark (perceived
 brightness `0.299 R + 0.587 G + 0.114 B` against 128, averaged over the
 3 x 3 pixels around the point, the paper or the desktop showing through
-transparent pixels). Handles are edged in the other colour, and each
-stretch of an outline or a text frame picks its colour on its own. A
+transparent pixels). Handles are edged in the other colour.
+
+The selection lines (the solid outline along each chosen object, the
+same outline dashed for the Shape tool, the dashed frame of a chosen
+paragraph text, the marquee and the lasso) are cyan (`#00E5FF`). Where
+the drawing under a stretch lies closer than 120 (RGB distance) to
+cyan they turn neon blue (`#1F51FF`), and where it is that close to
+both, black or white by the rule above. There is no box between the
+handles: only the outline of the objects themselves. Each stretch of
+an outline or a text frame picks its colour on its own. A
 selection whose outlines flatten to more than 40 000 points shows the
 handles only. The Shape tool shows the same outline dashed, under the
 nodes.

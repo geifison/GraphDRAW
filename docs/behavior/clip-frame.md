@@ -21,7 +21,10 @@ outline are drawn, the contents are clipped to the frame's path.
   objects by even-odd (holes of combined curves stay open). The contents keep their position
   (centred when Options > Clip Frames asks for it). Three ways in: the
   Object menu, the context menu, or dragging the contents onto the frame
-  with the right button and choosing Place Inside.
+  with the right button and choosing Place Inside. A frame that is
+  already a clip frame (empty or not, on a layer or inside another clip
+  frame or a group) takes the new objects on top of its contents; it is
+  not wrapped in a second clip frame.
 - Extract Contents: the contents of the selected clip frames become
   ordinary objects again, selected; the frames stay. One undo step. An
   empty frame is left alone and a notice says there is nothing to
@@ -30,11 +33,14 @@ outline are drawn, the contents are clipped to the frame's path.
   tool): the contents come out to be moved and edited, and only they can
   be picked, by a click or a marquee. The frame is not drawn; a light
   blue hairline shows where it is. The clip frame bar shows the level
-  being edited. Finish Editing Contents (Esc, Ctrl+click outside the
+  being edited. Finish Editing Contents (Esc, a double-click or Ctrl+click outside the
   contents, the bar's button or the context menu) puts the contents
-  back. A frame left with
+  back. Objects drawn or pasted while editing count as contents: they
+  can be picked and go inside on finishing. A frame left with
   no contents stays an empty clip frame.
-- Nested clip frames: Ctrl+click a clip frame among the contents being
+- Copy, Cut, Paste and Duplicate take a clip frame with its contents,
+  a clip frame of text too.
+- Nested clip frames: a double-click or Ctrl+click on a clip frame among the contents being
   edited goes one level deeper; finishing goes back one level. The bar
   shows "level n of m": n counts from the outermost frame, m is n plus
   how many clip frames deep the contents go.
@@ -66,7 +72,16 @@ Convert to Curves) change its frame and keep the contents
 A fill or outline given to a selected clip frame (palette, Properties,
 Outline) goes to its frame object, which is what is drawn: the frame's
 outline stays visible above the contents and can always be changed. The
-contents keep theirs.
+contents keep theirs. Every fill and outline editor (property bar,
+Outline and Fill windows, docker) reads the frame object's own fill and
+outline, so an object that became a clip frame shows and edits its
+outline exactly as before. An outline set Behind Fill is drawn first,
+under the frame's fill and the contents, so only its outer half shows,
+on screen, in SVG and in PDF
+(`render::tests::a_clip_frame_outline_behind_the_fill_shows_only_its_outer_half`;
+`clip_frames::text_view`,
+`style_windows::first_leaf`; tested by
+`clip_frames::tests::a_clip_frame_shows_and_edits_its_own_outline`).
 
 ## Clip frame bar
 
@@ -147,4 +162,7 @@ in place and lock work as for any clip frame. One undo step each.
   `clip_frames::tests::nested_clip_frames_are_edited_level_by_level`,
   `clip_frames::tests::an_empty_frame_stays_a_frame_after_editing`,
   `clip_frames::tests::extracting_an_empty_frame_says_so_and_changes_nothing`,
-  `clip_frames::tests::a_frame_cannot_take_itself_and_locked_targets_are_named`.
+  `clip_frames::tests::a_frame_cannot_take_itself_and_locked_targets_are_named`,
+  `clip_frames::tests::placing_into_a_clip_frame_adds_to_its_contents`,
+  `clip_frames::tests::objects_added_while_editing_go_inside`,
+  `clip_frames::tests::a_copied_text_clip_frame_keeps_its_contents`.

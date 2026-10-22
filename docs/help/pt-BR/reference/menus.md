@@ -148,14 +148,14 @@ próprios atalhos; veja
 | [[menu.object.insert_barcode]] | [Códigos de barras e QR codes](../objects/barcodes.md) |
 | [[menu.object.insert_qr]] | [Códigos de barras e QR codes](../objects/barcodes.md) |
 | [[menu.object.insert_page_number]] | [Trabalhar com páginas](../pages-layout/pages.md#page-numbers) |
-| [[menu.object.clip_frame]] | [Colocar objetos dentro de uma moldura](../objects/clip-frames.md) |
-| [[menu.object.clip_frame_place_inside]] | [Colocar objetos dentro de uma moldura](../objects/clip-frames.md) |
-| [[menu.object.clip_frame_extract]] | [Colocar objetos dentro de uma moldura](../objects/clip-frames.md) |
-| [[menu.object.clip_frame_finish]] | [Colocar objetos dentro de uma moldura](../objects/clip-frames.md) |
-| [[menu.object.clip_frame_edit]] | [Colocar objetos dentro de uma moldura](../objects/clip-frames.md) |
-| [[menu.object.clip_frame_lock]] | [Colocar objetos dentro de uma moldura](../objects/clip-frames.md) |
-| [[menu.object.clip_frame_opacity_mask]] | [Colocar objetos dentro de uma moldura](../objects/clip-frames.md) |
-| [[menu.object.clip_frame_invert_mask]] | [Colocar objetos dentro de uma moldura](../objects/clip-frames.md) |
+| [[menu.object.clip_frame]] | [Colocar objetos dentro de um clip frame](../objects/clip-frames.md) |
+| [[menu.object.clip_frame_place_inside]] | [Colocar objetos dentro de um clip frame](../objects/clip-frames.md) |
+| [[menu.object.clip_frame_extract]] | [Colocar objetos dentro de um clip frame](../objects/clip-frames.md) |
+| [[menu.object.clip_frame_finish]] | [Colocar objetos dentro de um clip frame](../objects/clip-frames.md) |
+| [[menu.object.clip_frame_edit]] | [Colocar objetos dentro de um clip frame](../objects/clip-frames.md) |
+| [[menu.object.clip_frame_lock]] | [Colocar objetos dentro de um clip frame](../objects/clip-frames.md) |
+| [[menu.object.clip_frame_opacity_mask]] | [Colocar objetos dentro de um clip frame](../objects/clip-frames.md) |
+| [[menu.object.clip_frame_invert_mask]] | [Colocar objetos dentro de um clip frame](../objects/clip-frames.md) |
 | [[menu.object.symmetry]] | [Desenhar com simetria](../objects/symmetry.md) |
 | [[menu.object.symmetry_create]] | [Desenhar com simetria](../objects/symmetry.md) |
 | [[menu.object.symmetry_edit]] | [Desenhar com simetria](../objects/symmetry.md) |

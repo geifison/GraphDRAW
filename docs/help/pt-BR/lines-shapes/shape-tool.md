@@ -109,7 +109,7 @@ Os nós selecionados vão para uma linha horizontal ou vertical comum, ou para u
   torce uma estrela.
 - Clique duas vezes em um retângulo, elipse ou polígono para transformá-lo em
   curva.
-- Arraste um canto de uma imagem para recortá-la: a imagem vai para uma moldura
+- Arraste um canto de uma imagem para recortá-la: a imagem vai para um clip frame
   cujos nós você edita como uma curva.
 - Com texto, a ferramenta [[tool.shape]] move caracteres individuais; veja
   [Adicionar e editar texto](../text/adding-text.md).
