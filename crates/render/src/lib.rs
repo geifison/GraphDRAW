@@ -483,7 +483,19 @@ impl Renderer<'_> {
             return;
         }
         if let ShapeKind::ClipFrame { frame, contents } = &shape.kind {
-            // Frame's fill first, contents clipped to the frame, then the frame's outline.
+            // Frame's fill first, contents clipped to the frame, then the
+            // frame's outline; an outline behind the fill goes first of all,
+            // so the fill and the contents cover its inner half.
+            let behind = frame.stroke.as_ref().is_some_and(|s| s.behind_fill);
+            let mut outline_only = (**frame).clone();
+            outline_only.fill = Fill::None;
+            outline_only.opacity = shape.opacity;
+            if let Some(st) = outline_only.stroke.as_mut() {
+                st.behind_fill = false;
+            }
+            if behind {
+                self.draw_shape(&outline_only, transform);
+            }
             let mut frame_fill_only = (**frame).clone();
             frame_fill_only.stroke = None;
             frame_fill_only.opacity = shape.opacity;
@@ -520,10 +532,7 @@ impl Renderer<'_> {
                     );
                 }
             }
-            if frame.stroke.is_some() {
-                let mut outline_only = (**frame).clone();
-                outline_only.fill = Fill::None;
-                outline_only.opacity = shape.opacity;
+            if frame.stroke.is_some() && !behind {
                 self.draw_shape(&outline_only, transform);
             }
             return;
@@ -2407,6 +2416,51 @@ mod tests {
         assert_eq!(px(&opts).red(), 255);
         opts.hidden = vec![graphdraw_core::ShapeId(1)];
         assert_eq!(px(&opts).alpha(), 0);
+    }
+
+    #[test]
+    fn a_clip_frame_outline_behind_the_fill_shows_only_its_outer_half() {
+        let red = Color::rgb8(255, 0, 0);
+        let green = Color::rgb8(0, 200, 0);
+        let contents = rect(1, Rect::new(0.0, 0.0, 100.0, 100.0), green);
+        let mut frame = rect(2, Rect::new(20.0, 20.0, 80.0, 80.0), Color::BLACK);
+        frame.stroke = Some(graphdraw_core::style::Stroke {
+            width: 10.0,
+            color: red,
+            ..Default::default()
+        });
+        let clip = |frame: Shape| {
+            Shape::new(
+                graphdraw_core::ShapeId(3),
+                ShapeKind::ClipFrame {
+                    frame: Box::new(frame),
+                    contents: vec![contents.clone()],
+                },
+            )
+        };
+        let opts = RenderOptions {
+            width: 100,
+            height: 100,
+            view: ViewTransform {
+                zoom: 1.0,
+                origin_x: 0.0,
+                origin_y: 100.0,
+            },
+            ..RenderOptions::default()
+        };
+        let render = |s: Shape| {
+            let (doc, page) = doc_with(vec![s]);
+            render_page(&doc, page, &opts).unwrap()
+        };
+        // In front: the inner half of the outline covers the contents.
+        let pm = render(clip(frame.clone()));
+        assert_eq!(px(&pm, 22, 50), (255, 0, 0));
+        assert_eq!(px(&pm, 17, 50), (255, 0, 0));
+        // Behind the fill: the contents cover the inner half.
+        frame.stroke.as_mut().unwrap().behind_fill = true;
+        let pm = render(clip(frame));
+        assert_eq!(px(&pm, 22, 50), (0, 200, 0));
+        assert_eq!(px(&pm, 17, 50), (255, 0, 0));
     }
 
     #[test]

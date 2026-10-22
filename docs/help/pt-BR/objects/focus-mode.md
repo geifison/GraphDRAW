@@ -1,11 +1,11 @@
 # Modo de foco
 
-O modo de foco permite editar os objetos dentro de um grupo ou de uma moldura
-de recorte sem desagrupar, com o resto do desenho esmaecido atrás.
+O modo de foco permite editar os objetos dentro de um grupo ou de um clip
+frame sem desagrupar, com o resto do desenho esmaecido atrás.
 
 ## Entrar e sair do modo de foco {#enter}
 
-- Clique duas vezes em um grupo ou moldura de recorte com a ferramenta
+- Clique duas vezes em um grupo ou clip frame com a ferramenta
   [[tool.pick]].
 - Ou clique com o botão direito em um objeto e escolha **Trazer para o foco**.
   Para um objeto dentro de um grupo, o grupo recebe o foco e o objeto continua

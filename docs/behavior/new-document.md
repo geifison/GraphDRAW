@@ -24,6 +24,8 @@ The formats are `graphdraw_core::page_presets::PRESETS` (A0 to A6, B4,
 B5, Letter, Legal, Tabloid, cards, DL envelope, a 1 x 2 m banner, screens
 and social media formats at 96 dpi RGB). Picking one sets size,
 resolution, colour mode and unit (px for screen formats, mm for print).
+A double-click on a card picks it and creates the document at once, as
+Create does (`new_document_window::tests::double_clicking_a_format_creates_the_document`).
 
 Right: the page to scale with its bleed (dashed), a badge with how many
 times it fits on A4 and A3, then Name (empty: the next `Untitled-N`),

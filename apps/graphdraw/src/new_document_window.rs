@@ -389,7 +389,9 @@ impl NewDocWindow {
                 ui.horizontal_top(|ui| {
                     ui.vertical(|ui| {
                         ui.set_width(520.0);
-                        self.library(ui, max_h - 140.0);
+                        if self.library(ui, max_h - 140.0) {
+                            out = Outcome::Create;
+                        }
                     });
                     ui.add_space(t::SPACE_400);
                     ui.vertical(|ui| {
@@ -428,7 +430,10 @@ impl NewDocWindow {
         out
     }
 
-    fn library(&mut self, ui: &mut egui::Ui, height: f32) {
+    /// The search, the filters and the format cards; true when a card
+    /// was double-clicked (create the document in that format).
+    fn library(&mut self, ui: &mut egui::Ui, height: f32) -> bool {
+        let mut create = false;
         let pal = t::palette(ui);
         let r = ui.add(
             egui::TextEdit::singleline(&mut self.search)
@@ -473,18 +478,22 @@ impl NewDocWindow {
                 ui.horizontal_wrapped(|ui| {
                     ui.spacing_mut().item_spacing = Vec2::splat(t::SPACE_200);
                     for i in list {
-                        if self.card(ui, i) {
+                        let resp = self.card(ui, i);
+                        if resp.clicked() || resp.double_clicked() {
                             self.choose(i);
                         }
+                        create |= resp.double_clicked();
                     }
                 });
             });
+        create
     }
 
-    /// A format's card with its proportional sheet; true when clicked.
-    fn card(&self, ui: &mut egui::Ui, i: usize) -> bool {
+    /// A format's card with its proportional sheet (none for an unknown
+    /// format).
+    fn card(&self, ui: &mut egui::Ui, i: usize) -> egui::Response {
         let Some(p) = PRESETS.get(i) else {
-            return false;
+            return ui.allocate_response(Vec2::ZERO, Sense::hover());
         };
         let pal = t::palette(ui);
         let (rect, resp) = ui.allocate_exact_size(Vec2::new(122.0, 132.0), Sense::click());
@@ -537,7 +546,6 @@ impl NewDocWindow {
             y += h + t::SPACE_050;
         }
         resp.on_hover_text(format!("{} · {}", preset_label(p), preset_dims(p)))
-            .clicked()
     }
 
     fn inspector(&mut self, ui: &mut egui::Ui) {
@@ -835,6 +843,69 @@ mod tests {
         }
         assert!(d.rect.is_positive(), "{:?}", d.rect);
         assert!(screen.contains_rect(d.rect), "off screen: {:?}", d.rect);
+    }
+
+    /// A double-click on a format's card chooses it and creates the
+    /// document.
+    #[test]
+    fn double_clicking_a_format_creates_the_document() {
+        let ctx = crate::theme::ui_context();
+        let screen = Rect::from_min_size(Pos2::ZERO, Vec2::new(1366.0, 768.0));
+        let mut d = NewDocWindow {
+            search: "A5".into(),
+            ..NewDocWindow::default()
+        };
+        let mut time = 0.0;
+        let mut frame = |d: &mut NewDocWindow, events: Vec<egui::Event>| {
+            time += 0.05;
+            let input = egui::RawInput {
+                screen_rect: Some(screen),
+                time: Some(time),
+                events,
+                ..Default::default()
+            };
+            let mut outcome = Outcome::Open;
+            let mut out = ctx.run_ui(input, |ui| outcome = d.show(ui.ctx()));
+            out.textures_delta.clear();
+            outcome
+        };
+        for _ in 0..3 {
+            frame(&mut d, Vec::new());
+        }
+        let button = |pos, pressed| egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        // The only card left by the search, somewhere below the search
+        // field and the filters at the top left of the window.
+        let x = d.rect.left() + 24.0 + 61.0;
+        let mut created = false;
+        let mut y = d.rect.top() + 60.0;
+        while !created && y < d.rect.top() + 320.0 {
+            let p = Pos2::new(x, y);
+            // Far enough in time from the last try not to count as a
+            // third click.
+            for _ in 0..15 {
+                frame(&mut d, Vec::new());
+            }
+            frame(&mut d, vec![egui::Event::PointerMoved(p)]);
+            for _ in 0..2 {
+                frame(&mut d, vec![button(p, true)]);
+                created |= matches!(frame(&mut d, vec![button(p, false)]), Outcome::Create);
+            }
+            created |= matches!(frame(&mut d, Vec::new()), Outcome::Create);
+            y += 12.0;
+        }
+        assert!(
+            created,
+            "no double-click reached a card: {:?} {:?} {:?}",
+            d.visible(),
+            d.preset,
+            d.rect
+        );
+        assert_eq!(d.preset, preset_index("a5"));
     }
 
     /// Every format has its name in the language files.

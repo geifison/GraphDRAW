@@ -40,7 +40,7 @@ impl App {
     /// The selection as a standalone SVG document (page-sized viewport so
     /// positions survive a round trip).
     pub fn selection_svg(&self) -> Option<String> {
-        let shapes = self.selected_shapes();
+        let shapes = self.selected_shapes_whole();
         if shapes.is_empty() {
             return None;
         }
@@ -59,7 +59,7 @@ impl App {
     /// size limit.
     pub fn copy_with_system(&mut self) {
         self.copy();
-        let shapes = self.selected_shapes();
+        let shapes = self.selected_shapes_whole();
         if shapes.is_empty() {
             return;
         }

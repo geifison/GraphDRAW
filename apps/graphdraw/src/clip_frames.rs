@@ -59,7 +59,10 @@ pub fn content_fit_transform(contents: Rect, frame: Rect, how: ContentFit) -> Op
 /// with the clip frame's id and the two transforms together, so the text
 /// panels, the property bar and in-place editing work on it (the commands
 /// they send to that id reach the frame, see `Command::SetShapeKind`).
-/// Anything else is returned unchanged.
+/// Any other clip frame shows its frame's fill and outline, which are
+/// what is drawn and what fill and outline commands change, so the
+/// outline and fill editors read the object as it was. Anything else is
+/// returned unchanged.
 pub fn text_view(s: Shape) -> Shape {
     match &s.kind {
         ShapeKind::ClipFrame { frame, .. } if matches!(frame.kind, ShapeKind::Text { .. }) => {
@@ -67,6 +70,10 @@ pub fn text_view(s: Shape) -> Shape {
             f.id = s.id;
             f.transform = s.transform * f.transform;
             f
+        }
+        ShapeKind::ClipFrame { frame, .. } => {
+            let (fill, stroke) = (frame.fill.clone(), frame.stroke.clone());
+            Shape { fill, stroke, ..s }
         }
         _ => s,
     }
@@ -171,11 +178,12 @@ impl App {
         self.select(contents);
     }
 
-    /// Ctrl+click with the Pick tool at `p`: on a clip frame, edit its
-    /// contents (deeper when it lies among contents being edited); on an
-    /// empty spot while editing, finish that level. False when the click
-    /// is left to the ordinary Ctrl+click.
-    pub fn clip_frame_ctrl_click(&mut self, p: Point) -> bool {
+    /// Ctrl+click or double-click with the Pick tool at `p`: on a clip
+    /// frame, edit its contents (deeper when it lies among contents being
+    /// edited); outside the contents while editing, finish that level.
+    /// False when the click is left to the ordinary Ctrl+click or
+    /// double-click.
+    pub fn clip_frame_edit_click(&mut self, p: Point) -> bool {
         match self.hit_test(p) {
             Some(id)
                 if self
@@ -215,9 +223,40 @@ impl App {
     /// (by a click or a marquee); the frame and everything else cannot.
     pub fn clip_edit_allows(&self, id: ShapeId) -> bool {
         match &self.clip_frame_edit {
-            Some((_, ids)) => ids.contains(&id),
+            Some((_, ids)) => {
+                ids.contains(&id)
+                    || (id.raw() >= self.clip_edit_from() && self.doc().shape(id).is_ok())
+            }
             None => true,
         }
+    }
+
+    /// The first shape id of the clip frame level being edited (none
+    /// while nothing is edited).
+    fn clip_edit_from(&self) -> u64 {
+        self.clip_frame_edit_from
+            .last()
+            .copied()
+            .unwrap_or(u64::MAX)
+    }
+
+    /// The objects edited at the current level of clip frame editing: the
+    /// contents taken out of the frame and the objects drawn or pasted on
+    /// a layer since.
+    pub fn clip_edit_ids(&self) -> Vec<ShapeId> {
+        let Some((_, ids)) = &self.clip_frame_edit else {
+            return Vec::new();
+        };
+        let from = self.clip_edit_from();
+        let mut all = ids.clone();
+        all.extend(
+            self.page_layers()
+                .iter()
+                .flat_map(|l| &l.shapes)
+                .map(|s| s.id)
+                .filter(|id| id.raw() >= from && !ids.contains(id)),
+        );
+        all
     }
 
     /// Leave every level of clip frame editing, innermost first.
@@ -361,17 +400,17 @@ mod tests {
         let mut app = App::headless();
         app.set_tool(Tool::Pick);
         let (frame, inner) = framed(&mut app);
-        assert!(app.clip_frame_ctrl_click(Point::new(50.0, 25.0)));
+        assert!(app.clip_frame_edit_click(Point::new(50.0, 25.0)));
         assert_eq!(app.clip_frame_edit.as_ref().map(|e| e.0), Some(frame));
         assert_eq!(app.selection, vec![inner]);
         assert_eq!(app.clip_frame_edit_depth(), Some((1, 1)));
         // Not a clip frame: the ordinary Ctrl+click.
-        assert!(!app.clip_frame_ctrl_click(Point::new(15.0, 25.0)));
+        assert!(!app.clip_frame_edit_click(Point::new(15.0, 25.0)));
         // Only the contents can be picked: the frame cannot.
         assert_eq!(app.hit_test(Point::new(15.0, 25.0)), Some(inner));
         assert_eq!(app.hit_test(Point::new(80.0, 25.0)), None);
         assert!(!app.clip_edit_allows(frame));
-        assert!(app.clip_frame_ctrl_click(Point::new(500.0, 500.0)));
+        assert!(app.clip_frame_edit_click(Point::new(500.0, 500.0)));
         assert!(app.clip_frame_edit.is_none());
         assert!(matches!(
             app.doc().find_shape(frame).unwrap().kind,
@@ -379,7 +418,7 @@ mod tests {
         ));
         assert_eq!(app.selection, vec![frame]);
         // Not editing: an empty spot is the ordinary click.
-        assert!(!app.clip_frame_ctrl_click(Point::new(500.0, 500.0)));
+        assert!(!app.clip_frame_edit_click(Point::new(500.0, 500.0)));
     }
 
     #[test]
@@ -391,7 +430,7 @@ mod tests {
         app.select(vec![outer]);
         app.edit_clip_frame();
         assert_eq!(app.clip_frame_edit_depth(), Some((1, 2)));
-        assert!(app.clip_frame_ctrl_click(Point::new(50.0, 25.0)));
+        assert!(app.clip_frame_edit_click(Point::new(50.0, 25.0)));
         assert_eq!(app.clip_frame_edit_depth(), Some((2, 2)));
         app.finish_clip_frame_edit();
         assert_eq!(app.clip_frame_edit_depth(), Some((1, 2)));
@@ -471,6 +510,150 @@ mod tests {
         };
         assert_eq!(spans[0].font_family, "Other Sans");
         assert_eq!(contents.len(), 1);
+    }
+
+    /// More objects placed in a clip frame join its contents (the frame
+    /// is not wrapped in a second clip frame), wherever the clip frame
+    /// lies and however it was moved.
+    #[test]
+    fn placing_into_a_clip_frame_adds_to_its_contents() {
+        let mut app = App::headless();
+        let (frame, _) = framed(&mut app);
+        app.run(Command::TransformShapes {
+            shapes: vec![frame],
+            transform: Affine::translate((10.0, 0.0)),
+        });
+        let more = rect_shape(&mut app, Rect::new(60.0, 5.0, 80.0, 45.0));
+        app.place_inside(vec![more], frame);
+        let clip = app.doc().shape_on_page(frame).unwrap();
+        assert_eq!(clip_depth(&clip), 1);
+        let ShapeKind::ClipFrame { contents, .. } = &clip.kind else {
+            panic!("not a clip frame");
+        };
+        assert_eq!(contents.len(), 2);
+        // The new object stays where it was on the page.
+        let b = app.doc().shape_on_page(more).unwrap().bounds();
+        assert!((b.x0 - 60.0).abs() < 1e-9 && (b.x1 - 80.0).abs() < 1e-9, "{b:?}");
+        // A clip frame inside another one takes more objects too.
+        let outer = rect_shape(&mut app, Rect::new(-10.0, -10.0, 120.0, 60.0));
+        app.place_inside(vec![frame], outer);
+        let last = rect_shape(&mut app, Rect::new(40.0, 5.0, 50.0, 45.0));
+        app.place_inside(vec![last], frame);
+        let ShapeKind::ClipFrame { contents, .. } = &app.doc().find_shape(frame).unwrap().kind
+        else {
+            panic!("not a clip frame");
+        };
+        assert_eq!(contents.len(), 3);
+        let b = app.doc().shape_on_page(last).unwrap().bounds();
+        assert!((b.x0 - 40.0).abs() < 1e-9 && (b.x1 - 50.0).abs() < 1e-9, "{b:?}");
+        assert!(app.doc().shape(last).is_err());
+    }
+
+    /// While contents are edited, objects drawn or pasted can be picked
+    /// and go inside with the contents; inner frames edited the same way.
+    #[test]
+    fn objects_added_while_editing_go_inside() {
+        let mut app = App::headless();
+        let (inner_frame, _) = framed(&mut app);
+        let outer = rect_shape(&mut app, Rect::new(-10.0, -10.0, 110.0, 60.0));
+        app.place_inside(vec![inner_frame], outer);
+        app.select(vec![outer]);
+        app.edit_clip_frame();
+        // Edit the inner frame, then add two objects to it.
+        assert!(app.clip_frame_edit_click(Point::new(50.0, 25.0)));
+        let a = rect_shape(&mut app, Rect::new(30.0, 5.0, 40.0, 15.0));
+        app.select(vec![a]);
+        app.copy();
+        app.paste();
+        let b = app.selection[0];
+        assert!(app.clip_edit_allows(a) && app.clip_edit_allows(b));
+        assert!(!app.clip_edit_allows(inner_frame));
+        app.finish_all_clip_frame_edits();
+        let ShapeKind::ClipFrame { contents, .. } =
+            &app.doc().find_shape(inner_frame).unwrap().kind
+        else {
+            panic!("not a clip frame");
+        };
+        assert_eq!(contents.len(), 3);
+        assert_eq!(app.page_layers()[0].shapes.len(), 1);
+    }
+
+    /// An object that became a clip frame keeps its outline for every
+    /// outline editor: the selection reads it, and a new width keeps the
+    /// colour.
+    #[test]
+    fn a_clip_frame_shows_and_edits_its_own_outline() {
+        let mut app = App::headless();
+        let (frame, _) = framed(&mut app);
+        let red = graphdraw_core::Stroke {
+            width: 1.0,
+            color: Color::rgb8(255, 0, 0),
+            ..Default::default()
+        };
+        app.select(vec![frame]);
+        // The frame object's own outline, set before it took contents.
+        let ShapeKind::ClipFrame { frame: f, contents } =
+            app.doc().find_shape(frame).unwrap().kind.clone()
+        else {
+            panic!("not a clip frame");
+        };
+        let mut f = *f;
+        f.stroke = Some(red.clone());
+        app.run(Command::SetShapeKind {
+            shape: frame,
+            kind: ShapeKind::ClipFrame {
+                frame: Box::new(f),
+                contents,
+            },
+        });
+        assert_eq!(app.selected_shapes()[0].stroke, Some(red.clone()));
+        let doc = app.doc();
+        let leaf = crate::ui::style_windows::first_leaf(doc.find_shape(frame).unwrap());
+        assert_eq!(leaf.stroke, Some(red.clone()));
+        app.apply_outline_width(2.0);
+        let ShapeKind::ClipFrame { frame: f, .. } = &app.doc().find_shape(frame).unwrap().kind
+        else {
+            panic!("not a clip frame");
+        };
+        let s = f.stroke.clone().unwrap();
+        assert_eq!((s.width, s.color), (2.0, red.color));
+        assert!(matches!(
+            app.selected_shapes()[0].kind,
+            ShapeKind::ClipFrame { .. }
+        ));
+    }
+
+    /// Copying or duplicating a clip frame whose frame is text keeps its
+    /// contents.
+    #[test]
+    fn a_copied_text_clip_frame_keeps_its_contents() {
+        let mut app = App::headless();
+        let text = app
+            .new_shape(ShapeKind::Text {
+                spans: vec![graphdraw_core::TextSpan::new("Brasil", "Selawik", 32.0)],
+                origin: Point::new(0.0, 0.0),
+                frame: None,
+                align: Default::default(),
+                para: Default::default(),
+                on_path: None,
+            })
+            .unwrap();
+        let flag = rect_shape(&mut app, Rect::new(0.0, 0.0, 60.0, 20.0));
+        app.place_inside(vec![flag], text);
+        app.select(vec![text]);
+        app.copy();
+        app.paste();
+        app.select(vec![text]);
+        app.duplicate();
+        let clips = app
+            .page_layers()
+            .iter()
+            .flat_map(|l| &l.shapes)
+            .filter(|s| {
+                matches!(&s.kind, ShapeKind::ClipFrame { contents, .. } if contents.len() == 1)
+            })
+            .count();
+        assert_eq!(clips, 3);
     }
 
     #[test]

@@ -229,7 +229,17 @@ fn write_unlinked(
         return;
     }
     if let ShapeKind::ClipFrame { frame, contents } = &shape.kind {
-        // Frame fill, then the contents clipped to the frame, then its outline.
+        // Frame fill, then the contents clipped to the frame, then its
+        // outline; an outline behind the fill goes first of all.
+        let behind = frame.stroke.as_ref().is_some_and(|s| s.behind_fill);
+        let mut outline = (**frame).clone();
+        outline.fill = Fill::None;
+        if let Some(st) = outline.stroke.as_mut() {
+            st.behind_fill = false;
+        }
+        if behind {
+            write_shape(&outline, symbols, transform, out, defs, next_grad, indent);
+        }
         let mut fill_only = (**frame).clone();
         fill_only.stroke = None;
         write_shape(&fill_only, symbols, transform, out, defs, next_grad, indent);
@@ -248,9 +258,7 @@ fn write_unlinked(
             write_shape(c, symbols, transform, out, defs, next_grad, indent + 1);
         }
         let _ = writeln!(out, "{pad}</g>");
-        let mut outline = (**frame).clone();
-        outline.fill = Fill::None;
-        if outline.stroke.is_some() {
+        if outline.stroke.is_some() && !behind {
             write_shape(&outline, symbols, transform, out, defs, next_grad, indent);
         }
         return;

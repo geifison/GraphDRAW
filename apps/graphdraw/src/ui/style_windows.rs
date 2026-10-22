@@ -217,6 +217,8 @@ pub fn first_leaf(s: &graphdraw_core::Shape) -> &graphdraw_core::Shape {
         graphdraw_core::ShapeKind::Group { children } => {
             children.first().map(first_leaf).unwrap_or(s)
         }
+        // A clip frame's fill and outline are its frame's.
+        graphdraw_core::ShapeKind::ClipFrame { frame, .. } => first_leaf(frame),
         _ => s,
     }
 }
@@ -1151,5 +1153,93 @@ mod tests {
         assert_eq!(model_of(Color::cmyk_pct(0.0, 0.0, 0.0, 0.0)), "CMYK");
         assert_eq!(model_of(Color::rgb8(1, 2, 3)), "RGB");
         assert_eq!(model_of(Color::Registration), "CMYK");
+    }
+}
+
+#[cfg(test)]
+mod canvas_tests {
+    use crate::app::App;
+    use graphdraw_core::{geometry::Rect, ShapeKind};
+
+    fn run(ctx: &egui::Context, app: &mut App, time: f64, events: Vec<egui::Event>) {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1600.0, 1000.0),
+            )),
+            time: Some(time),
+            events,
+            ..Default::default()
+        };
+        let mut out = ctx.run_ui(input, |ui| crate::ui::root(app, ui));
+        out.textures_delta.clear();
+    }
+
+    /// With the Outline window open the drawing stays usable: a drag on
+    /// the canvas moves the selected object.
+    #[test]
+    fn the_canvas_takes_drags_while_the_outline_window_is_open() {
+        drag_with_the_window_open(false);
+        drag_with_the_window_open(true);
+    }
+
+    /// A drag on the selected object (a clip frame when `clip`) moves it
+    /// with the Outline window open.
+    fn drag_with_the_window_open(clip: bool) {
+        let mut app = App::headless();
+        let id = app
+            .new_shape(ShapeKind::Rect {
+                rect: Rect::new(20.0, 20.0, 60.0, 60.0),
+                radius: 0.0,
+                corners: None,
+            })
+            .unwrap();
+        if clip {
+            let inner = app
+                .new_shape(ShapeKind::Rect {
+                    rect: Rect::new(30.0, 30.0, 50.0, 50.0),
+                    radius: 0.0,
+                    corners: None,
+                })
+                .unwrap();
+            app.place_inside(vec![inner], id);
+        }
+        app.select(vec![id]);
+        app.open_outline_window();
+        let ctx = crate::theme::ui_context();
+        let mut t = 0.0;
+        for _ in 0..3 {
+            t += 0.1;
+            run(&ctx, &mut app, t, Vec::new());
+        }
+        assert!(app.style_windows.outline.is_some());
+        // Bring the rectangle under the middle of the canvas.
+        let c = app.canvas_rect.center();
+        let mid = app.view.to_screen(graphdraw_core::geometry::Point::new(40.0, 40.0));
+        app.view.origin += c - mid;
+        run(&ctx, &mut app, t + 0.1, Vec::new());
+        let before = app.doc().shape_on_page(id).unwrap().bounds();
+        let at = |dx: f32| egui::pos2(c.x + dx, c.y);
+        let press = |pressed| egui::Event::PointerButton {
+            pos: at(if pressed { 0.0 } else { 60.0 }),
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        };
+        let steps = vec![
+            vec![egui::Event::PointerMoved(at(0.0))],
+            vec![press(true)],
+            vec![egui::Event::PointerMoved(at(20.0))],
+            vec![egui::Event::PointerMoved(at(40.0))],
+            vec![egui::Event::PointerMoved(at(60.0))],
+            vec![press(false)],
+            Vec::new(),
+        ];
+        for (k, ev) in steps.into_iter().enumerate() {
+            run(&ctx, &mut app, t + 0.2 + k as f64 * 0.05, ev);
+        }
+        let after = app.doc().shape_on_page(id).unwrap().bounds();
+        assert!(after.x0 > before.x0 + 1.0, "{before:?} -> {after:?}");
+        assert!(app.style_windows.outline.is_some());
     }
 }

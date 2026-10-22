@@ -115,6 +115,27 @@ pub fn ink_at(app: &App, pos: Pos2) -> Color32 {
     ink_on(backdrop(app, pos))
 }
 
+/// The colour of the selection lines.
+pub const LINE_CYAN: Color32 = Color32::from_rgb(0, 229, 255);
+/// The selection lines' colour on drawings close to cyan.
+pub const LINE_NEON_BLUE: Color32 = Color32::from_rgb(31, 81, 255);
+/// How far apart (RGB distance) a line colour and what is under it must
+/// be for the line to stand out.
+const LINE_MIN_DISTANCE: f32 = 120.0;
+
+/// Cyan for a selection line on `bg`; neon blue where `bg` is close to
+/// cyan; black or white where it is close to both.
+pub fn line_ink_on(bg: Color32) -> Color32 {
+    let distance = |c: Color32| {
+        let d = |a: u8, b: u8| a as f32 - b as f32;
+        (d(c.r(), bg.r()).powi(2) + d(c.g(), bg.g()).powi(2) + d(c.b(), bg.b()).powi(2)).sqrt()
+    };
+    [LINE_CYAN, LINE_NEON_BLUE]
+        .into_iter()
+        .find(|c| distance(*c) >= LINE_MIN_DISTANCE)
+        .unwrap_or_else(|| ink_on(bg))
+}
+
 /// A selection handle at `p`: a square (a circle for objects chosen
 /// inside a group) in the ink of what is under it, edged in the other
 /// ink so it stays clear where light and dark meet.
@@ -135,7 +156,7 @@ pub fn draw_handle(app: &App, painter: &Painter, p: Pos2, size: f32, round: bool
 }
 
 /// A one-pixel polyline, solid or dashed, whose every stretch takes the
-/// ink of what lies under its middle.
+/// line colour for what lies under its middle (`line_ink_on`).
 pub fn draw_polyline(app: &App, painter: &Painter, pts: &[Pos2], dashed: bool) {
     let put = |run: Vec<Pos2>, ink: Color32| {
         let stroke = EStroke::new(1.0, ink);
@@ -149,7 +170,7 @@ pub fn draw_polyline(app: &App, painter: &Painter, pts: &[Pos2], dashed: bool) {
     let mut run_ink = Color32::TRANSPARENT;
     for w in pts.windows(2) {
         let (a, b) = (w[0], w[1]);
-        let ink = ink_at(app, a + (b - a) * 0.5);
+        let ink = line_ink_on(backdrop(app, a + (b - a) * 0.5));
         if ink != run_ink && run.len() > 1 {
             put(std::mem::take(&mut run), run_ink);
         }
@@ -262,6 +283,19 @@ mod tests {
         assert_eq!(ink_on(Color32::from_rgb(255, 230, 0)), Color32::BLACK);
         assert_eq!(opposite(Color32::BLACK), Color32::WHITE);
         assert_eq!(opposite(Color32::WHITE), Color32::BLACK);
+    }
+
+    #[test]
+    fn selection_lines_are_cyan_unless_the_drawing_is_too_close() {
+        assert_eq!(line_ink_on(Color32::WHITE), LINE_CYAN);
+        assert_eq!(line_ink_on(Color32::BLACK), LINE_CYAN);
+        assert_eq!(line_ink_on(Color32::from_rgb(128, 128, 128)), LINE_CYAN);
+        // Cyan and teal: neon blue.
+        assert_eq!(line_ink_on(LINE_CYAN), LINE_NEON_BLUE);
+        assert_eq!(line_ink_on(Color32::from_rgb(0, 200, 220)), LINE_NEON_BLUE);
+        // Between the two blues: black or white.
+        let mid = Color32::from_rgb(15, 155, 255);
+        assert_eq!(line_ink_on(mid), ink_on(mid));
     }
 
     #[test]

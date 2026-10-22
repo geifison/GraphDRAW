@@ -986,6 +986,10 @@ pub struct App {
     /// The outer levels of clip frame editing (a clip frame edited among
     /// the contents of another), outermost first.
     pub clip_frame_outer: Vec<(ShapeId, Vec<ShapeId>)>,
+    /// For each level of clip frame editing, outermost first: the first
+    /// shape id given out after it began. Objects from then on (drawn or
+    /// pasted while editing) are edited with the contents and go inside.
+    pub clip_frame_edit_from: Vec<u64>,
     /// A short notice next to the pointer about a clip frame request that
     /// did nothing; the time it was first shown fills in when drawn.
     pub clip_notice: Option<(String, Option<f64>)>,
@@ -1862,6 +1866,7 @@ impl App {
             pending_clip_frame: false,
             clip_frame_edit: None,
             clip_frame_outer: Vec::new(),
+            clip_frame_edit_from: Vec::new(),
             clip_notice: None,
             symmetry_edit: None,
             show_guides: true,
@@ -3123,6 +3128,17 @@ impl App {
             .collect()
     }
 
+    /// The selected objects in page space as they are in the drawing: a
+    /// clip frame of text keeps its contents. For copies of the objects
+    /// (the clipboard, duplicates), where `selected_shapes` would drop them.
+    pub fn selected_shapes_whole(&self) -> Vec<Shape> {
+        let doc = self.doc();
+        self.selection
+            .iter()
+            .filter_map(|id| doc.shape_on_page(*id))
+            .collect()
+    }
+
     /// Some selected object lies inside a group (chosen with Ctrl+click or
     /// in the Objects docker).
     pub fn selection_nested(&self) -> bool {
@@ -3588,7 +3604,7 @@ impl App {
     }
 
     pub fn copy(&mut self) {
-        let shapes = self.selected_shapes();
+        let shapes = self.selected_shapes_whole();
         if !shapes.is_empty() {
             self.clipboard = Some(Clipboard {
                 shapes,
@@ -3656,7 +3672,7 @@ impl App {
     }
 
     pub fn duplicate(&mut self) {
-        let shapes = self.selected_shapes();
+        let shapes = self.selected_shapes_whole();
         let Some(layer) = self.active_layer() else {
             return;
         };
@@ -4875,7 +4891,7 @@ impl App {
         use crate::settings::AutoCenter;
         let bounds = |app: &App, ids: &[ShapeId]| -> Option<Rect> {
             ids.iter()
-                .filter_map(|id| app.doc().shape(*id).ok().map(|(_, s)| s.bounds()))
+                .filter_map(|id| app.doc().shape_on_page(*id).map(|s| s.bounds()))
                 .reduce(|a, b| a.union(b))
         };
         let mut cmds = Vec::new();

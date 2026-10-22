@@ -1060,7 +1060,7 @@ impl App {
             }
             // Ctrl on a clip frame edits its contents; on an empty spot
             // while editing, it finishes (see clip_frames.rs).
-            if mods.ctrl && !mods.shift && self.clip_frame_ctrl_click(p) {
+            if mods.ctrl && !mods.shift && self.clip_frame_edit_click(p) {
                 return;
             }
             // Ctrl: one group level further in.
@@ -1096,6 +1096,12 @@ impl App {
                 self.reset_pivot();
                 return;
             }
+            // As Ctrl+click: a clip frame edits its contents (only they
+            // can be picked; the frame shows as a light blue hairline),
+            // and outside the contents being edited it finishes.
+            if self.clip_frame_edit_click(p) {
+                return;
+            }
             // The page border or its shadow: the page size options.
             let on_frame = response
                 .interact_pointer_pos()
@@ -1105,17 +1111,6 @@ impl App {
                 return;
             }
             if let Some(id) = self.hit_test(p) {
-                // A clip frame: edit its contents (only they can be
-                // picked; the frame shows as a light blue hairline).
-                if self
-                    .doc()
-                    .shape(id)
-                    .is_ok_and(|(_, s)| matches!(s.kind, ShapeKind::ClipFrame { .. }))
-                {
-                    self.select(vec![id]);
-                    self.edit_clip_frame();
-                    return;
-                }
                 // A group: into focus mode.
                 if self.focus_on_double_click(id) {
                     self.focus_on(id);

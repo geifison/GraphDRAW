@@ -691,6 +691,7 @@ impl App {
             self.clip_frame_outer.push(outer);
         }
         self.clip_frame_edit = Some((clip.id, ids.clone()));
+        self.clip_frame_edit_from.push(self.doc().ids().peek_next());
         self.select(ids);
         self.status = tr("status.editing_clip_frame");
     }
@@ -698,11 +699,14 @@ impl App {
     /// Object > Clip to Frame > Finish Editing Contents: place the (surviving) contents
     /// back inside the frame.
     pub fn finish_clip_frame_edit(&mut self) {
-        let Some((frame, ids)) = self.clip_frame_edit.take() else {
+        // What was drawn or pasted while editing goes in too.
+        let ids = self.clip_edit_ids();
+        let Some((frame, _)) = self.clip_frame_edit.take() else {
             return;
         };
         // Back to the level around it, when this one was nested.
         self.clip_frame_edit = self.clip_frame_outer.pop();
+        self.clip_frame_edit_from.pop();
         match self.doc().shape(frame) {
             Err(_) => return,
             // Already a clip frame again (the editing was undone).

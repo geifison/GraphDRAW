@@ -59,7 +59,7 @@ cruz no meio. A barra de status diz o que está selecionado e em qual camada.
 Arraste um objeto selecionado com o botão direito do mouse. Ao soltar, um menu
 oferece movê-lo para ali, copiá-lo para ali, copiar o preenchimento, o contorno
 ou todas as propriedades para o objeto sob o ponteiro, ou colocá-lo dentro
-desse objeto como [moldura de recorte](clip-frames.md).
+desse objeto como [clip frame](clip-frames.md).
 
 ### A barra de propriedades {#pick-property-bar}
 
