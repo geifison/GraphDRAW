@@ -501,13 +501,20 @@ impl App {
 
     /// The pointer is on the selection's centre mark, the "x" (outside
     /// rotate mode): a drag there moves the selection, a click toggles the
-    /// rotate and skew handles.
+    /// rotate and skew handles. An object that is not selected lying over
+    /// the mark (a small one on a selected background) takes the press.
     pub fn center_mark_at(&self, screen: egui::Pos2) -> bool {
         !self.rotate_mode
             && matches!(self.tool, Tool::Pick | Tool::FreeformPick)
             && self
                 .selection_bounds()
                 .is_some_and(|b| self.view.to_screen(b.center()).distance(screen) <= PIVOT_PX)
+            && !self.hit_test(self.view.to_page(screen)).is_some_and(|top| {
+                !self
+                    .selection
+                    .iter()
+                    .any(|s| *s == top || self.doc().top_level_of(*s) == Some(top))
+            })
     }
 
     /// Start moving the selection from `p` (page).
@@ -556,12 +563,16 @@ impl App {
 
     /// The end of a move, scale, rotation or skew: on the selection, or on
     /// copies of it (which become the selection) after a right click
-    /// during the drag.
+    /// during the drag. The copies and their change are one undo step.
     fn finish_transform(&mut self, t: Affine) {
         if std::mem::take(&mut self.drag_copy) {
-            self.duplicate_in_place();
+            self.as_one_step("Duplicate", |app| {
+                app.duplicate_in_place();
+                app.transform_selection(t);
+            });
+        } else {
+            self.transform_selection(t);
         }
-        self.transform_selection(t);
     }
 
     /// Space during a move leaves a copy where the selection is now.

@@ -2226,3 +2226,115 @@ fn rounded_corners_keep_their_size_when_relative_scaling_is_off() {
         let _ = app.undo();
     }
 }
+
+/// A large filled rectangle behind the one of `setup`, nothing selected.
+fn over_background() -> (egui::Context, App, ShapeId, ShapeId) {
+    let (ctx, mut app, id) = setup();
+    let back = app
+        .new_shape(ShapeKind::Rect {
+            rect: Rect::new(0.0, 0.0, 200.0, 150.0),
+            radius: 0.0,
+            corners: None,
+        })
+        .expect("background");
+    app.select(vec![back]);
+    app.apply_fill(graphdraw_core::Fill::Solid(graphdraw_core::Color::rgb8(
+        30, 30, 200,
+    )));
+    app.order_relative_to(id, false);
+    app.select(Vec::new());
+    frame(&ctx, &mut app, Vec::new(), Modifiers::NONE);
+    (ctx, app, id, back)
+}
+
+/// A drag of the front rectangle with the right button pressed and
+/// released in their own frames while the left one is held.
+fn drag_with_slow_right_click(ctx: &egui::Context, app: &mut App, from: Pos2, to: Pos2) {
+    let right = |p: Pos2, down: bool| button(p, down, PointerButton::Secondary, Modifiers::NONE);
+    frame(ctx, app, vec![Event::PointerMoved(from)], Modifiers::NONE);
+    frame(
+        ctx,
+        app,
+        vec![button(from, true, PointerButton::Primary, Modifiers::NONE)],
+        Modifiers::NONE,
+    );
+    for i in 1..=8 {
+        let p = from + (to - from) * (i as f32 / 8.0);
+        let mut events = vec![Event::PointerMoved(p)];
+        if i == 3 {
+            events.push(right(p, true));
+        }
+        if i == 5 {
+            events.push(right(p, false));
+        }
+        frame(ctx, app, events, Modifiers::NONE);
+    }
+    frame(
+        ctx,
+        app,
+        vec![button(to, false, PointerButton::Primary, Modifiers::NONE)],
+        Modifiers::NONE,
+    );
+    frame(ctx, app, Vec::new(), Modifiers::NONE);
+}
+
+#[test]
+fn a_right_click_while_dragging_over_another_object_copies_the_dragged_one() {
+    let (ctx, mut app, id, back) = over_background();
+    let back_bounds = bounds(&app, back);
+    let from = app.view.to_screen(Point::new(35.0, 25.0));
+    let to = from + egui::vec2(150.0, 60.0);
+    drag_with_slow_right_click(&ctx, &mut app, from, to);
+    assert_eq!(shape_count(&app), 3);
+    assert!(close(bounds(&app, id).x0, 10.0), "the original stays");
+    assert_eq!(bounds(&app, back), back_bounds, "the background stays");
+    let copy = app.selection.first().copied().expect("copy");
+    assert_ne!(copy, id);
+    assert_ne!(copy, back);
+    let c = bounds(&app, copy);
+    assert!(close(c.width(), 50.0) && close(c.height(), 30.0), "{c:?}");
+    assert!(c.x0 > 15.0, "the copy moved: {c:?}");
+}
+
+#[test]
+fn undo_takes_back_a_copy_made_with_the_right_button_at_once() {
+    let (ctx, mut app, id, back) = over_background();
+    let from = app.view.to_screen(Point::new(35.0, 25.0));
+    let to = from + egui::vec2(150.0, 60.0);
+    drag_with_slow_right_click(&ctx, &mut app, from, to);
+    assert_eq!(shape_count(&app), 3);
+    app.undo();
+    assert_eq!(shape_count(&app), 2, "one undo removes the copy");
+    assert!(close(bounds(&app, id).x0, 10.0));
+    assert!(close(bounds(&app, back).x0, 0.0));
+}
+
+#[test]
+fn an_object_over_the_selections_centre_mark_wins_the_press() {
+    let (ctx, mut app, _, back) = over_background();
+    // A small rectangle right over the background's centre.
+    let small = app
+        .new_shape(ShapeKind::Rect {
+            rect: Rect::new(95.0, 70.0, 105.0, 80.0),
+            radius: 0.0,
+            corners: None,
+        })
+        .expect("small");
+    app.select(vec![small]);
+    app.apply_fill(graphdraw_core::Fill::Solid(graphdraw_core::Color::rgb8(
+        30, 200, 30,
+    )));
+    // The background was selected last.
+    app.select(vec![back]);
+    frame(&ctx, &mut app, Vec::new(), Modifiers::NONE);
+    let back_bounds = bounds(&app, back);
+    let from = app.view.to_screen(Point::new(100.0, 75.0));
+    let to = from + egui::vec2(150.0, 60.0);
+    drag_with_slow_right_click(&ctx, &mut app, from, to);
+    assert_eq!(bounds(&app, back), back_bounds, "the background stays");
+    assert!(close(bounds(&app, small).x0, 95.0), "the original stays");
+    let copy = app.selection.first().copied().expect("copy");
+    assert!(copy != small && copy != back);
+    let c = bounds(&app, copy);
+    assert!(close(c.width(), 10.0) && c.x0 > 100.0, "the small one is copied: {c:?}");
+}
