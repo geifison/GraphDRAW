@@ -721,6 +721,7 @@ pub(crate) fn drawing_window(app: &mut App, ui: &mut Ui, full: egui::Rect) {
     }
     app.perspective_tick();
 
+    app.raster.borrow_mut().keep_pixels = crate::contrast::keep_pixels(app);
     canvas::draw_canvas(app, &painter, canvas_rect);
     canvas::draw_guides(app, &painter, canvas_rect);
     rulers::draw_origin_drag(app, &painter, canvas_rect);

@@ -39,18 +39,32 @@ Ctrl or Alt during the drag changes the result at once.
 
 ## The handles
 
-The selection box has no frame of its own, so the objects' outlines
-stay in view. Eight solid black square handles, 10 interface points
-across, stand just outside it: their centres 6.5 points out from the box
-(a gap of 1.5 points). A corner or side handle scales from where it was
-grabbed, so the box follows the pointer without a jump. Objects chosen
-inside a group show round handles. The centre mark is a small cross.
+The selection box has no frame of its own. Each chosen object shows a
+solid one-pixel outline along its own path (a text converted to curves
+along its letters); an artistic text shows the box of its lines, a
+paragraph text its dashed frame. Eight solid square handles, 10
+interface points across, stand just outside the box: their centres 6.5
+points out from it (a gap of 1.5 points). A corner or side handle
+scales from where it was grabbed, so the box follows the pointer
+without a jump. Objects chosen inside a group show round handles. The
+centre mark is a small cross.
 
-In rotate mode the handles are black arrows 2 points thick with solid
+Every selection mark takes its colour from the drawing under it, so it
+reads on black objects as well as on the white page: black where the
+pixels under it are light, white where they are dark (perceived
+brightness `0.299 R + 0.587 G + 0.114 B` against 128, averaged over the
+3 x 3 pixels around the point, the paper or the desktop showing through
+transparent pixels). Handles are edged in the other colour, and each
+stretch of an outline or a text frame picks its colour on its own. A
+selection whose outlines flatten to more than 40 000 points shows the
+handles only. The Shape tool shows the same outline dashed, under the
+nodes.
+
+In rotate mode the handles are arrows 2 points thick with solid
 heads, their centres 9 points out from the box: a curved double arrow
 around each corner, bulging outwards, and a straight double arrow along
 each side. The centre of rotation is a ring 8 points in radius with a
-dot in the middle.
+dot in the middle. Both take black or white the same way.
 
 ## Selection groups
 

@@ -77,6 +77,12 @@ resolution, only for the rows in view, and kept until fonts are added.
 Clicking text with the Text tool (or double-clicking it with the Pick
 tool) edits it where it is. The caret is a character position in the
 concatenated spans; the layout's line boxes give its place on the page.
+On screen the caret blinks, 0.53 s on and 0.53 s off, and shows steadily
+again each time it moves. It is black on light drawing and white on
+dark (the same rule as the selection handles, see `pick-tool.md`),
+edged in the other colour; a table cell's caret does the same. A
+paragraph text being edited keeps its frame, dashed in black or white
+against what is under it.
 
 | Input | Behaviour |
 |---|---|

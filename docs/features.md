@@ -13,6 +13,7 @@ Counts: works 191, partial 4 (`.cdr` content coverage; CMX import; print preview
 | Capability | Status |
 |---|---|
 | Pick: click, shift-click, marquee, Alt-marquee (touch), Alt-click dig, Ctrl-click inside groups (round handles; move, colour and delete one object of a group), Tab cycling | works |
+| Selection marks in black or white against the drawing under them: handles, centre marks, a one-pixel outline per chosen object (solid with the Pick tools, dashed with the Shape tool; artistic text by its box, paragraph text by its frame), and a blinking text caret | works (see `behavior/pick-tool.md`, `behavior/text.md`; `contrast::tests`) |
 | Second click rotate/skew handles: rotate about a movable centre of rotation, skew with the side handles, Ctrl steps, Shift about the centre line | works (see `behavior/pick-tool.md`) |
 | Handle modifiers: Shift scales from the centre, Ctrl in 100 % steps (mirror at the same size), Alt frees a corner; Ctrl keeps a move straight; right click during a drag leaves the original; Space drops a copy; Esc cancels | works |
 | Drag a palette colour onto an object (inside: fill, on the outline: outline colour, No Color removes) or onto the document palette (see `behavior/color-palettes.md`) | works |

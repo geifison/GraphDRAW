@@ -248,7 +248,7 @@ fn hud_ui(ctx: &egui::Context, app: &App, info: &HoverInfo) -> (Option<HudAction
 /// eyedropper the stops the colour bucket can hit and the magnifier.
 pub fn canvas_overlay(app: &mut App, ui: &mut Ui, painter: &Painter, canvas: Rect) {
     let active = ed::is_eyedropper(app.tool);
-    app.raster.borrow_mut().keep_pixels = active;
+    app.raster.borrow_mut().keep_pixels = crate::contrast::keep_pixels(app);
     app.eyedrop.now = ui.input(|i| i.time);
     // The highlight on what received the bucket, fading out.
     match app.eyedrop.ripple_phase() {

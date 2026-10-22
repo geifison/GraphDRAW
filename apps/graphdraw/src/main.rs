@@ -37,6 +37,7 @@ mod comments;
 mod common_shapes;
 mod connectors;
 mod contour_tool;
+mod contrast;
 mod coords;
 mod copy_effect;
 mod corners;

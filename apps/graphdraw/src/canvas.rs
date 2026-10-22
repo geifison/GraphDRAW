@@ -305,9 +305,14 @@ pub fn draw_canvas(app: &App, painter: &Painter, rect: ERect) {
                     EStroke::NONE,
                 ));
             }
-            painter.line_segment(
-                [view.to_screen(top), view.to_screen(bottom)],
-                EStroke::new(1.5, Tokens::text()),
+            // The cursor blinks, black or white against what is under it.
+            let key = app.text_edit.as_ref().map(|te| (te.shape, te.caret, te.anchor));
+            crate::contrast::draw_caret(
+                app,
+                painter,
+                view.to_screen(top),
+                view.to_screen(bottom),
+                crate::contrast::caret_key(key),
             );
             ime_at_caret(app, painter, view.to_screen(top), view.to_screen(bottom));
         }
@@ -834,9 +839,13 @@ fn draw_table_cells(app: &App, painter: &Painter) {
                 EStroke::NONE,
             ));
         }
-        painter.line_segment(
-            [view.to_screen(top), view.to_screen(bottom)],
-            EStroke::new(1.5, Tokens::text()),
+        let key = app.table_edit.as_ref().map(|e| e.shape);
+        crate::contrast::draw_caret(
+            app,
+            painter,
+            view.to_screen(top),
+            view.to_screen(bottom),
+            crate::contrast::caret_key((key, top.x.to_bits(), top.y.to_bits())),
         );
         ime_at_caret(app, painter, view.to_screen(top), view.to_screen(bottom));
     }
@@ -923,7 +932,10 @@ fn draw_selection(app: &App, painter: &Painter, preview: Option<Affine>) {
         .unwrap_or(Rect::ZERO);
     let r = view.rect_to_screen(bounds);
 
+    // The Shape tool marks the chosen objects with a dashed hairline
+    // under their nodes.
     if app.tool == Tool::Shape {
+        crate::contrast::draw_selection_outlines(app, painter, &shapes, true);
         draw_nodes(app, painter);
         return;
     }
@@ -956,6 +968,12 @@ fn draw_selection(app: &App, painter: &Painter, preview: Option<Affine>) {
         return;
     }
 
+    // A solid hairline along each chosen object (the box of an artistic
+    // text), in black or white against what is under it.
+    if preview.is_none() {
+        crate::contrast::draw_selection_outlines(app, painter, &shapes, false);
+    }
+
     // Every tool shows the selection handles and the centre marker right
     // after a shape is drawn; only the Pick tools switch to the rotate and
     // skew arrows.
@@ -970,28 +988,22 @@ fn draw_selection(app: &App, painter: &Painter, preview: Option<Affine>) {
             .rotation_center()
             .map(|c| app.view.to_screen(c))
             .unwrap_or(r.center());
-        // The centre of rotation: a ring with a dot.
-        painter.circle_stroke(c, 8.0, EStroke::new(2.0, Color32::BLACK));
-        painter.circle_filled(c, 2.0, Color32::BLACK);
+        // The centre of rotation: a ring with a dot, black or white
+        // against what is under it.
+        let ink = crate::contrast::ink_at(app, c);
+        painter.circle_stroke(c, 8.0, EStroke::new(2.0, ink));
+        painter.circle_filled(c, 2.0, ink);
         for (h, p) in app.handle_positions(bounds) {
-            draw_rotate_handle(painter, p, h);
+            draw_rotate_handle(painter, p, h, crate::contrast::ink_at(app, p));
         }
     } else {
-        // Eight square handles just outside the selection box, which has
-        // no frame of its own, so the objects' outlines stay in view.
+        // Eight square handles just outside the selection box, black or
+        // white against what is under each and edged in the other.
         // Objects chosen inside a group show round handles.
         let nested = app.selection_nested();
         let size = crate::interaction::HANDLE_SIZE;
         for (_, p) in app.handle_positions(bounds) {
-            if nested {
-                painter.circle_filled(p, size / 2.0 + 0.5, Color32::BLACK);
-            } else {
-                painter.rect_filled(
-                    ERect::from_center_size(p, egui::vec2(size, size)),
-                    0.0,
-                    Color32::BLACK,
-                );
-            }
+            crate::contrast::draw_handle(app, painter, p, size, nested);
         }
     }
     // Hint "x" in the centre: the move marker (rotate mode shows the
@@ -1000,22 +1012,22 @@ fn draw_selection(app: &App, painter: &Painter, preview: Option<Affine>) {
         return;
     }
     let c = r.center();
+    let ink = crate::contrast::ink_at(app, c);
     painter.line_segment(
         [c - egui::vec2(4.0, 4.0), c + egui::vec2(4.0, 4.0)],
-        EStroke::new(1.0, Tokens::HANDLE),
+        EStroke::new(1.0, ink),
     );
     painter.line_segment(
         [c - egui::vec2(4.0, -4.0), c + egui::vec2(4.0, -4.0)],
-        EStroke::new(1.0, Tokens::HANDLE),
+        EStroke::new(1.0, ink),
     );
 }
 
 /// A rotate mode handle at `p`: a curved double arrow around each
 /// corner, a straight double arrow along each side (sideways at the top
-/// and bottom, up and down at the left and right). Black, 2 points thick,
-/// with solid heads.
-fn draw_rotate_handle(painter: &Painter, p: Pos2, h: Handle) {
-    let ink = Color32::BLACK;
+/// and bottom, up and down at the left and right). In `ink`, 2 points
+/// thick, with solid heads.
+fn draw_rotate_handle(painter: &Painter, p: Pos2, h: Handle, ink: Color32) {
     let stroke = EStroke::new(2.0, ink);
     // A solid head with its tip at `tip`, pointing along `dir`.
     let head = |tip: Pos2, dir: egui::Vec2| {
@@ -1077,10 +1089,14 @@ fn draw_text_frames(app: &App, painter: &Painter, preview: Option<Affine>) {
     for f in app.shown_text_frames(preview) {
         let mut pts: Vec<Pos2> = f.corners.iter().map(|p| app.view.to_screen(*p)).collect();
         pts.push(pts[0]);
+        // The frame of a chosen or edited text: dashes in black or white
+        // against what is under them.
+        if f.chosen && !f.overflow {
+            crate::contrast::draw_polyline(app, painter, &pts, true);
+            continue;
+        }
         let color = if f.overflow {
             red
-        } else if f.chosen {
-            Tokens::SELECTION
         } else {
             Color32::from_gray(150)
         };
