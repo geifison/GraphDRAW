@@ -757,6 +757,13 @@ pub struct App {
     /// A right click during a move, scale, rotation or skew: on release
     /// the change goes to copies and the originals stay.
     pub drag_copy: bool,
+    /// Where the left button went down on the canvas while it is held: a
+    /// right press before the drag starts moves egui's press origin, and
+    /// the drag still belongs to what the left button pressed.
+    pub primary_press: Option<egui::Pos2>,
+    /// A right click while the left button was held, before its drag
+    /// started: the drag that follows goes to copies.
+    pub press_copy: bool,
     /// The Pen or Bezier tool is dragging a node of the selected curve
     /// (as the Shape tool does), not drawing.
     pub pen_editing: bool,
@@ -1739,6 +1746,8 @@ impl App {
             pivots: Pivots::default(),
             drag: Drag::None,
             drag_copy: false,
+            primary_press: None,
+            press_copy: false,
             pen_editing: false,
             curve: None,
             text_edit: None,

@@ -628,6 +628,29 @@ impl App {
             .map(|(h, _)| *h)
     }
 
+    /// Keep where the left button went down while it is held, and note a
+    /// right click before its drag starts (a quick right click during a
+    /// move): see `primary_press` and `press_copy`.
+    fn track_primary_press(&mut self, response: &Response) {
+        let (pressed, down, right, origin) = response.ctx.input(|i| {
+            (
+                i.pointer.button_pressed(PointerButton::Primary),
+                i.pointer.primary_down(),
+                i.pointer.button_pressed(PointerButton::Secondary),
+                i.pointer.press_origin(),
+            )
+        });
+        if pressed && response.hovered() {
+            self.primary_press = origin;
+            self.press_copy = false;
+        } else if !down {
+            self.primary_press = None;
+            self.press_copy = false;
+        } else if right && self.primary_press.is_some() && matches!(self.drag, Drag::None) {
+            self.press_copy = !self.press_copy;
+        }
+    }
+
     pub fn canvas_input(&mut self, response: &Response, mods: Modifiers) {
         self.snap_mark.set(None);
         self.clear_live_guides();
@@ -635,6 +658,7 @@ impl App {
         let hover = response.hover_pos();
         let pointer = hover.map(|h| self.view.to_page(h));
         self.pointer_page = pointer;
+        self.track_primary_press(response);
         let Some(p) = pointer else {
             let released = self.transforming() && !response.ctx.input(|i| i.pointer.primary_down());
             if response.drag_stopped() || released {
@@ -647,7 +671,8 @@ impl App {
         // press position so small targets like nodes and handles are caught.
         let mut p = p;
         if response.drag_started() {
-            if let Some(origin) = response.ctx.input(|i| i.pointer.press_origin()) {
+            let origin = response.ctx.input(|i| i.pointer.press_origin());
+            if let Some(origin) = self.primary_press.or(origin) {
                 screen = origin;
                 p = self.view.to_page(origin);
             }
@@ -920,7 +945,10 @@ impl App {
             return;
         }
         if response.drag_started_by(PointerButton::Primary) {
-            self.drag_copy = false;
+            self.drag_copy = std::mem::take(&mut self.press_copy);
+            if self.drag_copy {
+                self.status = crate::i18n::tr("status.drag_copy_on");
+            }
             // Rotate mode: the centre of rotation moves.
             if self.pivot_at(screen) {
                 self.drag = Drag::Pivot;

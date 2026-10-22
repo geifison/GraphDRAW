@@ -2338,3 +2338,47 @@ fn an_object_over_the_selections_centre_mark_wins_the_press() {
     let c = bounds(&app, copy);
     assert!(close(c.width(), 10.0) && c.x0 > 100.0, "the small one is copied: {c:?}");
 }
+
+#[test]
+fn a_quick_right_click_before_the_drag_starts_copies_the_pressed_object() {
+    let (ctx, mut app, id, back) = over_background();
+    let back_bounds = bounds(&app, back);
+    let none = Modifiers::NONE;
+    let from = app.view.to_screen(Point::new(35.0, 25.0));
+    frame(&ctx, &mut app, vec![Event::PointerMoved(from)], none);
+    frame(&ctx, &mut app, vec![button(from, true, PointerButton::Primary, none)], none);
+    // A quick flick: the right button goes down over the background in the
+    // same frame the pointer leaves the small rectangle, before the drag
+    // has started.
+    let mut p = from + egui::vec2(2.0, 1.0);
+    frame(&ctx, &mut app, vec![Event::PointerMoved(p)], none);
+    p += egui::vec2(60.0, 40.0);
+    frame(
+        &ctx,
+        &mut app,
+        vec![
+            Event::PointerMoved(p),
+            button(p, true, PointerButton::Secondary, none),
+        ],
+        none,
+    );
+    for _ in 0..3 {
+        p += egui::vec2(20.0, 8.0);
+        frame(&ctx, &mut app, vec![Event::PointerMoved(p)], none);
+    }
+    frame(&ctx, &mut app, vec![button(p, false, PointerButton::Secondary, none)], none);
+    for _ in 0..3 {
+        p += egui::vec2(20.0, 8.0);
+        frame(&ctx, &mut app, vec![Event::PointerMoved(p)], none);
+    }
+    frame(&ctx, &mut app, vec![button(p, false, PointerButton::Primary, none)], none);
+    frame(&ctx, &mut app, Vec::new(), none);
+    assert_eq!(bounds(&app, back), back_bounds, "the background stays");
+    assert!(close(bounds(&app, id).x0, 10.0), "the original stays");
+    assert_eq!(shape_count(&app), 3, "one copy");
+    let copy = app.selection.first().copied().expect("copy");
+    assert!(copy != id && copy != back);
+    let c = bounds(&app, copy);
+    assert!(close(c.width(), 50.0) && c.x0 > 15.0, "the small one is copied: {c:?}");
+    assert!(app.dialog_is_none_or_menu_closed());
+}

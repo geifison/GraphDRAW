@@ -115,10 +115,12 @@ impl App {
 
 impl App {
     /// Right-button drags with the Pick tools; true when the input was
-    /// used here.
+    /// used here. With the left button also held the drag is the left
+    /// one's (a right click during a move copies).
     pub fn right_drag_input(&mut self, response: &Response, p: Point) -> bool {
         let constrain = response.ctx.input(|i| i.modifiers.command);
-        if response.drag_started_by(egui::PointerButton::Secondary) {
+        let primary = response.ctx.input(|i| i.pointer.primary_down());
+        if response.drag_started_by(egui::PointerButton::Secondary) && !primary {
             let Some(id) = self.hit_test(p) else {
                 return false;
             };
