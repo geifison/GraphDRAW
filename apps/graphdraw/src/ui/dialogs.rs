@@ -2673,6 +2673,15 @@ fn export_dialog(app: &mut App, ctx: &Context, st: &mut ExportState, close: &mut
 /// Print > Layout: the imposition, the sheet and the gap between pages,
 /// with a sketch of the first sheet.
 pub(crate) fn print_layout_fields(app: &App, ui: &mut Ui, st: &mut PrintState) {
+    ui.vertical(|ui| {
+        print_layout_grid(ui, st);
+        ui.add_space(8.0);
+        print_layout_sketch(app, ui, st);
+    });
+}
+
+/// The imposition, sheet and gap fields of Print > Layout.
+fn print_layout_grid(ui: &mut Ui, st: &mut PrintState) {
     ui.strong(tr("print.layout"));
     ui.vertical(|ui| {
         ui.vertical(|ui| {
@@ -2734,8 +2743,12 @@ pub(crate) fn print_layout_fields(app: &App, ui: &mut Ui, st: &mut PrintState) {
                     }
                 });
         });
-        ui.add_space(8.0);
-        // A sketch of the first sheet and the sheet count.
+    });
+}
+
+/// A sketch of the first sheet and the sheet count.
+fn print_layout_sketch(app: &App, ui: &mut Ui, st: &PrintState) {
+    ui.vertical(|ui| {
         let mut doc_pages: Vec<Size> = app.doc().pages.iter().map(|p| p.size).collect();
         if !st.all_pages {
             doc_pages = vec![app.page_size()];
@@ -2804,6 +2817,12 @@ fn print_group(ui: &mut Ui, title: &str, add: impl FnOnce(&mut Ui)) {
     });
 }
 
+/// The Print dialog's tab area: wide enough for the Layout tab's options
+/// beside its sketch, tall enough for the tallest tab, so no tab scrolls.
+pub(crate) const PRINT_BODY: egui::Vec2 = egui::vec2(760.0, 340.0);
+/// The width of the Layout tab's sketch column.
+const PRINT_SKETCH_COLUMN: f32 = 240.0;
+
 fn print_dialog(app: &mut App, ctx: &Context, st: &mut PrintState, close: &mut bool) {
     window(ctx, tr("dialog.print")).show(ctx, |ui| {
         let issues = if app.settings.printing.preflight {
@@ -2837,8 +2856,8 @@ fn print_dialog(app: &mut App, ctx: &Context, st: &mut PrintState, close: &mut b
         });
         ui.separator();
         egui::Frame::new().show(ui, |ui| {
-            ui.set_min_size(egui::vec2(560.0, 380.0));
-            ui.set_max_width(560.0);
+            ui.set_min_size(PRINT_BODY);
+            ui.set_max_width(PRINT_BODY.x);
             match st.tab {
                 1 => print_tab_color(ui, st),
                 2 => print_tab_composite(ui, st),
@@ -2991,7 +3010,24 @@ fn print_tab_composite(ui: &mut Ui, st: &mut PrintState) {
     });
 }
 
+/// Print > Layout: the options on the left, the sheet sketch on the right,
+/// so the tab fits the dialog without scrolling.
 fn print_tab_layout(app: &App, ui: &mut Ui, st: &mut PrintState) {
+    ui.horizontal_top(|ui| {
+        ui.vertical(|ui| {
+            // Less the group frames' margins, which add to the width set.
+            ui.set_width(PRINT_BODY.x - PRINT_SKETCH_COLUMN - 16.0 - 12.0);
+            print_layout_options(ui, st);
+        });
+        ui.add_space(16.0);
+        ui.vertical(|ui| {
+            ui.set_width(PRINT_SKETCH_COLUMN);
+            print_layout_sketch(app, ui, st);
+        });
+    });
+}
+
+fn print_layout_options(ui: &mut Ui, st: &mut PrintState) {
     print_group(ui, &tr("print.position_size"), |ui| {
         let mut mode = if st.fit_to_page {
             1
@@ -3037,7 +3073,7 @@ fn print_tab_layout(app: &App, ui: &mut Ui, st: &mut PrintState) {
         );
     });
     ui.add_space(6.0);
-    print_layout_fields(app, ui, st);
+    print_layout_grid(ui, st);
 }
 
 fn print_tab_prepress(app: &App, ui: &mut Ui, st: &mut PrintState) {

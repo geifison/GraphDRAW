@@ -176,6 +176,11 @@ impl Window {
             .title_bar(false)
             .collapsible(false)
             .resizable(false)
+            // A window that cannot be resized keeps egui's default height
+            // (420) as the most room its body gets, and the body scrolled
+            // past it; as tall as the screen, only a dialog taller than the
+            // screen scrolls.
+            .default_height(ctx.content_rect().height())
             .frame(window_frame());
         let window = if center_dialogs(ctx) {
             window.anchor(Align2::CENTER_CENTER, Vec2::ZERO)

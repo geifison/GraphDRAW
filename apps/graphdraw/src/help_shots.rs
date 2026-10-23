@@ -1007,3 +1007,86 @@ fn clip_frame_shots() {
     app.extract_clip_contents();
     run(&mut app, 3).save(&dir.join("05-aviso-moldura-vazia.png"), full);
 }
+
+/// Every tab of the Print dialog, in Portuguese (the longer labels), on a
+/// 1280 x 800 screen: the dialog keeps one size for all of them, so no tab
+/// overflows its area, and it stays below the height at which the dialog
+/// body starts to scroll. With `$PRINT_SHOTS` set, each tab is also saved
+/// there as a PNG.
+#[test]
+fn print_dialog_tabs_fit_without_scrolling() {
+    use crate::ui::dialogs::PrintState;
+    const SW: f32 = 1280.0;
+    const SH: f32 = 800.0;
+    let dir = std::env::var_os("PRINT_SHOTS").map(std::path::PathBuf::from);
+    let mut sh = Shooter::new();
+    let mut app = demo_app();
+    crate::i18n::set_language("pt-BR");
+    app.settings.printing.preflight = true;
+    let id = egui::Id::new(("chrome_dialog", crate::i18n::tr("dialog.print")));
+    // An auto-sized window settles over a few frames.
+    const FRAMES: usize = 8;
+    let mut sizes = Vec::new();
+    for tab in 0..7 {
+        app.dialog = Dialog::Print(PrintState {
+            tab,
+            ..PrintState::default()
+        });
+        let mut rect = None;
+        for n in 0..FRAMES {
+            sh.time += 0.5;
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(SW, SH),
+                )),
+                time: Some(sh.time),
+                ..Default::default()
+            };
+            let mut out = sh.ctx.run_ui(input, |ui| {
+                let ctx = ui.ctx().clone();
+                crate::ui::apply_theme(&ctx, &crate::settings::effective_theme(&app.settings));
+                crate::ui::dialogs::show(&mut app, &ctx);
+            });
+            sh.tex.apply(&out.textures_delta);
+            if n + 1 == FRAMES {
+                rect = sh.ctx.memory(|m| m.area_rect(id));
+                if let (Some(dir), Some(r)) = (&dir, rect) {
+                    std::fs::create_dir_all(dir).unwrap();
+                    let shapes = std::mem::take(&mut out.shapes);
+                    let prims = sh.ctx.tessellate(shapes, out.pixels_per_point);
+                    let mut c = Canvas::new(SW as usize, SH as usize);
+                    c.paint(&sh.tex, &prims);
+                    let area = (
+                        r.min.x.max(0.0) as usize,
+                        r.min.y.max(0.0) as usize,
+                        (r.max.x.ceil() as usize).min(SW as usize),
+                        (r.max.y.ceil() as usize).min(SH as usize),
+                    );
+                    c.save(&dir.join(format!("print-tab-{tab}.png")), area);
+                }
+            }
+            for t in &out.textures_delta.free {
+                sh.tex.0.remove(t);
+            }
+            out.textures_delta.clear();
+        }
+        let r = rect.expect("the Print dialog is drawn");
+        sizes.push((tab, r.width().round(), r.height().round()));
+    }
+    let first = sizes[0];
+    for s in &sizes {
+        assert_eq!((s.1, s.2), (first.1, first.2), "tab sizes differ: {sizes:?}");
+    }
+    // The body scrolls from SH - TITLE_BAR - 60 up; the window adds its
+    // title bar and frame to the body.
+    let title = crate::ui::chrome::TITLE_BAR;
+    let scroll_from = SH - title - 60.0;
+    assert!(first.2 - title < scroll_from, "{sizes:?}");
+    // The whole body shows: the window holds the title bar, the tab row,
+    // the tab area and the button row (a window held to a fixed height
+    // would cut the buttons off and scroll instead).
+    let body = crate::ui::dialogs::PRINT_BODY;
+    assert!(first.2 >= title + body.y + 80.0, "{sizes:?}");
+    assert!(first.1 >= body.x, "{sizes:?}");
+}
