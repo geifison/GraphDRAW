@@ -30,11 +30,11 @@ node or halftone dot.
 
 | Need | Expected behaviour | GraphDraw today |
 | --- | --- | --- |
-| Numeric zoom | Exact percent, plus Fit | 25 to 400 % of the fitted size, Fit |
-| Zoom to area | Drag a rectangle to fill the view | missing |
-| Wheel and keys | Wheel and Ctrl+plus / Ctrl+minus zoom around the pointer | to check |
-| Pan | Middle button drag pans at any zoom without changing it | to check |
-| Real size | 100 % equals physical size on a calibrated screen (uses the ruler calibration) | missing: zoom is relative to the fit |
+| Numeric zoom | Exact percent, plus Fit | 10 to 6400 % of the fitted size, Fit |
+| Zoom to area | Drag a rectangle to fill the view | works |
+| Wheel and keys | Wheel and Ctrl+plus / Ctrl+minus zoom around the pointer | works (keys zoom about the centre) |
+| Pan | Middle button drag pans at any zoom without changing it | works |
+| Real size | 100 % equals physical size on a calibrated screen (uses the ruler calibration) | works (Real size button) |
 | Sheet navigation | Previous, next, Page Up, Page Down | works |
 
 Real-size zoom matters most: it is how small type and bleed margins are

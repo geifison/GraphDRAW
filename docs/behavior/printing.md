@@ -55,8 +55,16 @@ same function (`export::print_sheets`).
 - Top bar: Print (prints these settings and closes), Close (Esc), the
   sheet shown with previous and next (Page Up, Page Down), the Plate
   (Composite, then cyan, magenta, yellow, black and each spot ink) while
-  Print separations is on, and Zoom from 25 to 400 % of the fitted size
-  with Fit.
+  Print separations is on, Zoom from 10 to 6400 % of the fitted size, Fit
+  and Real size (100 % of the paper at the screen resolution of Options >
+  Display > Ruler calibration).
+- The sheet: the wheel (and a pinch) zooms by 15 % a notch about the
+  pointer, Ctrl+plus and Ctrl+minus by 25 % about the centre; the middle
+  button drags it; a left drag draws a rectangle and zooms so that it
+  fills the view, centred; a double click fits. At least 48 points of
+  the sheet stay on screen. Up to 4096 pixels on its longer side the
+  whole sheet is rendered once; past that only the part on screen, so
+  small type stays sharp at any zoom.
 - Left: the Print dialog's options (all pages, fit, scale, prepress and
   layout with its sketch); every change rebuilds the sheets at once.
 - A plate shows the ink's coverage in grey, black = full ink, as the
@@ -102,6 +110,11 @@ With any mark on, a 12 mm margin (plus the bleed) surrounds the pages.
 
 - `ui::print_preview::tests::plates_split_the_sheet_by_ink`
 - `ui::print_preview::tests::the_settings_key_ignores_copies_and_preflight`
+- `ui::print_preview::tests::zooming_keeps_the_point_under_the_pointer`
+- `ui::print_preview::tests::a_zoom_rectangle_fills_the_view_centred`
+- `ui::print_preview::tests::panning_keeps_part_of_the_sheet_on_screen`
+- `ui::print_preview::tests::real_size_follows_the_ruler_calibration`
+- `ui::print_preview::tests::a_part_of_the_sheet_renders_like_the_same_part_of_the_whole`
 
 - `imposition::tests::booklets_pair_the_pages_for_folding`
 - `imposition::tests::n_up_fills_sheets_in_reading_order_and_scales_to_fit`
