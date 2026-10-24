@@ -73,6 +73,7 @@ pub fn context_menu(app: &mut App, ui: &mut Ui, response: &Response) {
     if close || shown.is_none() {
         egui::Popup::close_id(&ctx, id);
         app.context_menu = None;
+        app.context_locked = None;
         ctx.data_mut(|d| d.remove::<egui::Pos2>(pos_id));
     }
     let _ = response;
@@ -516,7 +517,24 @@ fn node_menu(app: &mut App, ui: &mut Ui, close: &mut bool) {
     }
 }
 
-fn page_menu(app: &mut App, ui: &mut Ui, p: graphdraw_core::Point, close: &mut bool) {
+/// Right-click on an empty area of the page, or on a locked object: then
+/// Unlock Object comes first and selects the object it unlocks.
+pub(crate) fn page_menu(app: &mut App, ui: &mut Ui, p: graphdraw_core::Point, close: &mut bool) {
+    if let Some(id) = app.context_locked {
+        if ci(ui, close, "menu.object.unlock_object", "", true) {
+            app.run(Command::SetLocked {
+                shapes: vec![id],
+                locked: false,
+            });
+            app.select(vec![id]);
+            app.context_locked = None;
+        }
+        if ci(ui, close, "menu.object.unlock_all", "", true) {
+            app.unlock_all();
+            app.context_locked = None;
+        }
+        sep(ui);
+    }
     if ci(
         ui,
         close,
@@ -573,5 +591,89 @@ fn page_menu(app: &mut App, ui: &mut Ui, p: graphdraw_core::Point, close: &mut b
     sep(ui);
     if ci(ui, close, "menu.tools.options_app", "Ctrl+J", true) {
         app.dialog = Dialog::Options;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use graphdraw_core::{geometry::Rect, Point};
+
+    fn locked_square(app: &mut App) -> graphdraw_core::ShapeId {
+        let id = app
+            .new_shape(ShapeKind::Rect {
+                rect: Rect::new(50.0, 130.0, 70.0, 150.0),
+                radius: 0.0,
+                corners: None,
+            })
+            .expect("square");
+        app.select(vec![id]);
+        app.set_locked(true);
+        id
+    }
+
+    fn locked(app: &App, id: graphdraw_core::ShapeId) -> bool {
+        app.doc().find_shape(id).expect("square").locked
+    }
+
+    /// Runs the page menu once and clicks row `target`; returns the key
+    /// of the row it hit and the number of rows.
+    fn page_frame(app: &mut App, target: usize) -> (Option<String>, usize) {
+        let ctx = egui::Context::default();
+        crate::ui::menus::replay::start(target);
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1400.0, 900.0),
+            )),
+            ..Default::default()
+        };
+        let mut out = ctx.run_ui(input, |ui| {
+            let mut close = false;
+            page_menu(app, ui, Point::new(60.0, 140.0), &mut close);
+        });
+        out.textures_delta.clear();
+        crate::ui::menus::replay::finish()
+    }
+
+    #[test]
+    fn a_right_click_on_a_locked_object_offers_to_unlock_it() {
+        let mut app = App::headless();
+        let id = locked_square(&mut app);
+        assert!(locked(&app, id));
+        let p = Point::new(60.0, 140.0);
+        app.open_context_menu(app.view.to_screen(p), p);
+        assert!(app.selection.is_empty());
+        assert_eq!(app.context_locked, Some(id));
+        let (key, _) = page_frame(&mut app, 0);
+        assert_eq!(key.as_deref(), Some("menu.object.unlock_object"));
+        assert!(!locked(&app, id));
+        assert_eq!(app.selection, vec![id]);
+    }
+
+    #[test]
+    fn unlock_all_is_offered_beside_it() {
+        let mut app = App::headless();
+        let id = locked_square(&mut app);
+        let p = Point::new(60.0, 140.0);
+        app.open_context_menu(app.view.to_screen(p), p);
+        let (key, _) = page_frame(&mut app, 1);
+        assert_eq!(key.as_deref(), Some("menu.object.unlock_all"));
+        assert!(!locked(&app, id));
+    }
+
+    #[test]
+    fn an_empty_area_shows_no_unlock_row() {
+        let mut app = App::headless();
+        let id = locked_square(&mut app);
+        let on = Point::new(60.0, 140.0);
+        app.open_context_menu(app.view.to_screen(on), on);
+        let (_, with_unlock) = page_frame(&mut app, usize::MAX);
+        let p = Point::new(150.0, 40.0);
+        app.open_context_menu(app.view.to_screen(p), p);
+        assert_eq!(app.context_locked, None);
+        let (_, rows) = page_frame(&mut app, usize::MAX);
+        assert_eq!(rows + 2, with_unlock);
+        assert!(locked(&app, id));
     }
 }

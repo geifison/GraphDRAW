@@ -1137,6 +1137,9 @@ pub struct App {
     pub show_transform_toolbar: bool,
     /// Right-click context menu anchor (screen position, page position).
     pub context_menu: Option<(egui::Pos2, Point)>,
+    /// The locked object under the right click when no other object is
+    /// there: the context menu offers Unlock Object for it.
+    pub context_locked: Option<ShapeId>,
     pub scripts_output: Vec<String>,
     pub script_source: String,
     /// Scripts panel debugger: the running script, the line it is paused
@@ -1964,6 +1967,7 @@ impl App {
             show_zoom_toolbar: false,
             show_transform_toolbar: false,
             context_menu: None,
+            context_locked: None,
             scripts_output: Vec::new(),
             script_source: String::new(),
             script_debug: None,

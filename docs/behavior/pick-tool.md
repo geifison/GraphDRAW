@@ -161,6 +161,11 @@ vertical, Esc cancels it. On release a menu opens there:
 The four items that act on the object under the pointer are dimmed when
 there is none. A right click without a drag opens the context menu.
 
+A locked object cannot be selected, so a right click on one (where no
+unlocked object is) opens the page menu with Unlock Object and Unlock All
+Objects at the top; Unlock Object unlocks that object and selects it
+(`ui::context::tests::a_right_click_on_a_locked_object_offers_to_unlock_it`).
+
 ## Property bar
 
 With nothing selected the bar shows the page fields (size, orientation,

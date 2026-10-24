@@ -175,6 +175,19 @@ impl App {
             .map(|s| s.id)
     }
 
+    /// The topmost locked object at `p` on a visible, unlocked layer; the
+    /// context menu offers to unlock it.
+    pub fn locked_at(&self, p: Point) -> Option<ShapeId> {
+        let tol = 3.0 / self.view.zoom as f64;
+        self.page_layers()
+            .into_iter()
+            .rev()
+            .filter(|l| l.visible && !l.locked)
+            .flat_map(|l| l.shapes.iter().rev())
+            .find(|s| s.locked && s.visible && self.shape_hit(s, p, tol))
+            .map(|s| s.id)
+    }
+
     /// `s` (in page space) is under `p` within `tol` page units: text,
     /// groups, tables, bitmaps, clip frames and symbols anywhere in their
     /// box; filled objects inside their shape (an open curve only when the

@@ -599,6 +599,7 @@ impl App {
 
     /// Right-click: remember where, the UI draws the context menu.
     pub fn open_context_menu(&mut self, screen: egui::Pos2, p: Point) {
+        self.context_locked = None;
         if self.tool == Tool::Pick || self.tool == Tool::FreeformPick {
             if let Some(id) = self.hit_test(p) {
                 if !self.selection.contains(&id) {
@@ -610,6 +611,11 @@ impl App {
                     self.select(Vec::new());
                     self.selected_guides = vec![i];
                 }
+            } else if let Some(id) = self.locked_at(p) {
+                // A locked object cannot be selected; the page menu
+                // offers to unlock it.
+                self.select(Vec::new());
+                self.context_locked = Some(id);
             }
         }
         if self.tool == Tool::Shape {
