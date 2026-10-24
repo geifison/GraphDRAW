@@ -1,7 +1,8 @@
 //! The Align and Distribute docker. Align: six picture buttons (left
 //! edges, centres on a vertical line, right edges; top edges, centres on
 //! a horizontal line, bottom edges), what they align to (the active
-//! object, the page's edges, the page's centre, the grid) and Use Outline.
+//! object, the page's edges, the page's centre, the grid, a specified
+//! point) and Use Outline.
 //! Distribute: eight picture buttons (left edges, centres, gaps and right
 //! edges along x; top edges, centres, gaps and bottom edges along y) and
 //! where they spread the objects (between the outermost, across the page).
@@ -206,7 +207,45 @@ fn menu_glyph(icon: Icon) -> Option<crate::ui::menu_glyphs::Glyph> {
     })
 }
 
+/// The colour picture of the docker's button, from
+/// `assets/icons/color/`.
+fn color_picture(icon: Icon) -> Option<&'static str> {
+    Some(match icon {
+        Icon::Align(a) => match a {
+            Align::Left => "align-left",
+            Align::CenterV => "align-center-v",
+            Align::Right => "align-right",
+            Align::Top => "align-top",
+            Align::CenterH => "align-center-h",
+            Align::Bottom => "align-bottom",
+            Align::CenterPage => return None,
+        },
+        Icon::Distribute(d) => match d {
+            Distribute::Left => "dist-left",
+            Distribute::CentersH => "dist-center-h",
+            Distribute::Right => "dist-right",
+            Distribute::Top => "dist-top",
+            Distribute::CentersV => "dist-center-v",
+            Distribute::Bottom => "dist-bottom",
+            Distribute::SpacingH => "dist-space-h",
+            Distribute::SpacingV => "dist-space-v",
+        },
+        _ => return None,
+    })
+}
+
 fn paint(p: &Painter, r: Rect, icon: Icon, color: Color32) {
+    if let Some(stem) = color_picture(icon) {
+        // Own colours while enabled, faded when not.
+        let tint = if color == Tokens::icon() {
+            Color32::WHITE
+        } else {
+            Color32::from_white_alpha(90)
+        };
+        if crate::ui::svg_icons::paint_color(p, r, stem, tint) {
+            return;
+        }
+    }
     if let Some(g) = menu_glyph(icon) {
         let svg = crate::ui::svg_icons::IconRef::Glyph(g);
         if crate::ui::svg_icons::paint_svg(p, r, svg, color) {
@@ -255,6 +294,11 @@ fn paint(p: &Painter, r: Rect, icon: Icon, color: Color32) {
                         pen.line(t, 2.0, t, 14.0, 0.9);
                         pen.line(2.0, t, 14.0, t, 0.9);
                     }
+                }
+                AlignTo::Point => {
+                    pen.line(8.0, 1.0, 8.0, 15.0, 1.0);
+                    pen.line(1.0, 8.0, 15.0, 8.0, 1.0);
+                    pen.frame(5.0, 5.0, 11.0, 11.0, 1.2);
                 }
             }
         }
@@ -337,6 +381,34 @@ fn align_to_key(to: AlignTo) -> &'static str {
         AlignTo::PageEdge => "docker.align_page_edge",
         AlignTo::PageCenter => "docker.align_page_center",
         AlignTo::Grid => "docker.align_grid",
+        AlignTo::Point => "docker.align_point",
+    }
+}
+
+/// X and Y of the Specified point, as the rulers count them.
+fn point_fields(app: &mut App, ui: &mut Ui) {
+    let u = app.units;
+    let shown = app.to_ruler(app.align_point);
+    let mut xy = [u.world_from_mm(shown.x), u.world_from_mm(shown.y)];
+    let mut changed = false;
+    for (v, key) in xy
+        .iter_mut()
+        .zip(["docker.align_point_x", "docker.align_point_y"])
+    {
+        ui.horizontal(|ui| {
+            ui.label(tr(key));
+            changed |= ui
+                .add(
+                    egui::DragValue::new(v)
+                        .speed(0.5)
+                        .suffix(format!(" {}", u.short())),
+                )
+                .changed();
+        });
+    }
+    if changed && xy.iter().all(|v| v.is_finite()) {
+        let p = graphdraw_core::geometry::Point::new(u.world_to_mm(xy[0]), u.world_to_mm(xy[1]));
+        app.align_point = app.from_ruler(p);
     }
 }
 
@@ -347,13 +419,14 @@ pub fn align_distribute(app: &mut App, ui: &mut Ui) {
     ui.add_space(2.0);
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing.x = 2.0;
-        for (i, (key, a)) in [
-            ("menu.object.align_left", Align::Left),
-            ("menu.object.align_centers_v", Align::CenterV),
-            ("menu.object.align_right", Align::Right),
-            ("menu.object.align_top", Align::Top),
-            ("menu.object.align_centers_h", Align::CenterH),
-            ("menu.object.align_bottom", Align::Bottom),
+        // The same keys as the menu rows, shown in the tips.
+        for (i, (key, letter, a)) in [
+            ("menu.object.align_left", "L", Align::Left),
+            ("menu.object.align_centers_v", "C", Align::CenterV),
+            ("menu.object.align_right", "R", Align::Right),
+            ("menu.object.align_top", "T", Align::Top),
+            ("menu.object.align_centers_h", "E", Align::CenterH),
+            ("menu.object.align_bottom", "B", Align::Bottom),
         ]
         .into_iter()
         .enumerate()
@@ -361,7 +434,8 @@ pub fn align_distribute(app: &mut App, ui: &mut Ui) {
             if i == 3 {
                 gap(ui);
             }
-            if button(ui, Icon::Align(a), &tr(key), has, false).clicked() {
+            let tip = format!("{} ({letter})", tr(key));
+            if button(ui, Icon::Align(a), &tip, has, false).clicked() {
                 let to = app.align_to;
                 app.align_with(a, to);
             }
@@ -376,6 +450,7 @@ pub fn align_distribute(app: &mut App, ui: &mut Ui) {
             AlignTo::PageEdge,
             AlignTo::PageCenter,
             AlignTo::Grid,
+            AlignTo::Point,
         ] {
             if button(
                 ui,
@@ -403,6 +478,9 @@ pub fn align_distribute(app: &mut App, ui: &mut Ui) {
         }
     });
     dim(ui, tr(align_to_key(app.align_to)));
+    if app.align_to == AlignTo::Point {
+        point_fields(app, ui);
+    }
     ui.add_space(4.0);
     ui.separator();
     ui.label(egui::RichText::new(tr("docker.distribute")).font(crate::theme::bold(13.0)));
@@ -522,6 +600,41 @@ mod tests {
         // Centres on a vertical line share x.
         app.align_with(Align::CenterV, AlignTo::ActiveObject);
         assert!(near(bounds(&app, a).center().x, bounds(&app, b).center().x));
+        // The Specified point: left edges at its x, top edges at its y.
+        app.align_point = graphdraw_core::geometry::Point::new(33.0, 77.0);
+        app.align_with(Align::Left, AlignTo::Point);
+        app.align_with(Align::Top, AlignTo::Point);
+        for id in [a, b] {
+            assert!(near(bounds(&app, id).x0, 33.0) && near(bounds(&app, id).y1, 77.0));
+        }
+        // Centres to it on both axes.
+        app.align_with(Align::CenterV, AlignTo::Point);
+        app.align_with(Align::CenterH, AlignTo::Point);
+        let c = bounds(&app, a).center();
+        assert!(near(c.x, 33.0) && near(c.y, 77.0));
+        assert_eq!(AlignTo::from_id(AlignTo::Point.id()), AlignTo::Point);
+    }
+
+    #[test]
+    fn the_keys_align_as_their_names_say() {
+        // C: centres on one vertical line (same x); E: on one horizontal
+        // line (same y); the last selected object stays put.
+        let mut app = App::headless();
+        let a = rect(&mut app, 10.0, 10.0, 20.0, 30.0);
+        let b = rect(&mut app, 50.0, 40.0, 90.0, 60.0);
+        app.select(vec![a, b]);
+        let fixed = bounds(&app, b);
+        app.align(Align::CenterV);
+        assert!(near(bounds(&app, a).center().x, fixed.center().x));
+        assert!(near(bounds(&app, a).center().y, 20.0));
+        app.align(Align::CenterH);
+        assert!(near(bounds(&app, a).center().y, fixed.center().y));
+        assert_eq!(bounds(&app, b), fixed);
+        // P: one object straight to the page centre.
+        app.select(vec![a]);
+        app.align(Align::CenterPage);
+        let c = app.page_rect().center();
+        assert!(near(bounds(&app, a).center().x, c.x) && near(bounds(&app, a).center().y, c.y));
     }
 
     #[test]
@@ -597,6 +710,35 @@ mod tests {
             };
             let mut out = ctx.run_ui(input, |ui| align_distribute(&mut app, ui));
             out.textures_delta.clear();
+        }
+    }
+
+    #[test]
+    fn align_and_distribute_buttons_show_the_colour_pictures() {
+        use crate::ui::svg_icons::has_color;
+        for a in [
+            Align::Left,
+            Align::CenterV,
+            Align::Right,
+            Align::Top,
+            Align::CenterH,
+            Align::Bottom,
+        ] {
+            let stem = color_picture(Icon::Align(a)).expect("picture");
+            assert!(has_color(stem), "{stem}");
+        }
+        for d in [
+            Distribute::Left,
+            Distribute::CentersH,
+            Distribute::SpacingH,
+            Distribute::Right,
+            Distribute::Top,
+            Distribute::CentersV,
+            Distribute::SpacingV,
+            Distribute::Bottom,
+        ] {
+            let stem = color_picture(Icon::Distribute(d)).expect("picture");
+            assert!(has_color(stem), "{stem}");
         }
     }
 }

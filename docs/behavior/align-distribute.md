@@ -15,12 +15,16 @@ bottom edges. Under them, what they align to:
 | Page edge | the page's edges (left edges to its left edge, centres to its middle, ...) |
 | Page center | the page's centre point (left edges at its x, top edges at its y, ...) |
 | Grid | each object on its own: the edge or centre goes to the nearest document grid line, counted from the ruler origin every grid spacing |
+| Specified point | the point typed in the X and Y fields under the buttons (counted from the ruler origin, in the document unit), like the page centre: left edges at its x, top edges at its y, centres on it |
 
 - Use Outline (off): the boxes aligned are the objects' bounds grown by
   half their outline width, so the outer edges of the outlines meet. A
   group counts its bounds only.
 - The menu and the keys always align to the active object; P (Center to
-  Page) always takes the page's centre.
+  Page) always takes the page's centre. The buttons' tips show their
+  keys: L left, C centres on a vertical line, R right, T top, E centres
+  on a horizontal line, B bottom.
+- The active object (the last one selected) never moves.
 - Each Align is one undo step ("Align"); objects already in place are
   left out of it.
 
@@ -44,6 +48,14 @@ are spread:
 ## Checks
 
 - `ui::align_docker::tests::align_follows_the_target_the_docker_shows`
+- `ui::align_docker::tests::the_keys_align_as_their_names_say`
 - `ui::align_docker::tests::use_outline_aligns_the_outer_edges_of_the_outlines`
 - `ui::align_docker::tests::distribute_spreads_edges_centres_and_gaps`
 - `ui::align_docker::tests::the_docker_draws_with_and_without_a_selection`
+
+## Pictures
+
+The six Align and eight Distribute buttons show colour pictures in their
+own colours (`apps/graphdraw/assets/icons/color/`, split from the
+drawing sheet by `split.mjs` there, which also draws the two gap
+pictures in the sheet's style); pale buttons show them faded.

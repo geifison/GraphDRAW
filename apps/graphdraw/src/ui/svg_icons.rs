@@ -81,6 +81,16 @@ static FILES: &[(&str, &str)] = embed!["";
 /// Versions drawn for the 16 px grid, used at that size.
 static MICRO: &[(&str, &str)] = embed!["16/"; "eye-off", "lock-off", "lock-on"];
 
+/// The colour pictures of the Align and Distribute docker, drawn in their
+/// own colours instead of the theme's tint (`assets/icons/color/`, split
+/// from the drawing sheet by `split.mjs` there). Looked up as
+/// `color/<stem>`.
+static COLOR: &[(&str, &str)] = embed!["color/";
+    "align-bottom", "align-center-h", "align-center-v", "align-left", "align-right",
+    "align-top", "dist-bottom", "dist-center-h", "dist-center-v", "dist-left", "dist-right",
+    "dist-space-h", "dist-space-v", "dist-top",
+];
+
 const TOOLS: &[(Tool, &str)] = &[
     (Tool::Pick, "tool-select"),
     (Tool::FreeTransform, "tool-free-transform"),
@@ -377,6 +387,9 @@ pub fn svg_for(icon: IconRef<'_>) -> Option<&'static str> {
 fn source(name: &str, micro: bool) -> Option<&'static str> {
     let pick =
         |t: &'static [(&str, &'static str)]| t.iter().find(|(n, _)| *n == name).map(|(_, s)| *s);
+    if let Some(stem) = name.strip_prefix("color/") {
+        return COLOR.iter().find(|(n, _)| *n == stem).map(|(_, s)| *s);
+    }
     if micro {
         if let Some(s) = pick(MICRO) {
             return Some(s);
@@ -425,6 +438,48 @@ pub fn paint_svg(painter: &Painter, r: Rect, icon: IconRef<'_>, color: Color32) 
     let Some(name) = svg_for(icon) else {
         return false;
     };
+    paint_named(painter, r, name, color)
+}
+
+/// Draw the colour picture `stem` (see [`COLOR`]) into `r`, multiplied by
+/// `tint` (white keeps its colours). False when there is no such picture.
+pub fn paint_color(painter: &Painter, r: Rect, stem: &str, tint: Color32) -> bool {
+    // The texture cache keys by this prefixed name, so colour pictures
+    // stay apart from the monochrome drawings of the same stem.
+    let Some(key) = COLOR_KEYS
+        .iter()
+        .find(|k| k.strip_prefix("color/") == Some(stem))
+    else {
+        return false;
+    };
+    paint_named(painter, r, key, tint)
+}
+
+/// Whether there is a colour picture `stem`.
+#[cfg(test)]
+pub fn has_color(stem: &str) -> bool {
+    COLOR.iter().any(|(n, _)| *n == stem)
+}
+
+/// [`COLOR`]'s stems with their lookup prefix.
+static COLOR_KEYS: &[&str] = &[
+    "color/align-bottom",
+    "color/align-center-h",
+    "color/align-center-v",
+    "color/align-left",
+    "color/align-right",
+    "color/align-top",
+    "color/dist-bottom",
+    "color/dist-center-h",
+    "color/dist-center-v",
+    "color/dist-left",
+    "color/dist-right",
+    "color/dist-space-h",
+    "color/dist-space-v",
+    "color/dist-top",
+];
+
+fn paint_named(painter: &Painter, r: Rect, name: &'static str, color: Color32) -> bool {
     if !painter.clip_rect().intersects(r.expand(4.0)) {
         // Off screen: nothing to draw, and no reason to fall back.
         return true;
@@ -557,6 +612,27 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn colour_pictures_parse_draw_in_colour_and_stay_apart_from_the_monochrome_set() {
+        assert_eq!(COLOR.len(), COLOR_KEYS.len());
+        for (n, svg) in COLOR {
+            let key = format!("color/{n}");
+            assert!(COLOR_KEYS.contains(&key.as_str()), "{key} has no key");
+            assert_eq!(source(&key, false), Some(*svg));
+            assert_eq!(source(&key, true), Some(*svg));
+            let rgba = rasterize(svg, 20).unwrap_or_default();
+            assert_eq!(rgba.len(), 20 * 20 * 4, "{n}");
+            // The blue of the boxes shows, so it is not tinted white.
+            assert!(
+                rgba.chunks(4).any(|p| p[3] > 200 && p[2] > p[0] + 60),
+                "{n}.svg shows no blue"
+            );
+            // The monochrome drawing of the same stem is a different file.
+            assert_ne!(source(n, false), Some(*svg));
+        }
+        assert_eq!(source("color/no-such", false), None);
     }
 
     #[test]

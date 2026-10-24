@@ -1160,6 +1160,8 @@ pub struct App {
     pub find_state: crate::ui::dialogs::FindReplaceState,
     pub step_repeat: crate::ops2::StepRepeat,
     pub align_to: crate::ops2::AlignTo,
+    /// The Specified point Align aligns to, page coordinates in mm.
+    pub align_point: graphdraw_core::geometry::Point,
     /// Align and Distribute use the boxes with half the outline width.
     pub align_use_outline: bool,
     /// Align and Distribute docker: spread between the outermost objects
@@ -1982,6 +1984,7 @@ impl App {
             find_state: Default::default(),
             step_repeat: Default::default(),
             align_to: Default::default(),
+            align_point: graphdraw_core::geometry::Point::ZERO,
             align_use_outline: false,
             distribute_to: Default::default(),
             lens: Default::default(),

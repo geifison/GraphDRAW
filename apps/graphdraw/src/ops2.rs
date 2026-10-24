@@ -60,6 +60,8 @@ pub enum AlignTo {
     PageEdge,
     PageCenter,
     Grid,
+    /// The point in `App::align_point`, like the page centre.
+    Point,
 }
 
 impl AlignTo {
@@ -70,6 +72,7 @@ impl AlignTo {
             AlignTo::PageEdge => "page_edge",
             AlignTo::PageCenter => "page_center",
             AlignTo::Grid => "grid",
+            AlignTo::Point => "point",
         }
     }
 
@@ -80,6 +83,7 @@ impl AlignTo {
             "page_edge" => AlignTo::PageEdge,
             "page_center" => AlignTo::PageCenter,
             "grid" => AlignTo::Grid,
+            "point" => AlignTo::Point,
             _ => AlignTo::ActiveObject,
         }
     }

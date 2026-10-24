@@ -89,8 +89,8 @@ impl App {
     }
 
     /// Align the selected objects: to the last-selected object (to the
-    /// page when there is only one), the page's edges, its centre, or each
-    /// to the nearest grid line. Center to Page always takes the page
+    /// page when there is only one), the page's edges, its centre, the
+    /// Specified point, or each to the nearest grid line. Center to Page always takes the page
     /// centre.
     pub fn align_with(&mut self, how: Align, to: crate::ops2::AlignTo) {
         use crate::ops2::AlignTo;
@@ -107,6 +107,10 @@ impl App {
             }
             AlignTo::ActiveObject | AlignTo::PageEdge | AlignTo::Grid => page,
             AlignTo::PageCenter => Rect::new(c.x, c.y, c.x, c.y),
+            AlignTo::Point => {
+                let p = self.align_point;
+                Rect::new(p.x, p.y, p.x, p.y)
+            }
         };
         let grid = self.doc().metadata.grid;
         let rulers = self.doc().metadata.rulers.clone();
