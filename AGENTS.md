@@ -98,6 +98,22 @@ behind it, and never add a feature without updating the row.
 - Keep `docs/roadmap.md` honest: a feature is "done" when it has tests
   and works on a real file, not when the menu item exists.
 
+## Icons
+
+- **A changed icon changes everywhere.** A command has one picture in the
+  toolbox, the bars, the property bar, the menus, the context menus, the
+  dockers and the hints. Every surface draws through `svg_icons::paint`
+  and the one map in `apps/graphdraw/src/ui/svg_icons.rs` (`svg_for`);
+  never add a second icon table or a direct SVG draw for one screen.
+- To replace an icon, change its entry in that map (all of `TOOLS`,
+  `ACTIONS`, `PICS`, `GLYPHS` and `KEYS` that name it), drop the old file
+  from `FILES` when nothing else uses it, and update `docs/icon-map.md`.
+  Colour pictures live in `assets/icons/color/` and are mapped as
+  `color/<stem>`; the test `a_changed_icon_changes_everywhere` fails while
+  any table still names the old drawing of a stem that has a colour one.
+- Check every place the command shows (search the enum variant and its
+  menu keys) before calling an icon change done.
+
 ## Documentation duties
 
 - A new tool or effect gets a page in `docs/behavior/` with its defaults,

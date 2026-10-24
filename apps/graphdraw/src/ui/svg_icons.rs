@@ -41,20 +41,18 @@ macro_rules! embed {
 /// The drawings on the 20 px grid, by file stem. Only the ones the map
 /// below uses are embedded.
 static FILES: &[(&str, &str)] = embed!["";
-    "align-baseline", "align-bottom", "align-center-h", "align-center-v", "align-left",
-    "align-right", "align-top", "bool-back-minus", "bool-boundary", "bool-front-minus",
-    "bool-intersect", "bool-simplify", "bool-trim", "bool-weld", "break-apart", "cancel", "center-on",
+    "align-baseline", "bool-back-minus", "bool-boundary", "bool-front-minus",
+    "bool-intersect", "bool-simplify", "bool-trim", "bool-weld", "cancel", "center-on",
     "clear-transform", "clip-center", "clip-edit", "clip-extract", "clip-fill", "clip-finish",
-    "clip-fit", "clip-inside", "combine", "copy", "copy-fill", "copy-props", "copy-stroke", "corner-chamfer",
-    "corner-round", "corner-scallop", "cur-move", "cur-pick-path", "cut", "delete", "dist-bottom", "dist-center-h",
-    "dist-center-v", "dist-left", "dist-right", "dist-space-h", "dist-space-v", "dist-top",
+    "clip-fit", "clip-inside", "copy", "copy-fill", "copy-props", "copy-stroke", "corner-chamfer",
+    "corner-round", "corner-scallop", "cur-move", "cur-pick-path", "cut", "delete",
     "doc-close", "duplicate", "ellipse-arc", "ellipse-pie", "ellipse-whole", "eye-off",
     "file-export", "file-import", "file-new", "file-open", "file-print", "file-save",
     "file-save-as", "fit-art", "fit-page", "fit-selection", "glyphs", "grid", "group", "instance",
     "layers", "lock-off", "lock-on", "mirror-h", "mirror-v", "move-here", "node-add", "node-break",
     "node-connect", "node-corner", "node-delete", "node-extract", "node-join", "node-reduce",
-    "node-smooth", "node-symmetric", "nudge", "order-back", "order-backward",
-    "order-behind-of", "order-forward", "order-front", "order-in-front-of", "outline-pen",
+    "node-smooth", "node-symmetric", "nudge", "order-backward",
+    "order-behind-of", "order-forward", "order-in-front-of", "outline-pen",
     "outline-to-object", "page-add", "page-first", "page-jump", "page-landscape",
     "page-last", "page-next", "page-portrait", "page-prev",
     "page-rename", "paste", "path-close", "path-reverse", "poly-complex", "poly-star",
@@ -81,14 +79,17 @@ static FILES: &[(&str, &str)] = embed!["";
 /// Versions drawn for the 16 px grid, used at that size.
 static MICRO: &[(&str, &str)] = embed!["16/"; "eye-off", "lock-off", "lock-on"];
 
-/// The colour pictures of the Align and Distribute docker, drawn in their
-/// own colours instead of the theme's tint (`assets/icons/color/`, split
-/// from the drawing sheet by `split.mjs` there). Looked up as
-/// `color/<stem>`.
+/// The colour pictures, drawn in their own colours instead of the theme's
+/// tint (`assets/icons/color/`): Align and Distribute, split from their
+/// drawing sheet by `split.mjs` there, and To Front, To Back, Combine and
+/// Break Apart, split by `split-arrange.mjs`. The map below names them as
+/// `color/<stem>`, so a command shows the same colour picture in the
+/// menus, the bars and the dockers.
 static COLOR: &[(&str, &str)] = embed!["color/";
     "align-bottom", "align-center-h", "align-center-v", "align-left", "align-right",
-    "align-top", "dist-bottom", "dist-center-h", "dist-center-v", "dist-left", "dist-right",
-    "dist-space-h", "dist-space-v", "dist-top",
+    "align-top", "break-apart", "combine", "dist-bottom", "dist-center-h", "dist-center-v",
+    "dist-left", "dist-right", "dist-space-h", "dist-space-v", "dist-top", "order-back",
+    "order-front",
 ];
 
 const TOOLS: &[(Tool, &str)] = &[
@@ -170,8 +171,8 @@ const PICS: &[(Pic, &str)] = &[
     (Pic::CornerRound, "corner-round"),
     (Pic::CornerScallop, "corner-scallop"),
     (Pic::CornerChamfer, "corner-chamfer"),
-    (Pic::ToFront, "order-front"),
-    (Pic::ToBack, "order-back"),
+    (Pic::ToFront, "color/order-front"),
+    (Pic::ToBack, "color/order-back"),
     (Pic::ToCurves, "to-curves"),
     (Pic::AddNode, "node-add"),
     (Pic::DeleteNode, "node-delete"),
@@ -192,8 +193,8 @@ const PICS: &[(Pic, &str)] = &[
     (Pic::Group, "group"),
     (Pic::Ungroup, "ungroup"),
     (Pic::UngroupAll, "ungroup-all"),
-    (Pic::Combine, "combine"),
-    (Pic::BreakApart, "break-apart"),
+    (Pic::Combine, "color/combine"),
+    (Pic::BreakApart, "color/break-apart"),
     (Pic::Weld, "bool-weld"),
     (Pic::Trim, "bool-trim"),
     (Pic::Intersect, "bool-intersect"),
@@ -229,24 +230,24 @@ const GLYPHS: &[(Glyph, &str)] = &[
     (Glyph::PageInsert, "page-add"),
     (Glyph::PageRename, "page-rename"),
     (Glyph::PageGoto, "page-jump"),
-    (Glyph::AlignLeft, "align-left"),
-    (Glyph::AlignRight, "align-right"),
-    (Glyph::AlignTop, "align-top"),
-    (Glyph::AlignBottom, "align-bottom"),
-    // Align::CenterH lines the centres up on a horizontal line (it moves
-    // objects along y): the drawing with the horizontal axis, and the
-    // other way round for CenterV.
-    (Glyph::AlignCenterH, "align-center-v"),
-    (Glyph::AlignCenterV, "align-center-h"),
+    // Align and Distribute: the colour pictures, the same in the menu and
+    // in the docker. Align::CenterH lines the centres up on a horizontal
+    // line (it moves objects along y).
+    (Glyph::AlignLeft, "color/align-left"),
+    (Glyph::AlignRight, "color/align-right"),
+    (Glyph::AlignTop, "color/align-top"),
+    (Glyph::AlignBottom, "color/align-bottom"),
+    (Glyph::AlignCenterH, "color/align-center-h"),
+    (Glyph::AlignCenterV, "color/align-center-v"),
     (Glyph::CenterPage, "center-on"),
-    (Glyph::DistLeft, "dist-left"),
-    (Glyph::DistCenterH, "dist-center-h"),
-    (Glyph::DistSpaceH, "dist-space-h"),
-    (Glyph::DistRight, "dist-right"),
-    (Glyph::DistTop, "dist-top"),
-    (Glyph::DistCenterV, "dist-center-v"),
-    (Glyph::DistSpaceV, "dist-space-v"),
-    (Glyph::DistBottom, "dist-bottom"),
+    (Glyph::DistLeft, "color/dist-left"),
+    (Glyph::DistCenterH, "color/dist-center-h"),
+    (Glyph::DistSpaceH, "color/dist-space-h"),
+    (Glyph::DistRight, "color/dist-right"),
+    (Glyph::DistTop, "color/dist-top"),
+    (Glyph::DistCenterV, "color/dist-center-v"),
+    (Glyph::DistSpaceV, "color/dist-space-v"),
+    (Glyph::DistBottom, "color/dist-bottom"),
     (Glyph::Forward, "order-forward"),
     (Glyph::Backward, "order-backward"),
     (Glyph::InFront, "order-in-front-of"),
@@ -438,21 +439,20 @@ pub fn paint_svg(painter: &Painter, r: Rect, icon: IconRef<'_>, color: Color32) 
     let Some(name) = svg_for(icon) else {
         return false;
     };
-    paint_named(painter, r, name, color)
+    paint_named(painter, r, name, color_tint(name, color))
 }
 
-/// Draw the colour picture `stem` (see [`COLOR`]) into `r`, multiplied by
-/// `tint` (white keeps its colours). False when there is no such picture.
-pub fn paint_color(painter: &Painter, r: Rect, stem: &str, tint: Color32) -> bool {
-    // The texture cache keys by this prefixed name, so colour pictures
-    // stay apart from the monochrome drawings of the same stem.
-    let Some(key) = COLOR_KEYS
-        .iter()
-        .find(|k| k.strip_prefix("color/") == Some(stem))
-    else {
-        return false;
-    };
-    paint_named(painter, r, key, tint)
+/// The tint `name` is drawn with when asked for in `color`: a colour
+/// picture keeps its own colours while enabled (the theme's icon colour)
+/// and is faded otherwise; a monochrome drawing takes `color`.
+fn color_tint(name: &str, color: Color32) -> Color32 {
+    if !name.starts_with("color/") {
+        color
+    } else if color == crate::theme::Tokens::icon() {
+        Color32::WHITE
+    } else {
+        Color32::from_white_alpha(90)
+    }
 }
 
 /// Whether there is a colour picture `stem`.
@@ -460,24 +460,6 @@ pub fn paint_color(painter: &Painter, r: Rect, stem: &str, tint: Color32) -> boo
 pub fn has_color(stem: &str) -> bool {
     COLOR.iter().any(|(n, _)| *n == stem)
 }
-
-/// [`COLOR`]'s stems with their lookup prefix.
-static COLOR_KEYS: &[&str] = &[
-    "color/align-bottom",
-    "color/align-center-h",
-    "color/align-center-v",
-    "color/align-left",
-    "color/align-right",
-    "color/align-top",
-    "color/dist-bottom",
-    "color/dist-center-h",
-    "color/dist-center-v",
-    "color/dist-left",
-    "color/dist-right",
-    "color/dist-space-h",
-    "color/dist-space-v",
-    "color/dist-top",
-];
 
 fn paint_named(painter: &Painter, r: Rect, name: &'static str, color: Color32) -> bool {
     if !painter.clip_rect().intersects(r.expand(4.0)) {
@@ -616,23 +598,65 @@ mod tests {
 
     #[test]
     fn colour_pictures_parse_draw_in_colour_and_stay_apart_from_the_monochrome_set() {
-        assert_eq!(COLOR.len(), COLOR_KEYS.len());
+        let names = all_names();
         for (n, svg) in COLOR {
             let key = format!("color/{n}");
-            assert!(COLOR_KEYS.contains(&key.as_str()), "{key} has no key");
+            assert!(names.contains(&key.as_str()), "{key} is not in the map");
             assert_eq!(source(&key, false), Some(*svg));
             assert_eq!(source(&key, true), Some(*svg));
             let rgba = rasterize(svg, 20).unwrap_or_default();
             assert_eq!(rgba.len(), 20 * 20 * 4, "{n}");
-            // The blue of the boxes shows, so it is not tinted white.
+            // Opaque colour shows, so it is not white on transparent.
             assert!(
-                rgba.chunks(4).any(|p| p[3] > 200 && p[2] > p[0] + 60),
-                "{n}.svg shows no blue"
+                rgba.chunks(4)
+                    .any(|p| p[3] > 200 && (p[0] < 128 || p[2] > p[0] + 60)),
+                "{n}.svg shows no colour"
             );
             // The monochrome drawing of the same stem is a different file.
             assert_ne!(source(n, false), Some(*svg));
         }
         assert_eq!(source("color/no-such", false), None);
+    }
+
+    #[test]
+    fn a_changed_icon_changes_everywhere() {
+        // One map for every surface: once a command has a colour picture,
+        // no table may still name its old monochrome drawing, and no
+        // monochrome file of that stem stays embedded for a second screen.
+        for n in all_names() {
+            assert!(
+                !has_color(n),
+                "{n}: the colour picture color/{n} replaces it"
+            );
+        }
+        for (n, _) in FILES.iter().chain(MICRO) {
+            assert!(!has_color(n), "{n}.svg is embedded beside color/{n}.svg");
+        }
+    }
+
+    #[test]
+    fn arrange_and_combine_show_their_colour_pictures_everywhere() {
+        use crate::theme::Tokens;
+        for (pic, stem) in [
+            (Pic::ToFront, "order-front"),
+            (Pic::ToBack, "order-back"),
+            (Pic::Combine, "combine"),
+            (Pic::BreakApart, "break-apart"),
+        ] {
+            let name = svg_for(IconRef::Pic(pic));
+            assert_eq!(name, Some(format!("color/{stem}").as_str()), "{pic:?}");
+            assert!(has_color(stem), "{stem}");
+            let name = name.unwrap_or_default();
+            // Own colours while enabled, faded while not.
+            assert_eq!(color_tint(name, Tokens::icon()), Color32::WHITE);
+            assert_eq!(
+                color_tint(name, Tokens::menu_text_off()),
+                Color32::from_white_alpha(90)
+            );
+        }
+        // The monochrome drawings still take the colour asked for.
+        let red = Color32::from_rgb(200, 0, 0);
+        assert_eq!(color_tint("cut", red), red);
     }
 
     #[test]

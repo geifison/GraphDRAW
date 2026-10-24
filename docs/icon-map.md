@@ -20,6 +20,11 @@ Os SVGs são monocromáticos (branco); a interface aplica a cor do tema
 São rasterizados com resvg no tamanho exato em pixels físicos (grades de
 16, 20 e 24 px) e guardados como texturas.
 
+Exceção: os nomes `color/...` (`assets/icons/color/`) são figuras em cores
+próprias, desenhadas sem a cor do tema quando habilitadas e esmaecidas
+quando não. Alinhar, Distribuir, Pra Frente, Pra Trás, Combinar e Separar usam essas figuras
+em todo lugar (barra de propriedades, menus, menu de contexto, dockers). Regra: um ícone trocado vale em todo lugar; não há segundo mapa por tela.
+
 ## Ferramentas (`Tool`: caixa de ferramentas, flyouts, dicas, cursores, dockers)
 
 | id na base | SVG do GraphDraw | observações |
@@ -153,8 +158,8 @@ São rasterizados com resvg no tamanho exato em pixels físicos (grades de
 | `Pic::CornerScallop` | `corner-scallop.svg` |  |
 | `Pic::CornerChamfer` | `corner-chamfer.svg` |  |
 | `Pic::CornerScaling` | sem equivalente |  |
-| `Pic::ToFront` | `order-front.svg` |  |
-| `Pic::ToBack` | `order-back.svg` |  |
+| `Pic::ToFront` | `color/order-front.svg` |  |
+| `Pic::ToBack` | `color/order-back.svg` |  |
 | `Pic::ToCurves` | `to-curves.svg` |  |
 | `Pic::AddNode` | `node-add.svg` |  |
 | `Pic::DeleteNode` | `node-delete.svg` |  |
@@ -182,8 +187,8 @@ São rasterizados com resvg no tamanho exato em pixels físicos (grades de
 | `Pic::Group` | `group.svg` |  |
 | `Pic::Ungroup` | `ungroup.svg` |  |
 | `Pic::UngroupAll` | `ungroup-all.svg` |  |
-| `Pic::Combine` | `combine.svg` |  |
-| `Pic::BreakApart` | `break-apart.svg` |  |
+| `Pic::Combine` | `color/combine.svg` |  |
+| `Pic::BreakApart` | `color/break-apart.svg` |  |
 | `Pic::Weld` | `bool-weld.svg` |  |
 | `Pic::Trim` | `bool-trim.svg` |  |
 | `Pic::Intersect` | `bool-intersect.svg` |  |
@@ -285,21 +290,21 @@ São rasterizados com resvg no tamanho exato em pixels físicos (grades de
 | `Glyph::DocOptions` | sem equivalente |  |
 | `Glyph::PageBackground` | sem equivalente |  |
 | `Glyph::PageSize` | sem equivalente |  |
-| `Glyph::AlignLeft` | `align-left.svg` |  |
-| `Glyph::AlignRight` | `align-right.svg` |  |
-| `Glyph::AlignTop` | `align-top.svg` |  |
-| `Glyph::AlignBottom` | `align-bottom.svg` |  |
-| `Glyph::AlignCenterH` | `align-center-v.svg` | Align::CenterH alinha os centros numa linha horizontal (move em y): o desenho com o eixo horizontal é `align-center-v` |
-| `Glyph::AlignCenterV` | `align-center-h.svg` | Align::CenterV move em x: o desenho com o eixo vertical é `align-center-h` |
+| `Glyph::AlignLeft` | `color/align-left.svg` |  |
+| `Glyph::AlignRight` | `color/align-right.svg` |  |
+| `Glyph::AlignTop` | `color/align-top.svg` |  |
+| `Glyph::AlignBottom` | `color/align-bottom.svg` |  |
+| `Glyph::AlignCenterH` | `color/align-center-h.svg` | Align::CenterH alinha os centros numa linha horizontal (move em y): a figura com o eixo horizontal, a mesma do docker |
+| `Glyph::AlignCenterV` | `color/align-center-v.svg` | Align::CenterV move em x: a figura com o eixo vertical, a mesma do docker |
 | `Glyph::CenterPage` | `center-on.svg` | centralizar na página (também o botão do docker Alinhar) |
-| `Glyph::DistLeft` | `dist-left.svg` |  |
-| `Glyph::DistCenterH` | `dist-center-h.svg` |  |
-| `Glyph::DistSpaceH` | `dist-space-h.svg` |  |
-| `Glyph::DistRight` | `dist-right.svg` |  |
-| `Glyph::DistTop` | `dist-top.svg` |  |
-| `Glyph::DistCenterV` | `dist-center-v.svg` |  |
-| `Glyph::DistSpaceV` | `dist-space-v.svg` |  |
-| `Glyph::DistBottom` | `dist-bottom.svg` |  |
+| `Glyph::DistLeft` | `color/dist-left.svg` |  |
+| `Glyph::DistCenterH` | `color/dist-center-h.svg` |  |
+| `Glyph::DistSpaceH` | `color/dist-space-h.svg` |  |
+| `Glyph::DistRight` | `color/dist-right.svg` |  |
+| `Glyph::DistTop` | `color/dist-top.svg` |  |
+| `Glyph::DistCenterV` | `color/dist-center-v.svg` |  |
+| `Glyph::DistSpaceV` | `color/dist-space-v.svg` |  |
+| `Glyph::DistBottom` | `color/dist-bottom.svg` |  |
 | `Glyph::Forward` | `order-forward.svg` |  |
 | `Glyph::Backward` | `order-backward.svg` |  |
 | `Glyph::InFront` | `order-in-front-of.svg` |  |
@@ -467,7 +472,7 @@ São rasterizados com resvg no tamanho exato em pixels físicos (grades de
 - `Tool::BrushStrokes` -> `tool-artistic`: o desenho é um pincel com traço, que combina com Pinceladas, mas no GraphDraw antigo era a ferramenta de mídia artística.
 - `Tool::InteractiveFill` -> `tool-gradient`: o pintado da base é um balde; o SVG mostra o vetor de degradê que a ferramenta edita. `tool-fill-solid` (balde) ficou sem comando.
 - `Pic::ExtendToClose` -> `node-connect` (pontas ligadas por segmento tracejado) e `Pic::CloseCurve` -> `path-close`: os dois fecham a curva; conferir se a distinção ficou clara.
-- `Glyph::AlignCenterH`/`AlignCenterV`: mapeados cruzados de propósito pelo efeito do comando (ver notas). A figura pintada `Glyph::AlignCenterH` da base desenha o eixo vertical, ao contrário do docker Alinhar e do efeito; com o SVG o menu passa a concordar com o docker.
+- `Glyph::AlignCenterH`/`AlignCenterV`: as figuras coloridas seguem o efeito do comando (`color/align-center-h` tem o eixo horizontal); menu e docker usam a mesma figura.
 - `Glyph::ObjectsDocker` -> `layers`: o docker Objetos da base também lista páginas e camadas.
 - `Glyph::Clone` -> `instance`: no GraphDraw antigo o desenho era a cópia ligada (instância), o mais perto do Clone da base.
 - `Pic::Rotate` -> `rotate-cw` e `Pic::Position` -> `cur-move`: seguem o GraphDraw antigo (Transformar > Girar / Posição); `cur-move` nasceu como desenho de cursor.

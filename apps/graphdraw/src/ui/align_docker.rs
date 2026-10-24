@@ -207,45 +207,7 @@ fn menu_glyph(icon: Icon) -> Option<crate::ui::menu_glyphs::Glyph> {
     })
 }
 
-/// The colour picture of the docker's button, from
-/// `assets/icons/color/`.
-fn color_picture(icon: Icon) -> Option<&'static str> {
-    Some(match icon {
-        Icon::Align(a) => match a {
-            Align::Left => "align-left",
-            Align::CenterV => "align-center-v",
-            Align::Right => "align-right",
-            Align::Top => "align-top",
-            Align::CenterH => "align-center-h",
-            Align::Bottom => "align-bottom",
-            Align::CenterPage => return None,
-        },
-        Icon::Distribute(d) => match d {
-            Distribute::Left => "dist-left",
-            Distribute::CentersH => "dist-center-h",
-            Distribute::Right => "dist-right",
-            Distribute::Top => "dist-top",
-            Distribute::CentersV => "dist-center-v",
-            Distribute::Bottom => "dist-bottom",
-            Distribute::SpacingH => "dist-space-h",
-            Distribute::SpacingV => "dist-space-v",
-        },
-        _ => return None,
-    })
-}
-
 fn paint(p: &Painter, r: Rect, icon: Icon, color: Color32) {
-    if let Some(stem) = color_picture(icon) {
-        // Own colours while enabled, faded when not.
-        let tint = if color == Tokens::icon() {
-            Color32::WHITE
-        } else {
-            Color32::from_white_alpha(90)
-        };
-        if crate::ui::svg_icons::paint_color(p, r, stem, tint) {
-            return;
-        }
-    }
     if let Some(g) = menu_glyph(icon) {
         let svg = crate::ui::svg_icons::IconRef::Glyph(g);
         if crate::ui::svg_icons::paint_svg(p, r, svg, color) {
@@ -714,31 +676,36 @@ mod tests {
     }
 
     #[test]
-    fn align_and_distribute_buttons_show_the_colour_pictures() {
-        use crate::ui::svg_icons::has_color;
-        for a in [
+    fn align_and_distribute_buttons_show_the_menus_colour_pictures() {
+        use crate::ui::svg_icons::{svg_for, IconRef};
+        let icons = [
             Align::Left,
             Align::CenterV,
             Align::Right,
             Align::Top,
             Align::CenterH,
             Align::Bottom,
-        ] {
-            let stem = color_picture(Icon::Align(a)).expect("picture");
-            assert!(has_color(stem), "{stem}");
-        }
-        for d in [
-            Distribute::Left,
-            Distribute::CentersH,
-            Distribute::SpacingH,
-            Distribute::Right,
-            Distribute::Top,
-            Distribute::CentersV,
-            Distribute::SpacingV,
-            Distribute::Bottom,
-        ] {
-            let stem = color_picture(Icon::Distribute(d)).expect("picture");
-            assert!(has_color(stem), "{stem}");
+        ]
+        .map(Icon::Align)
+        .into_iter()
+        .chain(
+            [
+                Distribute::Left,
+                Distribute::CentersH,
+                Distribute::SpacingH,
+                Distribute::Right,
+                Distribute::Top,
+                Distribute::CentersV,
+                Distribute::SpacingV,
+                Distribute::Bottom,
+            ]
+            .map(Icon::Distribute),
+        );
+        for icon in icons {
+            // The button draws the menu row's picture, which is in colour.
+            let g = menu_glyph(icon).expect("menu picture");
+            let name = svg_for(IconRef::Glyph(g)).unwrap_or_default();
+            assert!(name.starts_with("color/"), "{icon:?}: {name}");
         }
     }
 }
