@@ -5,7 +5,7 @@
 //! warped), the sharp-corner rule, anti-collision on concave stretches,
 //! and further lines running parallel to the first, one leading apart.
 
-use super::{letter_frame, Line};
+use super::{letter_frame, Line, LineBox};
 use graphdraw_core::document::{
     PathTextCorners, PathTextOrientation, PathTextVertical, TextAlign, TextOnPath,
 };
@@ -39,11 +39,23 @@ fn lift(v: PathTextVertical, size: f64, ascent: f64, descent: f64) -> f64 {
     }
 }
 
-/// The letters of `lines` placed along `tp`, and where they lie on it.
-pub(crate) fn place(lines: &[Line], tp: &TextOnPath, align: TextAlign) -> (BezPath, Option<PathSpan>) {
+/// Where a caret stands on a text on a path: the point on its line's
+/// baseline and the letters' "up" there (unit), in layout space.
+pub type PathCaret = (Point, Vec2);
+
+/// The letters of `lines` placed along `tp`, where they lie on it, and
+/// for each line of `boxes` (one per line) where each of its character
+/// edges falls on the path.
+pub(crate) fn place(
+    lines: &[Line],
+    boxes: &[LineBox],
+    tp: &TextOnPath,
+    align: TextAlign,
+) -> (BezPath, Option<PathSpan>, Vec<Vec<PathCaret>>) {
     let mut out = BezPath::new();
+    let mut carets: Vec<Vec<PathCaret>> = Vec::with_capacity(lines.len());
     let Some(track) = Track::new(tp) else {
-        return (out, None);
+        return (out, None, carets);
     };
     let total = track.total();
     let flip = tp.flipped();
@@ -57,12 +69,9 @@ pub(crate) fn place(lines: &[Line], tp: &TextOnPath, align: TextAlign) -> (BezPa
     };
     let y0 = lines.first().map_or(0.0, |l| l.y);
     let mut span: Option<(f64, f64)> = None;
-    for line in lines {
+    for (li, line) in lines.iter().enumerate() {
         let glyphs = &line.glyphs;
         let n = glyphs.len();
-        if n == 0 {
-            continue;
-        }
         // Pen position of each glyph along the line.
         let mut xs = Vec::with_capacity(n);
         let mut pen = 0.0;
@@ -147,8 +156,16 @@ pub(crate) fn place(lines: &[Line], tp: &TextOnPath, align: TextAlign) -> (BezPa
             }
             s = next;
         }
+        carets.push(edge_carets(boxes.get(li), &xs, &positions, start, |arc| {
+            let (p, dir) = track.at(arc);
+            let nrm = Vec2::new(-dir.y, dir.x) * sgn;
+            (p + nrm * off, nrm)
+        }));
+        let Some(last) = glyphs.last() else {
+            continue;
+        };
         let first = positions.first().map_or(start, |p| p.0);
-        let end = positions.last().map_or(start, |p| p.0) + glyphs[n - 1].advance;
+        let end = positions.last().map_or(start, |p| p.0) + last.advance;
         span = Some(span.map_or((first, end), |(a, b)| (a.min(first), b.max(end))));
         for (k, g) in glyphs.iter().enumerate() {
             let (sc, warp_here) = positions[k];
@@ -183,7 +200,39 @@ pub(crate) fn place(lines: &[Line], tp: &TextOnPath, align: TextAlign) -> (BezPa
     (
         out,
         span.map(|(start, end)| PathSpan { start, end, total }),
+        carets,
     )
+}
+
+/// Each character edge of a line (its pen x in the straight layout)
+/// brought onto the path: the edge goes with the glyph it falls in, at
+/// the same distance from that glyph's start as on the straight line.
+/// `xs` are the glyphs' pen positions from the line start, `positions`
+/// where each glyph starts along the path, `start` where the line starts
+/// when it has no glyphs.
+fn edge_carets(
+    lb: Option<&LineBox>,
+    xs: &[f64],
+    positions: &[(f64, bool)],
+    start: f64,
+    at: impl Fn(f64) -> PathCaret,
+) -> Vec<PathCaret> {
+    let Some(lb) = lb else {
+        return Vec::new();
+    };
+    let line_start = lb.edges.first().copied().unwrap_or(0.0);
+    lb.edges
+        .iter()
+        .map(|&x| {
+            let rel = x - line_start;
+            let k = xs.iter().rposition(|&g| g <= rel + 1e-9).unwrap_or(0);
+            let arc = match (xs.get(k), positions.get(k)) {
+                (Some(&g), Some(&(sc, _))) => sc + (rel - g),
+                _ => start + rel,
+            };
+            at(arc)
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -242,6 +291,42 @@ mod tests {
         let w = lay("ABCDEF", circle(50.0), TextAlign::Left, |p| p.offset = 300.0);
         let b = w.path.bounding_box();
         assert!(b.width() < 120.0 && b.width() > 1.0, "{b:?}");
+    }
+
+    #[test]
+    fn carets_stand_on_the_path_across_the_letters() {
+        if !has_fonts() {
+            return;
+        }
+        // Along a straight path the carets fall where the straight layout
+        // puts them.
+        let l = lay("ABC", line(200.0), TextAlign::Left, |_| {});
+        for i in 0..=3 {
+            let (top, bottom) = l.path_caret(i).expect("caret");
+            let (x, ..) = l.caret(i).expect("straight caret");
+            assert!((top.x - x).abs() < 1e-6 && (bottom.x - x).abs() < 1e-6);
+        }
+        // Round a circle each caret stands on a radius, its foot on the
+        // circle side, and a click at its middle finds it again.
+        let c = lay("ABCDEF", circle(50.0), TextAlign::Left, |_| {});
+        let mut feet = Vec::new();
+        for i in 0..=6 {
+            let (top, bottom) = c.path_caret(i).expect("caret");
+            // The track is flattened: its tangents are a chord's, a few
+            // hundredths of a radian off the true ones.
+            let angle = top.to_vec2().angle() - bottom.to_vec2().angle();
+            assert!(angle.sin().abs() < 0.03, "{i}: {top:?} {bottom:?}");
+            let rt = top.to_vec2().hypot();
+            let rb = bottom.to_vec2().hypot();
+            let line = &c.lines[0];
+            assert!(((rt - rb).abs() - (line.ascent + line.descent)).abs() < 0.05);
+            let mid = top.midpoint(bottom);
+            assert_eq!(c.hit_char(mid), Some(i));
+            feet.push(bottom);
+        }
+        assert!(feet.windows(2).all(|w| (w[1] - w[0]).hypot() > 0.5), "{feet:?}");
+        // Straight text has none.
+        assert!(lay("ABC", BezPath::new(), TextAlign::Left, |_| {}).path_caret(0).is_none());
     }
 
     #[test]

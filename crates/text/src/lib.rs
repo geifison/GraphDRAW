@@ -23,7 +23,7 @@ use graphdraw_core::{
 pub mod catalog;
 pub mod hyphen;
 mod on_path;
-pub use on_path::PathSpan;
+pub use on_path::{PathCaret, PathSpan};
 
 /// Points to millimetres.
 pub const PT_MM: f64 = 25.4 / 72.0;
@@ -682,6 +682,9 @@ pub struct TextLayout {
     pub lines: Vec<LineBox>,
     /// Text on a path: where its letters lie along the path.
     pub path_span: Option<PathSpan>,
+    /// Text on a path: for each entry of `lines`, where each of its
+    /// character edges stands on the path (empty for straight text).
+    pub path_carets: Vec<Vec<PathCaret>>,
 }
 
 /// Caret geometry of one laid-out line, mm, in layout space (Y up).
@@ -718,11 +721,40 @@ impl TextLayout {
         Some((x, line.baseline, line.ascent, line.descent))
     }
 
+    /// Text on a path: the caret for the character index `idx` as (top,
+    /// bottom) in layout space, standing across the letters where they
+    /// lie on the path. `None` for straight text.
+    pub fn path_caret(&self, idx: usize) -> Option<(Point, Point)> {
+        let li = self.line_of(idx)?;
+        let line = self.lines.get(li)?;
+        let edges = self.path_carets.get(li)?;
+        let i = idx
+            .saturating_sub(line.start_char)
+            .min(edges.len().saturating_sub(1));
+        let (base, up) = *edges.get(i)?;
+        Some((base + up * line.ascent, base - up * line.descent))
+    }
+
     /// Character index nearest to the layout-space point `p`: the line
     /// whose vertical band holds `p.y` (the nearest one outside all bands;
     /// of the parts of a line split around a wrap object, the one nearest
-    /// `p.x`) and the nearest character edge on that line.
+    /// `p.x`) and the nearest character edge on that line. On a path, the
+    /// edge whose caret middle is nearest to `p`.
     pub fn hit_char(&self, p: Point) -> Option<usize> {
+        if !self.path_carets.is_empty() {
+            return self
+                .lines
+                .iter()
+                .zip(&self.path_carets)
+                .flat_map(|(l, edges)| {
+                    edges.iter().enumerate().map(move |(i, (base, up))| {
+                        let mid = *base + *up * ((l.ascent - l.descent) / 2.0);
+                        (l.start_char + i, (mid - p).hypot2())
+                    })
+                })
+                .min_by(|a, b| a.1.total_cmp(&b.1))
+                .map(|(i, _)| i);
+        }
         let x_gap = |l: &LineBox| {
             let a = l.edges.first().copied().unwrap_or(0.0);
             let b = l.edges.last().copied().unwrap_or(a);
@@ -1937,6 +1969,7 @@ impl FontSystem {
                 baselines: Vec::new(),
                 lines: Vec::new(),
                 path_span: None,
+                path_carets: Vec::new(),
             };
         }
         let para = req.para;
@@ -2487,7 +2520,8 @@ impl FontSystem {
 
         // 4. Text on a path: re-place the glyphs of artistic text along the curve.
         if let (Some(tp), true) = (req.on_path, artistic) {
-            let (placed, path_span) = on_path::place(&lines, tp, style_of(0).0);
+            let (placed, path_span, path_carets) =
+                on_path::place(&lines, &line_boxes, tp, style_of(0).0);
             return TextLayout {
                 path: placed,
                 bounds,
@@ -2497,6 +2531,7 @@ impl FontSystem {
                 baselines: line_baselines,
                 lines: line_boxes,
                 path_span,
+                path_carets,
             };
         }
 
@@ -2509,6 +2544,7 @@ impl FontSystem {
             baselines: line_baselines,
             lines: line_boxes,
             path_span: None,
+            path_carets: Vec::new(),
         }
     }
 }

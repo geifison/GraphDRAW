@@ -656,6 +656,12 @@ stand-in next to each missing family: "Arial (Liberation Sans)".
   (`on_path::tests::alignment_along_the_path_justify_and_the_way_round_a_closed_one`,
   `on_path::tests::anti_collision_opens_concave_stretches_and_corners_follow_their_rule`,
   `on_path::tests::the_side_the_line_on_the_stroke_and_further_lines`).
+- Editing a text on a path, the caret stands across the letters where
+  they lie on the path, the selection is one quad per letter along it,
+  and a click places the caret at the nearest letter edge on the path
+  (`TextLayout::path_carets`)
+  (`on_path::tests::carets_stand_on_the_path_across_the_letters`,
+  `text_editing::tests::the_caret_of_a_text_on_a_path_follows_the_path`).
 - Change Case opens a dialog with Sentence case, lowercase, UPPERCASE,
   Title Case and tOGGLE cASE; it needs a text selected.
 

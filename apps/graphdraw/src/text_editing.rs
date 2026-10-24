@@ -598,6 +598,9 @@ fn caret_geometry_sized(
     (a, b): (usize, usize),
     size_pt: f64,
 ) -> Option<(Point, Point, Vec<[Point; 4]>)> {
+    if !layout.path_carets.is_empty() {
+        return path_caret_geometry(layout, to_page, caret, (a, b));
+    }
     let (x, base, asc, desc) = layout.caret(caret).unwrap_or_else(|| {
         // Empty text: a caret of the text size at the origin.
         let size_mm = size_pt * 25.4 / 72.0;
@@ -630,6 +633,28 @@ fn caret_geometry_sized(
         }
     }
     Some((top, bottom, quads))
+}
+
+/// Caret and selection of a text on a path: they follow the letters
+/// along the curve (one quad per selected character).
+fn path_caret_geometry(
+    layout: &TextLayout,
+    to_page: &Affine,
+    caret: usize,
+    (a, b): (usize, usize),
+) -> Option<(Point, Point, Vec<[Point; 4]>)> {
+    let (top, bottom) = layout.path_caret(caret)?;
+    let mut quads = Vec::new();
+    for line in &layout.lines {
+        for c in a.max(line.start_char)..b.min(line.end_char) {
+            if let (Some((t0, b0)), Some((t1, b1))) =
+                (layout.path_caret(c), layout.path_caret(c + 1))
+            {
+                quads.push([*to_page * b0, *to_page * b1, *to_page * t1, *to_page * t0]);
+            }
+        }
+    }
+    Some((*to_page * top, *to_page * bottom, quads))
 }
 
 fn word_start_before(text: &[char], from: usize) -> usize {
@@ -748,6 +773,44 @@ mod tests {
         assert_eq!(app.text_selected(), "adef");
         app.text_select_word_at(2);
         assert_eq!(app.text_selected(), "adef");
+    }
+
+    #[test]
+    fn the_caret_of_a_text_on_a_path_follows_the_path() {
+        if !fonts_available() {
+            return;
+        }
+        let mut app = App::headless();
+        app.settings.autocorrect.enabled = false;
+        // A path going down the page: the letters, the caret and the
+        // selection run down it, not across.
+        let mut down = graphdraw_core::geometry::BezPath::new();
+        down.move_to((50.0, 10.0));
+        down.line_to((50.0, 190.0));
+        let path = app
+            .new_shape(ShapeKind::Path {
+                path: down,
+                closed: false,
+            })
+            .expect("path");
+        app.selection.clear();
+        app.begin_fit_text_to_path();
+        app.fit_text_to_picked_path(path);
+        app.text_insert("Hello");
+        let (t5, b5, _) = app.text_caret_geometry().expect("caret");
+        app.text_move(CaretMove::LineStart, false);
+        let (t0, b0, _) = app.text_caret_geometry().expect("caret");
+        // Each caret lies across the path (horizontal on the page) and
+        // typing moved it along the path (vertically).
+        assert!((t0.y - b0.y).abs() < 1e-6 && (t5.y - b5.y).abs() < 1e-6);
+        assert!((t0.x - b0.x).abs() > 1.0);
+        assert!((t5.y - t0.y).abs() > 5.0 && (t5.x - t0.x).abs() < 1e-6);
+        // A click at the end caret finds the end again.
+        assert_eq!(app.text_hit_char(t5.midpoint(b5)), Some(5));
+        // Selecting the word gives one quad per letter, down the path.
+        app.text_move(CaretMove::LineEnd, true);
+        let (_, _, quads) = app.text_caret_geometry().expect("caret");
+        assert_eq!(quads.len(), 5);
     }
 
     #[test]
