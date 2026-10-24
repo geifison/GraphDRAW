@@ -19,7 +19,7 @@ Pick the **Text** tool (`F8`).
   text is removed.
 
 To edit existing text, click it with the Text tool, or double-click it
-with the Pick tool. `Ctrl+Shift+T` (**Edit Text**) does the same for the
+with any other tool. `Ctrl+Shift+T` (**Edit Text**) does the same for the
 selected text.
 
 ### Editing keys

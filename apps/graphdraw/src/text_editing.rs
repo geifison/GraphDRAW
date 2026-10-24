@@ -733,6 +733,31 @@ mod tests {
     }
 
     #[test]
+    fn a_double_click_on_a_text_edits_it_with_any_tool() {
+        use crate::tools::Tool;
+        let mut app = App::headless();
+        app.settings.autocorrect.enabled = false;
+        app.start_text(Point::new(10.0, 10.0), None);
+        app.text_insert("Hello");
+        let id = app.text_edit.as_ref().map(|t| t.shape).expect("text");
+        app.finish_text();
+        let at = app.doc().find_shape(id).expect("shape").bounds().center();
+        for tool in [Tool::Rectangle, Tool::Zoom, Tool::Shape, Tool::Bezier] {
+            app.set_tool(tool);
+            assert!(app.double_click_text(at), "{tool:?}");
+            assert_eq!(app.tool, Tool::Text, "{tool:?}");
+            assert_eq!(app.text_edit.as_ref().map(|t| t.shape), Some(id));
+            app.finish_text();
+        }
+        // The eraser keeps its own double click; off the text nothing opens.
+        app.set_tool(Tool::Eraser);
+        assert!(!app.double_click_text(at));
+        app.set_tool(Tool::Rectangle);
+        assert!(!app.double_click_text(Point::new(500.0, 500.0)));
+        assert!(app.text_edit.is_none());
+    }
+
+    #[test]
     fn undoing_the_text_creation_ends_the_editing() {
         let mut app = App::headless();
         app.settings.autocorrect.enabled = false;

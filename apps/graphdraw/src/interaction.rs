@@ -778,6 +778,9 @@ impl App {
             }
             return;
         }
+        if response.double_clicked_by(PointerButton::Primary) && self.double_click_text(p) {
+            return;
+        }
         match self.tool {
             Tool::Pick | Tool::FreeformPick => self.pick_input(response, p, screen, mods),
             Tool::Shape => {
@@ -938,6 +941,43 @@ impl App {
         if response.drag_stopped_by(PointerButton::Primary) {
             self.end_drag();
         }
+    }
+
+    /// A double click on a text opens it for editing whatever the tool,
+    /// unless the tool's own double click owns that spot: the Pick and
+    /// Text tools handle it themselves, a curve being drawn finishes, an
+    /// eraser deletes, a crop area applies, a custom anchor goes.
+    pub(crate) fn double_click_text(&mut self, p: Point) -> bool {
+        if matches!(
+            self.tool,
+            Tool::Pick | Tool::FreeformPick | Tool::Text | Tool::Eraser
+        ) {
+            return false;
+        }
+        // The first click of the double click may have placed a node.
+        if self.curve.as_ref().is_some_and(|c| c.nodes.len() > 1) {
+            return false;
+        }
+        if self.tool == Tool::Crop && self.crop_area.is_some_and(|r| r.contains(p)) {
+            return false;
+        }
+        let Some(id) = self.hit_test(p) else {
+            return false;
+        };
+        if self.tool == Tool::AnchorEditing && self.custom_anchor_at(id, p).is_some() {
+            return false;
+        }
+        if !matches!(
+            self.doc().find_shape(id).map(|s| &s.kind),
+            Some(ShapeKind::Text { .. })
+        ) {
+            return false;
+        }
+        self.curve = None;
+        self.drag = Drag::None;
+        self.select(vec![id]);
+        self.edit_selected_text();
+        true
     }
 
     fn pick_input(&mut self, response: &Response, p: Point, screen: egui::Pos2, mods: Modifiers) {

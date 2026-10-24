@@ -74,8 +74,10 @@ resolution, only for the rows in view, and kept until fonts are added.
 
 ## Editing in place
 
-Clicking text with the Text tool (or double-clicking it with the Pick
-tool) edits it where it is. The caret is a character position in the
+Clicking text with the Text tool (or double-clicking it with any other
+tool) edits it where it is. A tool's own double click wins where it has
+one: the Eraser deletes the object, a curve being drawn finishes, the
+Crop tool applies its area, the anchor tool removes a custom anchor. The caret is a character position in the
 concatenated spans; the layout's line boxes give its place on the page.
 On screen the caret blinks, 0.53 s on and 0.53 s off, and shows steadily
 again each time it moves. It is black on light drawing and white on

@@ -21,7 +21,7 @@ selecionadas com texto de exemplo, tanto quanto couber.
 ## Editar texto {#edit}
 
 Clique em um texto com a ferramenta [[tool.text]], ou clique duas vezes nele com
-a ferramenta [[tool.pick]], para editá-lo no lugar.
+qualquer outra ferramenta, para editá-lo no lugar.
 [[menu.text > menu.text.edit_text]] (<kbd>Ctrl+Shift+T</kbd>) faz o mesmo.
 
 | Teclas | O que fazem |

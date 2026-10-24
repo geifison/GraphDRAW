@@ -84,7 +84,7 @@ Properties.
 | Drag handle | smooth nodes move the opposite handle to stay collinear; symmetrical also keep the length |
 | Double-click segment | add a node |
 | Double-click node | delete |
-| Double-click a rectangle, ellipse or polygon | it becomes a curve; pictures, text, groups and clip frames stay as they are |
+| Double-click a rectangle, ellipse or polygon | it becomes a curve; pictures, groups and clip frames stay as they are; text opens for editing |
 | Drag a picture's corner | the picture goes into a clip frame of its rectangle (Crop Bitmap) and the corner moves as a node of that frame; a clip frame's frame shows its nodes and edits like any curve, so a cropped picture can be reshaped further |
 | Delete | delete selected nodes |
 | + / - | with nodes chosen: a node in the middle of each segment ending at them / delete them (without chosen nodes they zoom) |

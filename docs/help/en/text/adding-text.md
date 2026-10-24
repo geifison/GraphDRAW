@@ -19,8 +19,8 @@ with sample text, as much as fits.
 
 ## Editing text {#edit}
 
-Click text with the [[tool.text]] tool, or double-click it with the
-[[tool.pick]] tool, to edit it in place. [[menu.text > menu.text.edit_text]]
+Click text with the [[tool.text]] tool, or double-click it with any
+other tool, to edit it in place. [[menu.text > menu.text.edit_text]]
 (<kbd>Ctrl+Shift+T</kbd>) does the same.
 
 | Keys | What they do |

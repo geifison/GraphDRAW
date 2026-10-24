@@ -123,7 +123,7 @@ impl App {
         HIT_PX / (self.view.zoom as f64).max(1e-6)
     }
 
-    fn custom_anchor_at(&self, id: ShapeId, p: Point) -> Option<usize> {
+    pub(crate) fn custom_anchor_at(&self, id: ShapeId, p: Point) -> Option<usize> {
         let s = self.doc().find_shape(id)?;
         let b = s.bounds();
         let tol = self.anchor_tolerance();
