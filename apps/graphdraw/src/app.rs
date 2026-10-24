@@ -4037,7 +4037,7 @@ impl App {
             return;
         }
         if undo && self.undo_stops_at_clip_frame() {
-            self.status = tr("status.undo_clip_frame_start");
+            self.status = crate::i18n::tr("status.undo_clip_frame_start");
             return;
         }
         self.ime_preedit.clear();
