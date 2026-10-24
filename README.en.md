@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="assets/brand/splash.jpg" alt="GraphDRAW, vector illustration editor: the rocket brand icon in a green square, Bezier curves with nodes, mandalas, a colourful phoenix and the .gdr, .cdr, .cmx, PDF and SVG formats" width="100%">
+  <img src="assets/brand/splash.jpg" alt="GraphDraw, draw, create, make it real: the pencil icon in a green to cyan gradient, the program window with an eagle illustration, the kinds of work it is made for and opening .cdr files" width="100%">
 </p>
 
-# GraphDraw (English summary)
+# <img src="assets/brand/app-64.png" alt="" width="40" align="top"> GraphDraw (English summary)
 
 **A vector illustration, layout and print editor made for print shops and
 sign makers.** It opens and saves real `.cdr` files, exports PDF/X for print
@@ -32,6 +32,22 @@ production without surprises, in a free editor anyone can use.
 - Multi-page documents, layers, guides, snapping, bleed, tables, symbols and clip frames; a New Document library of page sizes with measurement fields that take expressions and units (`210 mm`, `8.5 in`, `100+10 mm`).
 - Output to PDF and PDF/X, separations, ICC colour management and every common vector and bitmap format.
 - Every action is an undoable command: command line, JavaScript, VBA macros and an MCP server for AI agents.
+
+## What's new
+
+- New look: the pencil icon, a new splash screen and a new icon for `.gdr` files.
+- Print preview: wheel and rectangle zoom, panning and real size; the Print dialog shows every tab whole.
+- Clip frames: more objects, text frames, double-click and Ctrl+click editing, nested levels and a clip frame bar.
+- Interactive gradient fill with on-canvas handles and stops; fill transparency; editable two-colour patterns.
+- Eyedroppers that sample and pour colours and properties, with a magnifier and gradient stops.
+- Floating Edit Fill (F11) and Outline Pen (F12) windows; outline transparency, miter limit, dashes at corners and arrow options.
+- Text fitted to a path, with the caret and selection following the curve.
+- System clipboard with SVG, text and PNG; drop files on the window to import them where they fall.
+- Right-drag copies; right-click on a locked object offers Unlock.
+- Align and Distribute with colour pictures and a Specified point target.
+- Selection marks in black or white against the drawing under them.
+- VBA macro projects with the Macro Manager, forms and editor.
+- `.cdr` saving in the version you pick; no console window on Windows.
 
 ## Build
 

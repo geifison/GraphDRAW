@@ -2,7 +2,8 @@
 # assets/brand (windows PowerShell 5.1, System.Drawing only):
 #   assets/brand/app-512.png, gdr-512.png (macOS iconset)
 #   packaging/windows/msix/Assets/*.png (Store logos, .gdr file logo)
-# Run from anywhere: powershell -File scripts/brand/make-assets.ps1
+# Run after scripts/brand/render-icons.mjs, from anywhere:
+#   powershell -File scripts/brand/make-assets.ps1
 Add-Type -AssemblyName System.Drawing
 $root = Resolve-Path (Join-Path $PSScriptRoot '..\..')
 $brand = Join-Path $root 'assets\brand'

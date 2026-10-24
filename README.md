@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/brand/splash.jpg" alt="GraphDRAW, editor de ilustração vetorial: o foguete da marca em um quadrado verde, curvas com nós, mandalas, uma fênix colorida e os formatos .gdr, .cdr, .cmx, PDF e SVG" width="100%">
+  <img src="assets/brand/splash.jpg" alt="GraphDraw, desenhe, crie, realize: o ícone do lápis em degradê verde e ciano, a tela do programa com a ilustração de uma águia, os tipos de trabalho (logotipos, cartões de visita, panfletos, banners, adesivos, cardápios, convites, fachadas e posts) e a abertura de arquivos .cdr" width="100%">
 </p>
 
 <h3 align="center">Crie, ajuste e mande para a gráfica.<br>Um editor vetorial gratuito, feito por quem vive de criação.</h3>
@@ -103,6 +103,23 @@ seus arquivos para lugar nenhum.
 | 📄 **Montar páginas** | Várias páginas, camadas, guias, réguas e sangria, como numa revista ou num cardápio. |
 | 🆕 **Começar rápido** | Escolha o formato pronto: A4, Ofício, cartão de visita, envelope, banner, post e stories. Digite medidas do seu jeito, como `210 mm`, `8.5 in` ou `100+10 mm`. |
 | 🖨️ **Entregar** | PDF pronto para a gráfica (PDF/X, com sangria), PLT para plotter de recorte, PNG, JPG, SVG e outros. |
+
+## Novidades
+
+- 🖊️ **Cara nova.** Ícone do lápis, nova tela de abertura e novo ícone para os arquivos `.gdr`.
+- 🖨️ **Visualizar impressão.** Zoom com a roda do mouse ou por retângulo, arrastar a página e ver no tamanho real. A janela Imprimir mostra cada aba inteira, sem rolagem.
+- 🖼️ **Molduras de recorte.** Cabem mais objetos, um texto também pode ser moldura, edição com duplo clique ou Ctrl+clique, molduras dentro de molduras e uma barra própria para editar, extrair e encaixar.
+- 🌈 **Degradê interativo.** Alças e paradas de cor direto no desenho, transparência do preenchimento e padrões de duas cores editáveis.
+- 💧 **Conta-gotas.** Pega a cor ou as propriedades de um objeto e aplica em outro, com lupa e leitura de degradês.
+- ✒️ **Contorno completo.** Janelas flutuantes de Preenchimento (F11) e Caneta de contorno (F12), com transparência do contorno, limite de canto, tracejado acertado nas quinas e opções de setas.
+- 🔤 **Texto no caminho.** Encaixe um texto numa curva; o cursor e a seleção acompanham a curva.
+- 📋 **Copiar, colar e arrastar.** Copie para outros programas (SVG, texto e PNG), cole do jeito certo e arraste arquivos para a janela para importar onde soltar.
+- 🖱️ **Botão direito.** Arrastar com o botão direito faz uma cópia; num objeto bloqueado, o menu oferece Desbloquear.
+- 📐 **Alinhar e distribuir.** Figuras coloridas para cada opção e alinhamento a um ponto que você escolhe.
+- 👁️ **Seleção sempre visível.** Alças e linhas de seleção ficam pretas ou brancas conforme o desenho embaixo.
+- ⚙️ **Macros.** Rode projetos de macro VBA com o Gerenciador de macros, formulários e editor.
+- 💾 **Salvar `.cdr`** na versão que você escolher, com aviso ao abrir arquivos antigos.
+- 🪟 **Windows** sem a janela preta de console ao abrir o programa.
 
 ## Seus arquivos `.cdr` abrem aqui
 
