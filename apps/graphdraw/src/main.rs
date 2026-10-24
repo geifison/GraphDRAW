@@ -5,8 +5,9 @@
     clippy::enum_variant_names,
     clippy::wrong_self_convention
 )]
-// No console window in release builds on Windows.
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+// No console window on Windows, debug builds included: started from a
+// terminal, the log still reaches it (see `attach_parent_console`).
+#![windows_subsystem = "windows"]
 
 //! GraphDraw desktop app: a thin egui shell over the engine.
 
@@ -165,6 +166,8 @@ mod workspace_file;
 
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> eframe::Result<()> {
+    #[cfg(windows)]
+    attach_parent_console();
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     graphdraw_text::install();
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -238,6 +241,28 @@ fn main() -> eframe::Result<()> {
             }))
         }),
     )
+}
+
+/// A windows-subsystem program gets no standard handles when a shell starts
+/// it directly: borrow the console of that shell, if any, so the log and
+/// `--mcp` output still show there. Inherited handles (pipes, `cargo run`)
+/// are kept; started from the desktop there is no console and nothing opens.
+#[cfg(windows)]
+fn attach_parent_console() {
+    const STD_ERROR_HANDLE: u32 = -12i32 as u32;
+    const ATTACH_PARENT_PROCESS: u32 = u32::MAX;
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn GetStdHandle(which: u32) -> *mut std::ffi::c_void;
+        fn AttachConsole(process: u32) -> i32;
+    }
+    // SAFETY: both calls take plain integers and only read process state;
+    // a failed attach (no parent console) is harmless.
+    unsafe {
+        if GetStdHandle(STD_ERROR_HANDLE).is_null() {
+            AttachConsole(ATTACH_PARENT_PROCESS);
+        }
+    }
 }
 
 /// The browser build starts from `web::start` (the page loads the module,
