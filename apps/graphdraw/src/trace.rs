@@ -4,7 +4,7 @@
 
 use image::{Rgba, RgbaImage};
 use graphdraw_core::{
-    geometry::{BezPath, Point, Rect},
+    geometry::{BezPath, Point, Rect, Shape as _},
     Color,
 };
 
@@ -93,108 +93,179 @@ pub struct Settings {
 pub struct Traced {
     pub path: BezPath,
     pub color: Color,
+    /// The path is closed (a filled region, or a stroke that loops).
     pub closed: bool,
+    /// Stroke width in pixels for a centreline; 0 for a filled region.
+    pub width: f64,
+}
+
+impl Traced {
+    pub fn is_stroke(&self) -> bool {
+        self.width > 0.0
+    }
 }
 
 /// Trace `img` into shapes whose coordinates are in pixel space (y down).
 /// The caller maps them into the bitmap's rectangle.
 pub fn trace(img: &RgbaImage, s: &Settings) -> Vec<Traced> {
     if s.centerline {
-        return centerline(img, s);
+        return crate::trace_center::centerline(img, s);
     }
     outline(img, s)
+}
+
+/// Fitting settings for `s`: detail sets the tolerance, smoothing the
+/// passes over the points, corner smoothness the corner angle.
+pub fn fit_params(s: &Settings) -> crate::trace_fit::FitParams {
+    let detail = s.detail.clamp(0.0, 100.0);
+    crate::trace_fit::FitParams {
+        tolerance: 0.25 + (100.0 - detail) / 100.0 * 1.5,
+        corner_angle: (50.0 + s.corner_smoothness.clamp(0.0, 100.0) * 0.85).to_radians(),
+        smooth_passes: (s.smoothing.clamp(0.0, 100.0) / 25.0).round() as usize,
+    }
+}
+
+/// Specks smaller than this many pixels are merged away: more at low
+/// detail, and more in big pictures.
+pub fn speck_area(detail: f64, w: usize, h: usize) -> usize {
+    let d = 1.0 - detail.clamp(0.0, 100.0) / 100.0;
+    let scale = ((w * h) as f64 / 250_000.0).sqrt().max(1.0);
+    ((1.0 + 40.0 * d * d) * scale).round() as usize
 }
 
 // ----- outline mode -----------------------------------------------------------
 
 fn outline(img: &RgbaImage, s: &Settings) -> Vec<Traced> {
+    use crate::trace_color::{self as tc, CLEAR};
     let (w, h) = (img.width() as usize, img.height() as usize);
     if w == 0 || h == 0 {
         return Vec::new();
     }
-    // 1. Smooth a little when detail is low, then quantise.
-    let src = if s.detail < 50.0 {
-        image::imageops::blur(img, (50.0 - s.detail as f32) / 25.0)
+    // 1. Edge-preserving smoothing when detail is low: grain and
+    // compression noise go, edges and corners stay.
+    let src = if s.detail < 70.0 {
+        let radius = if s.detail < 35.0 { 2 } else { 1 };
+        tc::bilateral(img, radius, 12.0 + (70.0 - s.detail as f32) * 0.6)
     } else {
         img.clone()
     };
-    let palette: Vec<[u8; 3]> = if s.black_white {
-        vec![[0, 0, 0], [255, 255, 255]]
+    // 2. Background: with a plain or gently shaded one, flood it from the
+    // border and leave it out before choosing colours, so the palette is
+    // spent on the picture itself.
+    let flood = if s.remove_background {
+        tc::background(&src)
     } else {
-        median_cut(&src, s.colors.clamp(2, 256) as usize)
+        None
     };
-    let mut labels = vec![0usize; w * h];
-    for (x, y, p) in src.enumerate_pixels() {
-        let idx = if p[3] < 128 {
-            usize::MAX
-        } else if s.black_white {
-            if luma(*p) < 128.0 {
-                0
-            } else {
-                1
+    let mut src = src;
+    if let Some((mask, _)) = &flood {
+        for (p, m) in src.pixels_mut().zip(mask) {
+            if *m {
+                p[3] = 0;
             }
-        } else {
-            nearest(&palette, [p[0], p[1], p[2]])
+        }
+    }
+    // 3. Palette and labels.
+    let (palette, mut labels) = if s.black_white {
+        let t = tc::otsu(&src);
+        let labels = src
+            .pixels()
+            .map(|p| {
+                if p[3] < 128 {
+                    CLEAR
+                } else if luma(*p) < t {
+                    0
+                } else {
+                    1
+                }
+            })
+            .collect();
+        (vec![[0, 0, 0], [255, 255, 255]], labels)
+    } else {
+        let pal = tc::palette(&src, s.colors.clamp(2, 256) as usize);
+        let labels = tc::label(&src, &pal);
+        (pal, labels)
+    };
+    // 4. Specks and anti-aliasing fringes join their neighbours.
+    tc::clean(
+        &mut labels,
+        w,
+        h,
+        &palette,
+        speck_area(s.detail, w, h),
+        !s.black_white,
+        flood.as_ref().map(|f| f.1),
+    );
+    // 5. Without a flooded background, the background is the most common
+    // colour touching the border.
+    let mut area = vec![0usize; palette.len()];
+    let mut border = vec![0usize; palette.len()];
+    for (i, l) in labels.iter().enumerate() {
+        let Some(a) = area.get_mut(*l as usize) else {
+            continue;
         };
-        labels[y as usize * w + x as usize] = idx;
-    }
-    // 2. Background: the most common colour touching the border.
-    let mut border_counts = vec![0usize; palette.len()];
-    for x in 0..w {
-        for y in [0, h - 1] {
-            let l = labels[y * w + x];
-            if l != usize::MAX {
-                border_counts[l] += 1;
-            }
+        *a += 1;
+        let (x, y) = (i % w, i / w);
+        if x == 0 || y == 0 || x + 1 == w || y + 1 == h {
+            border[*l as usize] += 1;
         }
     }
-    for y in 0..h {
-        for x in [0, w - 1] {
-            let l = labels[y * w + x];
-            if l != usize::MAX {
-                border_counts[l] += 1;
-            }
-        }
-    }
-    let background = if s.remove_background {
-        border_counts
+    let background = if s.remove_background && flood.is_none() {
+        border
             .iter()
             .enumerate()
+            .filter(|(_, c)| **c > 0)
             .max_by_key(|(_, c)| **c)
             .map(|(i, _)| i)
     } else {
         None
     };
-    // 3. Per colour, darkest first (so lighter regions stack on top),
-    // extract the boundary contours of the mask.
-    let mut order: Vec<usize> = (0..palette.len()).collect();
-    order.sort_by_key(|i| {
-        let c = palette[*i];
-        (c[0] as u32 * 299 + c[1] as u32 * 587 + c[2] as u32 * 114) / 1000
-    });
-    let tolerance = 0.3 + (100.0 - s.detail) / 100.0 * 2.5;
+    // 6. Stack largest first: each layer also covers the pixels of the
+    // layers above it that it surrounds or borders, so neighbouring
+    // colours overlap instead of leaving hairline gaps.
+    let mut order: Vec<usize> = (0..palette.len())
+        .filter(|i| area[*i] > 0 && Some(*i) != background)
+        .collect();
+    order.sort_by_key(|i| std::cmp::Reverse(area[*i]));
+    let mut rank = vec![-1i64; palette.len()];
+    for (r, i) in order.iter().enumerate() {
+        rank[*i] = r as i64;
+    }
+    let rank_of = |l: u32| -> i64 { rank.get(l as usize).copied().unwrap_or(-1) };
+    let fp = fit_params(s);
     let mut out = Vec::new();
-    for ci in order {
-        if Some(ci) == background {
+    for &ci in &order {
+        let my = rank[ci];
+        let Some((x0, y0, x1, y1)) = bbox(&labels, w, h, ci as u32) else {
             continue;
+        };
+        // A margin of 3 keeps the grown mask off the crop's edge, and a
+        // one pixel empty frame keeps the outside connected.
+        let (x0, y0) = (x0.saturating_sub(3), y0.saturating_sub(3));
+        let (x1, y1) = ((x1 + 4).min(w), (y1 + 4).min(h));
+        let (cw, ch) = (x1 - x0 + 2, y1 - y0 + 2);
+        let mut mask = vec![false; cw * ch];
+        let mut above = vec![false; cw * ch];
+        for y in y0..y1 {
+            for x in x0..x1 {
+                let l = labels[y * w + x];
+                let k = (y - y0 + 1) * cw + (x - x0 + 1);
+                mask[k] = l == ci as u32;
+                above[k] = rank_of(l) > my;
+            }
         }
-        let mask: Vec<bool> = labels.iter().map(|l| *l == ci).collect();
-        let contours = contours(&mask, w, h);
+        grow_under(&mut mask, &above, cw, ch, 2);
+        fill_holes_under(&mut mask, &above, cw, ch);
         let mut path = BezPath::new();
-        for ring in contours {
-            if ring.len() < 3 {
-                continue;
+        for ring in contours(&mask, cw, ch) {
+            let pts: Vec<Point> = ring_midpoints(&ring)
+                .into_iter()
+                .map(|p| Point::new(p.x + x0 as f64 - 1.0, p.y + y0 as f64 - 1.0))
+                .collect();
+            let sub = crate::trace_fit::fit_closed(&pts, &fp);
+            if sub.area().abs() >= 0.5 {
+                path.extend(sub);
             }
-            let simplified = graphdraw_core::geometry::simplify(&ring, tolerance);
-            if simplified.len() < 3 {
-                continue;
-            }
-            let sub = if s.smoothing > 0.0 {
-                graphdraw_core::geometry::smooth_path(&simplified, true)
-            } else {
-                polyline_closed(&simplified)
-            };
-            path.extend(sub);
         }
         if path.elements().is_empty() {
             continue;
@@ -204,141 +275,123 @@ fn outline(img: &RgbaImage, s: &Settings) -> Vec<Traced> {
             path,
             color: Color::rgb8(c[0], c[1], c[2]),
             closed: true,
+            width: 0.0,
         });
     }
     out
 }
 
-fn polyline_closed(pts: &[Point]) -> BezPath {
-    let mut p = BezPath::new();
-    if let Some(f) = pts.first() {
-        p.move_to(*f);
-        for q in &pts[1..] {
-            p.line_to(*q);
-        }
-        p.close_path();
-    }
-    p
-}
-
-fn luma(p: Rgba<u8>) -> f32 {
-    0.299 * p[0] as f32 + 0.587 * p[1] as f32 + 0.114 * p[2] as f32
-}
-
-fn nearest(palette: &[[u8; 3]], c: [u8; 3]) -> usize {
-    let mut best = (u32::MAX, 0);
-    for (i, p) in palette.iter().enumerate() {
-        let d = (0..3)
-            .map(|k| (p[k] as i32 - c[k] as i32).pow(2) as u32)
-            .sum::<u32>();
-        if d < best.0 {
-            best = (d, i);
-        }
-    }
-    best.1
-}
-
-/// Median cut colour quantisation to `n` colours.
-pub fn median_cut(img: &RgbaImage, n: usize) -> Vec<[u8; 3]> {
-    let mut pixels: Vec<[u8; 3]> = img
-        .pixels()
-        .filter(|p| p[3] >= 128)
-        .map(|p| [p[0], p[1], p[2]])
-        .collect();
-    if pixels.is_empty() {
-        return vec![[0, 0, 0]];
-    }
-    // Subsample large images.
-    if pixels.len() > 200_000 {
-        let step = pixels.len() / 200_000 + 1;
-        pixels = pixels.into_iter().step_by(step).collect();
-    }
-    let mut buckets: Vec<Vec<[u8; 3]>> = vec![pixels.clone()];
-    while buckets.len() < n {
-        // Split the bucket with the largest range.
-        let mut best: Option<(usize, usize, i32)> = None; // (bucket, channel, range)
-        for (bi, b) in buckets.iter().enumerate() {
-            if b.len() < 2 {
-                continue;
-            }
-            for ch in 0..3 {
-                let (mn, mx) = b.iter().fold((255i32, 0i32), |(mn, mx), p| {
-                    (mn.min(p[ch] as i32), mx.max(p[ch] as i32))
+/// Bounding box (x0, y0, x1, y1 inclusive) of the pixels labelled `l`.
+fn bbox(labels: &[u32], w: usize, h: usize, l: u32) -> Option<(usize, usize, usize, usize)> {
+    let mut b: Option<(usize, usize, usize, usize)> = None;
+    for y in 0..h {
+        for x in 0..w {
+            if labels[y * w + x] == l {
+                b = Some(match b {
+                    None => (x, y, x, y),
+                    Some((a, c, d, e)) => (a.min(x), c.min(y), d.max(x), e.max(y)),
                 });
-                let r = mx - mn;
-                if best.map(|b| r > b.2).unwrap_or(true) {
-                    best = Some((bi, ch, r));
+            }
+        }
+    }
+    b
+}
+
+/// Grow `mask` by `n` pixels (8-neighbourhood) into cells where `under`
+/// is set.
+fn grow_under(mask: &mut [bool], under: &[bool], w: usize, h: usize, n: usize) {
+    for _ in 0..n {
+        let prev = mask.to_vec();
+        for y in 1..h.saturating_sub(1) {
+            for x in 1..w.saturating_sub(1) {
+                let i = y * w + x;
+                if prev[i] || !under[i] {
+                    continue;
+                }
+                let near = [
+                    i - w - 1,
+                    i - w,
+                    i - w + 1,
+                    i - 1,
+                    i + 1,
+                    i + w - 1,
+                    i + w,
+                    i + w + 1,
+                ];
+                if near.iter().any(|j| prev[*j]) {
+                    mask[i] = true;
                 }
             }
         }
-        let Some((bi, ch, r)) = best else { break };
-        if r == 0 {
-            break;
-        }
-        let mut b = buckets.remove(bi);
-        b.sort_by_key(|p| p[ch]);
-        // Cut at the median, but never through a run of equal values: a
-        // picture of mostly black and white would otherwise put both in
-        // one bucket and average them to grey.
-        let v = b[b.len() / 2][ch];
-        let mut mid = b.partition_point(|p| p[ch] < v);
-        if mid == 0 {
-            mid = b.partition_point(|p| p[ch] <= v);
-        }
-        let hi = b.split_off(mid);
-        buckets.push(b);
-        buckets.push(hi);
     }
-    let start: Vec<[u8; 3]> = buckets
-        .iter()
-        .filter(|b| !b.is_empty())
-        .map(|b| {
-            let n = b.len() as u32;
-            let s = b.iter().fold([0u32; 3], |acc, p| {
-                [
-                    acc[0] + p[0] as u32,
-                    acc[1] + p[1] as u32,
-                    acc[2] + p[2] as u32,
-                ]
-            });
-            [(s[0] / n) as u8, (s[1] / n) as u8, (s[2] / n) as u8]
-        })
-        .collect();
-    refine(&pixels, start)
 }
 
-/// A few rounds of k-means from the median cut's colours: each colour
-/// moves to the mean of the pixels nearest it, so the palette lands on
-/// the colours the picture really has.
-fn refine(pixels: &[[u8; 3]], mut palette: Vec<[u8; 3]>) -> Vec<[u8; 3]> {
-    for _ in 0..6 {
-        let mut sums = vec![[0u64; 4]; palette.len()];
-        for p in pixels {
-            let i = nearest(&palette, *p);
-            for k in 0..3 {
-                sums[i][k] += p[k] as u64;
-            }
-            sums[i][3] += 1;
+/// Fill the holes of `mask` that lie wholly in `under` cells: a layer
+/// above covers them, so the layer below need not cut them out.
+fn fill_holes_under(mask: &mut [bool], under: &[bool], w: usize, h: usize) {
+    let mut seen = vec![false; mask.len()];
+    let mut stack = Vec::new();
+    let mut comp = Vec::new();
+    for start in 0..mask.len() {
+        if mask[start] || seen[start] {
+            continue;
         }
-        let mut moved = false;
-        for (c, s) in palette.iter_mut().zip(&sums) {
-            if s[3] == 0 {
-                continue;
+        seen[start] = true;
+        stack.push(start);
+        comp.clear();
+        let mut outside = false;
+        let mut covered = true;
+        while let Some(i) = stack.pop() {
+            comp.push(i);
+            let (x, y) = (i % w, i / w);
+            if x == 0 || y == 0 || x + 1 == w || y + 1 == h {
+                outside = true;
             }
-            let m = [
-                (s[0] / s[3]) as u8,
-                (s[1] / s[3]) as u8,
-                (s[2] / s[3]) as u8,
+            covered &= under[i];
+            let ns = [
+                (x > 0).then(|| i - 1),
+                (x + 1 < w).then(|| i + 1),
+                (y > 0).then(|| i - w),
+                (y + 1 < h).then(|| i + w),
             ];
-            moved |= m != *c;
-            *c = m;
+            for j in ns.into_iter().flatten() {
+                if !mask[j] && !seen[j] {
+                    seen[j] = true;
+                    stack.push(j);
+                }
+            }
         }
-        if !moved {
-            break;
+        if !outside && covered {
+            for &i in &comp {
+                mask[i] = true;
+            }
         }
     }
-    palette.dedup();
-    palette
+}
+
+/// The midpoints of a ring's unit pixel edges. On a staircase they lie on
+/// the line the stairs approximate, which is what the fitter wants.
+fn ring_midpoints(ring: &[Point]) -> Vec<Point> {
+    let mut out = Vec::new();
+    let n = ring.len();
+    for i in 0..n {
+        let a = ring[i];
+        let b = ring[(i + 1) % n];
+        let d = b - a;
+        let steps = d.x.abs().max(d.y.abs()).round() as usize;
+        if steps == 0 {
+            continue;
+        }
+        let u = d / steps as f64;
+        for k in 0..steps {
+            out.push(a + u * (k as f64 + 0.5));
+        }
+    }
+    out
+}
+
+pub(crate) fn luma(p: Rgba<u8>) -> f32 {
+    0.299 * p[0] as f32 + 0.587 * p[1] as f32 + 0.114 * p[2] as f32
 }
 
 /// Boundary rings of a binary mask (pixel-edge following). Outer rings are
@@ -430,116 +483,6 @@ pub fn contours(mask: &[bool], w: usize, h: usize) -> Vec<Vec<Point>> {
     rings
 }
 
-// ----- centreline mode --------------------------------------------------------
-
-fn centerline(img: &RgbaImage, s: &Settings) -> Vec<Traced> {
-    let (w, h) = (img.width() as usize, img.height() as usize);
-    if w == 0 || h == 0 {
-        return Vec::new();
-    }
-    let mut mask: Vec<bool> = img
-        .pixels()
-        .map(|p| p[3] >= 128 && luma(*p) < 128.0)
-        .collect();
-    // Mean stroke thickness before thinning: area / skeleton length later.
-    let area = mask.iter().filter(|m| **m).count() as f64;
-    thin(&mut mask, w, h);
-    let skeleton = mask.iter().filter(|m| **m).count().max(1) as f64;
-    let width = (area / skeleton).clamp(1.0, 50.0);
-    // Trace skeleton pixels into polylines by walking neighbours.
-    let mut visited = vec![false; w * h];
-    let idx = |x: usize, y: usize| y * w + x;
-    let neighbours = |x: usize, y: usize, mask: &[bool]| -> Vec<(usize, usize)> {
-        let mut v = Vec::new();
-        for dy in -1i64..=1 {
-            for dx in -1i64..=1 {
-                if dx == 0 && dy == 0 {
-                    continue;
-                }
-                let (nx, ny) = (x as i64 + dx, y as i64 + dy);
-                if nx >= 0
-                    && ny >= 0
-                    && (nx as usize) < w
-                    && (ny as usize) < h
-                    && mask[ny as usize * w + nx as usize]
-                {
-                    v.push((nx as usize, ny as usize));
-                }
-            }
-        }
-        v
-    };
-    let mut lines: Vec<Vec<Point>> = Vec::new();
-    // Start from endpoints first (one neighbour), then anything left.
-    let mut starts: Vec<(usize, usize)> = Vec::new();
-    for y in 0..h {
-        for x in 0..w {
-            if mask[idx(x, y)] && neighbours(x, y, &mask).len() == 1 {
-                starts.push((x, y));
-            }
-        }
-    }
-    for y in 0..h {
-        for x in 0..w {
-            if mask[idx(x, y)] {
-                starts.push((x, y));
-            }
-        }
-    }
-    for (sx, sy) in starts {
-        if visited[idx(sx, sy)] {
-            continue;
-        }
-        let mut line = vec![Point::new(sx as f64 + 0.5, sy as f64 + 0.5)];
-        visited[idx(sx, sy)] = true;
-        let (mut x, mut y) = (sx, sy);
-        loop {
-            let next = neighbours(x, y, &mask)
-                .into_iter()
-                .find(|(nx, ny)| !visited[idx(*nx, *ny)]);
-            let Some((nx, ny)) = next else { break };
-            visited[idx(nx, ny)] = true;
-            line.push(Point::new(nx as f64 + 0.5, ny as f64 + 0.5));
-            x = nx;
-            y = ny;
-        }
-        if line.len() >= 2 {
-            lines.push(line);
-        }
-    }
-    let tolerance = 0.5 + (100.0 - s.detail) / 100.0 * 2.0;
-    let mut out = Vec::new();
-    for l in lines {
-        let simplified = graphdraw_core::geometry::simplify(&l, tolerance);
-        if simplified.len() < 2 {
-            continue;
-        }
-        let path = if s.smoothing > 0.0 && simplified.len() > 2 {
-            graphdraw_core::geometry::smooth_path(&simplified, false)
-        } else {
-            graphdraw_core::geometry::polyline_path(&simplified, false)
-        };
-        out.push(Traced {
-            path,
-            color: Color::BLACK,
-            closed: false,
-        });
-    }
-    // Encode the stroke width in the first result's colour alpha? No: the
-    // caller reads `stroke_width` through the returned tuple below.
-    STROKE_WIDTH.with(|c| c.set(width));
-    out
-}
-
-thread_local! {
-    static STROKE_WIDTH: std::cell::Cell<f64> = const { std::cell::Cell::new(1.0) };
-}
-
-/// Mean stroke width (pixels) measured by the last centreline trace.
-pub fn last_stroke_width_px() -> f64 {
-    STROKE_WIDTH.with(|c| c.get())
-}
-
 /// Zhang-Suen thinning.
 pub fn thin(mask: &mut [bool], w: usize, h: usize) {
     let at = |m: &[bool], x: i64, y: i64| -> bool {
@@ -595,11 +538,10 @@ pub fn thin(mask: &mut [bool], w: usize, h: usize) {
     }
 }
 
-/// Map traced pixel-space paths into a rectangle (page mm, Y up).
 /// Draw traced shapes (pixel space, y down) into a transparent image of
-/// `w` x `h`: closed shapes filled with their colour, centrelines stroked
-/// `stroke_px` wide. The trace dialog previews a trace this way.
-pub fn render_traced(traced: &[Traced], w: u32, h: u32, stroke_px: f64) -> RgbaImage {
+/// `w` x `h`: regions filled with their colour, centrelines stroked at
+/// their width. The trace dialog previews a trace this way.
+pub fn render_traced(traced: &[Traced], w: u32, h: u32) -> RgbaImage {
     let Some(mut pm) = tiny_skia::Pixmap::new(w.max(1), h.max(1)) else {
         return RgbaImage::new(w.max(1), h.max(1));
     };
@@ -625,7 +567,7 @@ pub fn render_traced(traced: &[Traced], w: u32, h: u32, stroke_px: f64) -> RgbaI
         let mut paint = tiny_skia::Paint::default();
         paint.set_color_rgba8(r, g, b, 255);
         paint.anti_alias = true;
-        if t.closed {
+        if !t.is_stroke() {
             pm.fill_path(
                 &path,
                 &paint,
@@ -635,7 +577,7 @@ pub fn render_traced(traced: &[Traced], w: u32, h: u32, stroke_px: f64) -> RgbaI
             );
         } else {
             let stroke = tiny_skia::Stroke {
-                width: stroke_px.max(0.5) as f32,
+                width: t.width.max(0.5) as f32,
                 line_cap: tiny_skia::LineCap::Round,
                 line_join: tiny_skia::LineJoin::Round,
                 ..Default::default()
@@ -657,6 +599,7 @@ pub fn render_traced(traced: &[Traced], w: u32, h: u32, stroke_px: f64) -> RgbaI
     out
 }
 
+/// Map traced pixel-space paths into a rectangle (page mm, Y up).
 pub fn to_rect(path: &BezPath, img_w: u32, img_h: u32, rect: Rect) -> BezPath {
     let sx = rect.width() / img_w.max(1) as f64;
     let sy = rect.height() / img_h.max(1) as f64;
@@ -666,8 +609,8 @@ pub fn to_rect(path: &BezPath, img_w: u32, img_h: u32, rect: Rect) -> BezPath {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use graphdraw_core::geometry::PathSeg;
     use image::ImageBuffer;
-    use graphdraw_core::geometry::Shape as _;
 
     fn circle_image() -> RgbaImage {
         ImageBuffer::from_fn(100, 100, |x, y| {
@@ -709,7 +652,7 @@ mod tests {
                 "{colors} colours: {r},{g},{b}"
             );
         }
-        let pal = median_cut(&img, 2);
+        let pal = crate::trace_color::palette(&img, 2);
         assert!(
             pal.contains(&[0, 0, 0]) && pal.iter().any(|c| c[0] > 245),
             "{pal:?}"
@@ -717,33 +660,160 @@ mod tests {
     }
 
     #[test]
-    fn outline_traces_a_circle_with_right_area() {
+    fn outline_traces_a_circle_with_right_area_and_few_nodes() {
         let img = circle_image();
         let t = trace(&img, &Preset::LineArt.settings());
         assert_eq!(t.len(), 1, "background removed, one region");
         let area = t[0].path.area().abs();
         let expect = std::f64::consts::PI * 30.0 * 30.0;
         assert!(
-            (area - expect).abs() / expect < 0.05,
+            (area - expect).abs() / expect < 0.02,
             "area {area} vs {expect}"
         );
         assert_eq!(t[0].color.to_rgb8(), [0, 0, 0]);
+        let segs = t[0].path.segments().count();
+        assert!(segs <= 12, "{segs} segments for a circle");
     }
 
     #[test]
-    fn centerline_traces_a_line() {
-        let img = ImageBuffer::from_fn(100, 40, |x, y| {
-            if (18..=22).contains(&y) && x > 5 && x < 95 {
-                Rgba([0, 0, 0, 255])
+    fn a_square_stays_square() {
+        let img = ImageBuffer::from_fn(60, 60, |x, y| {
+            if (10..50).contains(&x) && (15..45).contains(&y) {
+                Rgba([200, 20, 20, 255])
             } else {
                 Rgba([255, 255, 255, 255])
             }
         });
-        let t = trace(&img, &Preset::Technical.settings());
-        assert!(!t.is_empty());
-        let b = t[0].path.bounding_box();
-        assert!(b.width() > 80.0 && b.height() < 3.0, "{b:?}");
-        assert!((last_stroke_width_px() - 5.0).abs() < 1.5);
+        let t = trace(&img, &Preset::Logo.settings());
+        assert_eq!(t.len(), 1);
+        let segs: Vec<PathSeg> = t[0].path.segments().collect();
+        assert!(segs.len() <= 5, "{segs:?}");
+        assert!(segs.iter().all(|s| matches!(s, PathSeg::Line(_))), "{segs:?}");
+        let bb = t[0].path.bounding_box();
+        assert!((bb.x0 - 10.0).abs() < 0.01 && (bb.y1 - 45.0).abs() < 0.01, "{bb:?}");
+        assert!((t[0].path.area().abs() - 1200.0).abs() < 1.0);
+    }
+
+    #[test]
+    fn anti_aliased_edges_and_noise_leave_no_fringe_or_specks() {
+        // A soft-edged red disc on white with scattered noise pixels.
+        let img = ImageBuffer::from_fn(120, 120, |x, y| {
+            let d = ((x as f32 - 60.0).powi(2) + (y as f32 - 60.0).powi(2)).sqrt();
+            let a = (40.0 - d).clamp(0.0, 1.0);
+            let mix = |c: f32| (255.0 * (1.0 - a) + c * a).round() as u8;
+            if (x * 7 + y * 13) % 97 == 0 && d > 45.0 {
+                Rgba([90, 90, 90, 255])
+            } else {
+                Rgba([mix(220.0), mix(30.0), mix(30.0), 255])
+            }
+        });
+        let t = trace(&img, &Preset::Logo.settings());
+        assert_eq!(t.len(), 1, "one red disc, no fringe ring or specks");
+        let [r, g, _] = t[0].color.to_rgb8();
+        assert!(r > 200 && g < 60, "{r},{g}");
+    }
+
+    #[test]
+    fn a_shaded_background_goes_and_leaves_colours_to_the_picture() {
+        // A vertical gradient ground with a white bar and a red bar: the
+        // ground is removed whole, and with only 3 colours both bars keep
+        // their own.
+        let img = ImageBuffer::from_fn(120, 120, |x, y| {
+            if (20..100).contains(&x) && (30..50).contains(&y) {
+                Rgba([250, 250, 250, 255])
+            } else if (20..100).contains(&x) && (70..90).contains(&y) {
+                Rgba([220, 30, 30, 255])
+            } else {
+                let v = (30 + y / 3) as u8;
+                Rgba([v / 2, v / 2, v, 255])
+            }
+        });
+        let mut s = Preset::Logo.settings();
+        s.colors = 3;
+        let t = trace(&img, &s);
+        assert_eq!(t.len(), 2, "{:?}", t.iter().map(|t| t.color.to_rgb8()).collect::<Vec<_>>());
+        let colours: Vec<[u8; 3]> = t.iter().map(|t| t.color.to_rgb8()).collect();
+        assert!(colours.iter().any(|c| c[1] > 240), "{colours:?}");
+        assert!(colours.iter().any(|c| c[0] > 200 && c[1] < 60), "{colours:?}");
+    }
+
+    #[test]
+    fn ground_inside_a_letter_is_a_hole() {
+        // A white ring on navy: the navy in the middle is ground too.
+        let img = ImageBuffer::from_fn(100, 100, |x, y| {
+            let d = ((x as f32 - 50.0).powi(2) + (y as f32 - 50.0).powi(2)).sqrt();
+            if (20.0..35.0).contains(&d) {
+                Rgba([250, 250, 250, 255])
+            } else {
+                Rgba([25, 30, 60, 255])
+            }
+        });
+        let t = trace(&img, &Preset::Logo.settings());
+        assert_eq!(t.len(), 1);
+        let ring = std::f64::consts::PI * (35.0f64.powi(2) - 20.0f64.powi(2));
+        let area = t[0].path.area().abs();
+        assert!((area - ring).abs() / ring < 0.04, "{area} vs {ring}");
+    }
+
+    #[test]
+    fn neighbouring_colours_leave_no_gap() {
+        // Two colours meeting along a slanted edge: drawn back, no pixel
+        // along the seam shows the transparent background through.
+        let img = ImageBuffer::from_fn(80, 80, |x, y| {
+            if (x as f32) < 20.0 + y as f32 * 0.4 {
+                Rgba([30, 60, 200, 255])
+            } else {
+                Rgba([240, 200, 20, 255])
+            }
+        });
+        let mut s = Preset::Logo.settings();
+        s.remove_background = false;
+        let t = trace(&img, &s);
+        assert_eq!(t.len(), 2);
+        let back = render_traced(&t, 80, 80);
+        for y in 2..78 {
+            for x in 2..78 {
+                assert_eq!(back.get_pixel(x, y)[3], 255, "gap at {x},{y}");
+            }
+        }
+    }
+
+    #[test]
+    fn empty_and_transparent_pictures_trace_to_nothing() {
+        for (w, h) in [(0, 0), (1, 1), (3, 1)] {
+            let img = RgbaImage::new(w, h);
+            for p in Preset::ALL {
+                assert!(trace(&img, &p.settings()).is_empty(), "{w}x{h} {p:?}");
+            }
+        }
+    }
+
+    /// Trace a picture with every preset and write each result drawn back
+    /// next to the original, for looking at by eye:
+    /// `TRACE_IN=pic.png TRACE_OUT=dir cargo test -p graphdraw trace_a_file -- --ignored`.
+    #[test]
+    #[ignore]
+    fn trace_a_file() {
+        let (Ok(inp), Ok(dir)) = (std::env::var("TRACE_IN"), std::env::var("TRACE_OUT")) else {
+            return;
+        };
+        let img = image::open(&inp).expect("picture").to_rgba8();
+        for p in Preset::ALL {
+            let start = std::time::Instant::now();
+            let t = trace(&img, &p.settings());
+            let ms = start.elapsed().as_millis();
+            let nodes: usize = t.iter().map(|t| t.path.elements().len()).sum();
+            println!("{p:?}: {} shapes, {nodes} nodes, {ms} ms", t.len());
+            let back = render_traced(&t, img.width(), img.height());
+            let mut side = RgbaImage::from_pixel(
+                img.width() * 2,
+                img.height(),
+                Rgba([255, 255, 255, 255]),
+            );
+            image::imageops::overlay(&mut side, &img, 0, 0);
+            image::imageops::overlay(&mut side, &back, img.width() as i64, 0);
+            side.save(format!("{dir}/{p:?}.png")).expect("write");
+        }
     }
 
     #[test]

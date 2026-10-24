@@ -3562,12 +3562,7 @@ fn trace_dialog(app: &mut App, ctx: &Context, st: &mut TraceState, close: &mut b
         let settings = st.settings.clone();
         crate::ui::bitmap_preview::before_after(ui, app, key, 200.0, |img, _| {
             let traced = crate::trace::trace(img, &settings);
-            crate::trace::render_traced(
-                &traced,
-                img.width(),
-                img.height(),
-                crate::trace::last_stroke_width_px(),
-            )
+            crate::trace::render_traced(&traced, img.width(), img.height())
         });
         ui.add_space(4.0);
         ui.horizontal_wrapped(|ui| {

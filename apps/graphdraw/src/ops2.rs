@@ -1421,7 +1421,6 @@ impl App {
             };
             let transform = src.transform;
             let traced = crate::trace::trace(&img, settings);
-            let stroke_px = crate::trace::last_stroke_width_px();
             let mut children = Vec::new();
             for t in traced {
                 let sid = self.engine.new_shape_id();
@@ -1433,12 +1432,12 @@ impl App {
                         closed: t.closed,
                     },
                 );
-                if t.closed {
+                if !t.is_stroke() {
                     s.fill = Fill::Solid(t.color);
                     s.stroke = None;
                 } else {
                     s.fill = Fill::None;
-                    let mm = stroke_px * rect.width() / w.max(1) as f64;
+                    let mm = t.width * rect.width() / w.max(1) as f64;
                     s.stroke = Some(graphdraw_core::Stroke::new(t.color, mm.max(0.1)));
                 }
                 children.push(s);
