@@ -549,6 +549,49 @@ mod tests {
         assert!(app.doc().shape(last).is_err());
     }
 
+    /// Undo while contents are edited takes back the edits one by one, as
+    /// outside a frame, and stops at the start of the editing: the
+    /// contents stay out and the editing goes on inside the frame.
+    #[test]
+    fn undo_while_editing_stays_inside_the_frame() {
+        let mut app = App::headless();
+        let (frame, inner) = framed(&mut app);
+        app.select(vec![frame]);
+        app.edit_clip_frame();
+        let before = app.doc().find_shape(inner).unwrap().bounds();
+        app.transform_selection(Affine::translate((10.0, 0.0)));
+        assert!(app.can_undo());
+        app.undo();
+        let b = app.doc().find_shape(inner).unwrap().bounds();
+        assert!((b.x0 - before.x0).abs() < 1e-9, "{b:?}");
+        // Nothing more to undo inside: still editing, contents still out.
+        assert!(!app.can_undo());
+        app.undo();
+        app.undo();
+        assert_eq!(app.clip_frame_edit.as_ref().map(|e| e.0), Some(frame));
+        assert!(app.doc().shape(inner).is_ok());
+        assert_eq!(app.status, tr("status.undo_clip_frame_start"));
+        // Redo works inside as well.
+        app.redo();
+        let b = app.doc().find_shape(inner).unwrap().bounds();
+        assert!((b.x0 - before.x0 - 10.0).abs() < 1e-9, "{b:?}");
+        app.finish_clip_frame_edit();
+        assert!(app.clip_frame_edit_rev.is_empty());
+        assert!(app.can_undo());
+        // Nested: the inner level stops at its own start.
+        let outer = rect_shape(&mut app, Rect::new(-10.0, -10.0, 110.0, 60.0));
+        app.place_inside(vec![frame], outer);
+        app.select(vec![outer]);
+        app.edit_clip_frame();
+        assert!(app.clip_frame_edit_click(Point::new(55.0, 25.0)));
+        assert_eq!(app.clip_frame_edit_depth(), Some((2, 2)));
+        app.undo();
+        assert_eq!(app.clip_frame_edit.as_ref().map(|e| e.0), Some(frame));
+        assert_eq!(app.clip_frame_edit_depth(), Some((2, 2)));
+        app.finish_all_clip_frame_edits();
+        assert_eq!(app.page_layers()[0].shapes.len(), 1);
+    }
+
     /// While contents are edited, objects drawn or pasted can be picked
     /// and go inside with the contents; inner frames edited the same way.
     #[test]

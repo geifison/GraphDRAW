@@ -997,6 +997,10 @@ pub struct App {
     /// shape id given out after it began. Objects from then on (drawn or
     /// pasted while editing) are edited with the contents and go inside.
     pub clip_frame_edit_from: Vec<u64>,
+    /// For each level of clip frame editing, outermost first: the revision
+    /// of the undo step that took the contents out. Undo stops there, so
+    /// the editing goes on inside the frame.
+    pub clip_frame_edit_rev: Vec<u64>,
     /// A short notice next to the pointer about a clip frame request that
     /// did nothing; the time it was first shown fills in when drawn.
     pub clip_notice: Option<(String, Option<f64>)>,
@@ -1881,6 +1885,7 @@ impl App {
             clip_frame_edit: None,
             clip_frame_outer: Vec::new(),
             clip_frame_edit_from: Vec::new(),
+            clip_frame_edit_rev: Vec::new(),
             clip_notice: None,
             symmetry_edit: None,
             show_guides: true,
@@ -4031,6 +4036,10 @@ impl App {
             });
             return;
         }
+        if undo && self.undo_stops_at_clip_frame() {
+            self.status = tr("status.undo_clip_frame_start");
+            return;
+        }
         self.ime_preedit.clear();
         let before = self.text_edit.as_ref().map(|_| self.edit_text());
         let step = if undo {
@@ -4052,7 +4061,18 @@ impl App {
 
     /// Something to undo: a node of the drawing in progress or a step.
     pub fn can_undo(&self) -> bool {
-        self.can_undo_draft() || self.engine.undo_label().is_some()
+        self.can_undo_draft()
+            || (self.engine.undo_label().is_some() && !self.undo_stops_at_clip_frame())
+    }
+
+    /// While a clip frame's contents are edited, the next undo step is the
+    /// one that took them out (or older): Undo keeps the editing inside the
+    /// frame instead of putting the contents back.
+    pub fn undo_stops_at_clip_frame(&self) -> bool {
+        match (self.clip_frame_edit_rev.last(), self.engine.undo_revision()) {
+            (Some(start), Some(top)) => top <= *start,
+            _ => false,
+        }
     }
 
     pub fn can_redo(&self) -> bool {

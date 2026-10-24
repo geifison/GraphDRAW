@@ -696,6 +696,8 @@ impl App {
         }
         self.clip_frame_edit = Some((clip.id, ids.clone()));
         self.clip_frame_edit_from.push(self.doc().ids().peek_next());
+        self.clip_frame_edit_rev
+            .push(self.engine.undo_revision().unwrap_or(0));
         self.select(ids);
         self.status = tr("status.editing_clip_frame");
     }
@@ -711,6 +713,7 @@ impl App {
         // Back to the level around it, when this one was nested.
         self.clip_frame_edit = self.clip_frame_outer.pop();
         self.clip_frame_edit_from.pop();
+        self.clip_frame_edit_rev.pop();
         match self.doc().shape(frame) {
             Err(_) => return,
             // Already a clip frame again (the editing was undone).

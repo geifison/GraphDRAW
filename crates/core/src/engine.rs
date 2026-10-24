@@ -337,6 +337,13 @@ impl Engine {
         self.max_history
     }
 
+    /// The revision the step Undo would take back was recorded at (see
+    /// [`Engine::revision`]), so a caller can tell a step it ran from the
+    /// ones after it.
+    pub fn undo_revision(&self) -> Option<u64> {
+        self.undo.last().map(|e| e.rev)
+    }
+
     pub fn undo_label(&self) -> Option<&'static str> {
         self.undo.last().map(|e| e.label)
     }
@@ -498,6 +505,19 @@ mod tests {
         assert!(!eng.is_dirty(), "deleted again: the saved drawing");
         eng.mark_unsaved();
         assert!(eng.is_dirty(), "recovered: changed until saved");
+    }
+
+    #[test]
+    fn undo_revision_names_the_step_on_top() {
+        let mut eng = Engine::default();
+        assert_eq!(eng.undo_revision(), None);
+        add_ellipse(&mut eng);
+        let first = eng.revision();
+        assert_eq!(eng.undo_revision(), Some(first));
+        add_ellipse(&mut eng);
+        assert!(eng.undo_revision().unwrap() > first);
+        eng.undo().unwrap();
+        assert_eq!(eng.undo_revision(), Some(first));
     }
 
     #[test]
