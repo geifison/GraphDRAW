@@ -274,15 +274,11 @@ const icons = {
   report: `<path d="M6 3.5 H18 V20.5 H6 Z M9 8 H15 M9 12 H15 M9 16 H12.5"/>`,
   history: `<circle cx="12" cy="12" r="8"/><path d="M12 7.5 V12 L15 14"/>`,
   // ---- booleanas, combinar e deslocamento (doc 09) ----
-  "bool-weld": `<circle cx="9" cy="12" r="5.5" fill="#fff"/><circle cx="15" cy="12" r="5.5" fill="#fff"/>`,
-  "bool-trim": `<circle cx="9" cy="12" r="5.5" stroke-dasharray="2 2"/><path d="M12 7.39 A5.5 5.5 0 1 1 12 16.61 A5.5 5.5 0 0 0 12 7.39 Z" fill="#fff"/>`,
-  "bool-intersect": `<circle cx="9" cy="12" r="5.5"/><circle cx="15" cy="12" r="5.5"/><path d="M12 7.39 A5.5 5.5 0 0 1 12 16.61 A5.5 5.5 0 0 1 12 7.39 Z" fill="#fff"/>`,
-  "bool-simplify": `<path d="M12 7.39 A5.5 5.5 0 1 0 12 16.61 A5.5 5.5 0 0 1 12 7.39 Z" fill="#fff"/><circle cx="15" cy="12" r="5.5"/>`,
-  "bool-front-minus": `<rect x="4" y="4" width="11" height="11" rx="1" stroke-dasharray="2 2"/><path d="M15 9 H20 V20 H9 V15 H15 Z" fill="#fff"/>`,
-  "bool-back-minus": `<rect x="9" y="9" width="11" height="11" rx="1" stroke-dasharray="2 2"/><path d="M4 4 H15 V9 H9 V15 H4 Z" fill="#fff"/>`,
+  // bool-weld, bool-trim, bool-intersect, bool-simplify, bool-front-minus,
+  // bool-back-minus and bool-boundary: drawn by the product owner
+  // (2026-10-24), made by split-shaping.mjs from that drawing sheet.
   "bool-exclude": `<path d="M12 7.39 A5.5 5.5 0 1 0 12 16.61 A5.5 5.5 0 0 1 12 7.39 Z" fill="#fff"/><path d="M12 7.39 A5.5 5.5 0 1 1 12 16.61 A5.5 5.5 0 0 0 12 7.39 Z" fill="#fff"/>`,
   "bool-divide": `<path d="M12 7.39 A5.5 5.5 0 1 0 12 16.61 A5.5 5.5 0 0 1 12 7.39 Z" transform="translate(-1.5 0)"/><path d="M12 7.39 A5.5 5.5 0 0 1 12 16.61 A5.5 5.5 0 0 1 12 7.39 Z"/><path d="M12 7.39 A5.5 5.5 0 1 1 12 16.61 A5.5 5.5 0 0 0 12 7.39 Z" transform="translate(1.5 0)"/>`,
-  "bool-boundary": `<circle cx="9" cy="12" r="4" stroke-dasharray="1.5 1.5"/><circle cx="15" cy="12" r="4" stroke-dasharray="1.5 1.5"/><path d="M12 6.8 A6 6 0 1 0 12 17.2 A6 6 0 1 0 12 6.8 Z"/>`,
   "node-reduce": `<path d="M3.5 17 C 7 5, 17 5, 20.5 17"/>${node(3.5, 17, 2)}${node(20.5, 17, 2)}${hnode(8, 9.4, 1.6)}${hnode(16, 9.4, 1.6)}<path d="M10.5 19.5 H13.5"/>`,
   "node-align-h": `<path d="M3.5 12 H20.5" stroke-dasharray="2 2"/>${node(6, 12, 2)}${node(12, 12, 2)}${node(18, 12, 2)}<path d="M12 4 V8 M10.5 6.5 L12 8 L13.5 6.5 M12 20 V16 M10.5 17.5 L12 16 L13.5 17.5"/>`,
   "node-align-v": `<path d="M12 3.5 V20.5" stroke-dasharray="2 2"/>${node(12, 6, 2)}${node(12, 12, 2)}${node(12, 18, 2)}<path d="M4 12 H8 M6.5 10.5 L8 12 L6.5 13.5 M20 12 H16 M17.5 10.5 L16 12 L17.5 13.5"/>`,

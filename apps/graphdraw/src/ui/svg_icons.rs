@@ -635,6 +635,26 @@ mod tests {
     }
 
     #[test]
+    fn shaping_commands_show_the_drawn_sheet_pictures() {
+        for (pic, stem) in [
+            (Pic::Weld, "bool-weld"),
+            (Pic::Trim, "bool-trim"),
+            (Pic::Intersect, "bool-intersect"),
+            (Pic::Simplify, "bool-simplify"),
+            (Pic::FrontMinusBack, "bool-front-minus"),
+            (Pic::BackMinusFront, "bool-back-minus"),
+            (Pic::Boundary, "bool-boundary"),
+        ] {
+            assert_eq!(svg_for(IconRef::Pic(pic)), Some(stem), "{pic:?}");
+            // Split from the sheet by split-shaping.mjs (an 18 mm square of
+            // white paths), not the grid drawing make-icons.mjs writes.
+            let svg = source(stem, false).unwrap_or_default();
+            assert!(svg.contains(" 18 18\""), "{stem}");
+            assert!(!svg.contains("<g transform"), "{stem}");
+        }
+    }
+
+    #[test]
     fn arrange_and_combine_show_their_colour_pictures_everywhere() {
         use crate::theme::Tokens;
         for (pic, stem) in [

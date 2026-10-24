@@ -195,7 +195,7 @@ em todo lugar (barra de propriedades, menus, menu de contexto, dockers). Regra: 
 | `Pic::Simplify` | `bool-simplify.svg` |  |
 | `Pic::FrontMinusBack` | `bool-front-minus.svg` |  |
 | `Pic::BackMinusFront` | `bool-back-minus.svg` |  |
-| `Pic::Boundary` | `bool-boundary.svg` |  |
+| `Pic::Boundary` | `bool-boundary.svg` | as sete figuras de Modelar (`bool-weld` a `bool-boundary`) vêm da folha desenhada pelo responsável pelo produto, via `split-shaping.mjs` |
 | `Pic::AlignDistribute` | sem equivalente |  |
 | `Pic::TextLeft` | `text-left.svg` |  |
 | `Pic::TextCenter` | `text-center.svg` |  |
