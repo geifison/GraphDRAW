@@ -1428,12 +1428,21 @@ impl App {
                 let mut s = Shape::new(
                     sid,
                     ShapeKind::Path {
-                        path,
+                        path: path.clone(),
                         closed: t.closed,
                     },
                 );
                 if !t.is_stroke() {
-                    s.fill = Fill::Solid(t.color);
+                    s.fill = match &t.ramp {
+                        // The fill is laid out on the shape's page bounds,
+                        // inside the group's transform.
+                        Some(r) => crate::trace::ramp_fill(
+                            r,
+                            transform * crate::trace::rect_affine(w, h, rect),
+                            &(transform * path.clone()),
+                        ),
+                        None => Fill::Solid(t.color),
+                    };
                     s.stroke = None;
                 } else {
                     s.fill = Fill::None;

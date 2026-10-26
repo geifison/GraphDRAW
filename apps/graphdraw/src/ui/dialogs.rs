@@ -3594,6 +3594,9 @@ fn trace_dialog(app: &mut App, ctx: &Context, st: &mut TraceState, close: &mut b
                 }
             });
             ui.checkbox(&mut s.remove_background, tr("dialog.remove_background"));
+            if !s.black_white {
+                ui.checkbox(&mut s.gradients, tr("dialog.trace_gradients"));
+            }
         }
         ui.checkbox(&mut s.delete_original, tr("dialog.delete_original"));
         ui.horizontal(|ui| {

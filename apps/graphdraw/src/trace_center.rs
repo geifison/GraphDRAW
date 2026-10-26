@@ -132,6 +132,7 @@ pub fn centerline(img: &RgbaImage, s: &Settings) -> Vec<Traced> {
             color: Color::rgb8(c[0], c[1], c[2]),
             closed,
             width: width.clamp(1.0, 100.0),
+            ramp: None,
         });
     }
     out

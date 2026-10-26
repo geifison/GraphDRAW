@@ -283,6 +283,10 @@ pub fn background(img: &RgbaImage) -> Option<(Vec<bool>, [u8; 3])> {
     }
     const STEP: f32 = 0.035;
     const FAR: f32 = 0.25;
+    // How far from the ground a pixel is, judged on a 5 x 5 mean: where
+    // the picture fades into the ground the flood then stops on a smooth
+    // line instead of on pixel noise.
+    let soft = box_mean(&lab, w, h, 2);
     let mut mask = vec![false; w * h];
     let mut stack: Vec<usize> = border
         .iter()
@@ -292,7 +296,7 @@ pub fn background(img: &RgbaImage) -> Option<(Vec<bool>, [u8; 3])> {
     for &i in &stack {
         mask[i] = true;
     }
-    grow(&mut stack, &mut mask, &lab, seed, w, h, STEP, FAR);
+    grow(&mut stack, &mut mask, &lab, &soft, seed, w, h, STEP, FAR);
     // Enclosed pieces of ground (the counters of letters) are ground too
     // when they are very close to its colour.
     const ENCLOSED: f32 = 0.05;
@@ -302,17 +306,81 @@ pub fn background(img: &RgbaImage) -> Option<(Vec<bool>, [u8; 3])> {
     for &i in &stack {
         mask[i] = true;
     }
-    grow(&mut stack, &mut mask, &lab, seed, w, h, STEP, NEAR);
+    grow(&mut stack, &mut mask, &lab, &soft, seed, w, h, STEP, NEAR);
+    // Where the picture fades into the ground (a soft shadow, a dark
+    // edge on a dark ground) the flood stops pixel by pixel on noise and
+    // leaves a ragged edge. A few majority passes straighten it; only
+    // pixels close to the ground's colour may turn into ground, so thin
+    // lines of another colour stay.
+    for _ in 0..3 {
+        let prev = mask.clone();
+        let mut changed = false;
+        for y in 1..h - 1 {
+            for x in 1..w - 1 {
+                let i = y * w + x;
+                let mut n = 0;
+                for dy in [-1i64, 0, 1] {
+                    for dx in [-1i64, 0, 1] {
+                        let j = (i as i64 + dy * w as i64 + dx) as usize;
+                        n += prev[j] as u32;
+                    }
+                }
+                let to = if n >= 6 {
+                    lab[i].is_none_or(|c| dist2(c, seed) <= FAR * FAR)
+                } else if n <= 3 {
+                    false
+                } else {
+                    prev[i]
+                };
+                if to != prev[i] {
+                    mask[i] = to;
+                    changed = true;
+                }
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
     Some((mask, from_oklab(seed)))
 }
 
+/// Mean of the opaque pixels in the `(2 r + 1)` square round each pixel
+/// (summed-area tables); `None` where the pixel itself is transparent.
+fn box_mean(lab: &[Option<[f32; 3]>], w: usize, h: usize, r: usize) -> Vec<Option<[f32; 3]>> {
+    // Sums of the three channels and the count, one row and column of
+    // zeros in front.
+    let (sw, sh) = (w + 1, h + 1);
+    let mut s = vec![[0f64; 4]; sw * sh];
+    for y in 0..h {
+        for x in 0..w {
+            let v = lab[y * w + x].map_or([0.0; 4], |c| [c[0] as f64, c[1] as f64, c[2] as f64, 1.0]);
+            let (a, b, c) = (s[y * sw + x + 1], s[(y + 1) * sw + x], s[y * sw + x]);
+            s[(y + 1) * sw + x + 1] = [0, 1, 2, 3].map(|k| v[k] + a[k] + b[k] - c[k]);
+        }
+    }
+    (0..w * h)
+        .map(|i| {
+            lab[i]?;
+            let (x, y) = (i % w, i / w);
+            let (x0, y0) = (x.saturating_sub(r), y.saturating_sub(r));
+            let (x1, y1) = ((x + r + 1).min(w), (y + r + 1).min(h));
+            let (a, b, c, d) = (s[y1 * sw + x1], s[y0 * sw + x1], s[y1 * sw + x0], s[y0 * sw + x0]);
+            let t = [0, 1, 2, 3].map(|k| a[k] - b[k] - c[k] + d[k]);
+            (t[3] > 0.0).then(|| [0, 1, 2].map(|k| (t[k] / t[3]) as f32))
+        })
+        .collect()
+}
+
 /// Flood `mask` from the pixels on `stack` to 4-neighbours within `step`
-/// of the pixel they come from and within `far` of `seed`.
+/// of the pixel they come from and, on the smoothed `soft` colours,
+/// within `far` of `seed`.
 #[allow(clippy::too_many_arguments)]
 fn grow(
     stack: &mut Vec<usize>,
     mask: &mut [bool],
     lab: &[Option<[f32; 3]>],
+    soft: &[Option<[f32; 3]>],
     seed: [f32; 3],
     w: usize,
     h: usize,
@@ -322,21 +390,28 @@ fn grow(
     while let Some(i) = stack.pop() {
         let Some(c) = lab[i] else { continue };
         let (x, y) = (i % w, i / w);
+        // Each step: (neighbour, the pixel two further back on the same
+        // line, when there is one).
         let ns = [
-            (x > 0).then(|| i - 1),
-            (x + 1 < w).then(|| i + 1),
-            (y > 0).then(|| i - w),
-            (y + 1 < h).then(|| i + w),
+            (x > 0).then(|| (i - 1, (x + 2 < w).then(|| i + 2))),
+            (x + 1 < w).then(|| (i + 1, (x >= 2).then(|| i - 2))),
+            (y > 0).then(|| (i - w, (y + 2 < h).then(|| i + 2 * w))),
+            (y + 1 < h).then(|| (i + w, (y >= 2).then(|| i - 2 * w))),
         ];
-        for j in ns.into_iter().flatten() {
+        for (j, back) in ns.into_iter().flatten() {
             if mask[j] {
                 continue;
             }
-            if let Some(q) = lab[j] {
-                if dist2(q, c) <= step * step && dist2(q, seed) <= far * far {
-                    mask[j] = true;
-                    stack.push(j);
-                }
+            let Some(q) = lab[j] else { continue };
+            // The step is measured over three pixels as well: a blurred
+            // edge climbs in small steps, a shaded ground barely moves.
+            let span = back.and_then(|k| lab[k]).unwrap_or(c);
+            if dist2(q, c) <= step * step
+                && dist2(q, span) <= step * step
+                && soft[j].is_some_and(|s| dist2(s, seed) <= far * far)
+            {
+                mask[j] = true;
+                stack.push(j);
             }
         }
     }
@@ -437,7 +512,7 @@ fn regions(labels: &[u32], w: usize, h: usize) -> (Vec<Region>, Vec<u32>) {
 
 /// Is `c` a mix of `a` and `b` (as an anti-aliased edge between them
 /// would be)? Returns how far along from `a` it lies.
-fn blend_of(c: [f32; 3], a: [f32; 3], b: [f32; 3]) -> Option<f32> {
+pub(crate) fn blend_of(c: [f32; 3], a: [f32; 3], b: [f32; 3]) -> Option<f32> {
     let ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
     let len2 = ab[0] * ab[0] + ab[1] * ab[1] + ab[2] * ab[2];
     if len2 < 1e-6 {
@@ -457,7 +532,8 @@ fn blend_of(c: [f32; 3], a: [f32; 3], b: [f32; 3]) -> Option<f32> {
 /// fringes into the neighbour they belong to. `fringes` turns the second
 /// off (black and white, where there are no mixed colours). `clear` is
 /// the colour transparent pixels had (a removed background), so fringes
-/// against it can join it.
+/// against it can join it. `fringe` is how many pixels thick a fringe
+/// is at most (more in an enlarged picture).
 pub fn clean(
     labels: &mut [u32],
     w: usize,
@@ -466,6 +542,7 @@ pub fn clean(
     min_area: usize,
     fringes: bool,
     clear: Option<[u8; 3]>,
+    fringe: usize,
 ) {
     let lab: Vec<[f32; 3]> = palette.iter().map(|c| oklab(*c)).collect();
     let clear = clear.map(oklab);
@@ -484,9 +561,22 @@ pub fn clean(
             if r.borders.is_empty() {
                 continue;
             }
+            // In a blocky picture a piece of about the removed ground's
+            // colour is ground, wherever it lies (the counters of letters).
+            if fringe > 1_000 && r.label != CLEAR {
+                if let (Some(c), Some(g)) = (colour(r.label), clear) {
+                    if dist2(c, g) <= 0.12 * 0.12 {
+                        target[ri] = Some(CLEAR);
+                        any = true;
+                        continue;
+                    }
+                }
+            }
             let speck = r.area < min_area;
-            // About one pixel thick: twice the area over the perimeter.
-            let thin = fringes && r.label != CLEAR && 2 * r.area < 3 * r.perimeter / 2;
+            // About `fringe` pixels thick: twice the area over the perimeter.
+            let thin = fringes
+                && r.label != CLEAR
+                && 4 * r.area < (3 * r.perimeter).saturating_mul(fringe.max(1));
             if !speck && !thin {
                 continue;
             }
@@ -505,8 +595,15 @@ pub fn clean(
             // the one it is closer to.
             let Some(c) = colour(r.label) else { continue };
             let mut best: Option<(f32, u32)> = None;
-            for (i, a) in r.borders.iter().enumerate() {
-                for b in &r.borders[i + 1..] {
+            // In a blocky picture (`fringe` unbounded) the removed ground
+            // is a partner too: a mixed block it does not touch is still
+            // an edge against it.
+            let mut partners = r.borders.clone();
+            if fringe > 1_000 && clear.is_some() && !partners.iter().any(|p| p.0 == CLEAR) {
+                partners.push((CLEAR, 0));
+            }
+            for (i, a) in partners.iter().enumerate() {
+                for b in &partners[i + 1..] {
                     let (Some(ca), Some(cb)) = (colour(a.0), colour(b.0)) else {
                         continue;
                     };
@@ -587,7 +684,7 @@ mod tests {
             }
         }
         labels[3 * w + 3] = 1;
-        clean(&mut labels, w, h, &pal, 4, true, None);
+        clean(&mut labels, w, h, &pal, 4, true, None, 1);
         assert!(!labels.contains(&1), "grey left");
         assert_eq!(labels.iter().filter(|l| **l == 0).count() % 100, 0);
     }

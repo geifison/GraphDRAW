@@ -24,6 +24,9 @@ pub struct FitParams {
     pub corner_angle: f64,
     /// Smoothing passes over the points before fitting.
     pub smooth_passes: usize,
+    /// Points per pixel of outline (an outline followed k times finer
+    /// spreads a corner over k times more points).
+    pub scale: usize,
 }
 
 /// Points each side of a point over which its turn is measured.
@@ -37,7 +40,8 @@ pub fn fit_closed(points: &[Point], p: &FitParams) -> BezPath {
     if n < 3 {
         return path;
     }
-    if n < 2 * K + 2 {
+    let k = K * p.scale.max(1);
+    if n < 2 * k + 2 {
         // Too few points to tell corners from curves: keep the polygon.
         path.move_to(pts[0]);
         for q in &pts[1..] {
@@ -46,11 +50,11 @@ pub fn fit_closed(points: &[Point], p: &FitParams) -> BezPath {
         path.close_path();
         return path;
     }
-    let corners = find_corners(&pts, true, p.corner_angle);
+    let corners = find_corners(&pts, true, p.corner_angle, k);
     for &c in &corners {
-        snap_corner(&mut pts, c, true);
+        snap_corner(&mut pts, c, true, k);
     }
-    smooth(&mut pts, &corners, true, p.smooth_passes);
+    smooth(&mut pts, &corners, true, p.smooth_passes * p.scale.max(1));
     if corners.is_empty() {
         // One smooth loop: start anywhere, same tangent on both sides of
         // the seam.
@@ -80,17 +84,18 @@ pub fn fit_open(points: &[Point], p: &FitParams) -> BezPath {
     if n < 2 {
         return path;
     }
-    let mut corners = if n > 2 * K {
-        find_corners(&pts, false, p.corner_angle)
+    let k = K * p.scale.max(1);
+    let mut corners = if n > 2 * k {
+        find_corners(&pts, false, p.corner_angle, k)
     } else {
         Vec::new()
     };
     for &c in &corners {
-        snap_corner(&mut pts, c, false);
+        snap_corner(&mut pts, c, false, k);
     }
     corners.insert(0, 0);
     corners.push(n - 1);
-    smooth(&mut pts, &corners, false, p.smooth_passes);
+    smooth(&mut pts, &corners, false, p.smooth_passes * p.scale.max(1));
     let mut segs = Vec::new();
     for w in corners.windows(2) {
         fit_between_corners(&pts[w[0]..=w[1]], p.tolerance, &mut segs);
@@ -174,9 +179,9 @@ fn turn_at(pts: &[Point], i: usize, k: usize, closed: bool) -> f64 {
 /// Indices of corners, ascending. A corner turns by at least `angle` and
 /// by clearly more than the points `2K` away, so small circles (whose
 /// turn is the same everywhere) stay smooth.
-fn find_corners(pts: &[Point], closed: bool, angle: f64) -> Vec<usize> {
+fn find_corners(pts: &[Point], closed: bool, angle: f64, k: usize) -> Vec<usize> {
     let n = pts.len();
-    let turns: Vec<f64> = (0..n).map(|i| turn_at(pts, i, K, closed)).collect();
+    let turns: Vec<f64> = (0..n).map(|i| turn_at(pts, i, k, closed)).collect();
     let at = |i: isize| -> Option<f64> {
         if closed {
             Some(turns[i.rem_euclid(n as isize) as usize])
@@ -192,14 +197,14 @@ fn find_corners(pts: &[Point], closed: bool, angle: f64) -> Vec<usize> {
             continue;
         }
         let ii = i as isize;
-        // Strict local maximum within K (ties go to the first).
-        let is_max = (1..=K as isize).all(|d| {
+        // Strict local maximum within k (ties go to the first).
+        let is_max = (1..=k as isize).all(|d| {
             at(ii - d).is_none_or(|v| v < t) && at(ii + d).is_none_or(|v| v <= t)
         });
         if !is_max {
             continue;
         }
-        let far = 2 * K as isize;
+        let far = 2 * k as isize;
         let base = match (at(ii - far), at(ii + far)) {
             (Some(a), Some(b)) => a.min(b),
             (Some(a), None) | (None, Some(a)) => a,
@@ -214,7 +219,7 @@ fn find_corners(pts: &[Point], closed: bool, angle: f64) -> Vec<usize> {
 
 /// Move corner `c` to where the straight runs before and after it cross,
 /// when that is within a pixel.
-fn snap_corner(pts: &mut [Point], c: usize, closed: bool) {
+fn snap_corner(pts: &mut [Point], c: usize, closed: bool, k: usize) {
     let n = pts.len();
     let idx = |d: isize| -> Option<usize> {
         let j = c as isize + d;
@@ -226,12 +231,38 @@ fn snap_corner(pts: &mut [Point], c: usize, closed: bool) {
             None
         }
     };
-    let k = K as isize;
-    let (Some(a0), Some(a1), Some(b0), Some(b1)) = (idx(-k), idx(-1), idx(1), idx(k)) else {
+    // The runs are taken from `k` points away to `k / 3` (about a pixel)
+    // from the corner: closer in, an outline followed finer than the
+    // pixels already rounds the corner and would tilt them.
+    let k = k as isize;
+    let near = (k / 2).max(1);
+    let far = 2 * k;
+    if idx(-far).is_none() || idx(far).is_none() || 2 * far >= n as isize {
+        return;
+    }
+    // Each run as the least-squares line through its points (an outline
+    // followed on a fine grid steps by a cell here and there).
+    let line = |from: isize, to: isize| -> Option<(Point, Vec2)> {
+        let run: Vec<Point> = (from..=to).filter_map(&idx).map(|i| pts[i]).collect();
+        let n = run.len() as f64;
+        if n < 2.0 {
+            return None;
+        }
+        let m = run.iter().fold(Vec2::ZERO, |a, p| a + p.to_vec2()) / n;
+        let (mut sxx, mut sxy, mut syy) = (0.0, 0.0, 0.0);
+        for p in &run {
+            let d = p.to_vec2() - m;
+            sxx += d.x * d.x;
+            sxy += d.x * d.y;
+            syy += d.y * d.y;
+        }
+        // Main axis of the points.
+        let a = 0.5 * (2.0 * sxy).atan2(sxx - syy);
+        Some((m.to_point(), Vec2::new(a.cos(), a.sin())))
+    };
+    let (Some((p, r)), Some((q, s))) = (line(-far, -near), line(near, far)) else {
         return;
     };
-    let (p, r) = (pts[a0], pts[a1] - pts[a0]);
-    let (q, s) = (pts[b0], pts[b1] - pts[b0]);
     let denom = r.cross(s);
     if denom.abs() < 1e-9 {
         return;
@@ -484,6 +515,7 @@ mod tests {
             tolerance: 0.5,
             corner_angle: 50f64.to_radians(),
             smooth_passes: 1,
+            scale: 1,
         }
     }
 

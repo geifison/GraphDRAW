@@ -182,7 +182,7 @@ Counts: works 191, partial 4 (`.cdr` content coverage; CMX import; print preview
 | Colour modes: 1-bit, grayscale, RGB, CMYK | works |
 | Bitmap colour mask | works |
 | Inflate bitmap: Auto Inflate Bitmap switch, Manually Inflate Bitmap (Inflate to pixels, Inflate by percent, Maintain aspect ratio) | works (see `behavior/bitmap-effects.md`) |
-| Bitmap tracing: quick, centreline, outline; presets; smoothing, detail, colour count; before and after preview in the dialog (see `behavior/bitmap-tracing.md`) | works |
+| Bitmap tracing: quick, centreline, outline; presets; smoothing, detail, colour count; shaded areas as linear fountains; smooth outlines of small pictures; blocky (enlarged) pictures traced per block; two-tone and black and white pictures follow their anti-aliased edges, one shape per piece; before and after preview in the dialog (see `behavior/bitmap-tracing.md`) | works |
 | Edit bitmap in the system editor, linked bitmaps (update from link, break link); Save Bitmap As (context menu: the pixels, effects included, to a PNG file) | works |
 
 ## 9. Layout and document
