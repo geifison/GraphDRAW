@@ -109,7 +109,7 @@ em todo lugar (barra de propriedades, menus, menu de contexto, dockers). Regra: 
 | `Action::Redo` | `redo.svg` |  |
 | `Action::Import` | `file-import.svg` |  |
 | `Action::Export` | `file-export.svg` |  |
-| `Action::Pdf` | sem equivalente | não há desenho de PDF |
+| `Action::Pdf` | `file-pdf.svg` | importar, exportar, PDF, desfazer e refazer vêm da folha desenhada pelo responsável pelo produto, via `split-file.mjs` |
 | `Action::SnapOff` | sem equivalente | o ícone pintado mostra o estado (cortado em vermelho); `snap` perderia o estado |
 | `Action::Options` | sem equivalente | não há engrenagem no conjunto |
 | `Action::Welcome` | sem equivalente |  |
