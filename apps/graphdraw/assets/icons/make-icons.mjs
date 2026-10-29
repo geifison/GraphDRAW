@@ -54,7 +54,6 @@ const icons = {
   "tool-dimension": `<path d="M4 8 V18 M20 8 V18 M4 13 H20 M4 13 L7.5 11 M4 13 L7.5 15 M20 13 L16.5 11 M20 13 L16.5 15"/>`,
   "shape-basic": `<path d="M3.5 9 H13 V5 L20.5 12 L13 19 V15 H3.5 Z"/>`,
   "file-save-as": `<path d="M11 19.5 H4.5 V4.5 H15 L18.5 8 V10.5"/><rect x="7.5" y="4.5" width="6" height="4"/><path d="M13 20.5 L13.5 18 L19.5 12 L21.3 13.8 L15.3 19.8 Z"/>`,
-  "file-import": `<path d="M9 7.5 V3.5 H15.5 L19.5 7.5 V20.5 H9 V16.5"/><path d="M15.5 3.5 V7.5 H19.5"/><path d="M3.5 12 H13 M10 9 L13 12 L10 15"/>`,
   "file-print": `<path d="M7 8 V3.5 H17 V8"/><rect x="3.5" y="8" width="17" height="8" rx="1.5"/><path d="M7 13.5 H17 V20.5 H7 Z"/><path d="M9.5 16.5 H14.5 M9.5 18.5 H13"/>`,
   "doc-close": `<path d="M5.5 3.5 H14 L18.5 8 V20.5 H5.5 Z"/><path d="M9.5 11.5 L14.5 16.5 M14.5 11.5 L9.5 16.5"/>`,
   "copy": `<rect x="8.5" y="8.5" width="11" height="11" rx="1.5"/><path d="M15.5 8.5 V5.5 A1 1 0 0 0 14.5 4.5 H5.5 A1 1 0 0 0 4.5 5.5 V14.5 A1 1 0 0 0 5.5 15.5 H8.5"/>`,
@@ -152,9 +151,8 @@ const icons = {
   "file-new": `<path d="M6 3 H14 L19 8 V21 H6 Z M14 3 V8 H19"/><path d="M12.5 12 V18 M9.5 15 H15.5"/>`,
   "file-open": `<path d="M3.5 18.5 V6 H9 L11 8 H19 V10.5"/><path d="M3.5 18.5 L6.5 11 H21 L18 18.5 Z"/>`,
   "file-save": `<path d="M4.5 4.5 H16.5 L19.5 7.5 V19.5 H4.5 Z"/><path d="M8 4.5 V9 H15 V4.5 M7.5 19.5 V14 H16.5 V19.5"/>`,
-  "file-export": `<path d="M13 4.5 H6 V19.5 H18 V12"/><path d="M12 12 L20 4 M15 4 H20 V9"/>`,
-  undo: `<path d="M9 8 L4.5 12 L9 16"/><path d="M4.5 12 H14 a5 5 0 0 1 0 10 H11" transform="translate(0 -3)"/>`,
-  redo: `<path d="M15 8 L19.5 12 L15 16"/><path d="M19.5 12 H10 a5 5 0 0 0 0 10 H13" transform="translate(0 -3)"/>`,
+  // file-import, file-export, file-pdf, undo and redo: drawn by the product
+  // owner (2026-10-29), made by split-file.mjs from that drawing sheet.
   // ---- edição ----
   delete: `<path d="M4.5 7 H19.5 M9.5 7 V4.5 H14.5 V7 M6.5 7 L7.5 20 H16.5 L17.5 7 M10.5 10.5 V16.5 M13.5 10.5 V16.5"/>`,
   duplicate: `<rect x="8" y="8" width="12" height="12" rx="1.5"/><path d="M16 8 V5.5 a1.5 1.5 0 0 0 -1.5 -1.5 H5.5 A1.5 1.5 0 0 0 4 5.5 V14.5 A1.5 1.5 0 0 0 5.5 16 H8"/>`,

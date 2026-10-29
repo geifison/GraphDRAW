@@ -47,7 +47,7 @@ static FILES: &[(&str, &str)] = embed!["";
     "clip-fit", "clip-inside", "copy", "copy-fill", "copy-props", "copy-stroke", "corner-chamfer",
     "corner-round", "corner-scallop", "cur-move", "cur-pick-path", "cut", "delete",
     "doc-close", "duplicate", "ellipse-arc", "ellipse-pie", "ellipse-whole", "eye-off",
-    "file-export", "file-import", "file-new", "file-open", "file-print", "file-save",
+    "file-export", "file-import", "file-new", "file-open", "file-pdf", "file-print", "file-save",
     "file-save-as", "fit-art", "fit-page", "fit-selection", "glyphs", "grid", "group", "instance",
     "layers", "lock-off", "lock-on", "mirror-h", "mirror-v", "move-here", "node-add", "node-break",
     "node-connect", "node-corner", "node-delete", "node-extract", "node-join", "node-reduce",
@@ -147,6 +147,7 @@ const ACTIONS: &[(Action, &str)] = &[
     (Action::Redo, "redo"),
     (Action::Import, "file-import"),
     (Action::Export, "file-export"),
+    (Action::Pdf, "file-pdf"),
     (Action::ShowGrid, "grid"),
 ];
 
@@ -650,6 +651,24 @@ mod tests {
             // white paths), not the grid drawing make-icons.mjs writes.
             let svg = source(stem, false).unwrap_or_default();
             assert!(svg.contains(" 18 18\""), "{stem}");
+            assert!(!svg.contains("<g transform"), "{stem}");
+        }
+    }
+
+    #[test]
+    fn file_and_history_commands_show_the_drawn_sheet_pictures() {
+        for (action, stem) in [
+            (Action::Import, "file-import"),
+            (Action::Export, "file-export"),
+            (Action::Pdf, "file-pdf"),
+            (Action::Undo, "undo"),
+            (Action::Redo, "redo"),
+        ] {
+            assert_eq!(svg_for(IconRef::Action(action)), Some(stem), "{action:?}");
+            // Split from the sheet by split-file.mjs (a 23 mm square of
+            // white paths), not the grid drawing make-icons.mjs writes.
+            let svg = source(stem, false).unwrap_or_default();
+            assert!(svg.contains(" 23 23\""), "{stem}");
             assert!(!svg.contains("<g transform"), "{stem}");
         }
     }
