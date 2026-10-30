@@ -9,6 +9,10 @@ use crate::app::App;
 use graphdraw_core::geometry::{Affine, Point, Rect, Size};
 use graphdraw_core::{Command, Shape, ShapeId, ShapeKind};
 
+/// How far right of the right-hand handle the text kind handle sits,
+/// screen pixels.
+const KIND_HANDLE_GAP: f32 = 16.0;
+
 /// A paragraph text frame as shown on screen.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ShownFrame {
@@ -76,7 +80,66 @@ impl App {
     /// `t` (page space) resizes the frame of `id` instead of scaling it: a
     /// paragraph text lying on a layer, neither turned nor slanted, and `t`
     /// an axis-aligned scale by positive amounts that is not just a move.
+    /// The round handle beside a lone selected text with the Pick tool,
+    /// a little right of the right-hand handle: where it is on screen, and
+    /// whether the text is paragraph text (a filled circle) or artistic
+    /// text (a ring). A double click on it converts the text.
+    pub fn text_kind_handle(&self) -> Option<(egui::Pos2, bool)> {
+        use crate::tools::Tool;
+        if !matches!(self.tool, Tool::Pick | Tool::FreeformPick)
+            || self.rotate_mode
+            || self.text_edit.is_some()
+            || self.selection.len() != 1
+        {
+            return None;
+        }
+        let (_, s) = self.doc().shape(self.selection[0]).ok()?;
+        let ShapeKind::Text {
+            frame,
+            on_path: None,
+            ..
+        } = &s.kind
+        else {
+            return None;
+        };
+        let b = self.selection_bounds()?;
+        let (_, e) = self
+            .handle_positions(b)
+            .into_iter()
+            .find(|(h, _)| *h == crate::app::Handle::E)?;
+        Some((e + egui::vec2(KIND_HANDLE_GAP, 0.0), frame.is_some()))
+    }
+
+    /// `screen` is on [`App::text_kind_handle`].
+    pub fn text_kind_handle_at(&self, screen: egui::Pos2) -> bool {
+        self.text_kind_handle()
+            .is_some_and(|(p, _)| p.distance(screen) <= crate::interaction::HANDLE_PX)
+    }
+
+    /// The selection holds a paragraph text (not on a path).
+    pub fn selection_has_paragraph_text(&self) -> bool {
+        self.selection.iter().any(|id| {
+            self.doc().shape(*id).is_ok_and(|(_, s)| {
+                matches!(
+                    s.kind,
+                    ShapeKind::Text {
+                        frame: Some(_),
+                        on_path: None,
+                        ..
+                    }
+                )
+            })
+        })
+    }
+
+    /// Ctrl on a scale handle (or [`App::scale_letters`]) scales the
+    /// letters instead.
     pub fn resizes_text_frame(&self, id: ShapeId, t: Affine) -> bool {
+        if self.scale_letters
+            || matches!(&self.drag, crate::app::Drag::Scale { mods, .. } if mods.steps)
+        {
+            return false;
+        }
         let Some((sx, sy)) = axis_scale(t) else {
             return false;
         };
@@ -90,24 +153,36 @@ impl App {
     }
 
     /// Apply `t` to the selection as one undo step: paragraph texts that
-    /// take it as a new frame get it so, the rest are transformed.
-    /// Returns false when no paragraph frame was involved (the caller
-    /// transforms as usual).
+    /// take it as a new frame get it so, texts whose height changes take
+    /// it as their size (see text_scale.rs), the rest are transformed.
+    /// Returns false when no text was involved (the caller transforms as
+    /// usual).
     pub(crate) fn transform_with_frames(&mut self, shapes: &[ShapeId], t: Affine) -> bool {
         let frames: Vec<ShapeId> = shapes
             .iter()
             .copied()
             .filter(|id| self.resizes_text_frame(*id, t))
             .collect();
-        if frames.is_empty() {
+        let baked: Vec<(ShapeId, Vec<Command>)> = shapes
+            .iter()
+            .filter(|id| !frames.contains(id))
+            .filter_map(|id| {
+                let (_, s) = self.doc().shape(*id).ok()?;
+                Some((*id, crate::text_scale::baked_text(s, t)?))
+            })
+            .collect();
+        if frames.is_empty() && baked.is_empty() {
             return false;
         }
         let mut cmds = Vec::new();
         let others: Vec<ShapeId> = shapes
             .iter()
             .copied()
-            .filter(|id| !frames.contains(id))
+            .filter(|id| !frames.contains(id) && !baked.iter().any(|(b, _)| b == id))
             .collect();
+        for (_, c) in baked {
+            cmds.extend(c);
+        }
         if !others.is_empty() {
             cmds.push(Command::TransformShapes {
                 shapes: others,

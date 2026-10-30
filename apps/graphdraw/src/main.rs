@@ -139,6 +139,7 @@ mod text_editing;
 #[cfg(test)]
 mod text_effect_tests;
 mod text_frames;
+mod text_scale;
 mod text_nodes;
 mod text_path;
 mod text_path_handles;

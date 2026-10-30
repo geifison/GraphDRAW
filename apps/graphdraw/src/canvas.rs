@@ -992,6 +992,16 @@ fn draw_selection(app: &App, painter: &Painter, preview: Option<Affine>) {
         for (_, p) in app.handle_positions(bounds) {
             crate::contrast::draw_handle(app, painter, p, size, nested);
         }
+        // Beside a text: a filled circle for paragraph text, a ring for
+        // artistic text; a double click converts it.
+        if let Some((p, paragraph)) = app.text_kind_handle() {
+            let ink = crate::contrast::ink_at(app, p);
+            if paragraph {
+                painter.circle_filled(p, 4.0, ink);
+            } else {
+                painter.circle_stroke(p, 4.0, EStroke::new(1.5, ink));
+            }
+        }
     }
     // Hint "x" in the centre: the move marker (rotate mode shows the
     // centre of rotation instead).

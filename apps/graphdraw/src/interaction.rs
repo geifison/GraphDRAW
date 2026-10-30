@@ -21,7 +21,7 @@ use graphdraw_core::{
 
 /// A press this close to a handle's centre takes it: within the handle,
 /// short of the selection box (the handles stand outside it).
-const HANDLE_PX: f32 = 6.0;
+pub(crate) const HANDLE_PX: f32 = 6.0;
 /// The selection handles' size, interface points.
 pub(crate) const HANDLE_SIZE: f32 = 10.0;
 /// How far out of the selection box the handles' centres stand,
@@ -1115,7 +1115,10 @@ impl App {
         self.stamp_on_space(response);
         if response.clicked_by(PointerButton::Primary) {
             // A click on the centre of rotation keeps rotate mode.
-            if self.handle_at(screen).is_some() || self.pivot_at(screen) {
+            if self.handle_at(screen).is_some()
+                || self.pivot_at(screen)
+                || self.text_kind_handle_at(screen)
+            {
                 return;
             }
             // A click on the centre mark: like a click on the selection.
@@ -1183,6 +1186,12 @@ impl App {
             }
         }
         if response.double_clicked_by(PointerButton::Primary) {
+            // The round handle beside a text: artistic to paragraph text
+            // or back.
+            if self.text_kind_handle_at(screen) {
+                self.toggle_text_kind();
+                return;
+            }
             // The centre of rotation goes back to the middle.
             if self.pivot_at(screen) {
                 self.reset_pivot();
@@ -1910,7 +1919,11 @@ impl App {
             Drag::Pivot => {}
             Drag::Scale { .. } | Drag::Rotate { .. } | Drag::Skew { .. } => {
                 if let Some(t) = self.preview_transform_of(&drag) {
+                    // Ctrl on a scale: paragraph texts scale their letters.
+                    self.scale_letters =
+                        matches!(&drag, Drag::Scale { mods, .. } if mods.steps);
                     self.finish_transform(t);
+                    self.scale_letters = false;
                 }
             }
             Drag::Marquee {
@@ -2072,9 +2085,10 @@ impl App {
                     sx = s * sx.signum();
                     sy = s * sy.signum();
                 }
-                if mods.steps {
+                if mods.steps && !self.selection_has_paragraph_text() {
                     // Ctrl: whole steps of 100 %, so crossing the other
-                    // side gives the mirror image at the same size.
+                    // side gives the mirror image at the same size (with
+                    // paragraph text, Ctrl scales its letters instead).
                     let step = |v: f64| v.signum() * v.abs().round().max(1.0);
                     sx = step(sx);
                     sy = step(sy);
