@@ -165,10 +165,13 @@ pub enum MergeMode {
     Red,
     Green,
     Blue,
+    Screen,
+    Overlay,
+    HardLight,
 }
 
 impl MergeMode {
-    pub const ALL: [MergeMode; 18] = [
+    pub const ALL: [MergeMode; 21] = [
         MergeMode::Normal,
         MergeMode::Add,
         MergeMode::Subtract,
@@ -177,6 +180,9 @@ impl MergeMode {
         MergeMode::Divide,
         MergeMode::IfLighter,
         MergeMode::IfDarker,
+        MergeMode::Screen,
+        MergeMode::Overlay,
+        MergeMode::HardLight,
         MergeMode::Hue,
         MergeMode::Saturation,
         MergeMode::Color,
@@ -208,6 +214,52 @@ impl MergeMode {
             MergeMode::Red => "Red",
             MergeMode::Green => "Green",
             MergeMode::Blue => "Blue",
+            MergeMode::Screen => "Screen",
+            MergeMode::Overlay => "Overlay",
+            MergeMode::HardLight => "Hard Light",
+        }
+    }
+
+    /// The colour an object of colour `cs` gives over a backdrop of colour
+    /// `cb` where both are opaque (channels 0..1, not premultiplied).
+    /// `None` for Hue, Saturation and Color, which mix the channels
+    /// together and are left to the renderer.
+    pub fn blend(self, cb: [f32; 3], cs: [f32; 3]) -> Option<[f32; 3]> {
+        let each =
+            |f: &dyn Fn(f32, f32) -> f32| Some([f(cb[0], cs[0]), f(cb[1], cs[1]), f(cb[2], cs[2])]);
+        // The bitwise modes work on the 8-bit values.
+        let bits = |f: &dyn Fn(u8, u8) -> u8| {
+            let q = |v: f32| (v.clamp(0.0, 1.0) * 255.0).round() as u8;
+            each(&|b, s| f32::from(f(q(b), q(s))) / 255.0)
+        };
+        // Multiply where `low`, screen otherwise (overlay, hard light).
+        let hard = |b: f32, s: f32, low: bool| {
+            if low {
+                2.0 * b * s
+            } else {
+                1.0 - 2.0 * (1.0 - b) * (1.0 - s)
+            }
+        };
+        match self {
+            MergeMode::Normal => Some(cs),
+            MergeMode::Add => each(&|b, s| (b + s).min(1.0)),
+            MergeMode::Subtract => each(&|b, s| (b - s).max(0.0)),
+            MergeMode::Difference => each(&|b, s| (b - s).abs()),
+            MergeMode::Multiply => each(&|b, s| b * s),
+            MergeMode::Divide => each(&|b, s| if s <= 0.0 { 1.0 } else { (b / s).min(1.0) }),
+            MergeMode::IfLighter => each(&|b, s| b.max(s)),
+            MergeMode::IfDarker => each(&|b, s| b.min(s)),
+            MergeMode::Screen => each(&|b, s| 1.0 - (1.0 - b) * (1.0 - s)),
+            MergeMode::Overlay => each(&|b, s| hard(b, s, b <= 0.5)),
+            MergeMode::HardLight => each(&|b, s| hard(b, s, s <= 0.5)),
+            MergeMode::Invert => each(&|_, s| 1.0 - s),
+            MergeMode::And => bits(&|b, s| b & s),
+            MergeMode::Or => bits(&|b, s| b | s),
+            MergeMode::Xor => bits(&|b, s| b ^ s),
+            MergeMode::Red => Some([cs[0], cb[1], cb[2]]),
+            MergeMode::Green => Some([cb[0], cs[1], cb[2]]),
+            MergeMode::Blue => Some([cb[0], cb[1], cs[2]]),
+            MergeMode::Hue | MergeMode::Saturation | MergeMode::Color => None,
         }
     }
 }
@@ -1241,6 +1293,35 @@ pub fn homography(src: &[Point; 4], dst: &[Point; 4]) -> Option<[f64; 8]> {
 mod tests {
     use super::*;
     use crate::geometry::Rect;
+
+    #[test]
+    fn merge_modes_follow_their_formulas() {
+        let near = |a: Option<[f32; 3]>, b: [f32; 3]| {
+            let a = a.unwrap();
+            assert!(a.iter().zip(b).all(|(x, y)| (x - y).abs() < 0.003), "{a:?} != {b:?}");
+        };
+        let (cb, cs) = ([0.25, 0.5, 0.75], [0.5, 0.25, 1.0]);
+        near(MergeMode::Normal.blend(cb, cs), cs);
+        near(MergeMode::Multiply.blend(cb, cs), [0.125, 0.125, 0.75]);
+        near(MergeMode::Screen.blend(cb, cs), [0.625, 0.625, 1.0]);
+        near(MergeMode::Subtract.blend(cb, cs), [0.0, 0.25, 0.0]);
+        near(MergeMode::Add.blend(cb, cs), [0.75, 0.75, 1.0]);
+        near(MergeMode::Difference.blend(cb, cs), [0.25, 0.25, 0.25]);
+        near(MergeMode::Divide.blend(cb, cs), [0.5, 1.0, 0.75]);
+        // Overlay picks by the backdrop, hard light by the object.
+        near(MergeMode::Overlay.blend(cb, cs), [0.25, 0.25, 1.0]);
+        near(MergeMode::HardLight.blend(cb, cs), [0.25, 0.25, 1.0]);
+        near(MergeMode::Overlay.blend([0.75; 3], [0.25; 3]), [0.625; 3]);
+        near(MergeMode::HardLight.blend([0.75; 3], [0.25; 3]), [0.375; 3]);
+        // Grey 0.5 leaves the backdrop as it is under overlay.
+        near(MergeMode::Overlay.blend(cb, [0.5; 3]), cb);
+        near(MergeMode::Red.blend(cb, cs), [0.5, 0.5, 0.75]);
+        near(MergeMode::Xor.blend([1.0; 3], [1.0; 3]), [0.0; 3]);
+        assert_eq!(MergeMode::Hue.blend(cb, cs), None);
+        // The new modes are saved by name.
+        let json = serde_json::to_string(&MergeMode::HardLight).unwrap();
+        assert_eq!(json, "\"hardlight\"");
+    }
 
     fn rect_shape() -> Shape {
         let mut s = Shape::new(

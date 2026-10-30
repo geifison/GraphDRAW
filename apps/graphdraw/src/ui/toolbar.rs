@@ -1838,16 +1838,19 @@ pub fn transparency_part(app: &mut App, ui: &mut Ui) {
         tr("transparency.texture"),
     ];
     // Reflect the first selected object in the bar.
-    let has_mask = shapes
-        .first()
-        .map(|s| {
-            s.effects
-                .iter()
-                .any(|e| matches!(e, graphdraw_core::live::Effect::Transparency { .. }))
+    let mask = shapes.first().and_then(|s| {
+        s.effects.iter().find_map(|e| match e {
+            graphdraw_core::live::Effect::Transparency { mask, .. } => Some(mask),
+            _ => None,
         })
-        .unwrap_or(false);
+    });
+    // A plain grey mask is uniform transparency on one part or merged.
+    let solid_mask = matches!(mask, Some(Fill::Solid(_)));
+    let has_mask = mask.is_some() && !solid_mask;
     let first_opacity = shapes.first().map(|s| s.opacity).unwrap_or(1.0);
-    let current = if has_mask {
+    let current = if solid_mask {
+        1
+    } else if has_mask {
         app.transparency_default.kind.max(1) as usize + 1
     } else if first_opacity < 1.0 {
         1
@@ -1962,6 +1965,16 @@ pub fn transparency_part(app: &mut App, ui: &mut Ui) {
                 }
             }
         });
+    vsep(ui);
+    // Freeze: what shows through becomes a picture (Object menu too).
+    let freeze = "menu.object.freeze_transparency";
+    if crate::ui::clip_frame_bar::icon_button(
+        ui,
+        crate::ui::menus::menu_icon_ref(freeze),
+        &tr(freeze),
+    ) {
+        app.freeze_transparency();
+    }
     if changed && !shapes.is_empty() {
         let s = app.transparency_default.clone();
         app.apply_transparency(&s);

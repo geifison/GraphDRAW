@@ -170,7 +170,8 @@ impl App {
                         .iter()
                         .find(|e| matches!(e, Effect::Transparency { .. }))
                     {
-                        effects.push(t.clone());
+                        // Sized in proportion to the clone's box.
+                        effects.push(crate::copy_effect::carried(t, &s, &c));
                     }
                     vec![
                         Command::SetOpacity {

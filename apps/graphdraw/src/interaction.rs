@@ -878,7 +878,10 @@ impl App {
                 }
             }
             Tool::Transparency => {
-                if response.drag_started_by(PointerButton::Primary) {
+                // The transparency gradient's handles and stops first
+                // (gradient_tool.rs).
+                let taken = self.gradient_input(response, p);
+                if !taken && response.drag_started_by(PointerButton::Primary) {
                     if let Some(id) = self.hit_test(p) {
                         self.select(vec![id]);
                         self.drag = Drag::FillGradient {
@@ -888,12 +891,12 @@ impl App {
                         };
                     }
                 }
-                if response.dragged_by(PointerButton::Primary) {
+                if !taken && response.dragged_by(PointerButton::Primary) {
                     if let Drag::FillGradient { current, .. } = &mut self.drag {
                         *current = p;
                     }
                 }
-                if response.clicked() {
+                if !taken && response.clicked() {
                     match self.hit_test(p) {
                         Some(id) => {
                             if !self.selection.contains(&id) {
@@ -1960,11 +1963,33 @@ impl App {
                 start,
                 current,
             } if self.tool == Tool::Transparency => {
-                if (current - start).hypot() > 0.5 {
-                    let angle = (current - start).atan2().to_degrees();
+                if let (true, Some(s)) = (
+                    (current - start).hypot() > 0.5,
+                    self.doc().find_shape(shape).cloned(),
+                ) {
+                    // From the press point to the release point, keeping
+                    // the grey levels of the object's transparency
+                    // gradient if it has one (opaque to clear otherwise).
+                    let current_mask = s
+                        .effects
+                        .iter()
+                        .find_map(|e| match e {
+                            graphdraw_core::live::Effect::Transparency {
+                                mask: m @ Fill::Fountain(_),
+                                ..
+                            } => Some(m.clone()),
+                            _ => None,
+                        })
+                        .unwrap_or_else(|| Fill::linear(Color::WHITE, Color::BLACK, 0.0));
+                    let f = graphdraw_core::gradient::linear_from(
+                        start,
+                        current,
+                        s.bounds(),
+                        &current_mask,
+                        Color::WHITE,
+                    );
                     self.transparency_default.kind = 1;
-                    self.transparency_default.mask =
-                        Fill::linear(Color::WHITE, Color::BLACK, angle);
+                    self.transparency_default.mask = Fill::Fountain(f);
                     self.selection = vec![shape];
                     let s = self.transparency_default.clone();
                     self.apply_transparency(&s);
@@ -2554,7 +2579,9 @@ impl App {
             self.zoom_step(false);
         }
         if pressed(Key::Delete, Modifiers::NONE) || pressed(Key::Backspace, Modifiers::NONE) {
-            if self.tool == Tool::InteractiveFill && self.delete_gradient_stop() {
+            if matches!(self.tool, Tool::InteractiveFill | Tool::Transparency)
+                && self.delete_gradient_stop()
+            {
                 // The chosen gradient stop went, the object stays.
             } else if matches!(self.tool, Tool::MeshFill | Tool::Shape)
                 && self.selected_mesh_node().is_some()

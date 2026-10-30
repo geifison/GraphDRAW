@@ -185,7 +185,7 @@ fn editing_row(ui: &mut egui::Ui, level: usize, levels: usize, chosen: &mut Opti
 /// A square button showing `icon`, with `tip` as its hover text and as
 /// what screen readers announce; true when clicked or pressed from the
 /// keyboard.
-fn icon_button(ui: &mut egui::Ui, icon: Option<IconRef<'_>>, tip: &str) -> bool {
+pub(crate) fn icon_button(ui: &mut egui::Ui, icon: Option<IconRef<'_>>, tip: &str) -> bool {
     let (rect, response) = ui.allocate_exact_size(egui::vec2(BUTTON, BUTTON), Sense::click());
     response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, tip));
     if response.hovered() || response.has_focus() {
