@@ -187,22 +187,12 @@ pub fn draw_polyline(app: &App, painter: &Painter, pts: &[Pos2], dashed: bool) {
 }
 
 /// The outline the selection marks follow for `s`, in screen points:
-/// a paragraph text has its frame (drawn with the frames), an artistic
-/// text the box of its lines, every other object (texts converted to
-/// curves too) its own path.
+/// a text has none (a paragraph text's frame is drawn with the frames,
+/// an artistic text shows only its handles), every other object (texts
+/// converted to curves too) its own path.
 pub fn selection_outline(app: &App, s: &Shape) -> Vec<Vec<Pos2>> {
     if let ShapeKind::Text { .. } = &s.kind {
-        if s.text_frame_corners().is_some() {
-            return Vec::new();
-        }
-        let r = app.view.rect_to_screen(s.bounds());
-        return vec![vec![
-            r.left_top(),
-            r.right_top(),
-            r.right_bottom(),
-            r.left_bottom(),
-            r.left_top(),
-        ]];
+        return Vec::new();
     }
     crate::canvas::flatten(&s.page_path(), &app.view)
         .into_iter()
@@ -341,7 +331,7 @@ mod tests {
     }
 
     #[test]
-    fn artistic_text_is_marked_by_its_box_and_curves_by_their_path() {
+    fn artistic_text_has_no_line_between_its_handles_and_curves_follow_their_path() {
         use graphdraw_core::geometry::Point;
         let mut app = App::headless();
         app.start_text(Point::new(30.0, 100.0), None);
@@ -350,9 +340,7 @@ mod tests {
         app.finish_text();
         let (_, text) = app.doc().shape(id).expect("the text");
         let text = text.clone();
-        let outline = selection_outline(&app, &text);
-        assert_eq!(outline.len(), 1);
-        assert_eq!(outline[0].len(), 5);
+        assert!(selection_outline(&app, &text).is_empty());
         // Converted to curves: each letter's own outline, not a box.
         let mut path = graphdraw_core::geometry::BezPath::new();
         for x in [30.0, 40.0] {
