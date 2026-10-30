@@ -376,9 +376,11 @@ impl Renderer<'_> {
                 _ => None,
             });
             let transparency = shape.effects.iter().find_map(|e| match e {
-                graphdraw_core::live::Effect::Transparency { mask, merge, .. } => {
-                    Some((mask.clone(), *merge))
-                }
+                graphdraw_core::live::Effect::Transparency {
+                    mask,
+                    merge,
+                    target,
+                } => Some((mask.clone(), *merge, *target)),
                 _ => None,
             });
             let mut main = ev.main.clone();
@@ -389,8 +391,8 @@ impl Renderer<'_> {
                 self.draw_shape(&main, parent);
             } else if let Some(l) = lens {
                 self.draw_lens(&main, parent, &l);
-            } else if let Some((mask, merge)) = transparency {
-                self.draw_with_mask(&main, parent, &mask, merge);
+            } else if let Some((mask, merge, target)) = transparency {
+                self.draw_with_mask(&main, parent, &mask, merge, target);
             } else {
                 self.draw_shape(&main, parent);
             }
@@ -743,8 +745,14 @@ impl Renderer<'_> {
                             blend_mode: blend,
                             ..Default::default()
                         };
-                        self.pixmap
-                            .draw_pixmap(0, 0, layer.as_ref(), &pp, Transform::identity(), None);
+                        self.pixmap.draw_pixmap(
+                            0,
+                            0,
+                            layer.as_ref(),
+                            &pp,
+                            Transform::identity(),
+                            None,
+                        );
                     }
                 } else {
                     self.fill_mesh(&pm, &sk, rule, blend);
@@ -1038,9 +1046,42 @@ impl Renderer<'_> {
         }
     }
 
-    /// Non-uniform transparency: render the shape to a layer, multiply its
-    /// alpha by the luminance of the mask fill, composite with a blend mode.
+    /// Non-uniform transparency applied to the fill (`target` 0), the
+    /// outline (1) or the whole object (2): the part it applies to goes
+    /// through the mask and the merge mode, the other is drawn as it is,
+    /// each in its usual order.
     fn draw_with_mask(
+        &mut self,
+        shape: &Shape,
+        parent: Affine,
+        mask_fill: &Fill,
+        merge: graphdraw_core::live::MergeMode,
+        target: u8,
+    ) {
+        if target >= 2 {
+            self.draw_masked(shape, parent, mask_fill, merge);
+            return;
+        }
+        let fill = shape_part(shape, true);
+        let outline = shape_part(shape, false);
+        let behind = shape.stroke.as_ref().is_some_and(|s| s.behind_fill);
+        let order = if behind {
+            [(&outline, target == 1), (&fill, target == 0)]
+        } else {
+            [(&fill, target == 0), (&outline, target == 1)]
+        };
+        for (part, masked) in order {
+            if masked {
+                self.draw_masked(part, parent, mask_fill, merge);
+            } else {
+                self.draw_shape(part, parent);
+            }
+        }
+    }
+
+    /// Render the shape to a layer, multiply its alpha by the luminance of
+    /// the mask fill, composite with the merge mode.
+    fn draw_masked(
         &mut self,
         shape: &Shape,
         parent: Affine,
@@ -1059,6 +1100,22 @@ impl Renderer<'_> {
         let page_path = transform * shape.local_path();
         let bounds = page_path.bounding_box();
         let rect_path = graphdraw_core::geometry::rect_path(bounds, 0.0);
+        // A stop's opacity scales its level: 0% hides the object there.
+        let faded;
+        let mask_fill = match mask_fill {
+            Fill::Fountain(f) if f.stops.iter().any(|s| s.opacity < 1.0) => {
+                let mut g = f.clone();
+                for s in &mut g.stops {
+                    let a = s.opacity.clamp(0.0, 1.0) as f32;
+                    s.color =
+                        graphdraw_core::style::lerp_color(graphdraw_core::Color::BLACK, s.color, a);
+                    s.opacity = 1.0;
+                }
+                faded = Fill::Fountain(g);
+                &faded
+            }
+            _ => mask_fill,
+        };
         if let Some(sk) = to_sk_path(&(self.screen * rect_path.clone())) {
             let mut sub = self.sub(&mut mask_pm);
             sub.flags.wireframe = false;
@@ -1097,20 +1154,17 @@ impl Renderer<'_> {
         }
         use graphdraw_core::live::MergeMode as M;
         use tiny_skia::BlendMode as B;
+        // Normal and the modes that mix the channels together go through
+        // tiny-skia; the others through the core's formula, pixel by pixel.
         let blend = match merge {
-            M::Normal | M::Red | M::Green | M::Blue => B::SourceOver,
-            M::Add => B::Plus,
-            M::Subtract => B::Difference,
-            M::Difference => B::Difference,
-            M::Multiply => B::Multiply,
-            M::Divide => B::Screen,
-            M::IfLighter => B::Lighten,
-            M::IfDarker => B::Darken,
+            M::Normal => B::SourceOver,
             M::Hue => B::Hue,
             M::Saturation => B::Saturation,
             M::Color => B::Color,
-            M::Invert => B::Exclusion,
-            M::And | M::Or | M::Xor => B::Xor,
+            _ => {
+                composite_merge(self.pixmap, &layer, merge);
+                return;
+            }
         };
         let paint = tiny_skia::PixmapPaint {
             blend_mode: blend,
@@ -1713,7 +1767,10 @@ impl Renderer<'_> {
             let Some(sup) = pattern::super_tile(&base, &layout) else {
                 return;
             };
-            (std::sync::Arc::new(sup), graphdraw_core::geometry::Size::new(size.width * 2.0, size.height * 2.0))
+            (
+                std::sync::Arc::new(sup),
+                graphdraw_core::geometry::Size::new(size.width * 2.0, size.height * 2.0),
+            )
         } else {
             (base, size)
         };
@@ -1730,7 +1787,8 @@ impl Renderer<'_> {
         };
         let mut paint = Paint::default();
         paint.anti_alias = self.flags.anti_alias;
-        paint.shader = tiny_skia::Pattern::new(Pixmap::as_ref(&pm), SpreadMode::Repeat, quality, 1.0, t);
+        paint.shader =
+            tiny_skia::Pattern::new(Pixmap::as_ref(&pm), SpreadMode::Repeat, quality, 1.0, t);
         self.pixmap
             .fill_path(sk, &paint, rule, Transform::identity(), None);
     }
@@ -2117,6 +2175,64 @@ pub fn fill_rule_of(shape: &Shape) -> FillRule {
     match &shape.kind {
         ShapeKind::Text { .. } => FillRule::Winding,
         _ => FillRule::EvenOdd,
+    }
+}
+
+/// The object with only its fills (`fill`) or only its outlines, the
+/// objects of a group included.
+fn shape_part(shape: &Shape, fill: bool) -> Shape {
+    let mut part = shape.clone();
+    if fill {
+        part.stroke = None;
+        part.extra_strokes.clear();
+    } else {
+        part.fill = Fill::None;
+        part.extra_fills.clear();
+        if let Some(st) = part.stroke.as_mut() {
+            st.behind_fill = false;
+        }
+        // A picture is its fill: the outline part keeps only its frame.
+        if let ShapeKind::Bitmap { rect, .. } = &part.kind {
+            part.kind = ShapeKind::Rect {
+                rect: *rect,
+                radius: 0.0,
+                corners: None,
+            };
+        }
+    }
+    if let ShapeKind::Group { children } = &mut part.kind {
+        for c in children.iter_mut() {
+            *c = shape_part(c, fill);
+        }
+    }
+    part
+}
+
+/// Composite `src` over `dst` with a separable merge mode: where both are
+/// opaque the colour is the mode's, where only one is, that one's own
+/// (`co = cs(1 - ab) + cb(1 - as) + as ab B(cb, cs)`, premultiplied).
+fn composite_merge(dst: &mut Pixmap, src: &Pixmap, merge: graphdraw_core::live::MergeMode) {
+    let unit = |v: u8| f32::from(v) / 255.0;
+    for (d, s) in dst.pixels_mut().iter_mut().zip(src.pixels()) {
+        let sa = unit(s.alpha());
+        if sa <= 0.0 {
+            continue;
+        }
+        let ds = s.demultiply();
+        let cs = [unit(ds.red()), unit(ds.green()), unit(ds.blue())];
+        let db = d.demultiply();
+        let ba = unit(db.alpha());
+        let cb = [unit(db.red()), unit(db.green()), unit(db.blue())];
+        let mixed = merge.blend(cb, cs).unwrap_or(cs);
+        let oa = sa + ba * (1.0 - sa);
+        let ch = |i: usize| {
+            let c = cs[i] * sa * (1.0 - ba) + cb[i] * ba * (1.0 - sa) + mixed[i] * sa * ba;
+            (c.clamp(0.0, oa) * 255.0).round() as u8
+        };
+        let a = (oa.clamp(0.0, 1.0) * 255.0).round() as u8;
+        if let Some(p) = tiny_skia::PremultipliedColorU8::from_rgba(ch(0), ch(1), ch(2), a) {
+            *d = p;
+        }
     }
 }
 
@@ -2943,6 +3059,127 @@ mod tests {
     }
 
     #[test]
+    fn transparency_applies_to_the_fill_or_the_outline_alone() {
+        // A red bar with a thick black outline fading left to right.
+        let bar = |target: u8| {
+            let mut s = rect(1, Rect::new(10.0, 10.0, 90.0, 30.0), Color::rgb8(255, 0, 0));
+            s.stroke = Some(Stroke::new(Color::BLACK, 4.0));
+            s.effects.push(graphdraw_core::live::Effect::Transparency {
+                mask: Fill::linear(Color::WHITE, Color::BLACK, 0.0),
+                merge: graphdraw_core::live::MergeMode::Normal,
+                target,
+            });
+            let (doc, page) = doc_with(vec![s]);
+            render_page_image(&doc, page, 25.4).unwrap()
+        };
+        // Fill only: the fill fades out on the right, the outline stays.
+        let fill = bar(0);
+        assert!(px(&fill, 84, 80).1 > 200, "{:?}", px(&fill, 84, 80));
+        assert_eq!(px(&fill, 89, 80), (0, 0, 0));
+        // Outline only: the outline fades out, the fill stays red.
+        let outline = bar(1);
+        assert_eq!(px(&outline, 84, 80), (255, 0, 0));
+        assert!(px(&outline, 89, 80).0 > 200, "{:?}", px(&outline, 89, 80));
+        // Both: the two fade together.
+        let both = bar(2);
+        assert!(px(&both, 84, 80).1 > 200 && px(&both, 89, 80).0 > 200);
+    }
+
+    #[test]
+    fn transparency_stop_opacity_fades_the_object() {
+        // Both stops white (opaque); the end's opacity at 0 fades it out.
+        let mut s = rect(1, Rect::new(10.0, 10.0, 90.0, 30.0), Color::rgb8(255, 0, 0));
+        let mut mask = Fill::linear(Color::WHITE, Color::WHITE, 0.0);
+        if let Fill::Fountain(f) = &mut mask {
+            f.stops[1].opacity = 0.0;
+        }
+        s.effects.push(graphdraw_core::live::Effect::Transparency {
+            mask,
+            merge: graphdraw_core::live::MergeMode::Normal,
+            target: 2,
+        });
+        let (doc, page) = doc_with(vec![s]);
+        let pm = render_page_image(&doc, page, 25.4).unwrap();
+        assert!(px(&pm, 15, 80).1 < 60, "{:?}", px(&pm, 15, 80));
+        assert!(px(&pm, 85, 80).1 > 200, "{:?}", px(&pm, 85, 80));
+    }
+
+    #[test]
+    fn transparency_works_on_pictures() {
+        // A red picture fading left to right, whatever part is chosen:
+        // the picture is the fill.
+        let mut red = Pixmap::new(4, 4).unwrap();
+        red.fill(tiny_skia::Color::from_rgba8(255, 0, 0, 255));
+        let png = red.encode_png().unwrap();
+        let picture = |target: Option<u8>, opacity: f64| {
+            let mut s = Shape::new(
+                graphdraw_core::ShapeId(1),
+                ShapeKind::Bitmap {
+                    rect: Rect::new(10.0, 10.0, 90.0, 30.0),
+                    width_px: 4,
+                    height_px: 4,
+                    png: png.clone(),
+                    fx: None,
+                },
+            );
+            s.fill = Fill::None;
+            s.stroke = None;
+            s.opacity = opacity;
+            if let Some(target) = target {
+                s.effects.push(graphdraw_core::live::Effect::Transparency {
+                    mask: Fill::linear(Color::WHITE, Color::BLACK, 0.0),
+                    merge: graphdraw_core::live::MergeMode::Normal,
+                    target,
+                });
+            }
+            let (doc, page) = doc_with(vec![s]);
+            render_page_image(&doc, page, 25.4).unwrap()
+        };
+        for target in [0, 2] {
+            let pm = picture(Some(target), 1.0);
+            let (l, r) = (px(&pm, 15, 80), px(&pm, 85, 80));
+            assert!(l.0 > 200 && l.1 < 60, "target {target} left {l:?}");
+            assert!(r.1 > 200, "target {target} right {r:?}");
+        }
+        // On the outline alone the picture itself stays whole.
+        assert_eq!(px(&picture(Some(1), 1.0), 85, 80), (255, 0, 0));
+        let half = px(&picture(None, 0.5), 50, 80);
+        assert!(half.1 > 100 && half.1 < 155, "{half:?}");
+    }
+
+    #[test]
+    fn transparency_merge_modes_mix_with_what_is_beneath() {
+        let over = |merge, top: Color| {
+            let under = rect(
+                1,
+                Rect::new(0.0, 0.0, 100.0, 100.0),
+                Color::rgb8(200, 100, 50),
+            );
+            let mut s = rect(2, Rect::new(20.0, 20.0, 80.0, 80.0), top);
+            s.effects.push(graphdraw_core::live::Effect::Transparency {
+                mask: Fill::Solid(Color::WHITE),
+                merge,
+                target: 2,
+            });
+            let (doc, page) = doc_with(vec![under, s]);
+            px(&render_page_image(&doc, page, 25.4).unwrap(), 50, 50)
+        };
+        use graphdraw_core::live::MergeMode as M;
+        let grey = Color::rgb8(128, 128, 128);
+        let near = |a: (u8, u8, u8), b: (u8, u8, u8)| {
+            assert!(
+                a.0.abs_diff(b.0) <= 2 && a.1.abs_diff(b.1) <= 2 && a.2.abs_diff(b.2) <= 2,
+                "{a:?} != {b:?}"
+            );
+        };
+        near(over(M::Multiply, grey), (100, 50, 25));
+        near(over(M::Screen, grey), (228, 178, 153));
+        near(over(M::Subtract, Color::rgb8(100, 100, 100)), (100, 0, 0));
+        near(over(M::Red, Color::rgb8(0, 255, 255)), (0, 100, 50));
+        near(over(M::Normal, grey), (128, 128, 128));
+    }
+
+    #[test]
     fn shaped_transparency_follows_the_object() {
         // White at the edge (opaque), black inside (clear): a black disc
         // fades towards its middle, the same all round.
@@ -3375,7 +3612,11 @@ mod tests {
         // Elliptical: dark in the centre, lighter towards the ends.
         let e = Fountain::two(FountainKind::Elliptical, Color::BLACK, Color::WHITE, 0.0);
         let img = strip(Fill::Fountain(e));
-        assert!(red_at(&img, 50) < 20 && red_at(&img, 2) > 120, "{}", red_at(&img, 2));
+        assert!(
+            red_at(&img, 50) < 20 && red_at(&img, 2) > 120,
+            "{}",
+            red_at(&img, 2)
+        );
     }
 
     #[test]
@@ -3707,16 +3948,25 @@ mod tests {
         let (doc, page) = doc_with(vec![s.clone()]);
         let pm = render_page_image(&doc, page, 25.4).unwrap();
         let mid = px(&pm, 50, 50);
-        assert!(mid.0 == 255 && near(mid.1, 128) && near(mid.2, 128), "{mid:?}");
+        assert!(
+            mid.0 == 255 && near(mid.1, 128) && near(mid.2, 128),
+            "{mid:?}"
+        );
         assert_eq!(px(&pm, 20, 50), (0, 0, 0), "the outline stays opaque");
         // With the object's own opacity too, the two multiply (25 % red).
         s.opacity = 0.5;
         let (doc, page) = doc_with(vec![s.clone()]);
         let pm = render_page_image(&doc, page, 25.4).unwrap();
         let mid = px(&pm, 50, 50);
-        assert!(mid.0 == 255 && near(mid.1, 191) && near(mid.2, 191), "{mid:?}");
+        assert!(
+            mid.0 == 255 && near(mid.1, 191) && near(mid.2, 191),
+            "{mid:?}"
+        );
         let edge = px(&pm, 20, 50);
-        assert!(near(edge.0, 128), "the outline at the object's opacity: {edge:?}");
+        assert!(
+            near(edge.0, 128),
+            "the outline at the object's opacity: {edge:?}"
+        );
         // No fill at all with a fill transparency of 100 %.
         s.opacity = 1.0;
         s.fill_opacity = 0.0;

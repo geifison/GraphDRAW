@@ -41,8 +41,8 @@ Ctrl or Alt during the drag changes the result at once.
 
 The selection box has no frame of its own. Each chosen object shows a
 solid one-pixel outline along its own path (a text converted to curves
-along its letters); an artistic text shows the box of its lines, a
-paragraph text its dashed frame. Eight solid square handles, 10
+along its letters); an artistic text shows no line, only its handles,
+a paragraph text its dashed frame. Eight solid square handles, 10
 interface points across, stand just outside the box: their centres 6.5
 points out from it (a gap of 1.5 points). A corner or side handle
 scales from where it was grabbed, so the box follows the pointer

@@ -3827,7 +3827,9 @@ impl App {
                 return;
             }
             // With Interactive Fill, to the chosen gradient stop.
-            if self.tool == Tool::InteractiveFill && self.set_gradient_stop_color(*c) {
+            if matches!(self.tool, Tool::InteractiveFill | Tool::Transparency)
+                && self.set_gradient_stop_color(*c)
+            {
                 return;
             }
         }

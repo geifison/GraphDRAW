@@ -662,6 +662,11 @@ fn draw_symmetry_lines(app: &App, painter: &Painter, rect: ERect) {
 /// Interactive Fill: the fountain axis (dashed, between two square
 /// nodes) or the centre node of a radial, conical or square fountain.
 fn draw_fountain_handles(app: &App, painter: &Painter) {
+    if app.tool == Tool::Transparency {
+        // The transparency gradient's axis, ends and stops.
+        crate::gradient_tool::draw(app, painter);
+        return;
+    }
     if app.tool != Tool::InteractiveFill {
         return;
     }

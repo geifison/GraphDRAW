@@ -615,6 +615,8 @@ impl App {
         if shapes.is_empty() {
             return;
         }
+        let uniform_as_opacity = settings.target >= 2
+            && settings.merge == graphdraw_core::live::MergeMode::Normal;
         let mut cmds = Vec::new();
         for id in &shapes {
             let Some(s) = self.doc().find_shape(*id).cloned() else {
@@ -632,13 +634,22 @@ impl App {
                     merge: settings.merge,
                     target: settings.target,
                 });
+            } else if !uniform_as_opacity {
+                // Uniform on the fill or the outline alone, or with a
+                // merge mode: a plain grey mask of that level.
+                let v = ((1.0 - settings.amount / 100.0).clamp(0.0, 1.0) * 255.0).round() as u8;
+                effects.push(Effect::Transparency {
+                    mask: graphdraw_core::Fill::Solid(graphdraw_core::Color::rgb8(v, v, v)),
+                    merge: settings.merge,
+                    target: settings.target,
+                });
             }
             cmds.push(Command::SetEffects {
                 shape: *id,
                 effects,
             });
         }
-        let opacity = if settings.kind == 0 {
+        let opacity = if settings.kind == 0 && uniform_as_opacity {
             1.0 - (settings.amount / 100.0).clamp(0.0, 1.0)
         } else {
             1.0
@@ -1253,14 +1264,49 @@ impl App {
             return None;
         }
         let bounds = self.selection_bounds()?;
-        // Render only the selection: a temporary document with those shapes.
+        let (w, h) = self.picture_size(bounds, dpi);
+        let mut pm = self.render_shapes_in(&shapes, bounds, dpi, anti_alias)?;
+        if !transparent {
+            let mut white = tiny_skia_white(w, h);
+            white.draw_pixmap(
+                0,
+                0,
+                pm.as_ref(),
+                &Default::default(),
+                tiny_skia::Transform::identity(),
+                None,
+            );
+            pm = white;
+        }
+        let png = pm.encode_png().ok()?;
+        Some((png, w, h, bounds))
+    }
+
+    /// The size in pixels of a picture of the page area `bounds` at `dpi`.
+    fn picture_size(&self, bounds: Rect, dpi: f64) -> (u32, u32) {
+        let zoom = dpi / 25.4;
+        let w = (bounds.width() * zoom).ceil().max(1.0) as u32;
+        let h = (bounds.height() * zoom).ceil().max(1.0) as u32;
+        (w, h)
+    }
+
+    /// A picture of `shapes` (page space, in drawing order) over the page
+    /// area `bounds` at `dpi`, on a transparent background.
+    fn render_shapes_in(
+        &self,
+        shapes: &[Shape],
+        bounds: Rect,
+        dpi: f64,
+        anti_alias: bool,
+    ) -> Option<tiny_skia::Pixmap> {
+        // A temporary document with those shapes alone.
         let mut tmp = graphdraw_core::Document::new(
             "tmp",
             Size::new(bounds.width().max(0.1), bounds.height().max(0.1)),
         );
         tmp.symbols = self.doc().symbols.clone();
         let l = tmp.pages[0].layers[0].id;
-        for s in &shapes {
+        for s in shapes {
             let mut c = s.clone();
             c.transform = Affine::translate((-bounds.x0, -bounds.y0)) * c.transform;
             if let Ok(layer) = tmp.layer_mut(l) {
@@ -1269,14 +1315,13 @@ impl App {
         }
         let page = tmp.pages[0].id;
         let zoom = dpi / 25.4;
-        let w = (bounds.width() * zoom).ceil().max(1.0) as u32;
-        let h = (bounds.height() * zoom).ceil().max(1.0) as u32;
+        let (w, h) = self.picture_size(bounds, dpi);
         let view = graphdraw_render::ViewTransform {
             zoom,
             origin_x: 0.0,
             origin_y: h as f64,
         };
-        let mut pm = graphdraw_render::render_page(
+        graphdraw_render::render_page(
             &tmp,
             page,
             &graphdraw_render::RenderOptions {
@@ -1292,21 +1337,133 @@ impl App {
                 editing: Vec::new(),
                 ..graphdraw_render::RenderOptions::default()
             },
-        )?;
-        if !transparent {
-            let mut white = tiny_skia_white(w, h);
-            white.draw_pixmap(
-                0,
-                0,
-                pm.as_ref(),
-                &Default::default(),
-                tiny_skia::Transform::identity(),
-                None,
-            );
-            pm = white;
+        )
+    }
+
+    /// The visible objects drawn before `id` on its page (lower layers
+    /// first), and the object itself; `None` when it is not a top-level
+    /// object of a page.
+    fn shapes_beneath(&self, id: ShapeId) -> Option<(Vec<Shape>, Shape)> {
+        for page in &self.doc().pages {
+            let mut beneath = Vec::new();
+            for layer in &page.layers {
+                for s in &layer.shapes {
+                    if s.id == id {
+                        return Some((beneath, s.clone()));
+                    }
+                    if layer.visible && s.visible {
+                        beneath.push(s.clone());
+                    }
+                }
+            }
         }
-        let png = pm.encode_png().ok()?;
-        Some((png, w, h, bounds))
+        None
+    }
+
+    /// Effects > Transparency > Freeze: each selected object with
+    /// transparency becomes a bitmap of what shows through it now (it over
+    /// the objects beneath, where it covers them; elsewhere it alone, still
+    /// see-through), in its place in the stacking order. Moved afterwards,
+    /// it keeps that look. One undo step.
+    pub fn freeze_transparency(&mut self) {
+        const DPI: f64 = 300.0;
+        let mut cmds = Vec::new();
+        for id in self.selection.clone() {
+            let Some((mut all, s)) = self.shapes_beneath(id) else {
+                continue;
+            };
+            let see_through = s.opacity < 1.0
+                || s.fill_opacity < 1.0
+                || s.effects
+                    .iter()
+                    .any(|e| matches!(e, Effect::Transparency { .. }));
+            if !see_through || s.transform.determinant().abs() < 1e-12 {
+                continue;
+            }
+            let bounds = self.visual_bounds(&s);
+            all.push(s.clone());
+            // How much of each pixel the object covers, with no
+            // transparency at all.
+            let mut solid = s.clone();
+            solid.opacity = 1.0;
+            solid.fill_opacity = 1.0;
+            solid
+                .effects
+                .retain(|e| !matches!(e, Effect::Transparency { .. }));
+            let (Some(mut seen), Some(cover)) = (
+                self.render_shapes_in(&all, bounds, DPI, true),
+                self.render_shapes_in(&[solid], bounds, DPI, true),
+            ) else {
+                continue;
+            };
+            for (p, c) in seen.pixels_mut().iter_mut().zip(cover.pixels()) {
+                let k = u32::from(c.alpha());
+                let f = |v: u8| ((u32::from(v) * k + 127) / 255) as u8;
+                if let Some(q) =
+                    tiny_skia::PremultipliedColorU8::from_rgba(f(p.red()), f(p.green()), f(p.blue()), f(p.alpha()))
+                {
+                    *p = q;
+                }
+            }
+            let Ok(png) = seen.encode_png() else {
+                continue;
+            };
+            let (width_px, height_px) = (seen.width(), seen.height());
+            let ids = vec![id];
+            // The bitmap in page space, where the object was.
+            cmds.extend([
+                Command::TransformShapes {
+                    shapes: ids.clone(),
+                    transform: s.transform.inverse(),
+                },
+                Command::SetShapeKind {
+                    shape: id,
+                    kind: ShapeKind::Bitmap {
+                        rect: bounds,
+                        width_px,
+                        height_px,
+                        png,
+                        fx: None,
+                    },
+                },
+                Command::SetFill {
+                    shapes: ids.clone(),
+                    fill: Fill::None,
+                },
+                Command::SetStroke {
+                    shapes: ids.clone(),
+                    stroke: None,
+                },
+                Command::SetExtraPaint {
+                    shapes: ids.clone(),
+                    fills: Vec::new(),
+                    strokes: Vec::new(),
+                },
+                Command::SetShadow {
+                    shapes: ids.clone(),
+                    shadow: None,
+                },
+                Command::SetEffects {
+                    shape: id,
+                    effects: Vec::new(),
+                },
+                Command::SetOpacity {
+                    shapes: ids.clone(),
+                    opacity: 1.0,
+                },
+                Command::SetFillOpacity {
+                    shapes: ids,
+                    opacity: 1.0,
+                },
+            ]);
+        }
+        if cmds.is_empty() {
+            self.status = tr("status.no_transparency_to_freeze");
+            return;
+        }
+        if let Err(e) = self.engine.run_batch("Freeze Transparency", &cmds) {
+            self.status = e.to_string();
+        }
     }
 
     #[cfg(test)]
@@ -2707,6 +2864,77 @@ mod tests {
         );
         assert_eq!(apply_case("hello world", CaseMode::Title), "Hello World");
         assert_eq!(apply_case("aBc", CaseMode::Toggle), "AbC");
+    }
+
+    #[test]
+    fn frozen_transparency_keeps_the_look_where_it_was() {
+        let mut app = App::headless();
+        let square = |app: &mut App, r: Rect, c: Color| {
+            let id = app
+                .new_shape(ShapeKind::Rect {
+                    rect: r,
+                    radius: 0.0,
+                    corners: None,
+                })
+                .expect("rect");
+            app.run(Command::SetFill {
+                shapes: vec![id],
+                fill: Fill::Solid(c),
+            });
+            app.run(Command::SetStroke {
+                shapes: vec![id],
+                stroke: None,
+            });
+            id
+        };
+        // Blue under the left half of a half-transparent red square.
+        let blue = square(&mut app, Rect::new(0.0, 0.0, 20.0, 40.0), Color::rgb8(0, 0, 255));
+        let red = square(&mut app, Rect::new(0.0, 0.0, 40.0, 40.0), Color::rgb8(255, 0, 0));
+        app.run(Command::SetOpacity {
+            shapes: vec![red],
+            opacity: 0.5,
+        });
+        let order = |app: &App| -> Vec<ShapeId> {
+            app.doc().pages[0].layers[0].shapes.iter().map(|s| s.id).collect()
+        };
+        let before = order(&app);
+        app.select(vec![red]);
+        app.freeze_transparency();
+        // Same object, same place in the stack, now a picture.
+        assert_eq!(order(&app), before);
+        let s = app.doc().find_shape(red).expect("frozen").clone();
+        let ShapeKind::Bitmap { png, .. } = &s.kind else {
+            panic!("not a bitmap: {:?}", s.kind);
+        };
+        assert_eq!(s.opacity, 1.0);
+        let img = crate::bitmap_fx::decode(png).expect("png");
+        let (w, h) = img.dimensions();
+        // Over the blue: red and blue mixed, opaque.
+        let p = img.get_pixel(w / 8, h / 2).0;
+        assert!(p[3] > 250 && p[0] > 100 && p[2] > 100 && p[1] < 20, "{p:?}");
+        // Over nothing: red, still see-through.
+        let q = img.get_pixel(w * 7 / 8, h / 2).0;
+        assert!(q[0] > 240 && q[2] < 20 && (100..160).contains(&q[3]), "{q:?}");
+        // The blue moved away: the picture keeps the mix.
+        app.run(Command::TransformShapes {
+            shapes: vec![blue],
+            transform: Affine::translate((100.0, 0.0)),
+        });
+        let s2 = app.doc().find_shape(red).expect("frozen").clone();
+        assert_eq!(s2.kind, s.kind);
+        // One undo step brings the square back.
+        app.undo();
+        app.undo();
+        let back = app.doc().find_shape(red).expect("square");
+        assert!(matches!(back.kind, ShapeKind::Rect { .. }));
+        assert_eq!(back.opacity, 0.5);
+        // Nothing to freeze: the status says so.
+        app.select(vec![blue]);
+        app.freeze_transparency();
+        assert!(matches!(
+            app.doc().find_shape(blue).expect("blue").kind,
+            ShapeKind::Rect { .. }
+        ));
     }
 
     #[test]

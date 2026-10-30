@@ -458,7 +458,10 @@ pub(crate) fn draw_menu_picture(
 /// of the row alone.
 pub(crate) fn menu_icon_ref(key: &str) -> Option<crate::ui::svg_icons::IconRef<'_>> {
     use crate::ui::svg_icons::IconRef;
-    if let Some(a) = menu_icon(key) {
+    if key == "menu.object.freeze_transparency" {
+        // The Transparency tool's own icon, as on its bar's Freeze button.
+        Some(IconRef::Tool(crate::tools::Tool::Transparency))
+    } else if let Some(a) = menu_icon(key) {
         Some(IconRef::Action(a))
     } else if let Some(p) = menu_pic(key) {
         Some(IconRef::Pic(p))
@@ -2274,6 +2277,9 @@ fn object_menu(app: &mut App, ui: &mut Ui) {
             app.status = tr("status.click_source_object");
         }
     });
+    if item(ui, "menu.object.freeze_transparency", "", has) {
+        app.freeze_transparency();
+    }
     if item(ui, "menu.object.clear_effect", "", has) {
         app.clear_effects();
     }

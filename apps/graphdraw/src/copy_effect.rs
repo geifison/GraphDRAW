@@ -1,6 +1,7 @@
 //! Object > Copy Effect: the selected objects take an effect of the
-//! object clicked next. Drop shadow and transparency are copied as they
-//! are; live effects (perspective, distortion, extrusion, contour, lens,
+//! object clicked next. Drop shadow is copied as it is; transparency too,
+//! its pattern or texture sized in proportion to each target's box (a
+//! gradient already follows the box); live effects (perspective, distortion, extrusion, contour, lens,
 //! bevel, block shadow) replace the targets' own of the same kind in its
 //! place, or join their effects. What an effect pins to the source's own
 //! space (a perspective's corners, a distortion's centre, a vanishing
@@ -13,7 +14,7 @@ use crate::app::App;
 use graphdraw_core::{
     geometry::{Affine, Point, Rect, Shape as _, Vec2},
     live::Effect,
-    Command, Shape, ShapeId,
+    Command, Fill, Shape, ShapeId, TileLayout,
 };
 
 /// The effects Copy Effect offers.
@@ -126,8 +127,36 @@ pub fn carried(e: &Effect, src: &Shape, dst: &Shape) -> Effect {
             }
             x
         }
+        Effect::Transparency {
+            mask,
+            merge,
+            target,
+        } => Effect::Transparency {
+            mask: fitted_mask(mask, local_box(src), local_box(dst)),
+            merge: *merge,
+            target: *target,
+        },
         _ => e.clone(),
     }
+}
+
+/// A transparency's mask from an object with box `from` on one with box
+/// `to`, the same in proportion: a gradient already sits relative to its
+/// object's box; tiles and textures grow or shrink with the box's
+/// diagonal.
+pub fn fitted_mask(mask: &Fill, from: Rect, to: Rect) -> Fill {
+    let (a, b) = (from.width().hypot(from.height()), to.width().hypot(to.height()));
+    let k = if a > 1e-9 && b.is_finite() && b > 1e-9 { b / a } else { 1.0 };
+    let mut m = mask.clone();
+    match &mut m {
+        Fill::Pattern(p) => {
+            let l = p.layout_mut();
+            l.scale = (l.scale * k).clamp(TileLayout::MIN_SCALE, TileLayout::MAX_SCALE);
+        }
+        Fill::Texture(t) => t.scale *= k,
+        _ => {}
+    }
+    m
 }
 
 /// `effects` with the one `kind` matches replaced in place by `e` (added
@@ -185,7 +214,7 @@ impl App {
                         .filter(|e| !kind.matches(e))
                         .cloned()
                         .collect();
-                    effects.extend(t.clone());
+                    effects.extend(t.as_ref().map(|t| carried(t, &src, s)));
                     cmds.push(Command::SetEffects {
                         shape: s.id,
                         effects,
@@ -254,6 +283,40 @@ mod tests {
             corners: None,
         })
         .expect("rect")
+    }
+
+    #[test]
+    fn copied_transparency_keeps_its_proportions() {
+        let tex = |scale| {
+            Fill::Texture(graphdraw_core::Texture {
+                scale,
+                ..Default::default()
+            })
+        };
+        let from = Rect::new(0.0, 0.0, 30.0, 40.0);
+        // Twice the size: the texture's grain twice as big.
+        let to = Rect::new(100.0, 100.0, 160.0, 180.0);
+        match fitted_mask(&tex(5.0), from, to) {
+            Fill::Texture(t) => assert!((t.scale - 10.0).abs() < 1e-9, "{}", t.scale),
+            f => panic!("{f:?}"),
+        }
+        // Tiles grow the same way.
+        let tiles = Fill::Pattern(graphdraw_core::Pattern::TwoColor {
+            tile: graphdraw_core::PatternTile::Checker,
+            front: graphdraw_core::Color::WHITE,
+            back: graphdraw_core::Color::BLACK,
+            size_mm: 10.0,
+            layout: Default::default(),
+        });
+        match fitted_mask(&tiles, from, to) {
+            Fill::Pattern(p) => assert!((p.layout().scale - 2.0).abs() < 1e-9),
+            f => panic!("{f:?}"),
+        }
+        // A gradient sits relative to the box already: unchanged.
+        let g = Fill::linear(graphdraw_core::Color::WHITE, graphdraw_core::Color::BLACK, 30.0);
+        assert_eq!(fitted_mask(&g, from, to), g);
+        // A box with no size leaves the mask as it is.
+        assert_eq!(fitted_mask(&tex(5.0), Rect::ZERO, to), tex(5.0));
     }
 
     fn effects(app: &App, id: ShapeId) -> Vec<Effect> {

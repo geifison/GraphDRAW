@@ -11,8 +11,10 @@
 //! Delete removes the chosen stop (never below two); a palette colour
 //! clicked goes to the chosen stop, and one dropped on any stop of any
 //! object recolours that stop. Each change is one undo step; a drag is one
-//! step. The geometry is `graphdraw_core::gradient`; see
-//! `docs/behavior/gradient-fill.md`.
+//! step. The Transparency tool gives the same handles on the object's
+//! transparency gradient, its stops grey levels (white opaque, black
+//! clear). The geometry is `graphdraw_core::gradient`; see
+//! `docs/behavior/gradient-fill.md` and `docs/behavior/transparency.md`.
 
 use crate::app::{App, Drag};
 use crate::i18n::tr;
@@ -21,6 +23,7 @@ use crate::tools::Tool;
 use egui::{Color32, Painter, PointerButton, Pos2, Response, Stroke as EStroke};
 use graphdraw_core::geometry::{Point, Rect};
 use graphdraw_core::gradient::{self, DragMods, Handle};
+use graphdraw_core::live::Effect;
 use graphdraw_core::{Color, Command, Fill, Fountain, ShapeId};
 
 /// How near a handle the pointer must be, screen points.
@@ -61,13 +64,48 @@ pub struct GradientToolState {
 }
 
 impl App {
-    /// The object selected alone, when its fill is a gradient: its id,
-    /// gradient and bounds.
+    /// The handles edit the transparency's gradient (the Transparency
+    /// tool) instead of the fill's.
+    pub fn gradient_on_mask(&self) -> bool {
+        self.tool == Tool::Transparency
+    }
+
+    /// The object selected alone, when its fill is a gradient (with the
+    /// Transparency tool: its transparency): its id, gradient and bounds.
     pub fn gradient_target(&self) -> Option<(ShapeId, Fountain, Rect)> {
         if self.selection.len() != 1 {
             return None;
         }
+        if self.gradient_on_mask() {
+            let s = self.selected_shapes().into_iter().next()?;
+            return s.effects.iter().find_map(|e| match e {
+                Effect::Transparency {
+                    mask: Fill::Fountain(f),
+                    ..
+                } => Some((s.id, f.clone(), s.bounds())),
+                _ => None,
+            });
+        }
         self.selected_fountain()
+    }
+
+    /// The command giving `id` the gradient `f`: its fill, or with the
+    /// Transparency tool its transparency's mask.
+    fn gradient_command(&self, id: ShapeId, f: Fountain) -> Option<Command> {
+        if !self.gradient_on_mask() {
+            return Some(Command::SetFill {
+                shapes: vec![id],
+                fill: Fill::Fountain(f),
+            });
+        }
+        let s = self.doc().find_shape(id)?;
+        let mut effects = s.effects.clone();
+        let mask = effects.iter_mut().find_map(|e| match e {
+            Effect::Transparency { mask, .. } => Some(mask),
+            _ => None,
+        })?;
+        *mask = Fill::Fountain(f);
+        Some(Command::SetEffects { shape: id, effects })
     }
 
     /// The handle of the selected gradient under the page point `p`.
@@ -104,9 +142,8 @@ impl App {
     /// Set the fill of `id`, as a step of its own or (`join`) as part of
     /// the step just recorded.
     fn set_gradient(&mut self, id: ShapeId, f: Fountain, join: bool) {
-        let cmd = Command::SetFill {
-            shapes: vec![id],
-            fill: Fill::Fountain(f),
+        let Some(cmd) = self.gradient_command(id, f) else {
+            return;
         };
         if join {
             if let Err(e) = self.engine.amend(&cmd) {
@@ -290,6 +327,11 @@ impl App {
     /// The chosen stop's colour (a palette click); false when no stop is
     /// chosen.
     pub fn set_gradient_stop_color(&mut self, c: Color) -> bool {
+        if self.gradient_on_mask() {
+            // A transparency stop takes only the colour's lightness.
+            let t = 1.0 - grey_level(c);
+            return self.edit_gradient_stop(false, |s| set_stop_transparency(s, t));
+        }
         self.edit_gradient_stop(false, |s| s.color = c)
     }
 
@@ -388,7 +430,7 @@ fn rgb32(c: Color, opacity: f64) -> Color32 {
 /// Draw the selected gradient's axis, handles and stops; false when there
 /// is nothing to draw (another tool, or no gradient selected alone).
 pub fn draw(app: &App, painter: &Painter) -> bool {
-    if app.tool != Tool::InteractiveFill {
+    if !matches!(app.tool, Tool::InteractiveFill | Tool::Transparency) {
         return false;
     }
     let Some((_, f, b)) = app.gradient_target() else {
@@ -496,7 +538,9 @@ pub fn stop_popup(app: &mut App, ctx: &egui::Context) {
         let (_, f, _) = app.gradient_target()?;
         Some((i, *f.stops.get(i)?))
     });
-    let Some((i, stop)) = current.filter(|_| app.tool == Tool::InteractiveFill) else {
+    let Some((i, stop)) =
+        current.filter(|_| matches!(app.tool, Tool::InteractiveFill | Tool::Transparency))
+    else {
         app.gradient_tool.popup = None;
         return;
     };
@@ -505,6 +549,8 @@ pub fn stop_popup(app: &mut App, ctx: &egui::Context) {
     let mut new_color = None;
     let mut new_opacity = None;
     let mut new_mid = None;
+    let mut new_transparency = None;
+    let on_mask = app.gradient_on_mask();
     let mut dragging = false;
     let mut close = false;
     let area = egui::Area::new(egui::Id::new("gradient_stop_popup"))
@@ -522,18 +568,32 @@ pub fn stop_popup(app: &mut App, ctx: &egui::Context) {
                     ))
                     .strong(),
                 );
-                let out = picker.show(ui, "gradient_stop", stop.color, &palettes);
-                if let Some(c) = out.color {
-                    new_color = Some(c);
-                }
-                ui.add_space(4.0);
-                let mut op = (stop.opacity * 100.0).round();
-                let r = ui
-                    .add(egui::Slider::new(&mut op, 0.0..=100.0).suffix("%").text(tr("gradtool.opacity")))
-                    .on_hover_text(tr("gradtool.opacity_tip"));
-                dragging |= r.dragged();
-                if r.changed() {
-                    new_opacity = Some(op / 100.0);
+                if on_mask {
+                    // A transparency stop has only its transparency.
+                    let mut t = (stop_transparency(&stop) * 100.0).round();
+                    let r = ui.add(
+                        egui::Slider::new(&mut t, 0.0..=100.0)
+                            .suffix("%")
+                            .text(tr("tool.transparency")),
+                    );
+                    dragging |= r.dragged();
+                    if r.changed() {
+                        new_transparency = Some(t / 100.0);
+                    }
+                } else {
+                    let out = picker.show(ui, "gradient_stop", stop.color, &palettes);
+                    if let Some(c) = out.color {
+                        new_color = Some(c);
+                    }
+                    ui.add_space(4.0);
+                    let mut op = (stop.opacity * 100.0).round();
+                    let r = ui
+                        .add(egui::Slider::new(&mut op, 0.0..=100.0).suffix("%").text(tr("gradtool.opacity")))
+                        .on_hover_text(tr("gradtool.opacity_tip"));
+                    dragging |= r.dragged();
+                    if r.changed() {
+                        new_opacity = Some(op / 100.0);
+                    }
                 }
                 let mut mid = (stop.midpoint * 100.0).round();
                 let r = ui
@@ -550,8 +610,15 @@ pub fn stop_popup(app: &mut App, ctx: &egui::Context) {
         });
     app.gradient_tool.picker = picker;
     let join = dragging && app.gradient_tool.popup_dragging;
-    if new_color.is_some() || new_opacity.is_some() || new_mid.is_some() {
+    if new_color.is_some()
+        || new_opacity.is_some()
+        || new_mid.is_some()
+        || new_transparency.is_some()
+    {
         app.edit_gradient_stop(join, |s| {
+            if let Some(t) = new_transparency {
+                set_stop_transparency(s, t);
+            }
             if let Some(c) = new_color {
                 s.color = c;
             }
@@ -572,6 +639,26 @@ pub fn stop_popup(app: &mut App, ctx: &egui::Context) {
     } else {
         app.gradient_tool.popup = Some((pos, true));
     }
+}
+
+/// How much of the object a mask colour lets through, 0..1 (white 1),
+/// with the renderer's luminance weights.
+pub fn grey_level(c: Color) -> f64 {
+    let [r, g, b] = c.to_rgb8();
+    (r as f64 * 54.0 + g as f64 * 183.0 + b as f64 * 19.0) / 256.0 / 255.0
+}
+
+/// A transparency stop's transparency, 0..1 (0 opaque): its grey and
+/// its opacity together.
+pub fn stop_transparency(s: &graphdraw_core::style::Stop) -> f64 {
+    (1.0 - grey_level(s.color) * s.opacity.clamp(0.0, 1.0)).clamp(0.0, 1.0)
+}
+
+/// Set a transparency stop to `t` (0 opaque, 1 clear) as a plain grey.
+pub fn set_stop_transparency(s: &mut graphdraw_core::style::Stop, t: f64) {
+    let v = ((1.0 - t.clamp(0.0, 1.0)) * 255.0).round() as u8;
+    s.color = Color::rgb8(v, v, v);
+    s.opacity = 1.0;
 }
 
 fn dim(ui: &mut egui::Ui, key: &str) {
@@ -755,6 +842,72 @@ mod tests {
             app.doc().find_shape(id).expect("shape").fill,
             Fill::Solid(_)
         ));
+    }
+
+    /// With the Transparency tool the same handles move the transparency
+    /// gradient, and the fill stays as it is.
+    #[test]
+    fn transparency_gradient_has_handles_on_the_canvas() {
+        let red = Color::rgb8(255, 0, 0);
+        let (mut app, id) = app_with_rect(Fill::Solid(red));
+        app.tool = Tool::Transparency;
+        let mask = |app: &App| {
+            app.doc()
+                .find_shape(id)
+                .expect("shape")
+                .effects
+                .iter()
+                .find_map(|e| match e {
+                    Effect::Transparency {
+                        mask: Fill::Fountain(f),
+                        ..
+                    } => Some(f.clone()),
+                    _ => None,
+                })
+                .expect("transparency gradient")
+        };
+        let b = app.doc().find_shape(id).expect("shape").bounds();
+        let f = gradient::linear_from(
+            Point::new(55.0, 120.0),
+            Point::new(105.0, 120.0),
+            b,
+            &Fill::linear(Color::WHITE, Color::BLACK, 0.0),
+            Color::WHITE,
+        );
+        app.transparency_default.kind = 1;
+        app.transparency_default.mask = Fill::Fountain(f);
+        let s = app.transparency_default.clone();
+        app.apply_transparency(&s);
+        assert!(app.gradient_target().is_some());
+        // Drag the end handle to (85, 120).
+        assert!(app.begin_gradient_drag(Point::new(105.0, 120.0)));
+        app.drag_gradient_to(Point::new(85.0, 120.0), DragMods::default());
+        app.end_drag();
+        assert!((mask(&app).linear_axis(b).1.x - 85.0).abs() < 1e-6);
+        // A stop added halfway, a grey level from the palette, deleted.
+        assert!(app.add_gradient_stop_at(Point::new(70.0, 120.0)));
+        assert_eq!(mask(&app).stops.len(), 3);
+        let grey = Color::rgb8(128, 128, 128);
+        assert!(app.set_gradient_stop_color(grey));
+        assert_eq!(mask(&app).stops[1].color, grey);
+        // A colour gives only its lightness: the stop stays grey.
+        assert!(app.set_gradient_stop_color(red));
+        let st = mask(&app).stops[1];
+        let [r, g, b] = st.color.to_rgb8();
+        assert!(r == g && g == b && st.opacity == 1.0, "{st:?}");
+        // A stop's transparency, set and read back.
+        let mut s = st;
+        set_stop_transparency(&mut s, 0.25);
+        assert!((stop_transparency(&s) - 0.25).abs() < 0.01);
+        assert!(app.delete_gradient_stop());
+        assert_eq!(mask(&app).stops.len(), 2);
+        assert_eq!(app.doc().find_shape(id).expect("shape").fill, Fill::Solid(red));
+        // Each change is a step of its own.
+        app.undo();
+        assert_eq!(mask(&app).stops.len(), 3);
+        // Back to the Interactive Fill tool, the handles are the fill's.
+        app.tool = Tool::InteractiveFill;
+        assert!(app.gradient_target().is_none(), "the fill is solid");
     }
 
     /// A click on the gradient's end chooses the end stop and opens the
