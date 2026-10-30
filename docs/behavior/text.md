@@ -153,7 +153,34 @@ any other object; the steps and sides follow the letters' outlines
   neither turned nor slanted and a scale by positive amounts; turning,
   slanting, mirroring and moving act on the whole text, and a turned
   text scales as a whole. With other objects in the selection each is
-  scaled as usual, all in one undo step.
+  scaled as usual, all in one undo step. Ctrl held on a handle scales
+  the letters with the frame (as a whole, see below); with paragraph
+  text in the selection Ctrl does not scale in steps of 100 %, and
+  Ctrl+Shift does it from the centre.
+- A text scaled as a whole (artistic text with the handles or the
+  property bar's size and scale fields, paragraph text with Ctrl, a
+  turned paragraph text) takes the vertical part of the scale as its
+  size: 24 pt made twice as large is 48 pt, and the size field shows it.
+  The size goes in hundredths of a point (the field shows two decimals,
+  so typing the shown size gives the same letters), never under 0.1 pt
+  (a smaller scale stays in the transform) and always positive: a
+  mirror stays in the transform.
+  The letters and a paragraph frame grow about the text's origin, the
+  lengths of its paragraphs (spacing before and after, indents, tabs,
+  gutter, a line spacing in points) and its baseline shift with them,
+  an outline that scales with the object widens; the transform keeps
+  only what is left (a stretch in width, a turn, a slant). Text on a
+  path, text with a pattern, texture or mesh fill and text with live
+  effects keep the scale in the transform as before
+  (`text_scale::tests`).
+- The selection box of artistic text holds its lines from the font's
+  ascent to its descent with the letters: "ac" has the box of "Tg", so
+  the box does not jump while the text is typed
+  (`App::handle_bounds`).
+- With the Pick tool a lone selected text shows a round handle a little
+  right of the right-hand handle: filled for paragraph text, a ring for
+  artistic text. A double click on it converts the text (Text >
+  Convert); a click on it keeps the selection.
 
 ## Paragraph formatting
 

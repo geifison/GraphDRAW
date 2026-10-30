@@ -550,6 +550,40 @@ impl App {
     }
 }
 
+/// The page-space box of artistic text `s`'s lines from the font's
+/// ascent to its descent, whatever letters they hold ("ac" is as tall as
+/// "Tg"), so its selection box does not jump while it is typed. `None`
+/// for other shapes and text without lines.
+pub fn text_line_box(s: &graphdraw_core::Shape) -> Option<Rect> {
+    let ShapeKind::Text {
+        frame: None,
+        on_path: None,
+        ..
+    } = &s.kind
+    else {
+        return None;
+    };
+    let (layout, to_page) = layout_of_text_shape(s, Affine::IDENTITY)?;
+    layout
+        .lines
+        .iter()
+        .flat_map(|line| {
+            let x0 = line.edges.first().copied().unwrap_or(0.0);
+            let x1 = line.edges.last().copied().unwrap_or(x0);
+            let (y0, y1) = (line.baseline - line.descent, line.baseline + line.ascent);
+            [
+                Point::new(x0, y0),
+                Point::new(x1, y0),
+                Point::new(x1, y1),
+                Point::new(x0, y1),
+            ]
+        })
+        .map(|p| to_page * p)
+        .fold(None, |r: Option<Rect>, p| {
+            Some(r.map_or(Rect::from_points(p, p), |r| r.union_pt(p)))
+        })
+}
+
 /// Layout of a text shape (any `ShapeKind::Text`, placed under `parent`)
 /// and the transform from layout space to the page.
 pub fn layout_of_text_shape(
