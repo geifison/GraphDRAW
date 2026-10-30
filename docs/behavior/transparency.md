@@ -21,7 +21,10 @@ transparency: the two multiply.
 The transparency goes on the fill alone, the outline alone, or both.
 The part it does not apply to is drawn as it is, in its usual order (an
 outline behind the fill first)
-(`transparency_applies_to_the_fill_or_the_outline_alone`). Uniform
+(`transparency_applies_to_the_fill_or_the_outline_alone`). A picture
+is its fill: on the fill (or both) it fades with the mask, on the
+outline alone only its frame does (`transparency_works_on_pictures`).
+Uniform
 transparency on one part, or with a merge mode other than Normal, is
 kept as a plain grey mask of its level; on both parts with Normal it is
 the object's opacity.
@@ -68,8 +71,12 @@ opens its balloon (level, opacity, midpoint); a palette colour clicked
 goes to the chosen stop; Delete removes it. Each change is one undo
 step, a drag is one step, and the fill is not touched
 (`transparency_gradient_has_handles_on_the_canvas`). Dragging across
-the object away from the handles starts a new linear transparency from
-the press point to the release point, keeping the grey stops it had.
+the object away from the handles starts a new transparency of the kind
+chosen on the bar, keeping the grey stops it had: linear from the press
+point to the release point, radial (and the other centred kinds)
+centred on the press point with its radius reaching the release point
+(`dragged_fountain_keeps_its_kind`). The bar shows the selected
+object's mask, so changing its kind or angle keeps its stops.
 
 ## Copy and clone
 

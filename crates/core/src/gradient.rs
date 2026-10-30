@@ -699,6 +699,32 @@ pub fn linear_from(a: Point, z: Point, b: Rect, current: &Fill, fallback: Color)
     f
 }
 
+/// A new fountain of `kind` dragged from `a` to `z` on the bounds `b`:
+/// linear runs from `a` to `z`; the others are centred on `a` with `z`
+/// at the end of their radius. Stops and options as [`linear_from`].
+pub fn fountain_from(
+    kind: FountainKind,
+    a: Point,
+    z: Point,
+    b: Rect,
+    current: &Fill,
+    fallback: Color,
+) -> Fountain {
+    let mut f = linear_from(a, z, b, current, fallback);
+    if kind == FountainKind::Linear || kind == FountainKind::Shaped {
+        f.kind = kind;
+        return f;
+    }
+    f.kind = kind;
+    f.angle = 0.0;
+    f.scale = 1.0;
+    f.axis_offset = 0.0;
+    f.aspect = 1.0;
+    let mods = DragMods::default();
+    let f = drag(&f, b, Handle::Start, a, mods);
+    drag(&f, b, Handle::End, z, mods)
+}
+
 /// The index of the stop at the start (`end` false) or the end of the run.
 pub fn end_stop(f: &Fountain, end: bool) -> Option<usize> {
     (0..f.stops.len()).reduce(|a, b| {
@@ -725,6 +751,22 @@ mod tests {
 
     fn near(a: Point, b: Point) -> bool {
         (a - b).hypot() < 1e-6
+    }
+
+    /// A drag makes the chosen kind: radial centred on the press point
+    /// with its radius reaching the release point, linear between them.
+    #[test]
+    fn dragged_fountain_keeps_its_kind() {
+        let b = rect();
+        let (a, z) = (Point::new(30.0, 20.0), Point::new(60.0, 20.0));
+        let cur = Fill::Fountain(bw());
+        for kind in [FountainKind::Linear, FountainKind::Radial] {
+            let f = fountain_from(kind, a, z, b, &cur, Color::BLACK);
+            assert_eq!(f.kind, kind);
+            let (s, e) = axis(&f, b).unwrap();
+            assert!(near(s, a) && near(e, z), "{kind:?}: {s:?} {e:?}");
+            assert_eq!(f.stops.len(), 2);
+        }
     }
 
     /// GD-FIL-11: drag the start, the end and the stops; a double click

@@ -1844,6 +1844,18 @@ pub fn transparency_part(app: &mut App, ui: &mut Ui) {
             _ => None,
         })
     });
+    // The bar shows the selected object's mask, so a change of kind or
+    // angle keeps the rest of it (stops, handles).
+    let mask_kind = match mask {
+        Some(Fill::Fountain(_)) => Some(1),
+        Some(Fill::Pattern(_)) => Some(2),
+        Some(Fill::Texture(_)) => Some(3),
+        _ => None,
+    };
+    if let (Some(k), Some(m)) = (mask_kind, mask) {
+        app.transparency_default.kind = k;
+        app.transparency_default.mask = m.clone();
+    }
     // A plain grey mask is uniform transparency on one part or merged.
     let solid_mask = matches!(mask, Some(Fill::Solid(_)));
     let has_mask = mask.is_some() && !solid_mask;

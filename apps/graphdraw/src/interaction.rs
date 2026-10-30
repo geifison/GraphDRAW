@@ -1981,7 +1981,13 @@ impl App {
                             _ => None,
                         })
                         .unwrap_or_else(|| Fill::linear(Color::WHITE, Color::BLACK, 0.0));
-                    let f = graphdraw_core::gradient::linear_from(
+                    // The kind chosen on the bar (linear, radial...).
+                    let kind = match &self.transparency_default.mask {
+                        Fill::Fountain(g) => g.kind,
+                        _ => graphdraw_core::style::FountainKind::Linear,
+                    };
+                    let f = graphdraw_core::gradient::fountain_from(
+                        kind,
                         start,
                         current,
                         s.bounds(),

@@ -2165,6 +2165,14 @@ fn shape_part(shape: &Shape, fill: bool) -> Shape {
         if let Some(st) = part.stroke.as_mut() {
             st.behind_fill = false;
         }
+        // A picture is its fill: the outline part keeps only its frame.
+        if let ShapeKind::Bitmap { rect, .. } = &part.kind {
+            part.kind = ShapeKind::Rect {
+                rect: *rect,
+                radius: 0.0,
+                corners: None,
+            };
+        }
     }
     if let ShapeKind::Group { children } = &mut part.kind {
         for c in children.iter_mut() {
@@ -3049,6 +3057,49 @@ mod tests {
         // Both: the two fade together.
         let both = bar(2);
         assert!(px(&both, 84, 80).1 > 200 && px(&both, 89, 80).0 > 200);
+    }
+
+    #[test]
+    fn transparency_works_on_pictures() {
+        // A red picture fading left to right, whatever part is chosen:
+        // the picture is the fill.
+        let mut red = Pixmap::new(4, 4).unwrap();
+        red.fill(tiny_skia::Color::from_rgba8(255, 0, 0, 255));
+        let png = red.encode_png().unwrap();
+        let picture = |target: Option<u8>, opacity: f64| {
+            let mut s = Shape::new(
+                graphdraw_core::ShapeId(1),
+                ShapeKind::Bitmap {
+                    rect: Rect::new(10.0, 10.0, 90.0, 30.0),
+                    width_px: 4,
+                    height_px: 4,
+                    png: png.clone(),
+                    fx: None,
+                },
+            );
+            s.fill = Fill::None;
+            s.stroke = None;
+            s.opacity = opacity;
+            if let Some(target) = target {
+                s.effects.push(graphdraw_core::live::Effect::Transparency {
+                    mask: Fill::linear(Color::WHITE, Color::BLACK, 0.0),
+                    merge: graphdraw_core::live::MergeMode::Normal,
+                    target,
+                });
+            }
+            let (doc, page) = doc_with(vec![s]);
+            render_page_image(&doc, page, 25.4).unwrap()
+        };
+        for target in [0, 2] {
+            let pm = picture(Some(target), 1.0);
+            let (l, r) = (px(&pm, 15, 80), px(&pm, 85, 80));
+            assert!(l.0 > 200 && l.1 < 60, "target {target} left {l:?}");
+            assert!(r.1 > 200, "target {target} right {r:?}");
+        }
+        // On the outline alone the picture itself stays whole.
+        assert_eq!(px(&picture(Some(1), 1.0), 85, 80), (255, 0, 0));
+        let half = px(&picture(None, 0.5), 50, 80);
+        assert!(half.1 > 100 && half.1 < 155, "{half:?}");
     }
 
     #[test]
