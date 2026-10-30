@@ -31,6 +31,11 @@ fn scale_para(p: &mut ParagraphStyle, k: f64) {
     p.tabs.iter_mut().for_each(|t| *t *= k);
 }
 
+/// `pt` to the hundredth of a point.
+fn round_pt(pt: f64) -> f64 {
+    (pt * 100.0).round() / 100.0
+}
+
 /// [`scale_para`] for a paragraph's own formatting.
 fn scale_format(p: &mut ParagraphFormat, k: f64) {
     if p.leading_unit == LeadingUnit::Points {
@@ -78,9 +83,21 @@ pub(crate) fn baked_text(s: &Shape, t: Affine) -> Option<Vec<Command>> {
     if !k.is_finite() || k < 1e-6 || (k - 1.0).abs() < 1e-9 || s.transform.determinant().abs() < 1e-12 {
         return None;
     }
+    // The size goes in hundredths of a point, as the size field shows it,
+    // so typing the shown size gives the same letters; what the rounding
+    // leaves over stays in the transform.
+    let first = spans.first().map_or(0.0, |sp| sp.size_pt);
+    if first <= 0.0 {
+        return None;
+    }
+    let target = round_pt(first * k);
+    if target <= 0.0 || (target - first).abs() < 1e-9 {
+        return None;
+    }
+    let k = target / first;
     let mut spans = spans.clone();
     for sp in &mut spans {
-        sp.size_pt *= k;
+        sp.size_pt = round_pt(sp.size_pt * k);
         sp.baseline_shift_pt *= k;
         if let Some(f) = sp.paragraph.as_mut() {
             scale_format(f, k);
@@ -179,6 +196,24 @@ mod tests {
         app.undo();
         assert_eq!(size_of(&app, id), before);
         assert!(near(app.selection_bounds().expect("bounds"), b));
+    }
+
+    #[test]
+    fn an_uneven_scale_gives_a_size_in_hundredths_and_keeps_the_look() {
+        let mut app = App::headless();
+        let id = text(&mut app, None);
+        let before = size_of(&app, id);
+        let b = app.selection_bounds().expect("bounds");
+        app.transform_selection(Affine::scale(1.2345));
+        // 24 pt × 1.2345 = 29.628 pt goes in as 29.63 pt, the shown size;
+        // the letters stay where the scale put them.
+        let want = (before * 1.2345 * 100.0).round() / 100.0;
+        assert_eq!(size_of(&app, id), want);
+        let scaled = Rect::new(b.x0 * 1.2345, b.y0 * 1.2345, b.x1 * 1.2345, b.y1 * 1.2345);
+        assert!(near(app.selection_bounds().expect("bounds"), scaled));
+        // Typing the shown size into another text gives the same size.
+        let shown = crate::ui::field::format_number(want, false, 0, Some(2));
+        assert_eq!(shown.replace(',', ".").parse::<f64>().expect("number"), want);
     }
 
     #[test]

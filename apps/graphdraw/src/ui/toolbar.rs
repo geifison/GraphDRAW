@@ -1981,6 +1981,7 @@ pub(crate) fn text_size_list(app: &mut App, ui: &mut Ui) -> bool {
                 crate::ui::field::NumField::new(&mut size)
                     .speed(0.5)
                     .range(1.0..=3000.0)
+                    .max_decimals(2)
                     .suffix(" pt")
                     .width(62.0),
             )
