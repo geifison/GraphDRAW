@@ -161,6 +161,10 @@ any other object; the steps and sides follow the letters' outlines
   property bar's size and scale fields, paragraph text with Ctrl, a
   turned paragraph text) takes the vertical part of the scale as its
   size: 24 pt made twice as large is 48 pt, and the size field shows it.
+  The size goes in hundredths of a point (the field shows two decimals,
+  so typing the shown size gives the same letters), never under 0.1 pt
+  (a smaller scale stays in the transform) and always positive: a
+  mirror stays in the transform.
   The letters and a paragraph frame grow about the text's origin, the
   lengths of its paragraphs (spacing before and after, indents, tabs,
   gutter, a line spacing in points) and its baseline shift with them,
@@ -169,6 +173,10 @@ any other object; the steps and sides follow the letters' outlines
   path, text with a pattern, texture or mesh fill and text with live
   effects keep the scale in the transform as before
   (`text_scale::tests`).
+- The selection box of artistic text holds its lines from the font's
+  ascent to its descent with the letters: "ac" has the box of "Tg", so
+  the box does not jump while the text is typed
+  (`App::handle_bounds`).
 - With the Pick tool a lone selected text shows a round handle a little
   right of the right-hand handle: filled for paragraph text, a ring for
   artistic text. A double click on it converts the text (Text >

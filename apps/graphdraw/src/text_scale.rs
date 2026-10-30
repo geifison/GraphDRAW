@@ -31,6 +31,9 @@ fn scale_para(p: &mut ParagraphStyle, k: f64) {
     p.tabs.iter_mut().for_each(|t| *t *= k);
 }
 
+/// The smallest size a scale writes into a text, points.
+const MIN_PT: f64 = 0.1;
+
 /// `pt` to the hundredth of a point.
 fn round_pt(pt: f64) -> f64 {
     (pt * 100.0).round() / 100.0
@@ -91,13 +94,15 @@ pub(crate) fn baked_text(s: &Shape, t: Affine) -> Option<Vec<Command>> {
         return None;
     }
     let target = round_pt(first * k);
-    if target <= 0.0 || (target - first).abs() < 1e-9 {
+    // Never under MIN_PT (the font engine gets no zero size); the
+    // transform keeps such a scale.
+    if target < MIN_PT || (target - first).abs() < 1e-9 {
         return None;
     }
     let k = target / first;
     let mut spans = spans.clone();
     for sp in &mut spans {
-        sp.size_pt = round_pt(sp.size_pt * k);
+        sp.size_pt = round_pt(sp.size_pt * k).max(MIN_PT);
         sp.baseline_shift_pt *= k;
         if let Some(f) = sp.paragraph.as_mut() {
             scale_format(f, k);
@@ -214,6 +219,53 @@ mod tests {
         // Typing the shown size into another text gives the same size.
         let shown = crate::ui::field::format_number(want, false, 0, Some(2));
         assert_eq!(shown.replace(',', ".").parse::<f64>().expect("number"), want);
+    }
+
+    #[test]
+    fn a_mirroring_scale_keeps_a_positive_size_and_a_tiny_one_none() {
+        let mut app = App::headless();
+        let id = text(&mut app, None);
+        let before = size_of(&app, id);
+        // Across the other side and twice as large: the mirror stays in
+        // the transform, the size is positive.
+        app.transform_selection(Affine::scale_non_uniform(-2.0, -2.0));
+        assert!((size_of(&app, id) - 2.0 * before).abs() < 1e-9);
+        let [a, _, _, d, _, _] = app.doc().shape(id).expect("shape").1.transform.as_coeffs();
+        assert!((a + 1.0).abs() < 1e-9 && (d + 1.0).abs() < 1e-9);
+        // Below 0.1 pt the size stays and the transform keeps the scale.
+        let now = size_of(&app, id);
+        app.transform_selection(Affine::scale(0.001));
+        assert_eq!(size_of(&app, id), now);
+    }
+
+    #[test]
+    fn the_selection_box_of_artistic_text_follows_the_font_not_the_letters() {
+        let mut app = App::headless();
+        graphdraw_text::install();
+        let low = {
+            app.start_text(Point::new(20.0, 20.0), None);
+            app.text_insert("ac");
+            let id = app.selection[0];
+            app.finish_text();
+            id
+        };
+        let tall = {
+            app.start_text(Point::new(80.0, 20.0), None);
+            app.text_insert("Tg");
+            let id = app.selection[0];
+            app.finish_text();
+            id
+        };
+        let height = |app: &mut App, id| {
+            app.select(vec![id]);
+            app.selection_bounds().expect("bounds").height()
+        };
+        // "ac" is as tall as "Tg": the box runs from the ascent to the
+        // descent of the font.
+        let (h_low, h_tall) = (height(&mut app, low), height(&mut app, tall));
+        assert!((h_low - h_tall).abs() < 0.2, "{h_low} {h_tall}");
+        let ink = app.doc().shape(low).expect("shape").1.bounds().height();
+        assert!(h_low > ink + 1.0, "{h_low} {ink}");
     }
 
     #[test]

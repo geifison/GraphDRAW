@@ -926,6 +926,9 @@ pub struct App {
     /// The visual bounds of objects with live effects, for the document
     /// revision they were measured at (see [`App::visual_bounds`]).
     pub visual_cache: std::cell::RefCell<(u64, std::collections::HashMap<ShapeId, Rect>)>,
+    /// [`App::handle_bounds`]' line boxes of artistic texts, per revision.
+    pub line_box_cache:
+        std::cell::RefCell<(u64, std::collections::HashMap<ShapeId, Option<Rect>>)>,
     /// Where the canvas began on screen when it was last drawn, so the
     /// drawing stays put in its window when the window moves (see
     /// `App::anchor_view`).
@@ -1858,6 +1861,7 @@ impl App {
             palette_expanded: None,
             raster: std::cell::RefCell::new(crate::raster::Raster::default()),
             visual_cache: std::cell::RefCell::new((u64::MAX, Default::default())),
+            line_box_cache: std::cell::RefCell::new((u64::MAX, Default::default())),
             view_anchor: None,
             window_layout: Default::default(),
             window_layout_seen: None,
@@ -3182,8 +3186,41 @@ impl App {
     pub fn selection_bounds(&self) -> Option<Rect> {
         self.selected_shapes()
             .iter()
-            .map(|s| self.visual_bounds(s))
+            .map(|s| self.handle_bounds(s))
             .reduce(|a, b| a.union(b))
+    }
+
+    /// The box the selection handles take round `s`: its
+    /// [`App::visual_bounds`], for artistic text with its lines from the
+    /// font's ascent to its descent (see `text_editing::text_line_box`);
+    /// measured once per change of the drawing.
+    pub fn handle_bounds(&self, s: &Shape) -> Rect {
+        let b = self.visual_bounds(s);
+        if !matches!(
+            s.kind,
+            ShapeKind::Text {
+                frame: None,
+                on_path: None,
+                ..
+            }
+        ) {
+            return b;
+        }
+        let revision = self.engine.revision();
+        let line_box = match self.line_box_cache.try_borrow_mut() {
+            Ok(mut cache) => {
+                if cache.0 != revision {
+                    cache.0 = revision;
+                    cache.1.clear();
+                }
+                *cache
+                    .1
+                    .entry(s.id)
+                    .or_insert_with(|| crate::text_editing::text_line_box(s))
+            }
+            Err(_) => crate::text_editing::text_line_box(s),
+        };
+        line_box.map_or(b, |l| b.union(l))
     }
 
     /// The bounds of what `s` (in page space) draws, its live effects
