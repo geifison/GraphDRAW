@@ -745,8 +745,14 @@ impl Renderer<'_> {
                             blend_mode: blend,
                             ..Default::default()
                         };
-                        self.pixmap
-                            .draw_pixmap(0, 0, layer.as_ref(), &pp, Transform::identity(), None);
+                        self.pixmap.draw_pixmap(
+                            0,
+                            0,
+                            layer.as_ref(),
+                            &pp,
+                            Transform::identity(),
+                            None,
+                        );
                     }
                 } else {
                     self.fill_mesh(&pm, &sk, rule, blend);
@@ -1094,6 +1100,22 @@ impl Renderer<'_> {
         let page_path = transform * shape.local_path();
         let bounds = page_path.bounding_box();
         let rect_path = graphdraw_core::geometry::rect_path(bounds, 0.0);
+        // A stop's opacity scales its level: 0% hides the object there.
+        let faded;
+        let mask_fill = match mask_fill {
+            Fill::Fountain(f) if f.stops.iter().any(|s| s.opacity < 1.0) => {
+                let mut g = f.clone();
+                for s in &mut g.stops {
+                    let a = s.opacity.clamp(0.0, 1.0) as f32;
+                    s.color =
+                        graphdraw_core::style::lerp_color(graphdraw_core::Color::BLACK, s.color, a);
+                    s.opacity = 1.0;
+                }
+                faded = Fill::Fountain(g);
+                &faded
+            }
+            _ => mask_fill,
+        };
         if let Some(sk) = to_sk_path(&(self.screen * rect_path.clone())) {
             let mut sub = self.sub(&mut mask_pm);
             sub.flags.wireframe = false;
@@ -1745,7 +1767,10 @@ impl Renderer<'_> {
             let Some(sup) = pattern::super_tile(&base, &layout) else {
                 return;
             };
-            (std::sync::Arc::new(sup), graphdraw_core::geometry::Size::new(size.width * 2.0, size.height * 2.0))
+            (
+                std::sync::Arc::new(sup),
+                graphdraw_core::geometry::Size::new(size.width * 2.0, size.height * 2.0),
+            )
         } else {
             (base, size)
         };
@@ -1762,7 +1787,8 @@ impl Renderer<'_> {
         };
         let mut paint = Paint::default();
         paint.anti_alias = self.flags.anti_alias;
-        paint.shader = tiny_skia::Pattern::new(Pixmap::as_ref(&pm), SpreadMode::Repeat, quality, 1.0, t);
+        paint.shader =
+            tiny_skia::Pattern::new(Pixmap::as_ref(&pm), SpreadMode::Repeat, quality, 1.0, t);
         self.pixmap
             .fill_path(sk, &paint, rule, Transform::identity(), None);
     }
@@ -3060,6 +3086,25 @@ mod tests {
     }
 
     #[test]
+    fn transparency_stop_opacity_fades_the_object() {
+        // Both stops white (opaque); the end's opacity at 0 fades it out.
+        let mut s = rect(1, Rect::new(10.0, 10.0, 90.0, 30.0), Color::rgb8(255, 0, 0));
+        let mut mask = Fill::linear(Color::WHITE, Color::WHITE, 0.0);
+        if let Fill::Fountain(f) = &mut mask {
+            f.stops[1].opacity = 0.0;
+        }
+        s.effects.push(graphdraw_core::live::Effect::Transparency {
+            mask,
+            merge: graphdraw_core::live::MergeMode::Normal,
+            target: 2,
+        });
+        let (doc, page) = doc_with(vec![s]);
+        let pm = render_page_image(&doc, page, 25.4).unwrap();
+        assert!(px(&pm, 15, 80).1 < 60, "{:?}", px(&pm, 15, 80));
+        assert!(px(&pm, 85, 80).1 > 200, "{:?}", px(&pm, 85, 80));
+    }
+
+    #[test]
     fn transparency_works_on_pictures() {
         // A red picture fading left to right, whatever part is chosen:
         // the picture is the fill.
@@ -3105,7 +3150,11 @@ mod tests {
     #[test]
     fn transparency_merge_modes_mix_with_what_is_beneath() {
         let over = |merge, top: Color| {
-            let under = rect(1, Rect::new(0.0, 0.0, 100.0, 100.0), Color::rgb8(200, 100, 50));
+            let under = rect(
+                1,
+                Rect::new(0.0, 0.0, 100.0, 100.0),
+                Color::rgb8(200, 100, 50),
+            );
             let mut s = rect(2, Rect::new(20.0, 20.0, 80.0, 80.0), top);
             s.effects.push(graphdraw_core::live::Effect::Transparency {
                 mask: Fill::Solid(Color::WHITE),
@@ -3563,7 +3612,11 @@ mod tests {
         // Elliptical: dark in the centre, lighter towards the ends.
         let e = Fountain::two(FountainKind::Elliptical, Color::BLACK, Color::WHITE, 0.0);
         let img = strip(Fill::Fountain(e));
-        assert!(red_at(&img, 50) < 20 && red_at(&img, 2) > 120, "{}", red_at(&img, 2));
+        assert!(
+            red_at(&img, 50) < 20 && red_at(&img, 2) > 120,
+            "{}",
+            red_at(&img, 2)
+        );
     }
 
     #[test]
@@ -3895,16 +3948,25 @@ mod tests {
         let (doc, page) = doc_with(vec![s.clone()]);
         let pm = render_page_image(&doc, page, 25.4).unwrap();
         let mid = px(&pm, 50, 50);
-        assert!(mid.0 == 255 && near(mid.1, 128) && near(mid.2, 128), "{mid:?}");
+        assert!(
+            mid.0 == 255 && near(mid.1, 128) && near(mid.2, 128),
+            "{mid:?}"
+        );
         assert_eq!(px(&pm, 20, 50), (0, 0, 0), "the outline stays opaque");
         // With the object's own opacity too, the two multiply (25 % red).
         s.opacity = 0.5;
         let (doc, page) = doc_with(vec![s.clone()]);
         let pm = render_page_image(&doc, page, 25.4).unwrap();
         let mid = px(&pm, 50, 50);
-        assert!(mid.0 == 255 && near(mid.1, 191) && near(mid.2, 191), "{mid:?}");
+        assert!(
+            mid.0 == 255 && near(mid.1, 191) && near(mid.2, 191),
+            "{mid:?}"
+        );
         let edge = px(&pm, 20, 50);
-        assert!(near(edge.0, 128), "the outline at the object's opacity: {edge:?}");
+        assert!(
+            near(edge.0, 128),
+            "the outline at the object's opacity: {edge:?}"
+        );
         // No fill at all with a fill transparency of 100 %.
         s.opacity = 1.0;
         s.fill_opacity = 0.0;

@@ -11,7 +11,9 @@
 Gradient transparency uses the same geometry as gradient fills with
 grayscale stops where white = opaque and black = transparent. The
 object is rendered to a scratch layer, multiplied by the transparency
-mask, then composited with the merge mode. A shaped gradient follows
+mask, then composited with the merge mode. A stop's opacity scales its
+level, so 0% hides the object there whatever its grey
+(`transparency_stop_opacity_fades_the_object`). A shaped gradient follows
 the object's outline (`tests::shaped_transparency_follows_the_object`).
 A mesh fill under a transparency gradient keeps its own node
 transparency: the two multiply.
