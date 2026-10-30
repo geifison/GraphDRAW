@@ -327,6 +327,11 @@ impl App {
     /// The chosen stop's colour (a palette click); false when no stop is
     /// chosen.
     pub fn set_gradient_stop_color(&mut self, c: Color) -> bool {
+        if self.gradient_on_mask() {
+            // A transparency stop takes only the colour's lightness.
+            let t = 1.0 - grey_level(c);
+            return self.edit_gradient_stop(false, |s| set_stop_transparency(s, t));
+        }
         self.edit_gradient_stop(false, |s| s.color = c)
     }
 
@@ -544,6 +549,8 @@ pub fn stop_popup(app: &mut App, ctx: &egui::Context) {
     let mut new_color = None;
     let mut new_opacity = None;
     let mut new_mid = None;
+    let mut new_transparency = None;
+    let on_mask = app.gradient_on_mask();
     let mut dragging = false;
     let mut close = false;
     let area = egui::Area::new(egui::Id::new("gradient_stop_popup"))
@@ -561,18 +568,32 @@ pub fn stop_popup(app: &mut App, ctx: &egui::Context) {
                     ))
                     .strong(),
                 );
-                let out = picker.show(ui, "gradient_stop", stop.color, &palettes);
-                if let Some(c) = out.color {
-                    new_color = Some(c);
-                }
-                ui.add_space(4.0);
-                let mut op = (stop.opacity * 100.0).round();
-                let r = ui
-                    .add(egui::Slider::new(&mut op, 0.0..=100.0).suffix("%").text(tr("gradtool.opacity")))
-                    .on_hover_text(tr("gradtool.opacity_tip"));
-                dragging |= r.dragged();
-                if r.changed() {
-                    new_opacity = Some(op / 100.0);
+                if on_mask {
+                    // A transparency stop has only its transparency.
+                    let mut t = (stop_transparency(&stop) * 100.0).round();
+                    let r = ui.add(
+                        egui::Slider::new(&mut t, 0.0..=100.0)
+                            .suffix("%")
+                            .text(tr("tool.transparency")),
+                    );
+                    dragging |= r.dragged();
+                    if r.changed() {
+                        new_transparency = Some(t / 100.0);
+                    }
+                } else {
+                    let out = picker.show(ui, "gradient_stop", stop.color, &palettes);
+                    if let Some(c) = out.color {
+                        new_color = Some(c);
+                    }
+                    ui.add_space(4.0);
+                    let mut op = (stop.opacity * 100.0).round();
+                    let r = ui
+                        .add(egui::Slider::new(&mut op, 0.0..=100.0).suffix("%").text(tr("gradtool.opacity")))
+                        .on_hover_text(tr("gradtool.opacity_tip"));
+                    dragging |= r.dragged();
+                    if r.changed() {
+                        new_opacity = Some(op / 100.0);
+                    }
                 }
                 let mut mid = (stop.midpoint * 100.0).round();
                 let r = ui
@@ -589,8 +610,15 @@ pub fn stop_popup(app: &mut App, ctx: &egui::Context) {
         });
     app.gradient_tool.picker = picker;
     let join = dragging && app.gradient_tool.popup_dragging;
-    if new_color.is_some() || new_opacity.is_some() || new_mid.is_some() {
+    if new_color.is_some()
+        || new_opacity.is_some()
+        || new_mid.is_some()
+        || new_transparency.is_some()
+    {
         app.edit_gradient_stop(join, |s| {
+            if let Some(t) = new_transparency {
+                set_stop_transparency(s, t);
+            }
             if let Some(c) = new_color {
                 s.color = c;
             }
@@ -611,6 +639,26 @@ pub fn stop_popup(app: &mut App, ctx: &egui::Context) {
     } else {
         app.gradient_tool.popup = Some((pos, true));
     }
+}
+
+/// How much of the object a mask colour lets through, 0..1 (white 1),
+/// with the renderer's luminance weights.
+pub fn grey_level(c: Color) -> f64 {
+    let [r, g, b] = c.to_rgb8();
+    (r as f64 * 54.0 + g as f64 * 183.0 + b as f64 * 19.0) / 256.0 / 255.0
+}
+
+/// A transparency stop's transparency, 0..1 (0 opaque): its grey and
+/// its opacity together.
+pub fn stop_transparency(s: &graphdraw_core::style::Stop) -> f64 {
+    (1.0 - grey_level(s.color) * s.opacity.clamp(0.0, 1.0)).clamp(0.0, 1.0)
+}
+
+/// Set a transparency stop to `t` (0 opaque, 1 clear) as a plain grey.
+pub fn set_stop_transparency(s: &mut graphdraw_core::style::Stop, t: f64) {
+    let v = ((1.0 - t.clamp(0.0, 1.0)) * 255.0).round() as u8;
+    s.color = Color::rgb8(v, v, v);
+    s.opacity = 1.0;
 }
 
 fn dim(ui: &mut egui::Ui, key: &str) {
@@ -842,6 +890,15 @@ mod tests {
         let grey = Color::rgb8(128, 128, 128);
         assert!(app.set_gradient_stop_color(grey));
         assert_eq!(mask(&app).stops[1].color, grey);
+        // A colour gives only its lightness: the stop stays grey.
+        assert!(app.set_gradient_stop_color(red));
+        let st = mask(&app).stops[1];
+        let [r, g, b] = st.color.to_rgb8();
+        assert!(r == g && g == b && st.opacity == 1.0, "{st:?}");
+        // A stop's transparency, set and read back.
+        let mut s = st;
+        set_stop_transparency(&mut s, 0.25);
+        assert!((stop_transparency(&s) - 0.25).abs() < 0.01);
         assert!(app.delete_gradient_stop());
         assert_eq!(mask(&app).stops.len(), 2);
         assert_eq!(app.doc().find_shape(id).expect("shape").fill, Fill::Solid(red));
