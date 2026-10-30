@@ -2382,3 +2382,138 @@ fn a_quick_right_click_before_the_drag_starts_copies_the_pressed_object() {
     assert!(close(c.width(), 50.0) && c.x0 > 15.0, "the small one is copied: {c:?}");
     assert!(app.dialog_is_none_or_menu_closed());
 }
+
+#[test]
+fn text_handles_scale_artistic_and_paragraph_text() {
+    let (ctx, mut app, _) = setup();
+    graphdraw_text::install();
+    for frame_size in [None, Some(graphdraw_core::geometry::Size::new(60.0, 30.0))] {
+        app.start_text(Point::new(80.0, 80.0), frame_size);
+        for c in "Some text".chars() {
+            app.text_insert(&c.to_string());
+        }
+        let id = app.selection[0];
+        app.finish_text();
+        app.set_tool(Tool::Pick);
+        app.select(vec![id]);
+        for _ in 0..2 {
+            frame(&ctx, &mut app, Vec::new(), Modifiers::NONE);
+        }
+        let before = app.selection_bounds().expect("bounds");
+        let ne = handle(&app, Handle::NE);
+        drag(&ctx, &mut app, ne, ne + egui::vec2(80.0, -40.0), Modifiers::NONE, Vec::new());
+        let after = app.selection_bounds().expect("bounds");
+        assert!(
+            after.width() > before.width() + 5.0,
+            "{frame_size:?}: {before:?} -> {after:?} ({:?})",
+            app.doc().find_shape(id).map(|s| (s.transform, s.kind.clone()))
+        );
+    }
+}
+
+#[test]
+fn text_handles_scale_at_every_zoom() {
+    let (ctx, mut app, _) = setup();
+    graphdraw_text::install();
+    app.start_text(Point::new(80.0, 80.0), None);
+    for c in "Some text".chars() {
+        app.text_insert(&c.to_string());
+    }
+    let id = app.selection[0];
+    app.finish_text();
+    app.set_tool(Tool::Pick);
+    let mut failed = Vec::new();
+    for fit in [0.02f32, 0.05, 0.1, 0.25, 0.5, 0.8, 1.0, 1.5] {
+        for which in [Handle::NE, Handle::SE, Handle::SW, Handle::NW, Handle::E, Handle::N] {
+            app.select(vec![id]);
+            app.zoom_to_selection();
+            let z = app.zoom_percent();
+            app.set_zoom_percent(z * fit);
+            // The text in the middle of the canvas.
+            let c = app.view.to_screen(app.selection_bounds().expect("bounds").center());
+            app.view.pan(app.canvas_rect.center() - c);
+            for _ in 0..2 {
+                frame(&ctx, &mut app, Vec::new(), Modifiers::NONE);
+            }
+            let before = app.selection_bounds().expect("bounds");
+            let h = handle(&app, which);
+            if !app.canvas_rect.shrink(20.0).contains(h) {
+                continue;
+            }
+            let out = match which {
+                Handle::NE => egui::vec2(30.0, -30.0),
+                Handle::SE => egui::vec2(30.0, 30.0),
+                Handle::SW => egui::vec2(-30.0, 30.0),
+                Handle::NW => egui::vec2(-30.0, -30.0),
+                Handle::E => egui::vec2(30.0, 0.0),
+                _ => egui::vec2(0.0, -30.0),
+            };
+            drag(&ctx, &mut app, h, h + out, Modifiers::NONE, Vec::new());
+            let after = app.selection_bounds().expect("bounds");
+            let grew = after.width() > before.width() * 1.01 || after.height() > before.height() * 1.01;
+            if !grew {
+                failed.push(format!("{fit} {which:?} {:?} sel={:?}", app.drag, app.selection));
+            } else {
+                app.undo();
+            }
+        }
+    }
+    assert!(failed.is_empty(), "{failed:#?}");
+}
+
+#[test]
+fn arial_16_handles_scale_when_zoomed_in() {
+    let (ctx, mut app, _) = setup();
+    graphdraw_text::install();
+    app.text_font = "Arial".into();
+    app.text_size_pt = 16.0;
+    app.start_text(Point::new(80.0, 80.0), None);
+    for c in "Texto".chars() {
+        app.text_insert(&c.to_string());
+    }
+    let id = app.selection[0];
+    app.finish_text();
+    app.set_tool(Tool::Pick);
+    let mut failed = Vec::new();
+    for pct in [100.0f32, 200.0, 400.0, 800.0] {
+        for which in [Handle::NE, Handle::SE, Handle::E, Handle::N] {
+            app.select(vec![id]);
+            app.set_zoom_percent(pct);
+            let c = app.view.to_screen(app.selection_bounds().expect("bounds").center());
+            app.view.pan(app.canvas_rect.center() - c);
+            for _ in 0..2 {
+                frame(&ctx, &mut app, Vec::new(), Modifiers::NONE);
+            }
+            let before = app.selection_bounds().expect("bounds");
+            let h = handle(&app, which);
+            let out = match which {
+                Handle::NE => egui::vec2(30.0, -30.0),
+                Handle::SE => egui::vec2(30.0, 30.0),
+                Handle::E => egui::vec2(30.0, 0.0),
+                _ => egui::vec2(0.0, -30.0),
+            };
+            // Pressed a little off the handle's centre, as a hand does.
+            let at = h + egui::vec2(2.0, 2.0);
+            frame(&ctx, &mut app, vec![Event::PointerMoved(at)], Modifiers::NONE);
+            frame(&ctx, &mut app, vec![button(at, true, PointerButton::Primary, Modifiers::NONE)], Modifiers::NONE);
+            for i in 1..=4 {
+                let p = at + out * (i as f32 / 4.0);
+                frame(&ctx, &mut app, vec![Event::PointerMoved(p)], Modifiers::NONE);
+            }
+            frame(&ctx, &mut app, vec![button(at + out, false, PointerButton::Primary, Modifiers::NONE)], Modifiers::NONE);
+            frame(&ctx, &mut app, Vec::new(), Modifiers::NONE);
+            let after = app.selection_bounds().expect("bounds");
+            let grew = after.width() > before.width() * 1.01 || after.height() > before.height() * 1.01;
+            if grew {
+                app.undo();
+            } else {
+                failed.push(format!(
+                    "{pct}% {which:?} handle_at={:?} sel={:?} {before:?}->{after:?}",
+                    app.handle_at(h),
+                    app.selection
+                ));
+            }
+        }
+    }
+    assert!(failed.is_empty(), "{failed:#?}");
+}

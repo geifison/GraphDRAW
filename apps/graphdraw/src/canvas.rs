@@ -904,12 +904,13 @@ fn draw_selection(app: &App, painter: &Painter, preview: Option<Affine>) {
         return;
     }
     let view = &app.view;
-    // What the objects draw (live effects included), moved by the
-    // transform being previewed.
+    // What the objects draw (live effects included; artistic text from
+    // the font's ascent to its descent), moved by the transform being
+    // previewed: the box the handles are hit on (App::handle_bounds).
     let bounds = shapes
         .iter()
         .map(|s| {
-            let b = app.visual_bounds(s);
+            let b = app.handle_bounds(s);
             match preview {
                 Some(t) => t.transform_rect_bbox(b),
                 None => b,

@@ -417,7 +417,7 @@ impl App {
         let moving: Vec<Rect> = if o.each_object {
             self.selected_shapes()
                 .iter()
-                .map(|s| self.visual_bounds(s))
+                .map(|s| self.handle_bounds(s))
                 .collect()
         } else {
             vec![bounds]
@@ -556,7 +556,7 @@ impl App {
                 if !sh.visible || exclude.contains(&sh.id) {
                     continue;
                 }
-                let b = self.visual_bounds(sh) + shift;
+                let b = self.handle_bounds(sh) + shift;
                 if outside(b) {
                     continue;
                 }

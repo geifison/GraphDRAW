@@ -70,10 +70,11 @@ fn nearest_line(v: f64, origin: f64, step: f64) -> f64 {
 }
 
 impl App {
-    /// The box Align and Distribute use for `s`: its bounds, grown by
-    /// half its outline width with Use Outline.
+    /// The box Align and Distribute use for `s`: its bounds (artistic
+    /// text from the font's ascent to its descent), grown by half its
+    /// outline width with Use Outline.
     fn align_box(&self, s: &Shape) -> Rect {
-        let b = self.visual_bounds(s);
+        let b = self.handle_bounds(s);
         match (&s.stroke, self.align_use_outline) {
             (Some(st), true) if st.width.is_finite() && st.width > 0.0 => {
                 b.inflate(st.width / 2.0, st.width / 2.0)
